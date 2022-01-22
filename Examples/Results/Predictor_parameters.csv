@@ -1,0 +1,2 @@
+n_estimators,max_depth,max_features,train_proportion,model_type,prediction_type,random_init,rmse
+20,320,3,80% k-neighbours split,RF,reg,0,0.1331960468220064

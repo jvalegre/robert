@@ -1,0 +1,7 @@
+Model: RF
+k-neighbours-based training, validation and test sets have been created with this distribution:
+Training points: 29
+Test points: 9
+
+k-neighbours-based training: R2 = 0.98; MAE = 0.06; RMSE = 0.09
+k-neighbours-based test: R2 = 0.94; MAE = 0.12; RMSE = 0.16

@@ -6,6 +6,7 @@ import os,sys
 import numpy as np
 import pandas as pd
 import json
+import random
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor, VotingRegressor
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier, VotingClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
@@ -17,23 +18,22 @@ from sklearn.model_selection import cross_val_score
 from scipy import stats
 from matplotlib import pyplot as plt
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
-from functools import partial
 
 # k-neighbours clustering
-def k_neigh(X_scaled_kneigh,n_folds_hyperopt,training_folds_hyperopt,random_seed_kneigh,y_kneigh):
+def k_neigh(X_scaled_split,training_folds_split,random_seed,y_split):
     
     # number of clusters in the training set from the k-neighbours clustering (based on the
     # training set size specified above)
-    X_scaled_array = np.asarray(X_scaled_kneigh)
-    number_of_clusters = int(len(X_scaled_kneigh)*(training_folds_hyperopt/n_folds_hyperopt))
+    X_scaled_array = np.asarray(X_scaled_split)
+    number_of_clusters = int(len(X_scaled_split)*(training_folds_split/100))
 
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
-    training_points = [y_kneigh.idxmin(),y_kneigh.idxmax()]
+    training_points = [y_split.idxmin(),y_split.idxmax()]
     number_of_clusters -= 2
     
     # runs the k-neighbours algorithm and keeps the closest point to the center of each cluster
-    kmeans = KMeans(n_clusters=number_of_clusters,random_state=random_seed_kneigh)
+    kmeans = KMeans(n_clusters=number_of_clusters,random_state=random_seed)
     kmeans.fit(X_scaled_array)
     cluster = kmeans.predict(X_scaled_array)
     centers = kmeans.cluster_centers_
@@ -55,21 +55,34 @@ def k_neigh(X_scaled_kneigh,n_folds_hyperopt,training_folds_hyperopt,random_seed
     return training_points
 
 # function to split the data into training, validation and test sets based on k-neighbours clustering
-def data_split(X_kneigh,X_scaled_kneigh,y_kneigh,train_partition,random_seed_kneigh):
+def data_split(X_split,y_split,train_partition,random_seed,split_mode):
     
-    training_folds_hyperopt = train_partition
+    training_folds_split = train_partition
     
     if train_partition == 100:
         # if there is no validation set, use all the points
-        training_points = np.arange(0,len(X_kneigh),1)
+        training_points = np.arange(0,len(X_split),1)
     else:
-        # k-neighbours data split
-        training_points = k_neigh(X_scaled_kneigh,100,training_folds_hyperopt,random_seed_kneigh,y_kneigh)
+        if split_mode == 'KN':
+            # k-neighbours data split
 
-    X_train_kneigh = X_kneigh.iloc[training_points]
-    y_train_kneigh = y_kneigh.iloc[training_points]
-    X_validation_kneigh = X_kneigh.drop(training_points)
-    y_validation_kneigh = y_kneigh.drop(training_points)
+            # standardize the data before k-neighbours-based data splitting
+            Xmeans = X_split.mean(axis=0)
+            Xstds = X_split.std(axis=0)
+            X_scaled_split = (X_split - Xmeans) / Xstds
+
+            training_points = k_neigh(X_scaled_split,training_folds_split,random_seed,y_split)
+
+        elif split_mode == 'RND':
+            n_of_points = int(len(X_split)*(training_folds_split/100))
+
+            random.seed(random_seed)
+            training_points = random.sample(range(len(X_split)), n_of_points)
+
+    X_train_kneigh = X_split.iloc[training_points]
+    y_train_kneigh = y_split.iloc[training_points]
+    X_validation_kneigh = X_split.drop(training_points)
+    y_validation_kneigh = y_split.drop(training_points)
               
     return X_train_kneigh, y_train_kneigh, X_validation_kneigh, y_validation_kneigh, training_points
 
@@ -164,7 +177,7 @@ def hyperopt_params(model_type_hyperopt, X_hyperopt):
 
 
 # prints the results of the hyperopt optimization process
-def print_hyperopt_params(model_type_hyperopt,best_parameters_df_hyperopt,range_data_partition_hyperopt,w_dir_hyperopt):
+def print_hyperopt_params(model_type_hyperopt,best_parameters_df_hyperopt,training_size_hyperopt,w_dir_hyperopt):
     print('\nThe best parameters for the',model_type_hyperopt,'model are:')
 
     if model_type_hyperopt in ['RF','GB','VR']:    
@@ -189,13 +202,13 @@ def print_hyperopt_params(model_type_hyperopt,best_parameters_df_hyperopt,range_
         if model_type_hyperopt == 'NN':
             print('\nValidation fraction:',str(float(best_parameters_df_hyperopt['validation_fraction'][0])))
 
-    print('\nTraining set proportion:',str(range_data_partition_hyperopt)+'%',
+    print('\nTraining set proportion:',str(training_size_hyperopt)+'%',
         '\n\nThe optimal parameters have been stored in',
         w_dir_hyperopt)
 
 # calculates RMSE of the validation set with the parameters of the corresponding
 # hyperopt optimization cycle
-def hyperopt_train_test(params, model_type, prediction_type, Predictor_parameters, X_train_scaled, y_train, range_data_partition, X_validation_scaled, y_validation):
+def hyperopt_train_test(params, model_type, prediction_type, Predictor_parameters, X_train_scaled, y_train, training_size, X_validation_scaled, y_validation):
 
     # keep seed constant for all the hyperopt process, otherwise the program
     # does not reach convergence efficiently
@@ -347,7 +360,7 @@ def hyperopt_train_test(params, model_type, prediction_type, Predictor_parameter
     # Fit the model with the training set
     model_hyperopt.fit(X_train_scaled, y_train)  
 
-    if range_data_partition == 100:
+    if training_size == 100:
         # if there is not test set, only used values from training
         y_pred_validation = model_hyperopt.predict(X_train_scaled)
         y_validation = y_train
@@ -381,7 +394,7 @@ def hyperopt_train_test(params, model_type, prediction_type, Predictor_parameter
 
 
 # initial function for hyperopt
-def run_hyperopt(n_epochs, model_type, X, range_data_partition, prediction_type, random_init, w_dir, X_train_scaled, y_train, X_validation_scaled, y_validation, name_csv_hyperopt):
+def run_hyperopt(n_epochs, model_type, X, training_size, prediction_type, random_init, w_dir, X_train_scaled, y_train, X_validation_scaled, y_validation, name_csv_hyperopt):
 
     # edit this function to modify the hyperopt parameter optimization (i.e. the 
     # lists represent values to include in the grid search)
@@ -404,7 +417,7 @@ def run_hyperopt(n_epochs, model_type, X, range_data_partition, prediction_type,
 
     hp_data = {'best': best, 'model_type': model_type, 'prediction_type': prediction_type,
                 'Predictor_parameters': Predictor_parameters, 'X_train_scaled': X_train_scaled,
-                'y_train': y_train, 'range_data_partition': range_data_partition, 
+                'y_train': y_train, 'training_size': training_size, 
                 'X_validation_scaled': X_validation_scaled, 'y_validation': y_validation,
                 'name_csv_hyperopt': name_csv_hyperopt, 'random_init': random_init}
 
@@ -434,7 +447,7 @@ def f(params):
     Predictor_parameters = hp_data['Predictor_parameters']
     X_train_scaled = hp_data['X_train_scaled']
     y_train = hp_data['y_train']
-    range_data_partition = hp_data['range_data_partition']
+    training_size = hp_data['training_size']
     X_validation_scaled = hp_data['X_validation_scaled']
     y_validation = hp_data['y_validation']
     name_csv_hyperopt = hp_data['name_csv_hyperopt']
@@ -443,7 +456,7 @@ def f(params):
     # I need to trick the function because hypergrid retrieves the
     # last parameters that it analyzes after it has completed
     # the number of epochs (not the optimal parameters found)
-    acc = hyperopt_train_test(params, model_type, prediction_type, Predictor_parameters, X_train_scaled, y_train, range_data_partition, X_validation_scaled, y_validation)
+    acc = hyperopt_train_test(params, model_type, prediction_type, Predictor_parameters, X_train_scaled, y_train, training_size, X_validation_scaled, y_validation)
     
     # The parameters are stored in an external CSV/json files
     # as the optimizer finds better results
@@ -454,7 +467,7 @@ def f(params):
 
     if acc[0] < best:
         best = acc[0]
-        train_proportion = str(range_data_partition)+'% k-neighbours split'
+        train_proportion = str(training_size)+'% k-neighbours split'
 
         if model_type in ['RF','GB','VR']:
             max_features = acc[1]

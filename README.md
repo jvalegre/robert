@@ -1,6 +1,6 @@
 ![](Logos/Robert_logo.jpg)
 #
-## <p align="center"> ROBERT (Refiner and Optimizer of a Bunch of Existing Regression Tools)</p>
+## <p align="center"> Robert (Refiner and Optimizer of a Bunch of Existing Regression Tools)</p>
 
 The code contains two jupyter notebooks with automated ML protocols that start from databases in csv files and produce publication-quality results, including 1) R2, MAE, RMSE of training, validation and test sets, 2) SHAP analysis, 3) Cross validation and x/y shuffle tests, 4) and more! 
 Since random seeds are used, the same results can be reproduced when using the same csv file and input options.
@@ -15,7 +15,9 @@ Jupyter notebook that cleans and processes the database and generates the ML mod
 * Correlation filter of X variables. Discards variables that are highly correlated (user-defined R2 threshold, default = 0.85)
 * Filter of noise. Discard variables that correlate very poorly with the y value (user defined R2 threshold, default = 0.02)
 * Standardizes the data
-* k-neighbors-based universal splitting of the data intro training and validation sets. Runs a k/neighbour clustering protocol to select training points that are as different as possible (always including the max and min response values in the training set by default)
+* Splitting of the data intro training and validation sets. The options available are:
+  1. k-neighbors-based splitting ('KN'). Runs a k-neighbors clustering protocol to select training points that are as different as possible (always including the max and min response values in the training set by default)
+  2. Random splitting ('RND'). Splits the data randomly using the predefined random seed variable (random_init)
 * Runs a hyperoptimizer to select optimal parameters for the ML models. The models available at this point are: 
   1. Random forests ('RF')
   2. Multivariate lineal models ('MVL')
@@ -30,7 +32,7 @@ Jupyter notebook that cleans and processes the database and generates the ML mod
 * Saves the database as a CSV called "FILENAME_final_dataset.csv" and a PNG image with the predicted vs measured values
 
 ### Robert analyzer (ANA)
-* Loads the model previously generated in Robert GEN. Optionally, an external test set might be provided
+* Loads the model previously generated in Robert_GEN. Optionally, an external test set might be provided
 * Runs a SHAP analysis, generating a PNG image with the SHAP results
 * If an external test set was provided, calculates R2, MAE, RMSE and k-fold crossvalidation R2 for the external test set
 * If an external test set was provided, Saves the database as a CSV called "FILENAME_final_dataset_with_test.csv" and a PNG image with the predicted vs measured values
@@ -41,7 +43,7 @@ In the example provided (Robert_example.csv, with variables as x1, x2, x3..., fi
 csv_name = 'Robert_example'
 response_value = 'Target_values'
 fixed_descriptors = ['Name']
-range_data_partition = 80
+training_size = 80
 model_type = 'RF'
 prediction_type = 'reg'
 ```
@@ -136,4 +138,4 @@ prediction_type = 'reg'
   d. Robert_example_final_dataset_with_test.csv . Contains the final database with results including the external set
   
 ## Reference
-ROBERT v1.0, Alegre-Requena, J. V. 2022. https://github.com/jvalegre/robert
+Robert v1.0, Alegre-Requena, J. V. 2022. https://github.com/jvalegre/robert

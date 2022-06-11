@@ -195,7 +195,7 @@ def print_hyperopt_params(model_type_hyperopt,best_parameters_df_hyperopt,traini
 
     if model_type_hyperopt in ['NN','VR']:
         print('\nBatch size:',str(int(best_parameters_df_hyperopt['batch_size'][0])),
-            '\nHidden layer sizes:',str(eval(best_parameters_df_hyperopt['hidden_layer_sizes'][0])),
+            '\nHidden layer sizes:',str(eval(str(best_parameters_df_hyperopt['hidden_layer_sizes'][0]))),
             '\nLearning rate init:',str(float(best_parameters_df_hyperopt['learning_rate_init'][0])),
             '\nMax iterations:',str(int(best_parameters_df_hyperopt['max_iter'][0])))
 
@@ -425,7 +425,7 @@ def run_hyperopt(n_epochs, model_type, X, training_size, prediction_type, random
         json.dump(hp_data, outfile)
 
     try:
-        best = fmin(f, space4rf, algo=tpe.suggest, max_evals=n_epochs, trials=trials, rstate=np.random.RandomState(random_init))
+        best = fmin(f, space4rf, algo=tpe.suggest, max_evals=n_epochs, trials=trials, rstate=np.random.default_rng(random_init))
 
     except ValueError:
         print('There is an error in the hyperopt module, are you using prediction_type = \'clas\' for regression instead of prediction_type = \'reg\'?')
@@ -653,7 +653,7 @@ def print_model_stats(model_type_print,X_train_scaled_print,X_validation_scaled_
               print_line += f'k-neighbours-based test: R2 = {round(r2_validation_print,2)}; MAE = {round(mae_validation_print,2)}; RMSE = {round(rmse_validation_print,2)}'
           
     if prediction_type_fun == 'clas':
-        print_line += f'k-neighbours-based training: Accuracy = {round(r2_train_print,2)}; F1 score = {round(mae_train_print,2)}; MCC = {round(rmse_train_print,2)}'
+        print_line += f'k-neighbours-based training: Accuracy = {round(r2_train_print,2)}; F1 score = {round(mae_train_print,2)}; MCC = {round(rmse_train_print,2)}\n'
         if cv_kfold_print is not None:
             print_line += f'{cv_kfold_print}-fold cross validation: {round(cv_score_print.mean(),2)} ' + u'\u00B1' + f' {round(cv_score_print.std(),2)}\n'
         if results_file in ['Robert_results.txt','Robert_results_x-shuffle.txt','Robert_results_y-shuffle.txt']:
@@ -687,7 +687,7 @@ def predictor_model_fun(model_type_fun, best_parameters_df, random_state, predic
 
         elif model_type_fun == 'NN':
             predictor_model_fun = MLPRegressor(batch_size=int(best_parameters_df['batch_size'][0]),
-                                hidden_layer_sizes=eval(best_parameters_df['hidden_layer_sizes'][0]),
+                                hidden_layer_sizes=eval(str(best_parameters_df['hidden_layer_sizes'][0])),
                                 learning_rate_init=float(best_parameters_df['learning_rate_init'][0]),
                                 max_iter=int(best_parameters_df['max_iter'][0]), random_state=random_state,
                                 validation_fraction=float(best_parameters_df['validation_fraction'][0]))
@@ -706,7 +706,7 @@ def predictor_model_fun(model_type_fun, best_parameters_df, random_state, predic
                                     random_state=random_state)
 
             r3 = MLPRegressor(batch_size=int(best_parameters_df['batch_size'][0]),
-                                        hidden_layer_sizes=eval(best_parameters_df['hidden_layer_sizes'][0]),
+                                        hidden_layer_sizes=eval(str(best_parameters_df['hidden_layer_sizes'][0])),
                                         learning_rate_init=float(best_parameters_df['learning_rate_init'][0]),
                                         max_iter=int(best_parameters_df['max_iter'][0]),
                                         validation_fraction=float(best_parameters_df['validation_fraction'][0]),
@@ -735,7 +735,7 @@ def predictor_model_fun(model_type_fun, best_parameters_df, random_state, predic
 
         elif model_type_fun == 'NN':
             predictor_model_fun = MLPClassifier(batch_size=int(best_parameters_df['batch_size'][0]),
-                                hidden_layer_sizes=eval(best_parameters_df['hidden_layer_sizes'][0]),
+                                hidden_layer_sizes=eval(str(best_parameters_df['hidden_layer_sizes'][0])),
                                 learning_rate_init=float(best_parameters_df['learning_rate_init'][0]),
                                 max_iter=int(best_parameters_df['max_iter'][0]), random_state=random_state,
                                 validation_fraction=float(best_parameters_df['validation_fraction'][0]))
@@ -754,7 +754,7 @@ def predictor_model_fun(model_type_fun, best_parameters_df, random_state, predic
                                     random_state=random_state)
 
             r3 = MLPClassifier(batch_size=int(best_parameters_df['batch_size'][0]),
-                                        hidden_layer_sizes=eval(best_parameters_df['hidden_layer_sizes'][0]),
+                                        hidden_layer_sizes=eval(str(best_parameters_df['hidden_layer_sizes'][0])),
                                         learning_rate_init=float(best_parameters_df['learning_rate_init'][0]),
                                         max_iter=int(best_parameters_df['max_iter'][0]),
                                         validation_fraction=float(best_parameters_df['validation_fraction'][0]),

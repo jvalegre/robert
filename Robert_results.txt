@@ -1,0 +1,8 @@
+Model: MVL
+k-neighbours-based training, validation and test sets have been created with this distribution:
+Training points: 29
+Validation points: 8
+
+k-neighbours-based training: R2 = 0.91; MAE = 0.15; RMSE = 0.2
+5-fold cross validation: -0.23 ± 1.31
+k-neighbours-based validation: R2 = 0.92; MAE = 0.17; RMSE = 0.19

@@ -1,2 +1,2 @@
-n_estimators,max_depth,max_features,train_proportion,model_type,prediction_type,random_init,learning_rate,validation_fraction,rmse
-80,160,1,90% k-neighbours split,GB,reg,0,0.05,0.2,0.16145605724614776
+n_estimators,max_depth,max_features,train_proportion,model_type,prediction_type,random_init,rmse
+1,320,3,80% k-neighbours split,RF,reg,0,0.1562567810767686

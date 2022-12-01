@@ -590,6 +590,26 @@ def correlation_filter_fun(DFT_parameters_fun,correlation_y_threshold_fun,correl
 
     return descriptors_to_drop_fun
 
+# Obtain the model/training size with the minimum rmse_train_PFI
+def optimal_model(size_data):
+    min_rmse=10000000000
+    rmse_no_PFI = []
+    for models_data in size_data:
+        for rmse_validation in models_data[1]:
+            # rmse from PFI models
+            if rmse_validation[7] < min_rmse:   
+                min_rmse=rmse_validation[7]
+                best_model=rmse_validation
+            # rmse from models without the PFI filter
+            rmse_no_PFI.append(rmse_validation[8])
+    
+    if min(rmse_no_PFI) < min_rmse:
+        # print(size_data[0][1][0][9].columns)
+        len_PFI = len(size_data[0][1][0][9].columns)
+        len_no_PFI = len(size_data[0][1][0][10].columns)
+        print(f"x  Warning! Error lower without PFI filter (no PFI: RMSE = {round(min(rmse_no_PFI),2)} with {len_no_PFI} variables; with PFI filter: {round(min_rmse,2)} with {len_PFI} variables) consider using PFI_filtering=False")    
+        
+    return best_model
 
 # predictor workflow 
 def predictor_workflow(random_init_fun,model_type_fun,df_fun,X_train_scaled_fun,y_train_fun,X_validation_scaled_fun,y_validation_fun,prediction_type_fun,train_partition):
@@ -634,7 +654,7 @@ def predictor_workflow(random_init_fun,model_type_fun,df_fun,X_train_scaled_fun,
 
 # function to print STATS from the predictor model
 def print_model_stats(model_type_print,X_train_scaled_print,X_validation_scaled_print,r2_train_print,mae_train_print,rmse_train_print,r2_validation_print,mae_validation_print,rmse_validation_print,prediction_type_fun,cv_score_print,cv_kfold_print,results_file):
-
+# def print_model_stats(dict_best):
     print_line = f'Model: {model_type_print}\n'
     print_line += 'k-neighbours-based training, validation and test sets have been created with this distribution:\n'
     print_line += f'Training points: {len(X_train_scaled_print)}\n'

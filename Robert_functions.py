@@ -837,7 +837,7 @@ def PFI_workflow(X_PFI_fun,model_type_PFI_fun,best_parameters_df_PFI_fun,X_train
         fig.tight_layout()
         plot = ax.set(ylabel=None, xlabel='PFI')
 
-        plt.savefig(model_type_PFI_fun+' permutation feature importances (PFI)', dpi=400, bbox_inches='tight')
+        plt.savefig(f'PFI/{model_type_PFI_fun}+ permutation feature importances (PFI)', dpi=600, bbox_inches='tight')
 
         plt.show()
     

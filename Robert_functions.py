@@ -607,7 +607,7 @@ def optimal_model(size_data):
         # print(size_data[0][1][0][9].columns)
         len_PFI = len(size_data[0][1][0][9].columns)
         len_no_PFI = len(size_data[0][1][0][10].columns)
-        print(f"x  Warning! Error lower without PFI filter (no PFI: RMSE = {round(min(rmse_no_PFI),2)} with {len_no_PFI} variables; with PFI filter: {round(min_rmse,2)} with {len_PFI} variables) consider using PFI_filtering=False")    
+        #print(f"x  Warning! Error lower without PFI filter (no PFI: RMSE = {round(min(rmse_no_PFI),2)} with {len_no_PFI} variables; with PFI filter: {round(min_rmse,2)} with {len_PFI} variables) consider using PFI_filtering=False")    
         
     return best_model
 

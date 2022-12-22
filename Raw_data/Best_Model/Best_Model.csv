@@ -1,9 +1,9 @@
 MODEL,size,best_parameters_df,r2_train,mae_train,rmse_train,r2_validation,mae_validation,rmse_validation,X_validation_scaled,X_train_scaled,cv_score,X_validation,prediction_type,cv_kfold,Robert_results,y_train,y_validation,X,fixed_data_train,fixed_data_validation
-GB,80,"   n_estimators  max_depth  max_features        train_proportion model_type  \
-0            80        160             1  80% k-neighbours split         GB   
+RF,80,"   n_estimators  max_depth  max_features        train_proportion model_type  \
+0             1        320             5  80% k-neighbours split         RF   
 
-  prediction_type  random_init  learning_rate  validation_fraction      rmse  
-0             reg            0           0.05                  0.2  0.123305  ",0.9999999999999998,0.008939072664090743,0.011064903033253345,0.9658474596900513,0.10526331321295468,0.12330528822327,"          x2        x5        x6        x7        x8        x9       x10  \
+  prediction_type  random_init      rmse  
+0             reg            0  0.156257  ",0.7165194969610869,0.15201036555172412,0.3640330612784555,0.9440492061515441,0.11844043812499994,0.15625678107676866,"          x2        x5        x6        x7        x8        x9       x10  \
 3   0.438923 -0.798182  0.550350 -1.161263  0.804393 -0.978550 -0.105957   
 8  -0.882475  0.103109  0.313740  0.133992 -0.653569  0.515026 -0.105957   
 12 -0.930061  0.087251  1.193729  1.429247 -0.653569 -0.978550 -1.130211   
@@ -81,7 +81,7 @@ GB,80,"   n_estimators  max_depth  max_features        train_proportion model_ty
 33  1.67332  -0.554265 -0.393043 -0.712858  1.592006  
 34  1.67332  -0.554265 -0.393043  1.354431 -0.606478  
 35  1.67332  -0.554265 -0.393043  1.354431 -0.606478  
-36  1.67332  -0.554265 -0.393043  1.354431 -0.606478  ",[0.90408422 0.94981486 0.28010658 0.75644893 0.68130476],"            x2         x5         x6  x7  x8  x9  x10  x11  Csub-Csub  Csub-H  \
+36  1.67332  -0.554265 -0.393043  1.354431 -0.606478  ",[ 0.84530225 -1.21952271 -0.30695956  0.88169916  0.43790622],"            x2         x5         x6  x7  x8  x9  x10  x11  Csub-Csub  Csub-H  \
 3   112.101181  69.103294  18.042294   0   1   0    1    1          0       0   
 8   110.567970  78.036652   8.735652   1   0   1    1    2          1       0   
 12  110.512756  77.879471  43.348471   2   0   0    0    2          1       0   

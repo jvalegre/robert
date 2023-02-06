@@ -1,9 +1,9 @@
-MODEL,size,best_parameters_df,r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_validation_PFI,mae_validation_PFI,rmse_validation_PFI,rmse_validation,X_train_PFI_scaled,X_train_scaled,y_pred_train_PFI,y_pred_validation_PFI,cv_score,X_validation_PFI_scaled,prediction_type,cv_kfold,Robert_results,y_train_PFI,y_validation_PFI,X_PFI,fixed_data_train,fixed_data_validation
+MODEL,size,best_parameters_df,r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_validation_PFI,mae_validation_PFI,rmse_validation_PFI,X_train_PFI_scaled,X_train_scaled,y_pred_train_PFI,y_pred_validation_PFI,cv_score,X_validation_PFI_scaled,prediction_type,cv_kfold,Robert_results,y_train_PFI,y_validation_PFI,X_PFI,fixed_data_train,fixed_data_validation
 RF,60,"   n_estimators  max_depth  max_features        train_proportion model_type  \
 0            20        320             3  60% k-neighbours split         RF   
 
   prediction_type  random_init      rmse  
-0             reg            0  0.222217  ",0.9730946188814572,0.07875258686136374,0.12154586538994124,0.955682778241731,0.11291567935333303,0.1573192848388959,0.2222170828214671,"          x6        x7       x10
+0             reg            0  0.222217  ",0.9730946188814572,0.07875258686136374,0.12154586538994124,0.955682778241731,0.11291567935333303,0.1573192848388959,"          x6        x7       x10
 0   1.370646  0.176108 -1.122965
 1   1.517599  0.176108 -1.122965
 2   0.450078 -1.115352 -0.093580

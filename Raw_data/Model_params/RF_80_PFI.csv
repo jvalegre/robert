@@ -1,9 +1,9 @@
-MODEL,size,best_parameters_df,r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_validation_PFI,mae_validation_PFI,rmse_validation_PFI,rmse_validation,X_train_PFI_scaled,X_train_scaled,y_pred_train_PFI,y_pred_validation_PFI,cv_score,X_validation_PFI_scaled,prediction_type,cv_kfold,Robert_results,y_train_PFI,y_validation_PFI,X_PFI,fixed_data_train,fixed_data_validation
+MODEL,size,best_parameters_df,r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_validation_PFI,mae_validation_PFI,rmse_validation_PFI,X_train_PFI_scaled,X_train_scaled,y_pred_train_PFI,y_pred_validation_PFI,cv_score,X_validation_PFI_scaled,prediction_type,cv_kfold,Robert_results,y_train_PFI,y_validation_PFI,X_PFI,fixed_data_train,fixed_data_validation
 RF,80,"   n_estimators  max_depth  max_features        train_proportion model_type  \
 0             1        320             3  80% k-neighbours split         RF   
 
   prediction_type  random_init      rmse  
-0             reg            0  0.156257  ",0.8085097799519151,0.13155264558620688,0.29497171222876606,0.8596185764105234,0.18213412150000002,0.2690848050622404,0.15625678107676866,"          x5        x6  Csub-Csub
+0             reg            0  0.156257  ",0.8085097799519151,0.13155264558620688,0.29497171222876606,0.8596185764105234,0.18213412150000002,0.2690848050622404,"          x5        x6  Csub-Csub
 0   1.297540  1.357053  -0.554265
 1   0.165227  1.503464   1.741977
 2   1.194096  0.439882  -0.554265

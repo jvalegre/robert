@@ -6,174 +6,13 @@ import os,sys
 import numpy as np
 import pandas as pd
 import json
-import random
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor, VotingRegressor
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier, VotingClassifier
-from sklearn.neural_network import MLPRegressor, MLPClassifier
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, matthews_corrcoef, accuracy_score, f1_score
 from sklearn.inspection import permutation_importance
-from sklearn.cluster import KMeans
 from sklearn.model_selection import cross_val_score
 from scipy import stats
 from matplotlib import pyplot as plt
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
-# k-neighbours clustering
-def k_neigh(X_scaled_split,training_folds_split,random_seed,y_split):
-    
-    # number of clusters in the training set from the k-neighbours clustering (based on the
-    # training set size specified above)
-    X_scaled_array = np.asarray(X_scaled_split)
-    number_of_clusters = int(len(X_scaled_split)*(training_folds_split/100))
-
-    # to avoid points from the validation set outside the training set, the 2 first training
-    # points are automatically set as the 2 points with minimum/maximum response value
-    training_points = [y_split.idxmin(),y_split.idxmax()]
-    number_of_clusters -= 2
-    
-    # runs the k-neighbours algorithm and keeps the closest point to the center of each cluster
-    kmeans = KMeans(n_clusters=number_of_clusters,random_state=random_seed)
-    kmeans.fit(X_scaled_array)
-    cluster = kmeans.predict(X_scaled_array)
-    centers = kmeans.cluster_centers_
-    for i in range(number_of_clusters):
-        results_cluster = 1000000
-        for k in range(len(X_scaled_array[:, 0])):
-            if k not in training_points:
-                # calculate the Euclidean distance in n-dimensions
-                points_sum = 0
-                for l in range(len(X_scaled_array[0])):
-                    points_sum += (X_scaled_array[:, l][k]-centers[:, l][i])**2
-                if np.sqrt(points_sum) < results_cluster:
-                    results_cluster = np.sqrt(points_sum)
-                    training_point = k
-        
-        training_points.append(training_point)
-    training_points.sort()
-
-    return training_points
-
-# function to split the data into training, validation and test sets based on k-neighbours clustering
-def data_split(X_split,y_split,train_partition,random_seed,split_mode):
-    
-    training_folds_split = train_partition
-    
-    if train_partition == 100:
-        # if there is no validation set, use all the points
-        training_points = np.arange(0,len(X_split),1)
-    else:
-        if split_mode == 'KN':
-            # k-neighbours data split
-
-            # standardize the data before k-neighbours-based data splitting
-            Xmeans = X_split.mean(axis=0)
-            Xstds = X_split.std(axis=0)
-            X_scaled_split = (X_split - Xmeans) / Xstds
-
-            training_points = k_neigh(X_scaled_split,training_folds_split,random_seed,y_split)
-
-        elif split_mode == 'RND':
-            n_of_points = int(len(X_split)*(training_folds_split/100))
-
-            random.seed(random_seed)
-            training_points = random.sample(range(len(X_split)), n_of_points)
-
-    X_train_kneigh = X_split.iloc[training_points]
-    y_train_kneigh = y_split.iloc[training_points]
-    X_validation_kneigh = X_split.drop(training_points)
-    y_validation_kneigh = y_split.drop(training_points)
-              
-    return X_train_kneigh, y_train_kneigh, X_validation_kneigh, y_validation_kneigh, training_points
-
-
-# generates initial parameters for the hyperopt optimization
-def hyperopt_params(model_type_hyperopt, X_hyperopt):
-    interval_DFT_descriptors = int((len(X_hyperopt.columns)+1)/3)
-    if model_type_hyperopt == 'RF':
-        # for Random Forest regressor
-        Predictor_parameters = ['max_depth', 'max_features', 'n_estimators']
-
-        range_max_depth = [20,40,80,160,320]
-        range_DFT_descriptors = [1,len(X_hyperopt.columns)+1] # from 1 to the max amount of DFT descriptors in x_values
-        range_n_estimators = [1,3,20,40,80]
-
-        space4rf_hyperopt = {Predictor_parameters[0]: hp.choice(Predictor_parameters[0], range_max_depth),
-                Predictor_parameters[1]: hp.choice(Predictor_parameters[1], range(range_DFT_descriptors[0],range_DFT_descriptors[1],interval_DFT_descriptors)),
-                Predictor_parameters[2]: hp.choice(Predictor_parameters[2], range_n_estimators)}  
-
-    elif model_type_hyperopt == 'GB':
-        # for Gradient boosting regressor
-        Predictor_parameters = ['max_depth', 'max_features', 'n_estimators', 'learning_rate', 'validation_fraction']
-
-        range_learning_rate = [0.01,0.05,0.1,0.2,0.5]
-        range_validation_fraction = [0.1,0.2]
-        range_max_depth = [20,40,80,160,320]
-        range_DFT_descriptors = [1,len(X_hyperopt.columns)+1] # from 1 to the max amount of DFT descriptors in x_values
-        range_n_estimators = [20,40,80,160,320]
-
-        space4rf_hyperopt = {Predictor_parameters[0]: hp.choice(Predictor_parameters[0], range_max_depth),
-                Predictor_parameters[1]: hp.choice(Predictor_parameters[1], range(range_DFT_descriptors[0],range_DFT_descriptors[1],interval_DFT_descriptors)),
-                Predictor_parameters[2]: hp.choice(Predictor_parameters[2], range_n_estimators),
-                Predictor_parameters[3]: hp.choice(Predictor_parameters[3], range_learning_rate),
-                Predictor_parameters[4]: hp.choice(Predictor_parameters[4], range_validation_fraction)}  
-
-    elif model_type_hyperopt == 'AdaB':
-        # for AdaBoost regressor
-        Predictor_parameters = ['n_estimators', 'learning_rate']
-
-        range_learning_rate = [0.1,0.2,0.5,1,2,5]
-        range_n_estimators = [10,20,40,80,160,320]
-
-        space4rf_hyperopt = {Predictor_parameters[0]: hp.choice(Predictor_parameters[0], range_n_estimators),
-            Predictor_parameters[1]: hp.choice(Predictor_parameters[1], range_learning_rate)}  
-
-    elif model_type_hyperopt == 'NN':
-        # for MLP regressor
-        Predictor_parameters = ['batch_size', 'hidden_layer_sizes', 'learning_rate_init', 'max_iter', 'validation_fraction']
-
-        range_batch_size = [20,40,80,160,320]
-        range_hidden_layer_sizes = [(32),(64),(128),(64,32),(64,32,16)]
-        range_learning_rate_init = [0.0001,0.0005,0.001,0.005,0.01]
-        range_max_iter = [200,500]
-        range_validation_fraction = [0.1,0.2]
-
-        space4rf_hyperopt = {Predictor_parameters[0]: hp.choice(Predictor_parameters[0], range_batch_size),
-                Predictor_parameters[1]: hp.choice(Predictor_parameters[1], range_hidden_layer_sizes),
-                Predictor_parameters[2]: hp.choice(Predictor_parameters[2], range_learning_rate_init),
-                Predictor_parameters[3]: hp.choice(Predictor_parameters[3], range_max_iter),
-                Predictor_parameters[4]: hp.choice(Predictor_parameters[4], range_validation_fraction)}
-
-    elif model_type_hyperopt == 'VR':
-        # for Random Forest regressor
-        Predictor_parameters = ['max_depth', 'max_features', 'n_estimators', 'learning_rate', 'validation_fraction', 'batch_size', 'hidden_layer_sizes', 'learning_rate_init', 'max_iter']
-
-        range_max_depth = [20,40,160,320]
-        range_DFT_descriptors = [1,len(X_hyperopt.columns)+1] # from 1 to the max amount of DFT descriptors in x_values
-        range_n_estimators = [5,20,40,160,320]
-        range_learning_rate = [0.01,0.05,0.1,0.2,0.5]
-        range_validation_fraction = [0.1,0.2]
-        range_batch_size = [20,40,160,320]
-        range_hidden_layer_sizes = [(32),(64),(64,32),(64,32,16)]
-        range_learning_rate_init = [0.0001,0.0005,0.001,0.01]
-        range_max_iter = [200,500]
-
-        space4rf_hyperopt = {Predictor_parameters[0]: hp.choice(Predictor_parameters[0], range_max_depth),
-                Predictor_parameters[1]: hp.choice(Predictor_parameters[1], range(range_DFT_descriptors[0],range_DFT_descriptors[1],interval_DFT_descriptors)),
-                Predictor_parameters[2]: hp.choice(Predictor_parameters[2], range_n_estimators),
-                Predictor_parameters[3]: hp.choice(Predictor_parameters[3], range_learning_rate),
-                Predictor_parameters[4]: hp.choice(Predictor_parameters[4], range_validation_fraction),
-                Predictor_parameters[5]: hp.choice(Predictor_parameters[5], range_batch_size),
-                Predictor_parameters[6]: hp.choice(Predictor_parameters[6], range_hidden_layer_sizes),
-                Predictor_parameters[7]: hp.choice(Predictor_parameters[7], range_learning_rate_init),
-                Predictor_parameters[8]: hp.choice(Predictor_parameters[8], range_max_iter)}  
-
-    elif model_type_hyperopt == 'MVL':
-        # for Multivariate lineal models
-        Predictor_parameters = ['max_features']
-        space4rf_hyperopt = {Predictor_parameters[0]: hp.choice(Predictor_parameters[0], interval_DFT_descriptors)} # from 1 to the max amount of DFT descriptors in x_values
-
-    return space4rf_hyperopt,Predictor_parameters
 
 
 # prints the results of the hyperopt optimization process
@@ -566,29 +405,6 @@ def cross_val_calc(random_init_cv,model_type_cv,df_cv,X_train_cv_scaled,y_train_
 
     return cv_score
 
-
-# correlation filter
-def correlation_filter_fun(DFT_parameters_fun,correlation_y_threshold_fun,correlation_x_threshold_fun,fixed_descriptors_fun,descriptors_to_drop_fun,response_value):
-    print('\nExcluded parameters:')
-    for i,column in enumerate(DFT_parameters_fun.columns):
-        if column not in fixed_descriptors_fun and column not in descriptors_to_drop_fun and column != response_value:
-            # discards the descriptors with low correlation to the response values
-            _, _, r_value, _, _ = stats.linregress(DFT_parameters_fun[column],DFT_parameters_fun[response_value])
-            rsquared = r_value**2
-            if rsquared < correlation_y_threshold_fun:
-                descriptors_to_drop_fun.append(column)
-                print(column,': only R**2 = '+str(round(rsquared,2))+' with the experimental dr values')
-            # discards correlated descriptors
-            if column != DFT_parameters_fun.columns[-1]:
-                for j,column2 in enumerate(DFT_parameters_fun.columns):
-                    if j > i and column2 not in fixed_descriptors_fun and column2 not in descriptors_to_drop_fun and column2 != response_value:
-                        _, _, r_value, _, _ = stats.linregress(DFT_parameters_fun[column],DFT_parameters_fun[column2])
-                        rsquared = r_value**2
-                        if rsquared > correlation_x_threshold_fun:
-                            descriptors_to_drop_fun.append(column)
-                            print(column,': R**2 = '+str(round(rsquared,2))+' with '+column2)
-
-    return descriptors_to_drop_fun
 
 # Obtain the model/training size with the minimum rmse_train_PFI
 def optimal_model(size_data):

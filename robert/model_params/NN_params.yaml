@@ -1,0 +1,14 @@
+# size of minibatches for stochastic optimizers
+batch_size : [20,40,80,160,320]
+
+# the ith element represents the number of neurons in the ith hidden layer
+hidden_layer_sizes : [(32),(64),(128),(64,32),(64,32,16)]
+
+# initial learning rate used
+learning_rate_init : [0.0001,0.0005,0.001,0.005,0.01]
+
+# maximum number of iterations
+max_iter : [200,500]
+
+# proportion of training data to set aside as validation set for early stopping
+validation_fraction : [0.1,0.2]

@@ -611,11 +611,15 @@ def PFI_workflow(X_PFI_fun,model_type_PFI_fun,best_parameters_df_PFI_fun,X_train
     for column in X_PFI_fun:
         combined_descriptor_list.append(column)
 
+    # load and fit model
     model_perm = predictor_model_fun(model_type_PFI_fun, best_parameters_df_PFI_fun, 0, prediction_type_fun)
-
     model_perm.fit(X_train_scaled_PFI_fun, y_train_PFI_fun)
-    score_model = model_perm.score(X_validation_scaled_PFI_fun, y_validation_PFI_fun)
 
+    # we use the validation set during PFI as suggested by the sklearn team:
+    # "Using a held-out set makes it possible to highlight which features contribute the most to the 
+    # generalization power of the inspected model. Features that are important on the training set 
+    # but not on the held-out set might cause the model to overfit."
+    score_model = model_perm.score(X_validation_scaled_PFI_fun, y_validation_PFI_fun)
     perm_importance = permutation_importance(model_perm, X_validation_scaled_PFI_fun, y_validation_PFI_fun, n_repeats=n_repeats_PFI_fun, random_state=0)
 
     # transforms the values into a list and sort the PFI values with the descriptors names

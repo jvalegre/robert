@@ -96,9 +96,6 @@ class curate:
         self.args.log.write(f"\nTime CURATE: {elapsed_time} seconds\n")
         self.args.log.finalize()
 
-        # this is added to avoid path problems in jupyter notebooks
-        os.chdir(self.args.initial_dir)
-
 
     def categorical_transform(self,csv_df):
         # converts all columns with strings into categorical values (one hot encoding
@@ -160,7 +157,7 @@ class curate:
                 # finds the descriptors with low correlation to the response values
                 _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
                 rsquared_y = r_value_y**2
-                if rsquared_y < float(self.args.thres_y):
+                if rsquared_y < self.args.thres_y:
                     descriptors_drop.append(column)
                     txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
                 # finds correlated descriptors
@@ -169,7 +166,7 @@ class curate:
                         if j > i and column2 and column2 not in self.args.ignore not in descriptors_drop and column2 != self.args.y:
                             _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
                             rsquared_x = r_value_x**2
-                            if rsquared_x > float(self.args.thres_x):
+                            if rsquared_x > self.args.thres_x:
                                 # discard the column with less correlation with the y values
                                 _, _, r_value_y2, _, _ = stats.linregress(csv_df[column2],csv_df[self.args.y])
                                 rsquared_y2 = r_value_y2**2

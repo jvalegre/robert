@@ -74,6 +74,7 @@ import os
 import sys
 import time
 import shutil
+import pandas as pd
 import numpy as np
 from pathlib import Path
 from scipy import stats
@@ -86,7 +87,7 @@ from robert.utils import (
     create_folders,
     standardize,
 )
-from robert.generate_utils import data_split, run_hyperopt
+from robert.generate_utils import data_split, run_hyperopt, update_best
 
 
 class generate:
@@ -124,16 +125,22 @@ class generate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df = load_database(self, "generate")
 
-        # Check if the folders exist and if they do, delete and replace them
-        folder_names = ['Best_model', 'Raw_data']
-        _ = create_folders(folder_names)
-
-        # ignore user-defined descriptors and y values
-        self.args.ignore.append(self.args.y)
-        csv_X = csv_df.drop(self.args.ignore, axis=1)
+        # ignore user-defined descriptors and assign X and y values
+        csv_df = csv_df.drop(self.args.ignore, axis=1)
+        csv_X = csv_df.drop([self.args.y], axis=1)
         csv_y = csv_df[self.args.y]
 
+        # Check if the folders exist and if they do, delete and replace them
+        folder_names = ['Best_model/No_PFI', 'Raw_data/No_PFI']
+        if self.args.PFI:
+            folder_names.append('Best_model/PFI')
+            folder_names.append('Raw_data/PFI')
+        _ = create_folders(folder_names)
+
         # scan different training set sizes
+        self.args.log.write(f"\no  Starting heatmap generation with {len(self.args.model)} ML models {self.args.model} and {len(self.args.train)} training sizes {self.args.train}.")
+
+        bar = IncrementalBar("\no  Heatmap generation", max=len(self.args.files))
         for size in self.args.train:
             # split into training and validation sets
             Xy_data = data_split(self,csv_X,csv_y,size)
@@ -143,76 +150,38 @@ class generate:
             Xy_data['X_train_scaled'] = X_train_scaled
             Xy_data['X_valid_scaled'] = X_valid_scaled
 
-            # adjust the format for the sklearn models
-            Xy_data['X_train_scaled'] = np.asarray(Xy_data['X_train_scaled']).tolist()
-            Xy_data['y_train'] = np.asarray(Xy_data['y_train']).tolist()
-            Xy_data['X_valid_scaled'] = np.asarray(Xy_data['X_valid_scaled']).tolist()
-            Xy_data['y_valid'] = np.asarray(Xy_data['y_valid']).tolist()
-
             # scan different ML models
             for ML_model in self.args.model:
                 # hyperopt process including k-neighbours-based splitting of the data
                 _ = run_hyperopt(self, ML_model, size, Xy_data)
 
+                # check if this combination is the best model and replace data in the Best_model folder
+                name_csv = Path(f"/Raw_data/No_PFI/{ML_model}_{size}.csv")
+                _ = update_best(self,csv_df,Xy_data,name_csv)
 
+                # apply the PFI filter if it is activated
+                if self.args.PFI:
 
+                    # read the CSV file with the optimal parameters of this model/size combination
+                    name_csv_hyperopt = Path(f"/Raw_data/{ML_model}_{size}")
+                    PFI_df = pd.read_csv(name_csv_hyperopt+'.csv')
 
-
-                # read the csv to load and print information about the parameters
-                best_parameters_df = pd.read_csv(csv_params+'.csv')
+                    _ = PFI_workflow(PFI_df,Xy_data)
             
-                # print information about the hyperopt process
-                #print_hyperopt_params(MODEL,best_parameters_df,train,w_dir)
-                if mode == 'reg':
-                # calculate R2, MAE and RMSE for train and validation sets
-                    r2_train,mae_train,rmse_train,r2_valid,mae_valid,rmse_valid,_,_ = predictor_workflow(seed,MODEL,best_parameters_df,X_train_scaled,y_train,X_valid_scaled,y_valid,mode,size)
-                # calculates k-fold cross validation
-                    cv_score = cross_val_calc(seed,ML_model,best_parameters_df,X_train_scaled,y_train,mode,cv_kfold)
-                # print stats
-                # print_model_stats(MODEL,X_train_scaled,X_valid_scaled,r2_train,mae_train,rmse_train,r2_valid,mae_valid,rmse_valid,mode,cv_score,cv_kfold,None)
 
-                elif mode == 'clas':
-                # calculate accuracy, F1 score and MCC for train and validation sets
-                    accuracy_train,f1score_train,mcc_train,accuracy_valid,f1score_valid,mcc_valid,_,_ = predictor_workflow(seed,MODEL,best_parameters_df,X_train_scaled,y_train,X_valid_scaled,y_valid,mode,size)
-                # calculates k-fold cross validation
-                    cv_score = cross_val_calc(seed,MODEL,best_parameters_df,X_train_scaled,y_train,mode,cv_kfold)
-                # print stats
-                    #print_model_stats(MODEL,X_train_scaled,X_valid_scaled,accuracy_train,f1score_train,mcc_train,accuracy_valid,f1score_valid,mcc_valid,mode,cv_score,cv_kfold,None)
-            
+
+
+
+                bar.next()
+        bar.finish()
 
 
         #     # calculate the permutation feature importance (PFI) of the descriptors in the 
         #         # model and generates a new dataset
-        #         # print(rmse_valid)
-        #         dict_model = {
-        #                         "MODEL": MODEL,
-        #                         "size": size,
-        #                         "best_parameters_df": best_parameters_df,
-        #                         "r2_train": r2_train,
-        #                         "mae_train": mae_train,
-        #                         "rmse_train": rmse_train,
-        #                         "r2_valid": r2_valid,
-        #                         "mae_valid": mae_valid,
-        #                         "rmse_valid": rmse_valid,
-        #                         "X_valid_scaled": X_valid_scaled,
-        #                         "X_train_scaled": X_train_scaled,
-        #                         "cv_score": cv_score,
-        #                         "X_valid": X_valid,
-        #                         "mode": mode,
-        #                         "cv_kfold": cv_kfold,
-        #                         "Robert_results": "Robert_results.txt",
-        #                         "y_train": y_train,
-        #                         "y_valid": y_valid,
-        #                         "X": X,
-        #                         "fixed_data_train": fixed_data_train,
-        #                         "fixed_data_valid": fixed_data_valid
-        #                     }
-        #         dict_model_pd = pd.DataFrame.from_dict(dict_model, orient='index')
-        #         dict_model_pd=dict_model_pd.transpose()
-        #         dict_model_excel = dict_model_pd.to_csv(f'Raw_data/Model_params/{dict_model["MODEL"]}_{size}.csv', index = None, header=True)
-            
+  
+
         #         # PFI function
-        #         combined_descriptor_list = PFI_workflow(X,MODEL,best_parameters_df,X_train_scaled,y_train,X_valid_scaled,y_valid,n_repeats,PFI_threshold,False,mode,PFI)
+        #         combined_descriptor_list = PFI_workflow(X,MODEL,PFI_df,X_train_scaled,y_train,X_valid_scaled,y_valid,n_repeats,PFI_threshold,False,mode,PFI)
 
         #         # creates X and y sets
         #         # creates a database with the most important descriptors after PFI
@@ -241,25 +210,25 @@ class generate:
         #         # run the best model from hyperopt and calculates its efficiency using only 
         #         # the most important features from the PFI analysis
         #         try:
-        #             if int(best_parameters_df['max_features'][0]) > len(X_PFI.columns):
-        #                 best_parameters_df.at[0,'max_features'] = len(X_PFI.columns)
+        #             if int(PFI_df['max_features'][0]) > len(X_PFI.columns):
+        #                 PFI_df.at[0,'max_features'] = len(X_PFI.columns)
         #                 # replace the value in the parameters csv
-        #                 export_param_excel = best_parameters_df.to_csv(csv_params+'.csv', index = None, header=True)
+        #                 export_param_excel = PFI_df.to_csv(csv_params+'.csv', index = None, header=True)
         #         except KeyError:
         #             pass
 
         #         if mode == 'reg':
         #             # calculate R2, MAE and RMSE for train and validation sets
-        #             r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_valid_PFI,mae_valid_PFI,rmse_valid_PFI,y_pred_train_PFI,y_pred_valid_PFI = predictor_workflow(seed,MODEL,best_parameters_df,X_train_PFI_scaled,y_train_PFI,X_valid_PFI_scaled,y_valid_PFI,mode,size)
+        #             r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_valid_PFI,mae_valid_PFI,rmse_valid_PFI,y_pred_train_PFI,y_pred_valid_PFI = predictor_workflow(seed,MODEL,PFI_df,X_train_PFI_scaled,y_train_PFI,X_valid_PFI_scaled,y_valid_PFI,mode,size)
         #             # calculates k-fold cross validation
-        #             cv_score = cross_val_calc(seed,MODEL,best_parameters_df,X_train_PFI_scaled,y_train_PFI,mode,cv_kfold)
+        #             cv_score = cross_val_calc(seed,MODEL,PFI_df,X_train_PFI_scaled,y_train_PFI,mode,cv_kfold)
         #             # print stats
         #             #print_model_stats(MODEL,X_train_PFI_scaled,X_valid_PFI_scaled,r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_valid_PFI,mae_valid_PFI,rmse_valid_PFI,mode,cv_score,cv_kfold,'Robert_results.txt')
         #             # data of the model
         #             dict_model_PFI = {
         #                 "MODEL": MODEL,
         #                 "size": size,
-        #                 "best_parameters_df": best_parameters_df,
+        #                 "PFI_df": PFI_df,
         #                 "r2_train_PFI": r2_train_PFI,
         #                 "mae_train_PFI": mae_train_PFI,
         #                 "rmse_train_PFI": rmse_train_PFI,
@@ -282,16 +251,16 @@ class generate:
         #                 "fixed_data_train": fixed_data_train,
         #                 "fixed_data_valid": fixed_data_valid
         #             }
-        #             models_data_indiv = [MODEL, best_parameters_df, r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_valid_PFI,mae_valid_PFI,rmse_valid_PFI,rmse_valid,X_train_PFI_scaled,X_train_scaled,y_pred_train_PFI,y_pred_valid_PFI, cv_score,X_valid_PFI_scaled,mode,cv_kfold,'Robert_results.txt',y_train_PFI,y_valid_PFI, X_PFI,fixed_data_train,fixed_data_valid]
+        #             models_data_indiv = [MODEL, PFI_df, r2_train_PFI,mae_train_PFI,rmse_train_PFI,r2_valid_PFI,mae_valid_PFI,rmse_valid_PFI,rmse_valid,X_train_PFI_scaled,X_train_scaled,y_pred_train_PFI,y_pred_valid_PFI, cv_score,X_valid_PFI_scaled,mode,cv_kfold,'Robert_results.txt',y_train_PFI,y_valid_PFI, X_PFI,fixed_data_train,fixed_data_valid]
         #         elif mode == 'clas':
         #             # calculate accuracy, F1 score and MCC for train and validation sets
-        #             accuracy_train_PFI,f1score_train_PFI,mcc_train_PFI,accuracy_valid_PFI,f1score_valid_PFI,mcc_valid_PFI,y_pred_train_PFI,y_pred_valid_PFI = predictor_workflow(seed,MODEL,best_parameters_df,X_train_PFI_scaled,y_train_PFI,X_valid_PFI_scaled,y_valid_PFI,mode,size)
+        #             accuracy_train_PFI,f1score_train_PFI,mcc_train_PFI,accuracy_valid_PFI,f1score_valid_PFI,mcc_valid_PFI,y_pred_train_PFI,y_pred_valid_PFI = predictor_workflow(seed,MODEL,PFI_df,X_train_PFI_scaled,y_train_PFI,X_valid_PFI_scaled,y_valid_PFI,mode,size)
         #             # calculates k-fold cross validation
-        #             cv_score = cross_val_calc(seed,MODEL,best_parameters_df,X_train_PFI_scaled,y_train_PFI,mode,cv_kfold)
+        #             cv_score = cross_val_calc(seed,MODEL,PFI_df,X_train_PFI_scaled,y_train_PFI,mode,cv_kfold)
         #             # print stats
         #             #print_model_stats(MODEL,X_train_PFI_scaled,X_valid_PFI_scaled,accuracy_train_PFI,f1score_train_PFI,mcc_train_PFI,accuracy_valid_PFI,f1score_valid_PFI,mcc_valid_PFI,mode,cv_score,cv_kfold,'Robert_results.txt')
         #             # data of the model
-        #             models_data_indiv = [MODEL, best_parameters_df, accuracy_train_PFI,f1score_train_PFI,mcc_train_PFI,accuracy_valid_PFI,f1score_valid_PFI,mcc_valid_PFI,y_pred_train_PFI,y_pred_valid_PFI, cv_score]
+        #             models_data_indiv = [MODEL, PFI_df, accuracy_train_PFI,f1score_train_PFI,mcc_train_PFI,accuracy_valid_PFI,f1score_valid_PFI,mcc_valid_PFI,y_pred_train_PFI,y_pred_valid_PFI, cv_score]
             
         #         #Create csv files for all model and training sizes
         #         dict_model_PFI_pd = pd.DataFrame.from_dict(dict_model_PFI, orient='index')

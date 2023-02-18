@@ -10,6 +10,7 @@ import getopt
 import glob
 import yaml
 import ast
+import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -207,6 +208,22 @@ def load_variables(kwargs, robert_module, create_dat=True):
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 
+        if robert_module.upper() == 'CURATE':
+            if self.args.corr_filter.upper() == 'FALSE':
+                self.args.corr_filter = False
+            
+            self.args.thres_x = float(self.args.thres_x)
+            self.args.thres_y = float(self.args.thres_y)
+
+        elif robert_module.upper() == 'GENERATE':
+            if self.args.PFI.upper() == 'FALSE':
+                self.args.PFI = False
+
+            self.args.PFI_epochs = int(self.args.PFI_epochs)
+            self.args.PFI_threshold = float(self.args.PFI_threshold)
+            self.args.epochs = int(self.args.epochs)
+            self.args.seed = int(self.args.seed)
+
         # start a log file
         if create_dat:
             logger_1 = 'ROBERT'
@@ -220,7 +237,6 @@ def load_variables(kwargs, robert_module, create_dat=True):
                 self.log = Logger(self.initial_dir / logger_1, logger_2)
                 self.log.write(txt_yaml)
                 self.log.finalize()
-                os.chdir(self.initial_dir)
                 sys.exit()
 
             if not self.command_line:
@@ -362,7 +378,7 @@ def create_folders(folder_names):
         try:
             if os.path.exists(folder):
                 shutil.rmtree(folder)
-            os.makedirs(folder)
+            folder.mkdir(exist_ok=True, parents=True)
         except Exception as e:
             print(f'Error while deleting folder "{folder}": {e}')
 

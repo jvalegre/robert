@@ -41,12 +41,10 @@ Parameters
 #               used in data curation               #
 #####################################################.
 
-import os
-import sys
 import time
 import pandas as pd
 from scipy import stats
-from robert.utils import load_variables, destination_folder, sanity_checks, load_database
+from robert.utils import load_variables, finish_print, load_database
 
 
 class curate:
@@ -61,16 +59,10 @@ class curate:
 
     def __init__(self, **kwargs):
 
-        start_time_overall = time.time()
+        start_time = time.time()
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "curate")
-
-        # creates destination folder
-        _ = destination_folder(self,"CURATE")
-
-        # initial sanity checks
-        _ = sanity_checks(self, 'initial', "curate", None)
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df = load_database(self,"curate")
@@ -83,18 +75,13 @@ class curate:
             csv_df = self.correlation_filter(csv_df)
 
         # saves the curated CSV
-        txt_csv = f'\no  {len(csv_df.columns)} descriptors remaining after applying correlation filters:\n'
-        txt_csv += '\n'.join(f'   - {var}' for var in csv_df.columns)
-        self.args.log.write(txt_csv)
-
         csv_curate_name = f'{self.args.csv_name.split(".")[0]}_CURATE.csv'
         csv_curate_name = self.curate_folder.joinpath(csv_curate_name)
         _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
         self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
 
-        elapsed_time = round(time.time() - start_time_overall, 2)
-        self.args.log.write(f"\nTime CURATE: {elapsed_time} seconds\n")
-        self.args.log.finalize()
+        # finish the printing of the CURATE info file
+        _ = finish_print(self,start_time)
 
 
     def categorical_transform(self,csv_df):
@@ -184,5 +171,8 @@ class curate:
 
         # drop descriptors that did not pass the filters
         csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
+        txt_csv = f'\no  {len(csv_df_filtered.columns)} descriptors remaining after applying correlation filters:\n'
+        txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
+        self.args.log.write(txt_csv)
 
         return csv_df_filtered

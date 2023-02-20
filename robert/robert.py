@@ -36,8 +36,8 @@ def main():
     args = command_line_args()
     args.command_line = True
 
-    if not args.curate and not args.generate and not args.predict:
-        print('x  No module was specified in the command line! (i.e. --cur for data curation).\n')
+    if not args.curate and not args.generate and not args.predict and not args.testing:
+        print('x  The --module option was not specified in the command line! Options: "curate", "generate", "predict", "testing".\n')
 
     # CURATE
     if args.curate:
@@ -71,7 +71,8 @@ def main():
             mode=args.mode,
             seed=args.seed,
             epochs=args.epochs,
-            rmse=args.rmse,
+            hyperopt_target=args.hyperopt_target,
+            custom_params=args.custom_params,
             PFI_epochs=args.PFI_epochs,
             PFI_threshold=args.PFI_threshold,
             PFI=args.PFI

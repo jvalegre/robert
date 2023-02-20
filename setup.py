@@ -11,6 +11,7 @@ with io.open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
+    package_data={"robert": ["model_params/*"]},
     version="0.0.1",
     license="MIT",
     description="Refiner and Optimizer of a Bunch of Existing Regression Tools",

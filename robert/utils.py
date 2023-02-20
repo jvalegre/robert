@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
 from robert.argument_parser import set_options, var_dict
 from sklearn.ensemble import (
     RandomForestRegressor,
@@ -51,7 +52,7 @@ def load_from_yaml(self):
                 with open(self.varfile, "r") as file:
                     try:
                         param_list = yaml.load(file, Loader=yaml.SafeLoader)
-                    except yaml.scanner.ScannerError:
+                    except (yaml.scanner.ScannerError,yaml.parser.ParserError):
                         txt_yaml = f'\nx  Error while reading {self.varfile}. Edit the yaml file and try again (i.e. use ":" instead of "=" to specify variables)'
                         error_yaml = True
         if not error_yaml:
@@ -142,8 +143,9 @@ def command_line_args():
     bool_args = [
         "curate",
         "generate",
-        "outliers",
         "predict",
+        "testing",
+        "cheers"
     ]
 
     for arg in var_dict:
@@ -193,7 +195,7 @@ def command_line_args():
     return args
 
 
-def load_variables(kwargs, robert_module, create_dat=True):
+def load_variables(kwargs, robert_module):
     """
     Load default and user-defined variables
     """
@@ -208,60 +210,85 @@ def load_variables(kwargs, robert_module, create_dat=True):
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 
-        if robert_module.upper() == 'CURATE':
-            if self.args.corr_filter.upper() == 'FALSE':
-                self.args.corr_filter = False
-            
-            self.args.thres_x = float(self.args.thres_x)
-            self.args.thres_y = float(self.args.thres_y)
-
-        elif robert_module.upper() == 'GENERATE':
-            if self.args.PFI.upper() == 'FALSE':
-                self.args.PFI = False
-
-            self.args.PFI_epochs = int(self.args.PFI_epochs)
-            self.args.PFI_threshold = float(self.args.PFI_threshold)
-            self.args.epochs = int(self.args.epochs)
-            self.args.seed = int(self.args.seed)
+        # creates destination folder
+        _ = destination_folder(self,robert_module)
 
         # start a log file
-        if create_dat:
-            logger_1 = 'ROBERT'
-            logger_1, logger_2 = robert_module.upper(), "data"
+        logger_1 = 'ROBERT'
+        logger_1, logger_2 = robert_module.upper(), "data"
 
-            if txt_yaml not in [
-                "",
-                f"\no  Importing ROBERT parameters from {self.varfile}",
-                "\nx  The specified yaml file containing parameters was not found! Make sure that the valid params file is in the folder where you are running the code.\n",
-            ]:
-                self.log = Logger(self.initial_dir / logger_1, logger_2)
-                self.log.write(txt_yaml)
-                self.log.finalize()
-                sys.exit()
+        if txt_yaml not in [
+            "",
+            f"\no  Importing ROBERT parameters from {self.varfile}",
+            "\nx  The specified yaml file containing parameters was not found! Make sure that the valid params file is in the folder where you are running the code.\n",
+        ]:
+            self.log = Logger(self.initial_dir / logger_1, logger_2)
+            self.log.write(txt_yaml)
+            self.log.finalize()
+            sys.exit()
 
-            if not self.command_line:
-                self.log = Logger(self.initial_dir / logger_1, logger_2)
-            else:
-                # prevents errors when using command lines and running to remote directories
-                path_command = Path(f"{os.getcwd()}")
-                self.log = Logger(path_command / logger_1, logger_2)
+        if not self.command_line:
+            self.log = Logger(self.initial_dir / logger_1, logger_2)
+        else:
+            # prevents errors when using command lines and running to remote directories
+            path_command = Path(f"{os.getcwd()}")
+            self.log = Logger(path_command / logger_1, logger_2)
 
-            self.log.write(f"ROBERT v {robert_version} {time_run} \nCitation: {robert_ref}\n")
+        self.log.write(f"ROBERT v {robert_version} {time_run} \nCitation: {robert_ref}\n")
 
-            if self.command_line:
-                self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
+        if self.command_line:
+            self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
+
+        if robert_module.upper() == 'CURATE':
+            self.log.write(f"\no  Starting data curation with the CURATE module.")
+
+            if self.corr_filter.upper() == 'FALSE':
+                self.corr_filter = False
+            
+            self.thres_x = float(self.thres_x)
+            self.thres_y = float(self.thres_y)
+
+        elif robert_module.upper() == 'GENERATE':
+            self.log.write(f"\no  Starting generation of ML models with the GENERATE module.")
+
+            if str(self.PFI).upper() == 'FALSE':
+                self.PFI = False
+            
+            # turn off PFI_filter for classification
+            if self.PFI_threshold == 0.04 and self.mode == 'clas':
+                self.log.write("\nx  The PFI filter was disabled for classification models")
+                self.PFI = False
+
+            # adjust the default value of hyperopt_target for classification
+            if self.mode == 'clas':
+                self.hyperopt_target = 'mcc'
+
+            # Check if the folders exist and if they do, delete and replace them
+            folder_names = [self.initial_dir.joinpath('GENERATE/Best_model/No_PFI'), self.initial_dir.joinpath('GENERATE/Raw_data/No_PFI')]
+            if self.PFI:
+                folder_names.append(self.initial_dir.joinpath('GENERATE/Best_model/PFI'))
+                folder_names.append(self.initial_dir.joinpath('GENERATE/Raw_data/PFI'))
+            _ = create_folders(folder_names)
+
+            self.PFI_epochs = int(self.PFI_epochs)
+            self.PFI_threshold = float(self.PFI_threshold)
+            self.epochs = int(self.epochs)
+            self.seed = int(self.seed)
+
+        # initial sanity checks
+        _ = sanity_checks(self, 'initial', robert_module, None)
 
     return self
 
 
 def destination_folder(self,dest_module):
-    if self.args.destination is None:
-        self.curate_folder = Path(self.args.initial_dir).joinpath(dest_module)
+    if self.destination is None:
+        self.curate_folder = Path(self.initial_dir).joinpath(dest_module.upper())
     else:
-        if Path(f"{self.args.destination}").exists():
-            self.curate_folder = Path(self.args.destination)
+        if Path(f"{self.destination}").exists():
+            self.curate_folder = Path(self.destination)
         else:
-            self.curate_folder = Path(self.args.initial_dir).joinpath(self.args.destination)
+            self.curate_folder = Path(self.initial_dir).joinpath(self.destination)
 
     self.curate_folder.mkdir(exist_ok=True, parents=True)
 
@@ -273,92 +300,92 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
     curate_valid = True
     if type_checks == 'initial':
-        if self.args.csv_name is '':
-            self.args.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
+        if self.csv_name is '':
+            self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
             curate_valid = False
 
-        elif not os.path.exists(self.args.csv_name):
-            self.args.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.args.csv_name}')
+        elif not os.path.exists(self.csv_name):
+            self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
             curate_valid = False
             
-        if self.args.y == '':
-            self.args.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
+        if self.y == '':
+            self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
             curate_valid = False
 
         if module == 'curate':
-            if self.args.categorical.lower() not in ['onehot','numbers']:
-                self.args.log.write(f"\nx  The categorical option used is not valid! Options: 'onehot', 'numbers'")
+            if self.categorical.lower() not in ['onehot','numbers']:
+                self.log.write(f"\nx  The categorical option used is not valid! Options: 'onehot', 'numbers'")
                 curate_valid = False
 
-            elif float(self.args.thres_x) > 1 or float(self.args.thres_x) < 0:
-                self.args.log.write(f"\nx  The thres_x option should be between 0 and 1!")
+            elif float(self.thres_x) > 1 or float(self.thres_x) < 0:
+                self.log.write(f"\nx  The thres_x option should be between 0 and 1!")
                 curate_valid = False
 
-            elif float(self.args.thres_y) > 1 or float(self.args.thres_y) < 0:
-                self.args.log.write(f"\nx  The thres_y option should be between 0 and 1!")
+            elif float(self.thres_y) > 1 or float(self.thres_y) < 0:
+                self.log.write(f"\nx  The thres_y option should be between 0 and 1!")
                 curate_valid = False
         
         elif module == 'generate':
-            if self.args.split.lower() not in ['kn','rnd']:
-                self.args.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
+            if self.split.lower() not in ['kn','rnd']:
+                self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
 
-            for model in self.args.model:
+            for model in self.model:
                 if model.lower() not in ['rf','mvl','gb','adab','nn','vr']:
-                    self.args.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'AdaB', 'NN', 'VR'")
+                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'AdaB', 'NN', 'VR'")
                     curate_valid = False
 
-            if len(self.args.model.lower()) == 0:
-                self.args.log.write(f"\nx  Choose an ML model in the model option!")
+            if len(self.model) == 0:
+                self.log.write(f"\nx  Choose an ML model in the model option!")
                 curate_valid = False
 
-            if len(self.args.train.lower()) == 0:
-                self.args.log.write(f"\nx  Choose train proportion(s) in the train option!")
+            if len(self.train) == 0:
+                self.log.write(f"\nx  Choose train proportion(s) in the train option!")
                 curate_valid = False
 
-            if self.args.mode.lower() not in ['reg','clas']:
-                self.args.log.write(f"\nx  The mode option used is not valid! Options: 'reg', 'clas'")
+            if self.mode.lower() not in ['reg','clas']:
+                self.log.write(f"\nx  The mode option used is not valid! Options: 'reg', 'clas'")
                 curate_valid = False
 
-            if int(self.args.epochs) <= 0:
-                self.args.log.write(f"\nx  The number of epochs must be higher than 0!")
+            if int(self.epochs) <= 0:
+                self.log.write(f"\nx  The number of epochs must be higher than 0!")
                 curate_valid = False
             
-            if self.args.mode.lower() == 'reg' and self.args.hyperopt_target not in ['rmse','mae','r2']:
-                self.args.log.write(f"\nx  The hyperopt_target option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
+            if self.mode.lower() == 'reg' and self.hyperopt_target not in ['rmse','mae','r2']:
+                self.log.write(f"\nx  The hyperopt_target option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
                 curate_valid = False
 
-            if self.args.mode.lower() == 'clas' and self.args.hyperopt_target not in ['mcc','f1_score','acc']:
-                self.args.log.write(f"\nx  The hyperopt_target option is not valid! Options for classification: 'mcc', 'f1_score', 'acc'")
+            if self.mode.lower() == 'clas' and self.hyperopt_target not in ['mcc','f1_score','acc']:
+                self.log.write(f"\nx  The hyperopt_target option is not valid! Options for classification: 'mcc', 'f1_score', 'acc'")
                 curate_valid = False
 
-            if int(self.args.PFI_epochs) <= 0:
-                self.args.log.write(f"\nx  The number of PFI_epochs must be higher than 0!")
+            if int(self.PFI_epochs) <= 0:
+                self.log.write(f"\nx  The number of PFI_epochs must be higher than 0!")
                 curate_valid = False
 
     elif type_checks == 'csv_db':
-        if self.args.y not in columns_csv:
-            self.args.log.write(f"\nx  The y option specified ({self.args.y}) is not a columnd in the csv selected ({self.args.csv_name})!")
+        if self.y not in columns_csv:
+            self.log.write(f"\nx  The y option specified ({self.y}) is not a columnd in the csv selected ({self.csv_name})!")
             curate_valid = False
 
-        for val in self.args.discard:
+        for val in self.discard:
             if val not in columns_csv:
-                self.args.log.write(f"\nx  Descriptor {val} specified in the discard option is not a columnd in the csv selected ({self.args.csv_name})!")
+                self.log.write(f"\nx  Descriptor {val} specified in the discard option is not a columnd in the csv selected ({self.csv_name})!")
                 curate_valid = False
 
-        for val in self.args.ignore:
+        for val in self.ignore:
             if val not in columns_csv:
-                self.args.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a columnd in the csv selected ({self.args.csv_name})!")
+                self.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a columnd in the csv selected ({self.csv_name})!")
                 curate_valid = False
 
     if not curate_valid:
-        self.args.log.finalize()
+        self.log.finalize()
         sys.exit()
 
 
 def load_database(self,module):
     csv_df = pd.read_csv(self.args.csv_name)
-    sanity_checks(self,'csv_db',module,csv_df.columns)
+    sanity_checks(self.args,'csv_db',module,csv_df.columns)
     csv_df = csv_df.drop(self.args.discard, axis=1)
     total_amount = len(csv_df.columns)
     ignored_descs = len(self.args.ignore)
@@ -370,17 +397,27 @@ def load_database(self,module):
     txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
     self.args.log.write(txt_load)
 
-    return csv_df
+    if module == 'curate':
+        return csv_df
+    if module == 'generate':
+        # ignore user-defined descriptors and assign X and y values (but keeps the original database)
+        csv_df_ignore = csv_df.drop(self.args.ignore, axis=1)
+        csv_X = csv_df_ignore.drop([self.args.y], axis=1)
+        csv_y = csv_df_ignore[self.args.y]
+        return csv_df,csv_X,csv_y
 
 
 def create_folders(folder_names):
     for folder in folder_names:
-        try:
-            if os.path.exists(folder):
-                shutil.rmtree(folder)
-            folder.mkdir(exist_ok=True, parents=True)
-        except Exception as e:
-            print(f'Error while deleting folder "{folder}": {e}')
+        if os.path.exists(folder):
+            shutil.rmtree(folder)
+        folder.mkdir(exist_ok=True, parents=True)
+
+
+def finish_print(self,start_time,module):
+    elapsed_time = round(time.time() - start_time, 2)
+    self.args.log.write(f"\nTime {module.upper()}: {elapsed_time} seconds\n")
+    self.args.log.finalize()
 
 
 def standardize(X_train,X_valid):
@@ -394,133 +431,190 @@ def standardize(X_train,X_valid):
     return X_train_scaled, X_valid_scaled
 
 
-def load_model(params, model_data):
+def load_model(params):
 
     # load regressor models
-    if model_data['mode'] == 'reg':
-        loaded_model = load_model_reg(params, model_data)
+    if params['mode'] == 'reg':
+        loaded_model = load_model_reg(params)
 
     # load classifier models
-    elif model_data['mode'] == 'clas':
-        loaded_model = load_model_clas(params, model_data)
+    elif params['mode'] == 'clas':
+        loaded_model = load_model_clas(params)
 
     return loaded_model
 
 
-def load_model_reg(params, model_data):
-    if model_data['model'] == 'RF':     
+def load_model_reg(params):
+    if params['model'] == 'RF':     
         loaded_model = RandomForestRegressor(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
 
-    elif model_data['model']  == 'GB':    
+    elif params['model']  == 'GB':    
         loaded_model = GradientBoostingRegressor(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
 
-    elif model_data['model']  == 'AdaB':
+    elif params['model']  == 'AdaB':
         loaded_model = AdaBoostRegressor(n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
 
-    elif model_data['model']  == 'NN':
+    elif params['model']  == 'NN':
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])                    
+                                random_state=params['seed'])                    
             
-    elif model_data['model']  == 'VR':
+    elif params['model']  == 'VR':
         r1 = GradientBoostingRegressor(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
         r2 = RandomForestRegressor(max_depth=params['max_depth'],
                             max_features=params['max_features'],
                             n_estimators=params['n_estimators'],
-                            random_state=model_data['seed'])
+                            random_state=params['seed'])
         r3 = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
         loaded_model = VotingRegressor([('gb', r1), ('rf', r2), ('nn', r3)])
 
-    elif model_data['model']  == 'MVL':
-        loaded_model = LinearRegression(n_features_in_=params['max_features'])
+    elif params['model']  == 'MVL':
+        loaded_model = LinearRegression()
 
     return loaded_model
 
 
-def load_model_clas(params, model_data):
+def load_model_clas(params):
 
-    if model_data['model']  == 'RF':     
+    if params['model']  == 'RF':     
         loaded_model = RandomForestClassifier(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
 
-    elif model_data['model']  == 'GB':    
+    elif params['model']  == 'GB':    
         loaded_model = GradientBoostingClassifier(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
 
-    elif model_data['model']  == 'AdaB':
+    elif params['model']  == 'AdaB':
             loaded_model = AdaBoostClassifier(n_estimators=params['n_estimators'],
                                     learning_rate=params['learning_rate'],
-                                    random_state=model_data['seed'])
+                                    random_state=params['seed'])
 
-    elif model_data['model']  == 'NN':
+    elif params['model']  == 'NN':
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
 
-    elif model_data['model']  == 'VR':
+    elif params['model']  == 'VR':
         r1 = GradientBoostingClassifier(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
         r2 = RandomForestClassifier(max_depth=params['max_depth'],
                             max_features=params['max_features'],
                             n_estimators=params['n_estimators'],
-                            random_state=model_data['seed'])
+                            random_state=params['seed'])
         r3 = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=model_data['seed'])
+                                random_state=params['seed'])
 
         loaded_model = VotingClassifier([('gb', r1), ('rf', r2), ('nn', r3)])
 
-    elif model_data['model']  == 'MVL':
+    elif params['model']  == 'MVL':
         print('Multivariate linear models (model = \'MVL\') are not compatible with classifiers (mode = \'clas\')')
         sys.exit()
 
     return loaded_model
 
 
-# function to get stats from the model
-def model_stats(y,y_pred):   
-    mae = mean_absolute_error(y, y_pred)
-    rmse = np.sqrt(mean_squared_error(y, y_pred))
-    _, _, r_value, _, _ = stats.linregress(y, y_pred)
-    r2 = r_value**2
+# calculates errors/precision and predicted values of the ML models
+def load_n_predict(params, data, set_type, hyperopt=False):
 
-    return r2,mae,rmse
+    # set the parameters for each ML model of the hyperopt optimization
+    loaded_model = load_model(params)
+
+    # Fit the model with the training set
+    loaded_model.fit(data['X_train_scaled'], data['y_train'])  
+    # store the predicted values for training
+    data['y_pred_train'] = loaded_model.predict(data['X_train_scaled']).tolist()
+
+    if params['train'] < 100:
+        # Predicted values using the model for out-of-bag (oob) sets (validation or test)
+        data['y_pred_oob'] = loaded_model.predict(data[f'X_{set_type}_scaled']).tolist()
+
+    # for the hyperoptimizer
+    # oob set results
+    if params['mode'] == 'reg':
+        if params['train'] == 100:
+            data['r2'], data['mae'], data['rmse'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
+        else:
+            data['r2'], data['mae'], data['rmse'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
+        if hyperopt:
+            if params['hyperopt_target'] == 'rmse':
+                opt_target = data['rmse']
+            elif params['hyperopt_target'] == 'mae':
+                opt_target = data['mae']
+            elif params['hyperopt_target'] == 'r2':
+                opt_target = data['r2']
+            return opt_target
+        else:
+            return data
+    
+    elif params['mode'] == 'clas':
+        if params['train'] == 100:
+            data['acc'], data['f1_score'], data['mcc'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
+        else:
+            data['acc'], data['f1_score'], data['mcc'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
+        if hyperopt:
+            if params['hyperopt_target'] == 'mcc':
+                opt_target = data['mcc']
+            elif params['hyperopt_target'] == 'f1_score':
+                opt_target = data['f1_score']
+            elif params['hyperopt_target'] == 'acc':
+                opt_target = data['acc']
+            return opt_target
+        else:
+            return data    
+
+
+def get_prediction_results(params,y,y_pred):
+    if params['mode'] == 'reg':
+        mae = mean_absolute_error(y, y_pred)
+        rmse = np.sqrt(mean_squared_error(y, y_pred))
+        _, _, r_value, _, _ = stats.linregress(y, y_pred)
+        r2 = r_value**2
+        return r2, mae, rmse
+
+    elif params['mode'] == 'clas':
+        # I make these scores negative so the optimizer is consistent to finding 
+        # a minima as in the case of error in regression
+        acc = -accuracy_score(y,y_pred)
+        f1_score_val = -f1_score(y,y_pred)
+        mcc = -matthews_corrcoef(y,y_pred)
+        return acc, f1_score_val, mcc

@@ -4,10 +4,8 @@
 
 import os
 import sys
-import time
 import shutil
 from pathlib import Path
-from scipy import stats
 import random
 import pandas as pd
 import numpy as np
@@ -15,21 +13,20 @@ from sklearn.cluster import KMeans
 import yaml
 import json
 import glob
-from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
+import warnings # this avoids warnings from sklearn
+warnings.filterwarnings("ignore")
+from pkg_resources import resource_filename
 from sklearn.inspection import permutation_importance
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
-from robert.utils import load_model, model_stats
+from robert.utils import load_model, load_n_predict, standardize
 
 
-# initial function for hyperopt
-def run_hyperopt(self, ML_model, size, Xy_data_hp):
+# hyperopt workflow
+def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
 
     # edit this function to modify the hyperopt parameter optimization (i.e. the 
     # lists represent values to include in the grid search)
-    space4rf = hyperopt_params(ML_model, Xy_data_hp['X_train_scaled'])
-
-    if ML_model == 'MVL':
-        n_epochs = 1
+    space4rf = hyperopt_params(self, ML_model, Xy_data_hp['X_train_scaled'])
 
     # Run hyperopt
     trials = Trials()
@@ -41,9 +38,12 @@ def run_hyperopt(self, ML_model, size, Xy_data_hp):
     hyperopt_data = {'best': best, 'model': ML_model,
                 'mode': self.args.mode,
                 'split': self.args.split,
-                'size': size, 
+                'train': size, 
                 'seed': self.args.seed,
-                'hyperopt_target': self.args.hyperopt_target}
+                'hyperopt_target': self.args.hyperopt_target,
+                'y': self.args.y,
+                'X_descriptors': Xy_data_hp['X_descriptors'],
+                'initial_dir': self.args.initial_dir.as_posix()}
 
     # adjust the format for the sklearn models and add the data to the dict
     for desc in ['X_train_scaled','y_train','X_valid_scaled','y_valid']:
@@ -54,16 +54,26 @@ def run_hyperopt(self, ML_model, size, Xy_data_hp):
     with open('hyperopt.json', 'w') as outfile:
         json.dump(hyperopt_data, outfile)
 
+    if ML_model.upper() == 'MVL':
+        max_evals = 1 # use all the parameters, it is not possible to adjust parameters for MVL
+    else:
+        max_evals = self.args.epochs
     try:
-        best = fmin(f, space4rf, algo=tpe.suggest, max_evals=n_epochs, trials=trials, rstate=np.random.default_rng(hyperopt_data['seed']))
-
+        best = fmin(f, space4rf, algo=tpe.suggest, max_evals=max_evals, trials=trials, rstate=np.random.default_rng(hyperopt_data['seed']))
+        if os.path.exists('hyperopt.json'):
+            os.remove('hyperopt.json')
     except ValueError:
-        print('There is an error in the hyperopt module, are you using mode = \'clas\' for regression y values instead of mode = \'reg\'?')
-
+        self.args.log.write('There is an error in the hyperopt module, are you using mode = \'clas\' for regression y values instead of mode = \'reg\'?')
+        self.args.log.finalize()
+        sys.exit()
     try:
         os.remove('hyperopt.json')
     except FileNotFoundError:
         pass
+
+    # check if this combination is the best model and replace data in the Best_model folder
+    name_csv = self.args.initial_dir.joinpath(f"GENERATE/Raw_data/No_PFI/{ML_model}_{size}")
+    _ = update_best(self, csv_df,Xy_data_hp,name_csv)
 
 
 # generates initial parameters for the hyperopt optimization
@@ -81,7 +91,7 @@ def hyperopt_params(self, model_type, X_hyperopt):
                 'max_features': hp.choice('max_features', params['max_features']),
                 'n_estimators': hp.choice('n_estimators', params['n_estimators']),
                 'learning_rate': hp.choice('learning_rate', params['learning_rate']),
-                'validation_fraction': hp.choice('validation_fraction', ['validation_fraction'])}  
+                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction'])}  
 
     elif model_type == 'AdaB':
         space4rf_hyperopt = {'n_estimators': hp.choice('n_estimators', params['n_estimators']),
@@ -114,27 +124,50 @@ def hyperopt_params(self, model_type, X_hyperopt):
 # f function of hyperopt. The params variables is the space4rf used in fmin()
 def f(params):
 
+    # this json file is used to: 1) keep track of the best value, 2) store the X and y values,
+    # 3) store other general options (i.e. mode, hyperopt_target, etc.) during the hyperopt process
     with open('hyperopt.json') as json_file:
         hyperopt_data = json.load(json_file)
+    best = hyperopt_data['best']
 
-    opt_target = hyperopt_epoch(params, hyperopt_data)
-    
-    # The "best" optimizing value is updated in an external JSON file after each hyperopt cycle
-    # (using opt_target), and the parameters of the best model found are kept in a CSV file
-    hyperopt_data['best'] = opt_target
-    os.remove('hyperopt.json')
-    with open('hyperopt.json', 'w') as outfile:
-        json.dump(hyperopt_data, outfile)
+    # complete the lsit of missing parameters
+    params['mode'] = hyperopt_data['mode']
+    params['model'] = hyperopt_data['model']
+    params['train'] = hyperopt_data['train']
+    params['seed'] = hyperopt_data['seed']
+    params['hyperopt_target'] = hyperopt_data['hyperopt_target']
+
+    # correct for a problem when loading arrays in json
+    if params['model'].upper() in ['NN','VR']:
+        layer_arrays = []
+        if not isinstance(params['hidden_layer_sizes'],int):
+            for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
+                if ele != '':
+                    layer_arrays = int(ele)
+        else:
+            layer_arrays = ele
+        params['hidden_layer_sizes'] = (layer_arrays)
+
+    opt_target = load_n_predict(params, hyperopt_data, 'valid', hyperopt=True)
 
     if opt_target < best:
+        # The "best" optimizing value is updated in an external JSON file after each hyperopt cycle
+        # (using opt_target), and the parameters of the best model found are kept in a CSV file
+        hyperopt_data['best'] = opt_target
+        os.remove('hyperopt.json')
+        with open('hyperopt.json', 'w') as outfile:
+            json.dump(hyperopt_data, outfile)
         best = opt_target
 
         # create csv_hyperopt dataframe
-        csv_hyperopt = {'size': hyperopt_data["size"],
+        csv_hyperopt = {'train': hyperopt_data["train"],
                         'split': hyperopt_data['split'],
                         'model': hyperopt_data['model'],
                         'mode': hyperopt_data['mode'],
-                        'seed': hyperopt_data['seed']}
+                        'seed': hyperopt_data['seed'],
+                        'y': hyperopt_data['y'],
+                        'hyperopt_target': hyperopt_data['hyperopt_target'],
+                        'X_descriptors': hyperopt_data['X_descriptors']}
 
         if hyperopt_data['model'].upper() in ['RF','GB','VR']:
             csv_hyperopt['n_estimators'] = params['n_estimators']
@@ -147,7 +180,7 @@ def f(params):
             if hyperopt_data['model'].upper() == 'GB':
                 csv_hyperopt['validation_fraction'] = params['validation_fraction']
 
-        elif hyperopt_data['model'].upper() in ['NN','VR']:
+        if hyperopt_data['model'].upper() in ['NN','VR']:
                 csv_hyperopt['batch_size'] = params['batch_size']
                 csv_hyperopt['hidden_layer_sizes'] = params['hidden_layer_sizes']
                 csv_hyperopt['learning_rate_init'] = params['learning_rate_init']
@@ -162,63 +195,18 @@ def f(params):
             csv_hyperopt[hyperopt_data['hyperopt_target']] = best
             
         elif hyperopt_data['mode'] == 'clas':
-            # need to reconvert the value (it was converted into a negative value in hyperopt_epoch())
+            # need to reconvert the value (it was converted into a negative value in load_n_predict())
             csv_hyperopt[hyperopt_data['hyperopt_target']] = -best
 
         # save into a csv file
         csv_hyperopt_df = pd.DataFrame.from_dict(csv_hyperopt, orient='index')
         csv_hyperopt_df = csv_hyperopt_df.transpose()
         
-        name_csv_hyperopt = Path(f"/Raw_data/No_PFI/{hyperopt_data['model']}_{hyperopt_data['train']}.csv")
+        initial_dir = Path(hyperopt_data['initial_dir'])
+        name_csv_hyperopt = initial_dir.joinpath(f"GENERATE/Raw_data/No_PFI/{hyperopt_data['model']}_{hyperopt_data['train']}.csv")
         _ = csv_hyperopt_df.to_csv(name_csv_hyperopt, index = None, header=True)
  
     return {'loss': best, 'status': STATUS_OK}
-
-
-# calculates RMSE of the validation set with the parameters of the corresponding
-# hyperopt optimization cycle
-def hyperopt_epoch(params, hyperopt_data):
-
-    # set the parameters for each ML model of the hyperopt optimization
-    loaded_model = load_model(params, hyperopt_data)
-
-    # Fit the model with the training set
-    loaded_model.fit(hyperopt_data['X_train_scaled'], hyperopt_data['y_train'])  
-
-    if hyperopt_data['train'] == 100:
-        # if there is not test set, only used values from training
-        y_pred_valid = loaded_model.predict(hyperopt_data['X_train_scaled'])
-        y_valid = hyperopt_data['y_train']
-    
-    else:
-        # Predicted values using the model for validation
-        y_pred_valid = loaded_model.predict(hyperopt_data['X_valid_scaled'])
-        y_valid = hyperopt_data['y_valid']
-
-    # Validation stats
-    if hyperopt_data['mode'] == 'reg':
-        r2_valid, mae_valid, rmse_valid = model_stats(y_valid,y_pred_valid)
-        if hyperopt_data['hyperopt_target'] == 'rmse':
-            opt_target = rmse_valid
-        elif hyperopt_data['hyperopt_target'] == 'mae_valid':
-            opt_target = mae_valid
-        elif hyperopt_data['hyperopt_target'] == 'r2':
-            opt_target = r2_valid
-
-    elif hyperopt_data['mode'] == 'clas':
-        # I make these scores negative so the optimizer is consistent to finding 
-        # a minima as in the case of error in regression
-        acc_valid = -accuracy_score(y_valid,y_pred_valid)
-        f1_score_valid = -f1_score(y_valid,y_pred_valid)
-        mcc_valid = -matthews_corrcoef(y_valid,y_pred_valid)
-        if hyperopt_data['hyperopt_target'] == 'mcc':
-            opt_target = mcc_valid
-        elif hyperopt_data['hyperopt_target'] == 'f1_score':
-            opt_target = f1_score_valid
-        elif hyperopt_data['hyperopt_target'] == 'acc':
-            opt_target = acc_valid
-
-    return opt_target
 
 
 def load_from_yaml(self,model_type,X_hyperopt):
@@ -226,12 +214,19 @@ def load_from_yaml(self,model_type,X_hyperopt):
     Loads the parameters for the calculation from a yaml if specified. Otherwise
     does nothing.
     """
-    varfile = f'{model_type.upper()}_params.yaml'
+
+    # the model params are downloaded with ROBERT
+    if self.args.custom_params is None:
+        models_path = Path(resource_filename("robert", "model_params"))
+    else:
+        models_path = self.initial_dir.joinpath(self.args.custom_params)
+    varfile = models_path.joinpath(f'{model_type.upper()}_params.yaml')
+
     # Variables will be updated from YAML file
     with open(varfile, "r") as file:
         try:
             params = yaml.load(file, Loader=yaml.SafeLoader)
-        except yaml.scanner.ScannerError:
+        except (yaml.scanner.ScannerError,yaml.parser.ParserError):
             self.args.log.write(f'\nx  Error while reading {varfile}. Edit the yaml file and try again (i.e. use ":" instead of "=" to specify variables)')
             sys.exit()
 
@@ -240,13 +235,29 @@ def load_from_yaml(self,model_type,X_hyperopt):
     if model_type in ['RF','GB','VR','MVL']:
         max_features = [1]
         n_descriptors = len(X_hyperopt.columns)
-        interval_features = int((n_descriptors+1)/params["interval_features"])
-        for num in range(max_features[0],n_descriptors,interval_features):
+        interval_descriptors = int((n_descriptors+1)/params["interval_descriptors"])
+        for num in range(max_features[0],n_descriptors,interval_descriptors):
             max_features.append(num)
         max_features.append(n_descriptors)
         params['max_features'] = max_features
 
     return params
+
+
+def prepare_sets(self,csv_X,csv_y,size):
+    # split into training and validation sets
+    Xy_data = data_split(self,csv_X,csv_y,size)
+
+    # standardization of X values using the mean and SD of the training set
+    X_train_scaled, X_valid_scaled = standardize(Xy_data['X_train'],Xy_data['X_valid'])
+    Xy_data['X_train_scaled'] = X_train_scaled
+    Xy_data['X_valid_scaled'] = X_valid_scaled
+
+    # also store the descriptors used (the labels disappear after data_split() )
+    Xy_data['X_descriptors'] = csv_X.columns.tolist()
+
+    return Xy_data
+
 
 def data_split(self,csv_X,csv_y,size):
         
@@ -269,13 +280,19 @@ def data_split(self,csv_X,csv_y,size):
             random.seed(self.args.seed)
             training_points = random.sample(range(len(csv_X)), n_of_points)
 
+    Xy_data = Xy_split(csv_X,csv_y,training_points)
+
+    return Xy_data
+
+
+# returns a dictionary with the database divided into train and validation
+def Xy_split(csv_X,csv_y,training_points):
     Xy_data =  {}
     Xy_data['X_train'] = csv_X.iloc[training_points]
     Xy_data['y_train'] = csv_y.iloc[training_points]
     Xy_data['X_valid'] = csv_X.drop(training_points)
     Xy_data['y_valid'] = csv_y.drop(training_points)
     Xy_data['training_points'] = training_points
-            
     return Xy_data
 
 
@@ -314,10 +331,50 @@ def k_neigh(self,X_scaled,csv_y,size):
     return training_points
 
 
-def PFI_workflow(self,PFI_df,Xy_data):
+def PFI_workflow(self, ML_model, size, Xy_data):
+    # filter off parameters with low PFI (not relevant in the model)
+    name_csv_hyperopt = f"GENERATE/Raw_data/No_PFI/{ML_model}_{size}"
+    path_csv = self.args.initial_dir.joinpath(f'{name_csv_hyperopt}.csv')
+    PFI_df = pd.read_csv(path_csv)
+    PFI_df_dict = {} # (using a dict to keep the same format of load_model)
+    for column in PFI_df.columns:
+        PFI_df_dict[column] = PFI_df[column][0]
+    PFI_discard = PFI_filter(self,Xy_data,PFI_df_dict)
+
+    # generate new X datasets and store the descriptors used for the PFI-filtered model
+    discard_idx, descriptors_PFI = [],[]
+    for _,column in enumerate(Xy_data['X_train']):
+        if column in PFI_discard:
+            discard_idx.append(column)
+        else:
+            descriptors_PFI.append(column)
+    Xy_data_PFI = Xy_data.copy()
+
+    Xy_data_PFI['X_train'] = Xy_data['X_train'].drop(discard_idx, axis=1)
+    Xy_data_PFI['X_valid'] = Xy_data['X_valid'].drop(discard_idx, axis=1)
+    Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
+    PFI_df_dict['X_descriptors'] = descriptors_PFI
+
+    # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
+    # (the other parameters remain the same)
+    opt_target = load_n_predict(PFI_df_dict, Xy_data_PFI, 'valid', hyperopt=True)
+    PFI_df_dict[PFI_df_dict['hyperopt_target']] = opt_target
+    
+    # save CSV file
+    name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
+    path_csv_PFI = self.args.initial_dir.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
+    csv_PFI_df = pd.DataFrame.from_dict(PFI_df_dict, orient='index')
+    csv_PFI_df = csv_PFI_df.transpose()
+    _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
+
+    # check if this combination is the best model and replace data in the Best_model folder
+    _ = update_best(self,csv_PFI_df,Xy_data_PFI,path_csv_PFI)
+
+
+def PFI_filter(self,Xy_data,PFI_df_dict):
 
     # load and fit model
-    loaded_model = load_model(PFI_df, PFI_df)
+    loaded_model = load_model(PFI_df_dict)
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])
 
     # we use the validation set during PFI as suggested by the sklearn team:
@@ -340,105 +397,74 @@ def PFI_workflow(self,PFI_df,Xy_data):
 
     # PFI filter
     PFI_discard = []
-    PFI_filter = self.args.PFI_threshold*score_model
+    PFI_thres = self.args.PFI_threshold*score_model
     for i in reversed(range(len(PFI_values))):
-        if PFI_values[i] < PFI_filter:
+        if PFI_values[i] < PFI_thres:
             PFI_discard.append(combined_descriptor_list[i])
-    Xy_data['X_train_PFI'] = Xy_data['X_train'].drop(PFI_discard, axis=1)
-    Xy_data['X_valid_PFI'] = Xy_data['X_valid'].drop(PFI_discard, axis=1)
 
-    guarda en best/PFI
-    en el paso de antes, guarda graph en best_results/No_PFI
+    return PFI_discard
 
-        # printing and representing the results
-        print(f"\nPermutation feature importances of the descriptors in the {PFI_df['model']}_{PFI_df['train']}_PFI model (for the validation set). Only showing values that drop the original score at least by {self.args.PFI_threshold*100}%:\n")
-        print('Original score = '+f'{score_model:.2f}')
-        for i in range(len(PFI_values)):
-            print(combined_descriptor_list[i]+': '+f'{PFI_values[i]:.2f}'+' '+u'\u00B1'+ ' ' + f'{PFI_SD[i]:.2f}')
+def update_best(self, csv_df, Xy_data, name_csv):
 
-        y_ticks = np.arange(0, len(PFI_values))
-        fig, ax = plt.subplots()
-        ax.barh(y_ticks, PFI_values[::-1])
-        ax.set_yticklabels(combined_descriptor_list[::-1])
-        ax.set_yticks(y_ticks)
-        ax.set_title(model_type_PFI_fun+" permutation feature importances (PFI)")
-        fig.tight_layout()
-        plot = ax.set(ylabel=None, xlabel='PFI')
-
-        plt.savefig(f'PFI/{model_type_PFI_fun}+ permutation feature importances (PFI)', dpi=600, bbox_inches='tight')
-
-        plt.show()
-    
-    return combined_descriptor_list
-
-def update_best(self,csv_df,Xy_data,name_csv):
-
-    # check if the results of the new model are better than the previous best model
-    results_model = pd.read_csv(name_csv)
-    new_error = results_model[results_model['hyperopt_target']]
-
-    if 'No_PFI' in name_csv:
+    if 'No_PFI' in name_csv.as_posix():
         folder_suf = 'No_PFI'
+        split_n = 3
     else:
         folder_suf = 'PFI'
+        split_n = 4
 
-    # detects previos best file with results
-    folder_best = f"/Best_model/{folder_suf}"
+    # detects previous best file with results
+    folder_raw = self.args.initial_dir.joinpath(f"GENERATE/Raw_data/{folder_suf}")
+    folder_best = self.args.initial_dir.joinpath(f"GENERATE/Best_model/{folder_suf}")
     csv_files = glob.glob(f'{folder_best}/*.csv')
-    for csv_file in csv_files:
-        file_split = os.path.basename(csv_file).replace('.','_').split('_')
-        if len(file_split) == 3 and file_split[0] in ['rf','mvl','gb','adab','nn','vr']:
-            name_best = csv_file
-    results_best = pd.read_csv(name_best)
-    best_error = results_best[results_best['hyperopt_target']]
+    if len(csv_files) > 0:
+        for csv_file in csv_files:
+            file_split = os.path.basename(csv_file).replace('.','_').split('_')
+            # split_n is added to differentiate between params and db files
+            if len(file_split) == split_n and file_split[0].lower() in ['rf','mvl','gb','adab','nn','vr']:
+                name_best = csv_file
+        results_best = pd.read_csv(name_best)
+        best_error = results_best[results_best['hyperopt_target'][0]][0]
 
-    # error for regressors
-    replace_best = False
-    if results_model['mode'].lower() == 'reg' and results_best['hyperopt_target'].lower() in ['rmse','mae']:
-        if new_error < best_error:
-            replace_best = True
-    # precision for classificators and R2
+        # check if the results of the new model are better than the previous best model
+        results_model = pd.read_csv(f'{name_csv}.csv')
+        new_error = results_model[results_model['hyperopt_target'][0]][0]
+
+        # error for current regressor
+        replace_best = False
+        if results_model['mode'][0].lower() == 'reg' and results_best['hyperopt_target'][0].lower() in ['rmse','mae']:
+            if new_error < best_error:
+                replace_best = True
+        # precision for current classificator and R2
+        else:
+            if new_error > best_error:
+                replace_best = True
+    # first model
     else:
-        if new_error > best_error:
-            replace_best = True
+        replace_best = True
 
+    
+    # copy the database used (without the ignored values)
+
+    # set a new column for the set
+    set_column = []
+    n_points = len(csv_df[csv_df.columns[0]])
+    for i in range(0,n_points):
+        if i in Xy_data['training_points']:
+            set_column.append('Training')
+        else:
+            set_column.append('Validation')
+    csv_df['Set'] = set_column
+
+    # save the csv file
+    db_name = Path(f'{folder_raw.joinpath(os.path.basename(name_csv))}_db')
+    _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
+
+    # update the new best model (if the current model shows better proficiency)
     if replace_best:
         for file in glob.glob(f'{folder_best}/*.*'):
             os.remove(file)
-        shutil.copyfile(name_csv, f'{folder_best}/os.path.basename({name_csv})')
 
-
-        # set two new columns, one for the predicted y values and the other for the set
-        csv_df[f'Predicted_{self.args.y}'] = results_model['']
-
-
-        set_column = []
-        for _,num in enumerate(Xy_data['y_train']):
-            if num in Xy_data['training_points']:
-                set_column.append('Training')
-            else:
-                set_column.append('Validation')
-        csv_df['Set'] = set_column
-    
-
-usa xy_data to create first training and then validation, then concatenate as below. This way,
-you can add also predicted y_values for valid and train
-csv_df anade una columna de training valid en base a Xy_data
-anade la colunma de predicted_y (anade primero en hyperopt y luego carga)
-
-    X_train_csv = best_model[21].copy()
-    X_validation_csv = best_model[22].copy()
-
-    X_train_csv[response_value] = best_model[18]
-    X_validation_csv[response_value] = best_model[19]
-
-    X_train_csv[f'Predicted {response_value}'] = best_model[11]
-    X_validation_csv[f'Predicted {response_value}'] =  best_model[12]
-    
-    X_train_csv = pd.concat([X_train_csv, best_model[9]], axis=1)
-    X_validation_csv = pd.concat([X_validation_csv, best_model[14]], axis=1)
-
-    X_train_csv['Set'] = 'Training'
-    X_validation_csv['Set'] = 'Validation'
-
-    df_csv = pd.concat([X_train_csv, X_validation_csv], axis=0)
+        # copy the ML model params and database
+        shutil.copyfile(f'{name_csv}.csv', f'{folder_best.joinpath(os.path.basename(name_csv))}.csv')
+        shutil.copyfile(f'{db_name}.csv', f'{folder_best.joinpath(os.path.basename(db_name))}.csv')

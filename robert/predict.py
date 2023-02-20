@@ -5,34 +5,6 @@ Parameters
 General
 +++++++
 
-    # define csv file that contains the database (without the .csv extension) and the response value
-    w_dir = os.getcwd()
-
-    # name of the csv containing the database without the CSV extension. For example: csv_name = 'Phenolic_data' 
-    csv_name = 'Robert_example'
-
-    # name of the csv file that will contain the optimal parameters
-    name_csv_hyperopt = 'Predictor_parameters'
-
-    # specify the response value (y), for example: response_value = 'activation_barrier_kcal/mol'
-    response_value = 'Target_values'
-
-    # specify columns of the csv to drop from the descriptors but to keep in the final database
-    # (i.e. reaction names). For example: fixed_descriptors = ['Name','SMILES','YSI/MW','YSI','CN','MW','weakest_bondtype'].
-    # If there are not descriptors to discard, just use fixed_descriptors = []
-    fixed_descriptors = ['Name']
-
-    # convert columns with strings into categorical values using 1,2,3... (alternative
-    # to one-hot encoding that the code uses by default)
-    categorical_mode = False
-
-    # activate with correlation_filter = True
-    correlation_filter = True
-
-    # threshold values for the correlation filters (if correlation_filter = True)
-    correlation_y_threshold = 0.02 # (only use descriptors that correlate with R**2 > 0.02 with the response value)
-    correlation_x_threshold = 0.85 # (only use descriptors that don't correlate with R**2 > 0.85 with other descriptors)
-
    files : str or list of str, default=None
      Input files. Formats accepted: XYZ, SDF, GJF, COM and PDB. Also, lists can
      be used (i.e. [FILE1.sdf, FILE2.sdf] or \*.FORMAT such as \*.sdf).  
@@ -67,37 +39,32 @@ class predict:
 
         start_time_overall = time.time()
         # load default and user-specified variables
-        self.args = load_variables(kwargs, "curate")
-
-        cmin_program = True
-        if self.args.program is None:
-            cmin_program = False
-        if cmin_program:
-            if self.args.program.lower() not in ["xtb", "ani"]:
-                cmin_program = False
-        if not cmin_program:
-            self.args.log.write('\nx  Program not supported for CMIN refinement! Specify: program="xtb" (or "ani")')
-            self.args.log.finalize()
-            sys.exit()
-
-        try:
-            os.chdir(self.args.w_dir_main)
-        except FileNotFoundError:
-            self.args.w_dir_main = Path(f"{os.getcwd()}/{self.args.w_dir_main}")
-            os.chdir(self.args.w_dir_main)
-
-        # retrieves the different files to run in CMIN
-        if len(self.args.files) == 0:
-            self.args.log.write('\nx  No files were found! Make sure you use quotation marks if you are using * (i.e. --files "*.sdf")')
-            self.args.log.finalize()
-            sys.exit()
+        self.args = load_variables(kwargs, "predict")
 
 
-        elapsed_time = round(time.time() - start_time_overall, 2)
-        self.args.log.write(f"\nTime CMIN: {elapsed_time} seconds\n")
-        self.args.log.finalize()
-
-        # this is added to avoid path problems in jupyter notebooks
-        os.chdir(self.args.initial_dir)
 
 
+
+
+graph with trainng, valid y test si existe, optional (como en el articulo de phneols)
+RMSE, MAE, R2 prints
+SHAP analysis (valid)
+PFI analysis (valid)
+        # printing and representing the results
+        print(f"\nPermutation feature importances of the descriptors in the {PFI_df['model']}_{PFI_df['train']}_PFI model (for the validation set). Only showing values that drop the original score at least by {self.args.PFI_threshold*100}%:\n")
+        print('Original score = '+f'{score_model:.2f}')
+        for i in range(len(PFI_values)):
+            print(combined_descriptor_list[i]+': '+f'{PFI_values[i]:.2f}'+' '+u'\u00B1'+ ' ' + f'{PFI_SD[i]:.2f}')
+
+        y_ticks = np.arange(0, len(PFI_values))
+        fig, ax = plt.subplots()
+        ax.barh(y_ticks, PFI_values[::-1])
+        ax.set_yticklabels(combined_descriptor_list[::-1])
+        ax.set_yticks(y_ticks)
+        ax.set_title(model_type_PFI_fun+" permutation feature importances (PFI)")
+        fig.tight_layout()
+        plot = ax.set(ylabel=None, xlabel='PFI')
+
+        plt.savefig(f'PFI/{model_type_PFI_fun}+ permutation feature importances (PFI)', dpi=600, bbox_inches='tight')
+
+        plt.show()

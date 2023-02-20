@@ -2,19 +2,17 @@
 #      This file contains the argument parser       #
 #####################################################.
 
-import os
-
 var_dict = {
     "varfile": None,
     "command_line": False,
     "curate": False,
     "generate": False,
-    "outliers": False,
     "predict": False,
+    "testing": False,
+    "cheers": False,
     "seed": 62609,
     "destination": None,
     "csv_name" : '',
-    "csv_params" : 'ML_params',
     "y" : '',
     "discard" : [],
     "ignore" : [],
@@ -25,6 +23,7 @@ var_dict = {
     "train" : [60,70,80,90],
     "split" : "KN",
     "model" : ['RF','GB','NN', 'VR'],
+    "custom_params" : None,
     "mode" : "reg",
     "seed" : 0,
     "epochs" : 500,

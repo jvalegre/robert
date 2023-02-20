@@ -1,13 +1,14 @@
 # options for GB and RF models
-max_depth = [20,40,80,160,320]
-n_estimators = [5,20,40,160,320]
+max_depth : [20,40,80,160,320]
+n_estimators : [5,20,40,160,320]
+interval_descriptors : 3
 
 # options for GB and NN
-learning_rate = [0.01,0.05,0.1,0.2,0.5]
-validation_fraction = [0.1,0.2]
+learning_rate : [0.01,0.05,0.1,0.2,0.5]
+validation_fraction : [0.1,0.2]
 
 # options for NN
-batch_size = [20,40,160,320]
-hidden_layer_sizes = [(32),(64),(64,32),(64,32,16)]
-learning_rate_init = [0.0001,0.0005,0.001,0.01]
-max_iter = [200,500]
+batch_size : [20,40,160,320]
+hidden_layer_sizes : ["32","64","64,32","64,32,16"]
+learning_rate_init : [0.0001,0.0005,0.001,0.01]
+max_iter : [200,500]

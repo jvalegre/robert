@@ -510,7 +510,7 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     _, ax = plt.subplots(figsize=(7.45,6))
     sb.set(font_scale=1.2, style='ticks')
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.hyperopt_target.upper()}'})
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.hyperopt_target.upper()} Validation'})
     fontsize = 14
     ax.set_xlabel("Model Type",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)

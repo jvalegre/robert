@@ -8,7 +8,7 @@ var_dict = {
     "curate": False,
     "generate": False,
     "predict": False,
-    "testing": False,
+    "verify": False,
     "cheers": False,
     "seed": 62609,
     "destination": None,

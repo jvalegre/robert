@@ -65,7 +65,7 @@ class curate:
         self.args = load_variables(kwargs, "curate")
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df = load_database(self,"curate")
+        csv_df = load_database(self,self.args.csv_name,"curate")
 
         # transform categorical descriptors
         csv_df = self.categorical_transform(csv_df)

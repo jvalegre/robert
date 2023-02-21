@@ -103,7 +103,7 @@ class generate:
         self.args = load_variables(kwargs, "generate")
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df, csv_X, csv_y = load_database(self, "generate")
+        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate")
 
         # scan different ML models
         txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models {self.args.model} and {len(self.args.train)} training sizes {self.args.train}."

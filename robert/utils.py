@@ -143,8 +143,8 @@ def command_line_args():
     bool_args = [
         "curate",
         "generate",
+        "verify",
         "predict",
-        "testing",
         "cheers"
     ]
 
@@ -385,21 +385,22 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
-def load_database(self,module):
-    csv_df = pd.read_csv(self.args.csv_name)
-    sanity_checks(self.args,'csv_db',module,csv_df.columns)
-    csv_df = csv_df.drop(self.args.discard, axis=1)
-    total_amount = len(csv_df.columns)
-    ignored_descs = len(self.args.ignore)
-    accepted_descs = total_amount - ignored_descs
-    txt_load = f'\no  Database {self.args.csv_name} loaded successfully, including:'
-    txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
-    txt_load += f'\n   - {accepted_descs} accepted descriptors'
-    txt_load += f'\n   - {ignored_descs} ignored descriptors'
-    txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
-    self.args.log.write(txt_load)
+def load_database(self,csv_load,module):
+    csv_df = pd.read_csv(csv_load)
+    if module.lower() not in 'verify':
+        sanity_checks(self.args,'csv_db',module,csv_df.columns)
+        csv_df = csv_df.drop(self.args.discard, axis=1)
+        total_amount = len(csv_df.columns)
+        ignored_descs = len(self.args.ignore)
+        accepted_descs = total_amount - ignored_descs
+        txt_load = f'\no  Database {csv_load} loaded successfully, including:'
+        txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
+        txt_load += f'\n   - {accepted_descs} accepted descriptors'
+        txt_load += f'\n   - {ignored_descs} ignored descriptors'
+        txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
+        self.args.log.write(txt_load)
 
-    if module == 'curate':
+    if module.lower() in ['curate','verify']:
         return csv_df
     if module == 'generate':
         # ignore user-defined descriptors and assign X and y values (but keeps the original database)

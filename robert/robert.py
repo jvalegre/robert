@@ -5,9 +5,11 @@
 ###                                                                ###
 ###  ROBERT is a tool that allows to carry out automated:          ###
 ###  (CURATE) Curate the data                                      ###
-###  (OUTLIERS) Outlier analysis                                   ###
 ###  (GENERATE) Optimize the ML model                              ###
+###  (VERIFY) ML model analysis                                    ###
 ###  (PREDICT) Predict new data                                    ###
+###  (AQME) AQME-ROBERT workflow                                   ###
+###  (CHEERS) Acknowledges                                         ###
 ###                                                                ###
 ######################################################################
 ###                                                                ###
@@ -36,8 +38,8 @@ def main():
     args = command_line_args()
     args.command_line = True
 
-    if not args.curate and not args.generate and not args.predict and not args.testing:
-        print('x  The --module option was not specified in the command line! Options: "curate", "generate", "predict", "testing".\n')
+    if not args.curate and not args.generate and not args.predict and not args.verify:
+        print('x  The --module option was not specified in the command line! Options: "curate", "generate", "verify", "predict".\n')
 
     # CURATE
     if args.curate:

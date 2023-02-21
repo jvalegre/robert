@@ -211,7 +211,7 @@ def load_variables(kwargs, robert_module):
         self.initial_dir = Path(os.getcwd())
 
         # creates destination folder
-        _ = destination_folder(self,robert_module)
+        self = destination_folder(self,robert_module)
 
         # start a log file
         logger_1 = 'ROBERT'
@@ -283,14 +283,16 @@ def load_variables(kwargs, robert_module):
 
 def destination_folder(self,dest_module):
     if self.destination is None:
-        self.curate_folder = Path(self.initial_dir).joinpath(dest_module.upper())
+        self.destination = Path(self.initial_dir).joinpath(dest_module.upper())
     else:
         if Path(f"{self.destination}").exists():
-            self.curate_folder = Path(self.destination)
+            self.destination = Path(self.destination)
         else:
-            self.curate_folder = Path(self.initial_dir).joinpath(self.destination)
+            self.destination = Path(self.initial_dir).joinpath(self.destination)
 
-    self.curate_folder.mkdir(exist_ok=True, parents=True)
+    self.destination.mkdir(exist_ok=True, parents=True)
+
+    return self
 
 
 def sanity_checks(self, type_checks, module, columns_csv):

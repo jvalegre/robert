@@ -138,4 +138,4 @@ prediction_type = 'reg'
   d. Robert_example_final_dataset_with_test.csv . Contains the final database with results including the external set
   
 ## Reference
-Robert v1.0, Alegre-Requena, J. V. 2022. https://github.com/jvalegre/robert
+Robert v0.1, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert

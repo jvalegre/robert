@@ -9,6 +9,9 @@ from pathlib import Path
 import random
 import pandas as pd
 import numpy as np
+import seaborn as sb
+from matplotlib import pyplot as plt
+import matplotlib.colors as mcolor
 from sklearn.cluster import KMeans
 import yaml
 import json
@@ -43,7 +46,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
                 'hyperopt_target': self.args.hyperopt_target,
                 'y': self.args.y,
                 'X_descriptors': Xy_data_hp['X_descriptors'],
-                'initial_dir': self.args.initial_dir.as_posix()}
+                'destination': self.args.destination.as_posix()}
 
     # adjust the format for the sklearn models and add the data to the dict
     for desc in ['X_train_scaled','y_train','X_valid_scaled','y_valid']:
@@ -72,7 +75,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
         pass
 
     # check if this combination is the best model and replace data in the Best_model folder
-    name_csv = self.args.initial_dir.joinpath(f"GENERATE/Raw_data/No_PFI/{ML_model}_{size}")
+    name_csv = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}")
     _ = update_best(self, csv_df,Xy_data_hp,name_csv)
 
 
@@ -202,8 +205,8 @@ def f(params):
         csv_hyperopt_df = pd.DataFrame.from_dict(csv_hyperopt, orient='index')
         csv_hyperopt_df = csv_hyperopt_df.transpose()
         
-        initial_dir = Path(hyperopt_data['initial_dir'])
-        name_csv_hyperopt = initial_dir.joinpath(f"GENERATE/Raw_data/No_PFI/{hyperopt_data['model']}_{hyperopt_data['train']}.csv")
+        destination = Path(hyperopt_data['destination'])
+        name_csv_hyperopt = destination.joinpath(f"Raw_data/No_PFI/{hyperopt_data['model']}_{hyperopt_data['train']}.csv")
         _ = csv_hyperopt_df.to_csv(name_csv_hyperopt, index = None, header=True)
  
     return {'loss': best, 'status': STATUS_OK}
@@ -310,7 +313,11 @@ def k_neigh(self,X_scaled,csv_y,size):
     
     # runs the k-neighbours algorithm and keeps the closest point to the center of each cluster
     kmeans = KMeans(n_clusters=number_of_clusters,random_state=self.args.seed)
-    kmeans.fit(X_scaled_array)
+    try:
+        kmeans.fit(X_scaled_array)
+    except ValueError:
+        self.args.log.write("\nx  The K-means clustering process failed! This is probably due to having NaN or strings as descriptors. To avoid this issue, curate the data first with the CURATE module!")
+        sys.exit()
     _ = kmeans.predict(X_scaled_array)
     centers = kmeans.cluster_centers_
     for i in range(number_of_clusters):
@@ -333,8 +340,8 @@ def k_neigh(self,X_scaled,csv_y,size):
 
 def PFI_workflow(self, ML_model, size, Xy_data):
     # filter off parameters with low PFI (not relevant in the model)
-    name_csv_hyperopt = f"GENERATE/Raw_data/No_PFI/{ML_model}_{size}"
-    path_csv = self.args.initial_dir.joinpath(f'{name_csv_hyperopt}.csv')
+    name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}"
+    path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
     PFI_df = pd.read_csv(path_csv)
     PFI_df_dict = {} # (using a dict to keep the same format of load_model)
     for column in PFI_df.columns:
@@ -362,7 +369,7 @@ def PFI_workflow(self, ML_model, size, Xy_data):
     
     # save CSV file
     name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
-    path_csv_PFI = self.args.initial_dir.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
+    path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
     csv_PFI_df = pd.DataFrame.from_dict(PFI_df_dict, orient='index')
     csv_PFI_df = csv_PFI_df.transpose()
     _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
@@ -414,8 +421,8 @@ def update_best(self, csv_df, Xy_data, name_csv):
         split_n = 4
 
     # detects previous best file with results
-    folder_raw = self.args.initial_dir.joinpath(f"GENERATE/Raw_data/{folder_suf}")
-    folder_best = self.args.initial_dir.joinpath(f"GENERATE/Best_model/{folder_suf}")
+    folder_raw = self.args.destination.joinpath(f"Raw_data/{folder_suf}")
+    folder_best = self.args.destination.joinpath(f"Best_model/{folder_suf}")
     csv_files = glob.glob(f'{folder_best}/*.csv')
     if len(csv_files) > 0:
         for csv_file in csv_files:
@@ -468,3 +475,48 @@ def update_best(self, csv_df, Xy_data, name_csv):
         # copy the ML model params and database
         shutil.copyfile(f'{name_csv}.csv', f'{folder_best.joinpath(os.path.basename(name_csv))}.csv')
         shutil.copyfile(f'{db_name}.csv', f'{folder_best.joinpath(os.path.basename(db_name))}.csv')
+
+
+def heatmap_workflow(self,folder_hm):
+    # create matrix of ML models, training sizes and errors/precision (no PFI filter)
+    path_raw = self.args.destination.joinpath(f"Raw_data")
+    csv_data,model_list,size_list = {},[],[]
+    for csv_file in glob.glob(path_raw.joinpath(f"{folder_hm}/*.csv").as_posix()):
+        if '_db' not in csv_file:
+            basename = os.path.basename(csv_file)
+            csv_model = basename.replace('.','_').split('_')[0]
+            if csv_model not in model_list:
+                model_list.append(csv_model)
+                csv_data[csv_model] = {}
+            csv_size = basename.replace('.','_').split('_')[1]
+            if csv_model not in size_list:
+                size_list.append(csv_size)
+            csv_value = pd.read_csv(csv_file)
+            csv_data[csv_model][csv_size] = csv_value[self.args.hyperopt_target][0]
+    # pass dictionary into a dataframe
+    csv_df = pd.DataFrame()
+    for csv_model in csv_data:
+        csv_df[csv_model] = csv_data[csv_model]
+    
+    # plot heatmap
+    if folder_hm == "No_PFI":
+        suffix = 'no PFI filter'
+    elif folder_hm == "PFI":
+        suffix = 'with PFI filter'
+    _ = create_heatmap(self,csv_df,suffix,path_raw)
+
+def create_heatmap(self,csv_df,suffix,path_raw):
+    csv_df = csv_df.sort_index(ascending=False)
+    _, ax = plt.subplots(figsize=(7.45,6))
+    sb.set(font_scale=1.2, style='ticks')
+    cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.hyperopt_target.upper()}'})
+    fontsize = 14
+    ax.set_xlabel("Model Type",fontsize=fontsize)
+    ax.set_ylabel("Training Size",fontsize=fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+    title_fig = f'Heatmap ML models {suffix}'
+    plt.title(title_fig, y=1.04, fontsize = fontsize)
+    sb.despine(top=False, right=False)
+    plt.savefig(f'{path_raw.joinpath(title_fig)}.png', dpi=300, bbox_inches='tight')
+    ax.plot()

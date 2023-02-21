@@ -33,7 +33,7 @@ General
             3. 'GB' (Gradient boosting)
             4. 'AdaB' (AdaBoost regressor)
             5. 'NN' (MLP regressor neural network)
-            6. 'VR' (Voting regressor combining RF, GB and NN )
+            6. 'VR' (Voting regressor combining RF, GB and NN)
      custom_params : str, default=None
          Define new parameters for the ML models used in the hyperoptimization workflow. The path
          to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')
@@ -80,7 +80,8 @@ from robert.utils import (
 from robert.generate_utils import (
     prepare_sets,
     hyperopt_workflow,
-    PFI_workflow
+    PFI_workflow,
+    heatmap_workflow
 )
 
 
@@ -133,38 +134,10 @@ class generate:
                 self.args.log.write(f'   - {cycle}/{len(self.args.model)*len(self.args.train)}')
                 cycle += 1
                 
+        # create heatmap plot(s)
+        _ = heatmap_workflow(self,"No_PFI")
 
+        if self.args.PFI:
+            _ = heatmap_workflow(self,"PFI")
 
-        # def create_heatmap(data, title, output_file):
-        #     df_plot = pd.DataFrame(data)
-        #     df_plot.columns = [model]
-        #     df_plot.index = [train]
-        #     df_plot = df_plot.sort_index(ascending=False)
-        #     fig, ax = plt.subplots(figsize=(7.45,6))
-        #     sb.set(font_scale=1.2, style='ticks')
-        #     cmap_blues_75_percent_512 =  [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-        #     ax = sb.heatmap(df_plot, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': 'RMSE Validation'})
-        #     ax.set(xlabel="Model Type", ylabel="Training Size")
-        #     plt.title(title)
-        #     sb.despine(top=False, right=False)
-        #     plt.savefig(output_file, dpi=600, bbox_inches='tight')
-        #     ax.plot()
-
-
-
-        # saves the curated CSV
-        txt_csv = f'\no  {len(csv_df.columns)} descriptors remaining after applying correlation filters:\n'
-        txt_csv += '\n'.join(f'   - {var}' for var in csv_df.columns)
-        self.args.log.write(txt_csv)
-
-        csv_curate_name = f'{self.args.csv_name.split(".")[0]}_CURATE.csv'
-        csv_curate_name = self.curate_folder.joinpath(csv_curate_name)
-        _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
-        self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
-
-        # finish the printing of the CURATE info file
-        _ = finish_print(self,start_time)
-
-
-
-
+        _ = finish_print(self,start_time,'GENERATE')

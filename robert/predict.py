@@ -5,6 +5,12 @@ Parameters
 General
 +++++++
 
+# Specify t-value that will be the threshold to identify outliers
+# (check tables for t-values elsewhere). The higher the t-value 
+# the more restrictive the analysis will be (i.e. there will 
+# be more outliers with t-value=1 than with t-value = 4)
+t_value = 2
+
    files : str or list of str, default=None
      Input files. Formats accepted: XYZ, SDF, GJF, COM and PDB. Also, lists can
      be used (i.e. [FILE1.sdf, FILE2.sdf] or \*.FORMAT such as \*.sdf).  

@@ -4,6 +4,7 @@ Parameters
 
 General
 +++++++
+
      csv_name : str, default=''
          Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
      y : str, default=''
@@ -41,7 +42,7 @@ General
          Type of the pedictions. Options: 
             1. 'reg' (Regressor)
             1. 'clas' (Classifier)
-     seed : int, default=0,
+     seed : int, default=8,
          Random seed used in the ML predictor models, data splitting and other protocols.
      epochs : int, default=500,
          Number of epochs for the hyperopt optimization.

@@ -24,7 +24,7 @@
 
 from robert.curate import curate
 from robert.generate import generate
-# from robert.outliers import outliers
+from robert.verify import verify
 # from robert.predict import predict
 from robert.utils import command_line_args
 
@@ -78,6 +78,18 @@ def main():
             PFI_epochs=args.PFI_epochs,
             PFI_threshold=args.PFI_threshold,
             PFI=args.PFI
+        )
+
+    # VERIFY
+    if args.verify:
+        verify(
+            varfile=args.varfile,
+            command_line=args.command_line,
+            destination=args.destination,
+            thres_test=args.thres_test,
+            thres_target=args.thres_target,
+            seed=args.seed,
+            kfold=args.kfold
         )
 
     # CHEERS

@@ -519,4 +519,4 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     plt.title(title_fig, y=1.04, fontsize = fontsize)
     sb.despine(top=False, right=False)
     plt.savefig(f'{path_raw.joinpath(title_fig)}.png', dpi=300, bbox_inches='tight')
-    ax.plot()
+    self.args.log.write(f'\no  {title_fig} succesfully created in {path_raw}')

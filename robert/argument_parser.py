@@ -10,7 +10,7 @@ var_dict = {
     "predict": False,
     "verify": False,
     "cheers": False,
-    "seed": 62609,
+    "seed": 8,
     "destination": None,
     "csv_name" : '',
     "y" : '',
@@ -31,6 +31,8 @@ var_dict = {
     "PFI_epochs" : 30,
     "PFI_threshold" : 0.04,
     "PFI" : True,
+    "thres_test": 0.2,
+    "kfold": 5
 }
 
 # part for using the options in a script or jupyter notebook

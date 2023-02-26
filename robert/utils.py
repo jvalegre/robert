@@ -301,8 +301,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
     """
 
     curate_valid = True
-    if type_checks == 'initial':
-        if self.csv_name is '':
+    if type_checks == 'initial' and module.lower() not in ['verify']:
+        if self.csv_name == '':
             self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
             curate_valid = False
 
@@ -314,7 +314,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
             self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
             curate_valid = False
 
-        if module == 'curate':
+        if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:
                 self.log.write(f"\nx  The categorical option used is not valid! Options: 'onehot', 'numbers'")
                 curate_valid = False
@@ -327,7 +327,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The thres_y option should be between 0 and 1!")
                 curate_valid = False
         
-        elif module == 'generate':
+        elif module.lower() == 'generate':
             if self.split.lower() not in ['kn','rnd']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False

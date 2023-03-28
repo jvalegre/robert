@@ -76,7 +76,7 @@ class curate:
 
         # saves the curated CSV
         csv_curate_name = f'{self.args.csv_name.split(".")[0]}_CURATE.csv'
-        csv_curate_name = self.destination.joinpath(csv_curate_name)
+        csv_curate_name = self.args.destination.joinpath(csv_curate_name)
         _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
         self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
 

@@ -21,7 +21,11 @@ warnings.filterwarnings("ignore")
 from pkg_resources import resource_filename
 from sklearn.inspection import permutation_importance
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
-from robert.utils import load_model, load_n_predict, standardize
+from robert.utils import (
+    load_model,
+    load_n_predict,
+    standardize,
+    pd_to_dict)
 
 
 # hyperopt workflow
@@ -43,7 +47,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
                 'split': self.args.split,
                 'train': size, 
                 'seed': self.args.seed,
-                'hyperopt_target': self.args.hyperopt_target,
+                'error_type': self.args.error_type,
                 'y': self.args.y,
                 'X_descriptors': Xy_data_hp['X_descriptors'],
                 'destination': self.args.destination.as_posix()}
@@ -128,7 +132,7 @@ def hyperopt_params(self, model_type, X_hyperopt):
 def f(params):
 
     # this json file is used to: 1) keep track of the best value, 2) store the X and y values,
-    # 3) store other general options (i.e. mode, hyperopt_target, etc.) during the hyperopt process
+    # 3) store other general options (i.e. mode, error_type, etc.) during the hyperopt process
     with open('hyperopt.json') as json_file:
         hyperopt_data = json.load(json_file)
     best = hyperopt_data['best']
@@ -138,7 +142,7 @@ def f(params):
     params['model'] = hyperopt_data['model']
     params['train'] = hyperopt_data['train']
     params['seed'] = hyperopt_data['seed']
-    params['hyperopt_target'] = hyperopt_data['hyperopt_target']
+    params['error_type'] = hyperopt_data['error_type']
 
     # correct for a problem when loading arrays in json
     if params['model'].upper() in ['NN','VR']:
@@ -169,7 +173,7 @@ def f(params):
                         'mode': hyperopt_data['mode'],
                         'seed': hyperopt_data['seed'],
                         'y': hyperopt_data['y'],
-                        'hyperopt_target': hyperopt_data['hyperopt_target'],
+                        'error_type': hyperopt_data['error_type'],
                         'X_descriptors': hyperopt_data['X_descriptors']}
 
         if hyperopt_data['model'].upper() in ['RF','GB','VR']:
@@ -195,11 +199,11 @@ def f(params):
                 csv_hyperopt['learning_rate'] = params['learning_rate']
             
         if hyperopt_data['mode'] == 'reg':
-            csv_hyperopt[hyperopt_data['hyperopt_target']] = best
+            csv_hyperopt[hyperopt_data['error_type']] = best
             
         elif hyperopt_data['mode'] == 'clas':
             # need to reconvert the value (it was converted into a negative value in load_n_predict())
-            csv_hyperopt[hyperopt_data['hyperopt_target']] = -best
+            csv_hyperopt[hyperopt_data['error_type']] = -best
 
         # save into a csv file
         csv_hyperopt_df = pd.DataFrame.from_dict(csv_hyperopt, orient='index')
@@ -343,10 +347,8 @@ def PFI_workflow(self, ML_model, size, Xy_data):
     name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
     PFI_df = pd.read_csv(path_csv)
-    PFI_df_dict = {} # (using a dict to keep the same format of load_model)
-    for column in PFI_df.columns:
-        PFI_df_dict[column] = PFI_df[column][0]
-    PFI_discard = PFI_filter(self,Xy_data,PFI_df_dict)
+    PFI_dict = pd_to_dict(PFI_df) # (using a dict to keep the same format of load_model)
+    PFI_discard = PFI_filter(self,Xy_data,PFI_dict)
 
     # generate new X datasets and store the descriptors used for the PFI-filtered model
     discard_idx, descriptors_PFI = [],[]
@@ -360,17 +362,17 @@ def PFI_workflow(self, ML_model, size, Xy_data):
     Xy_data_PFI['X_train'] = Xy_data['X_train'].drop(discard_idx, axis=1)
     Xy_data_PFI['X_valid'] = Xy_data['X_valid'].drop(discard_idx, axis=1)
     Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
-    PFI_df_dict['X_descriptors'] = descriptors_PFI
+    PFI_dict['X_descriptors'] = descriptors_PFI
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target = load_n_predict(PFI_df_dict, Xy_data_PFI, 'valid', hyperopt=True)
-    PFI_df_dict[PFI_df_dict['hyperopt_target']] = opt_target
+    opt_target = load_n_predict(PFI_dict, Xy_data_PFI, 'valid', hyperopt=True)
+    PFI_dict[PFI_dict['error_type']] = opt_target
     
     # save CSV file
     name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
     path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
-    csv_PFI_df = pd.DataFrame.from_dict(PFI_df_dict, orient='index')
+    csv_PFI_df = pd.DataFrame.from_dict(PFI_dict, orient='index')
     csv_PFI_df = csv_PFI_df.transpose()
     _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
 
@@ -378,10 +380,10 @@ def PFI_workflow(self, ML_model, size, Xy_data):
     _ = update_best(self,csv_PFI_df,Xy_data_PFI,path_csv_PFI)
 
 
-def PFI_filter(self,Xy_data,PFI_df_dict):
+def PFI_filter(self,Xy_data,PFI_dict):
 
     # load and fit model
-    loaded_model = load_model(PFI_df_dict)
+    loaded_model = load_model(PFI_dict)
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])
 
     # we use the validation set during PFI as suggested by the sklearn team:
@@ -431,15 +433,15 @@ def update_best(self, csv_df, Xy_data, name_csv):
             if len(file_split) == split_n and file_split[0].lower() in ['rf','mvl','gb','adab','nn','vr']:
                 name_best = csv_file
         results_best = pd.read_csv(name_best)
-        best_error = results_best[results_best['hyperopt_target'][0]][0]
+        best_error = results_best[results_best['error_type'][0]][0]
 
         # check if the results of the new model are better than the previous best model
         results_model = pd.read_csv(f'{name_csv}.csv')
-        new_error = results_model[results_model['hyperopt_target'][0]][0]
+        new_error = results_model[results_model['error_type'][0]][0]
 
         # error for current regressor
         replace_best = False
-        if results_model['mode'][0].lower() == 'reg' and results_best['hyperopt_target'][0].lower() in ['rmse','mae']:
+        if results_model['mode'][0].lower() == 'reg' and results_best['error_type'][0].lower() in ['rmse','mae']:
             if new_error < best_error:
                 replace_best = True
         # precision for current classificator and R2
@@ -492,7 +494,7 @@ def heatmap_workflow(self,folder_hm):
             if csv_model not in size_list:
                 size_list.append(csv_size)
             csv_value = pd.read_csv(csv_file)
-            csv_data[csv_model][csv_size] = csv_value[self.args.hyperopt_target][0]
+            csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0]
     # pass dictionary into a dataframe
     csv_df = pd.DataFrame()
     for csv_model in csv_data:
@@ -510,7 +512,7 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     _, ax = plt.subplots(figsize=(7.45,6))
     sb.set(font_scale=1.2, style='ticks')
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.hyperopt_target.upper()} Validation'})
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} Validation'})
     fontsize = 14
     ax.set_xlabel("Model Type",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)

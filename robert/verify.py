@@ -9,8 +9,8 @@ General
          Directory to create the output file(s).
      varfile : str, default=None
          Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     seed : int, default=8,
-         Random seed used in the ML predictor models, data splitting and other protocols.
+     model_dir : str, default=''
+         Folder containing the database and parameters of the ML model to analyze.
      thres_test : int, default=0.2,
          Threshold used to determine if a test pasess. It is determined in % units of diference between
          the R2 (MCC in classificators) of the model and the test (i.e., 0.2 = 20% difference with the 
@@ -20,6 +20,16 @@ General
             3. K-fold cross validation: decreases less than X%
      kfold : int, default=5,
          The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
+     error_type : str, default: r2 (regression), mcc (classification)
+         Target value used during the hyperopt optimization. Options:
+         Regression:
+            1. rmse (root-mean-square error)
+            2. mae (mean absolute error)
+            3. r2 (R-squared)
+         Classification:
+            1. mcc (Matthew's correlation coefficient)
+            2. f1_score (F1 score)
+            3. acc (accuracy, fraction of correct predictions)
 
 """
 #####################################################.
@@ -38,9 +48,9 @@ import glob
 from scipy import stats
 from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
-    load_database,
-    standardize,
-    load_db_n_params
+    load_db_n_params,
+    load_model,
+    pd_to_dict
 )
 
 
@@ -62,66 +72,23 @@ class verify:
         self.args = load_variables(kwargs, "verify")
 
         # load and ML model parameters, and add standardized descriptors
-        Xy_data, params_df = load_db_n_params(self,'Best_model/No_PFI',"verify")
+        if self.args.model_dir == '':
+            model_dir = 'GENERATE/Best_model/No_PFI'
+        Xy_data, params_df = load_db_n_params(self,model_dir,"verify")
         
-    def load_db_n_params(self,folder_model,module):
-        path_no_PFI = f"{self.args.destination.joinpath(folder_model)}"
-        if os.exists(path_no_PFI):
-            csv_files = glob.glob(path_no_PFI.joinpath("*.csv").as_posix())
-            if len(csv_files) != 2:
-                self.args.log.write(f"\nx  There are too many CSV files in the {path_no_PFI} folder! Only two CSV files should be there, one with the model parameters and the other with the Xy database.")
-                self.args.log.finalize()
-                sys.exit()
-            for csv_file in csv_files:
-                if '_db' not in csv_file:
-                    Xy_data_df = load_database(self,csv_file,module)
-                else:
-                    params_df = load_database(self,csv_file,module)
-                    params_name = os.path.basename(csv_file)
-        else:
-            self.args.log.write(f"\nx  The folder with the model and database ({path_no_PFI}) does not exist! Did you use the destination=PATH option in the other modules?")
+        # set the parameters for each ML model of the hyperopt optimization
+        params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
+        loaded_model = load_model(params_dict)
 
-        # load only the descriptors used in the model and standardize X
-        Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training']
-        Xy_valid_df = Xy_data_df[Xy_data_df.Set == 'Validation']
+        # Fit the model with the training set
+        loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])  
 
-        X_train,X_valid = {},{} # (using a dict to keep the same format of load_model)
-        for column in params_df['X_descriptors']:
-            X_train[column] = Xy_train_df[column]
-            X_valid[column] = Xy_valid_df[column]
-        y_train = Xy_train_df[params_df['y'][0]]
-        y_valid = Xy_valid_df[params_df['y'][0]]
+        # this dictionary will keep the results of the tests
+        verify_results = {} 
 
-        Xy_data = {'X_train': X_train,
-                   'X_valid': X_valid,
-                   'y_train': y_train,
-                   'y_valid': y_valid}
-
-        Xy_data['X_train_scaled'], Xy_data['X_valid_scaled'] = standardize(Xy_data['X_train'],Xy_data['X_valid'])
-        
-        _ = csv_load_info(self,params_name,'no PFI filter',params_df)
-
-        return Xy_data, params_df
-
-    def csv_load_info(self,params_name,suffix,params_df):
-        txt_load = f'\no  ML model {params_name} (with {suffix}) and its corresponding Xy database were loaded successfully, including:'
-        txt_load += f'\n   - Target value:{params_df['y'][0]}'
-        txt_load += f'\n   - Model:{XX}'
-        txt_load += f'\n   - Descriptors:{XX}'
-        txt_load += f'\n   - Training points:{XX}'
-        txt_load += f'\n   - Validation points:{XX}'
-        self.args.log.write(txt_load)
-
-
-        # # set the parameters for each ML model of the hyperopt optimization
-        # loaded_model = load_model(params)
-
-        # # Fit the model with the training set
-        # loaded_model.fit(data['X_train_scaled'], data['y_train'])  
-
-        # te da un array, haz media y SD
-        # cv_score = cross_val_score(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], cv=self.args.cv_kfold)
-        # crossvalid (WARN that this test might not work correctly when using small datasets with Kneigh spliting)
+        # calculate R2 for k-fold cross validation (if needed)
+        verify_results = self.cv_test(verify_results,Xy_data,loaded_model,params_dict)
+        print(verify_results)
 
         # # load, fit model and predict values
         # Xy_xshuffle = Xy_data.copy()
@@ -176,3 +143,22 @@ class verify:
     # ax.set_title("Statistical tests")
     # plt.savefig(f'Statistical tests.png', dpi=300, bbox_inches='tight')
     # plt.show()
+
+    def cv_test(self,verify_results,Xy_data,loaded_model,params_dict):
+        '''
+        Performs a K-fold cross-validation on the training set.
+        '''
+
+        if params_dict['split'] == 'KN':
+            self.args.log.write(f"\nx  The k-neighbours splitting (KN) was detected! Skipping cross validation since this analysis might show misleading results.")
+        # else:
+        #     # adjust the scoring type
+        #     if self.args.error_type == 'r2':
+        #         scoring = XX
+        #     etc.
+        #     cv_score = cross_val_score(loaded_model, Xy_data['X_train_scaled'], 
+        #                 Xy_data['y_train'], cv=self.args.kfold, scoring=scoring)
+        #     verify_results['cv_score'] = cv_score.mean()
+        #     verify_results['cv_std'] = cv_score.std()
+        
+        return verify_results

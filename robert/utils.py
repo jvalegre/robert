@@ -242,7 +242,7 @@ def load_variables(kwargs, robert_module):
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module.")
 
-            if self.corr_filter.upper() == 'FALSE':
+            if str(self.corr_filter).upper() == 'FALSE':
                 self.corr_filter = False
             
             self.thres_x = float(self.thres_x)
@@ -259,9 +259,9 @@ def load_variables(kwargs, robert_module):
                 self.log.write("\nx  The PFI filter was disabled for classification models")
                 self.PFI = False
 
-            # adjust the default value of hyperopt_target for classification
+            # adjust the default value of error_type for classification
             if self.mode == 'clas':
-                self.hyperopt_target = 'mcc'
+                self.error_type = 'mcc'
 
             # Check if the folders exist and if they do, delete and replace them
             folder_names = [self.initial_dir.joinpath('GENERATE/Best_model/No_PFI'), self.initial_dir.joinpath('GENERATE/Raw_data/No_PFI')]
@@ -353,12 +353,12 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The number of epochs must be higher than 0!")
                 curate_valid = False
             
-            if self.mode.lower() == 'reg' and self.hyperopt_target not in ['rmse','mae','r2']:
-                self.log.write(f"\nx  The hyperopt_target option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
+            if self.mode.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
+                self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
                 curate_valid = False
 
-            if self.mode.lower() == 'clas' and self.hyperopt_target not in ['mcc','f1_score','acc']:
-                self.log.write(f"\nx  The hyperopt_target option is not valid! Options for classification: 'mcc', 'f1_score', 'acc'")
+            if self.mode.lower() == 'clas' and self.error_type not in ['mcc','f1_score','acc']:
+                self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1_score', 'acc'")
                 curate_valid = False
 
             if int(self.PFI_epochs) <= 0:
@@ -367,17 +367,17 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
     elif type_checks == 'csv_db':
         if self.y not in columns_csv:
-            self.log.write(f"\nx  The y option specified ({self.y}) is not a columnd in the csv selected ({self.csv_name})!")
+            self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
             curate_valid = False
 
         for val in self.discard:
             if val not in columns_csv:
-                self.log.write(f"\nx  Descriptor {val} specified in the discard option is not a columnd in the csv selected ({self.csv_name})!")
+                self.log.write(f"\nx  Descriptor {val} specified in the discard option is not a column in the csv selected ({self.csv_name})!")
                 curate_valid = False
 
         for val in self.ignore:
             if val not in columns_csv:
-                self.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a columnd in the csv selected ({self.csv_name})!")
+                self.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a column in the csv selected ({self.csv_name})!")
                 curate_valid = False
 
     if not curate_valid:
@@ -496,6 +496,10 @@ def load_model_reg(params):
 
     elif params['model']  == 'MVL':
         loaded_model = LinearRegression()
+    
+    else:
+        print(f'\nx  The model specified in the parameters file ({params["model"]}) is not in the list of compatible models!')
+        sys.exit()
 
     return loaded_model
 
@@ -550,7 +554,11 @@ def load_model_clas(params):
         loaded_model = VotingClassifier([('gb', r1), ('rf', r2), ('nn', r3)])
 
     elif params['model']  == 'MVL':
-        print('Multivariate linear models (model = \'MVL\') are not compatible with classifiers (mode = \'clas\')')
+        print('\nx  Multivariate linear models (model = \'MVL\') are not compatible with classifiers (mode = \'clas\')')
+        sys.exit()
+
+    else:
+        print(f'\nx  The model specified in the parameters file ({params["model"]}) is not in the list of compatible models!')
         sys.exit()
 
     return loaded_model
@@ -579,11 +587,11 @@ def load_n_predict(params, data, set_type, hyperopt=False):
         else:
             data['r2'], data['mae'], data['rmse'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
         if hyperopt:
-            if params['hyperopt_target'] == 'rmse':
+            if params['error_type'] == 'rmse':
                 opt_target = data['rmse']
-            elif params['hyperopt_target'] == 'mae':
+            elif params['error_type'] == 'mae':
                 opt_target = data['mae']
-            elif params['hyperopt_target'] == 'r2':
+            elif params['error_type'] == 'r2':
                 opt_target = data['r2']
             return opt_target
         else:
@@ -595,11 +603,11 @@ def load_n_predict(params, data, set_type, hyperopt=False):
         else:
             data['acc'], data['f1_score'], data['mcc'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
         if hyperopt:
-            if params['hyperopt_target'] == 'mcc':
+            if params['error_type'] == 'mcc':
                 opt_target = data['mcc']
-            elif params['hyperopt_target'] == 'f1_score':
+            elif params['error_type'] == 'f1_score':
                 opt_target = data['f1_score']
-            elif params['hyperopt_target'] == 'acc':
+            elif params['error_type'] == 'acc':
                 opt_target = data['acc']
             return opt_target
         else:
@@ -621,3 +629,66 @@ def get_prediction_results(params,y,y_pred):
         f1_score_val = -f1_score(y,y_pred)
         mcc = -matthews_corrcoef(y,y_pred)
         return acc, f1_score_val, mcc
+
+
+def load_db_n_params(self,folder_model,module):
+    if os.getcwd() in f"{folder_model}":
+        path_db = folder_model
+    else:
+        path_db = f"{Path(os.getcwd()).joinpath(folder_model)}"
+
+    if os.path.exists(path_db):
+        csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
+        if len(csv_files) != 2:
+            self.args.log.write(f"\nx  There are too many CSV files in the {path_db} folder! Only two CSV files should be there, one with the model parameters and the other with the Xy database.")
+            self.args.log.finalize()
+            sys.exit()
+        for csv_file in csv_files:
+            if '_db' in csv_file:
+                Xy_data_df = load_database(self,csv_file,module)
+            else:
+                params_df = load_database(self,csv_file,module)
+                params_name = os.path.basename(csv_file)
+    else:
+        self.args.log.write(f"\nx  The folder with the model and database ({path_db}) does not exist! Did you use the destination=PATH option in the other modules?")
+        sys.exit()
+
+    # load only the descriptors used in the model and standardize X
+    Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training']
+    Xy_valid_df = Xy_data_df[Xy_data_df.Set == 'Validation']
+
+    Xy_data =  {} # (using a dict to keep the same format of load_model() )
+    descs_model = ast.literal_eval(params_df['X_descriptors'][0])
+    Xy_data['X_train'] = Xy_train_df[descs_model]
+    Xy_data['X_valid'] = Xy_valid_df[descs_model]
+    Xy_data['y_train'] = Xy_train_df[params_df['y'][0]]
+    Xy_data['y_valid'] = Xy_valid_df[params_df['y'][0]]
+
+    Xy_data['X_train_scaled'], Xy_data['X_valid_scaled'] = standardize(Xy_data['X_train'],Xy_data['X_valid'])
+
+    point_count = {}
+    point_count['train'] = len(Xy_data['X_train_scaled'])
+    point_count['valid'] = len(Xy_data['X_valid_scaled'])
+
+    _ = csv_load_info(self,params_name,'no PFI filter',params_df,point_count)
+
+    return Xy_data, params_df
+
+
+def csv_load_info(self,params_name,suffix,params_df,point_count):
+    txt_load = f'\no  ML model {params_name} (with {suffix}) and its corresponding Xy database were loaded successfully, including:'
+    txt_load += f'\n   - Target value: {params_df["y"][0]}'
+    txt_load += f'\n   - Model: {params_df["model"][0]}'
+    txt_load += f'\n   - Descriptors: {params_df["X_descriptors"][0]}'
+    txt_load += f'\n   - Training points: {point_count["train"]}'
+    txt_load += f'\n   - Validation points: {point_count["valid"]}'
+    if 'test' in point_count:
+        txt_load += f'\n   - Test points: {point_count["test"]}'
+    self.args.log.write(txt_load)
+
+
+def pd_to_dict(PFI_df):
+    PFI_df_dict = {}
+    for column in PFI_df.columns:
+        PFI_df_dict[column] = PFI_df[column][0]
+    return PFI_df_dict

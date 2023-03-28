@@ -73,7 +73,7 @@ def main():
             mode=args.mode,
             seed=args.seed,
             epochs=args.epochs,
-            hyperopt_target=args.hyperopt_target,
+            error_type=args.error_type,
             custom_params=args.custom_params,
             PFI_epochs=args.PFI_epochs,
             PFI_threshold=args.PFI_threshold,
@@ -86,16 +86,18 @@ def main():
             varfile=args.varfile,
             command_line=args.command_line,
             destination=args.destination,
+            model_dir=args.model_dir,
             thres_test=args.thres_test,
-            thres_target=args.thres_target,
-            seed=args.seed,
-            kfold=args.kfold
+            kfold=args.kfold,
+            error_type=args.error_type,
         )
 
     # CHEERS
     if args.cheers:
         print('o  Blimey, this module was designed to thank my mate ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics.\n')
 
-
+# por default, genera fingerprints a partir de SMILES y añade descriptores
+# elimina columnas de 0s y 1s
+# guarda que significan cada fp
 if __name__ == "__main__":
     main()

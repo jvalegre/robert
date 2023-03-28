@@ -27,12 +27,13 @@ var_dict = {
     "mode" : "reg",
     "seed" : 0,
     "epochs" : 500,
-    "hyperopt_target" : "rmse",
+    "error_type" : "rmse",
     "PFI_epochs" : 30,
     "PFI_threshold" : 0.04,
     "PFI" : True,
-    "thres_test": 0.2,
-    "kfold": 5
+    "thres_test" : 0.2,
+    "kfold" : 5,
+    "model_dir" : '',
 }
 
 # part for using the options in a script or jupyter notebook

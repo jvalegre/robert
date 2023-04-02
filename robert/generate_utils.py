@@ -157,6 +157,11 @@ def f(params):
 
     opt_target = load_n_predict(params, hyperopt_data, 'valid', hyperopt=True)
 
+    # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
+    # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
+    if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
+        opt_target = -opt_target
+
     if opt_target < best:
         # The "best" optimizing value is updated in an external JSON file after each hyperopt cycle
         # (using opt_target), and the parameters of the best model found are kept in a CSV file
@@ -165,6 +170,10 @@ def f(params):
         with open('hyperopt.json', 'w') as outfile:
             json.dump(hyperopt_data, outfile)
         best = opt_target
+
+        # returns values to normal if inverted during hyperoptimization
+        if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
+            opt_target = -opt_target
 
         # create csv_hyperopt dataframe
         csv_hyperopt = {'train': hyperopt_data["train"],
@@ -198,12 +207,7 @@ def f(params):
                 csv_hyperopt['n_estimators'] = params['n_estimators']
                 csv_hyperopt['learning_rate'] = params['learning_rate']
             
-        if hyperopt_data['mode'] == 'reg':
-            csv_hyperopt[hyperopt_data['error_type']] = best
-            
-        elif hyperopt_data['mode'] == 'clas':
-            # need to reconvert the value (it was converted into a negative value in load_n_predict())
-            csv_hyperopt[hyperopt_data['error_type']] = -best
+        csv_hyperopt[hyperopt_data['error_type']] = opt_target
 
         # save into a csv file
         csv_hyperopt_df = pd.DataFrame.from_dict(csv_hyperopt, orient='index')

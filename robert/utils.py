@@ -259,10 +259,6 @@ def load_variables(kwargs, robert_module):
                 self.log.write("\nx  The PFI filter was disabled for classification models")
                 self.PFI = False
 
-            # adjust the default value of error_type for classification
-            if self.mode == 'clas':
-                self.error_type = 'mcc'
-
             # Check if the folders exist and if they do, delete and replace them
             folder_names = [self.initial_dir.joinpath('GENERATE/Best_model/No_PFI'), self.initial_dir.joinpath('GENERATE/Raw_data/No_PFI')]
             if self.PFI:
@@ -283,6 +279,11 @@ def load_variables(kwargs, robert_module):
 
             self.thres_test = float(self.thres_test)
             self.kfold = int(self.kfold)
+
+        elif robert_module.upper() in ['GENERATE', 'VERIFY']:
+            # adjust the default value of error_type for classification
+            if self.mode == 'clas':
+                self.error_type = 'acc'
 
         # initial sanity checks
         _ = sanity_checks(self, 'initial', robert_module, None)
@@ -413,6 +414,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
 def load_database(self,csv_load,module):
     csv_df = pd.read_csv(csv_load)
+    csv_df = csv_df.fillna(0)
     if module.lower() not in 'verify':
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)

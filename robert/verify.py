@@ -21,7 +21,7 @@ General
             3. K-fold cross validation: decreases less than X%
      kfold : int, default=5,
          The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
-     error_type : str, default: rmse (regression), mcc (classification)
+     error_type : str, default: rmse (regression), acc (classification)
          Target value used during the hyperopt optimization. Options:
          Regression:
             1. rmse (root-mean-square error)

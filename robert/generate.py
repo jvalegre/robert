@@ -46,7 +46,7 @@ General
          Random seed used in the ML predictor models, data splitting and other protocols.
      epochs : int, default=500,
          Number of epochs for the hyperopt optimization.
-     error_type : str, default: rmse (regression), mcc (classification)
+     error_type : str, default: rmse (regression), acc (classification)
          Target value used during the hyperopt optimization. Options:
          Regression:
             1. rmse (root-mean-square error)

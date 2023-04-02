@@ -54,7 +54,7 @@ General
             3. r2 (R-squared)
          Classification:
             1. mcc (Matthew's correlation coefficient)
-            2. f1_score (F1 score)
+            2. f1 (F1 score)
             3. acc (accuracy, fraction of correct predictions)
      PFI : bool, default=True
          Activate the PFI filter of descriptors.
@@ -124,13 +124,14 @@ class generate:
                 # restore defaults
                 Xy_data_hyp = Xy_data.copy()
                 csv_df_hyp = csv_df.copy()
+                csv_df_PFI = csv_df.copy()
 
                 # hyperopt process for ML models
                 _ = hyperopt_workflow(self, csv_df_hyp, ML_model, size, Xy_data_hyp)
 
                 # apply the PFI descriptor filter if it is activated
                 if self.args.PFI:
-                    _ = PFI_workflow(self, ML_model, size, Xy_data_hyp)
+                    _ = PFI_workflow(self, csv_df_PFI, ML_model, size, Xy_data_hyp)
 
                 self.args.log.write(f'   - {cycle}/{len(self.args.model)*len(self.args.train)}')
                 cycle += 1

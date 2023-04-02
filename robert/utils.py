@@ -33,7 +33,7 @@ from sklearn.linear_model import LinearRegression
 
 robert_version = "0.0.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = f"ROBERT v {robert_version}, Alegre-Requena, J. V.; Dalmau, D., 2023. https://github.com/jvalegre/robert"
+robert_ref = f"ROBERT v {robert_version}, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert"
 
 
 # load paramters from yaml file
@@ -240,7 +240,7 @@ def load_variables(kwargs, robert_module):
             self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
 
         if robert_module.upper() == 'CURATE':
-            self.log.write(f"\no  Starting data curation with the CURATE module.")
+            self.log.write(f"\no  Starting data curation with the CURATE module")
 
             if str(self.corr_filter).upper() == 'FALSE':
                 self.corr_filter = False
@@ -249,7 +249,7 @@ def load_variables(kwargs, robert_module):
             self.thres_y = float(self.thres_y)
 
         elif robert_module.upper() == 'GENERATE':
-            self.log.write(f"\no  Starting generation of ML models with the GENERATE module.")
+            self.log.write(f"\no  Starting generation of ML models with the GENERATE module")
 
             if str(self.PFI).upper() == 'FALSE':
                 self.PFI = False
@@ -274,6 +274,15 @@ def load_variables(kwargs, robert_module):
             self.PFI_threshold = float(self.PFI_threshold)
             self.epochs = int(self.epochs)
             self.seed = int(self.seed)
+
+        elif robert_module.upper() == 'VERIFY':
+            self.log.write(f"\no  Starting tests to verify the prediction ability of the ML models with the VERIFY module")
+
+            if self.model_dir == '':
+                self.model_dir = 'GENERATE/Best_model'
+
+            self.thres_test = float(self.thres_test)
+            self.kfold = int(self.kfold)
 
         # initial sanity checks
         _ = sanity_checks(self, 'initial', robert_module, None)
@@ -353,16 +362,33 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The number of epochs must be higher than 0!")
                 curate_valid = False
             
-            if self.mode.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
-                self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
-                curate_valid = False
-
-            if self.mode.lower() == 'clas' and self.error_type not in ['mcc','f1_score','acc']:
-                self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1_score', 'acc'")
-                curate_valid = False
-
             if int(self.PFI_epochs) <= 0:
                 self.log.write(f"\nx  The number of PFI_epochs must be higher than 0!")
+                curate_valid = False
+
+    if type_checks == 'initial' and module.lower() in ['generate','verify']:
+
+        if self.mode.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
+            self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
+            curate_valid = False
+
+        if self.mode.lower() == 'clas' and self.error_type not in ['mcc','f1','acc']:
+            self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1', 'acc'")
+            curate_valid = False
+        
+        if module.lower() == 'verify':
+
+            if float(self.thres_test) > 1 or float(self.thres_test) < 0:
+                self.log.write(f"\nx  The thres_test should be between 0 and 1!")
+                curate_valid = False
+
+            if os.getcwd() in f"{self.model_dir}":
+                path_db = self.model_dir
+            else:
+                path_db = f"{Path(os.getcwd()).joinpath(self.model_dir)}"
+
+            if not os.path.exists(path_db):
+                self.log.write(f'\nx  The path of your CSV files doesn\'t exist! Set the folder containing the two CSV files with 1) the parameters of the model and 2) the Xy database with the model_dir option')
                 curate_valid = False
 
     elif type_checks == 'csv_db':
@@ -599,14 +625,14 @@ def load_n_predict(params, data, set_type, hyperopt=False):
     
     elif params['mode'] == 'clas':
         if params['train'] == 100:
-            data['acc'], data['f1_score'], data['mcc'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
+            data['acc'], data['f1'], data['mcc'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         else:
-            data['acc'], data['f1_score'], data['mcc'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
+            data['acc'], data['f1'], data['mcc'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
         if hyperopt:
             if params['error_type'] == 'mcc':
                 opt_target = data['mcc']
-            elif params['error_type'] == 'f1_score':
-                opt_target = data['f1_score']
+            elif params['error_type'] == 'f1':
+                opt_target = data['f1']
             elif params['error_type'] == 'acc':
                 opt_target = data['acc']
             return opt_target
@@ -637,6 +663,7 @@ def load_db_n_params(self,folder_model,module):
     else:
         path_db = f"{Path(os.getcwd()).joinpath(folder_model)}"
 
+    suffix = '(with no PFI filter)'
     if os.path.exists(path_db):
         csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
         if len(csv_files) != 2:
@@ -644,6 +671,8 @@ def load_db_n_params(self,folder_model,module):
             self.args.log.finalize()
             sys.exit()
         for csv_file in csv_files:
+            if 'PFI' in os.path.basename(csv_file).replace('.csv','_').split('_'):
+                suffix = '(with PFI filter)'
             if '_db' in csv_file:
                 Xy_data_df = load_database(self,csv_file,module)
             else:
@@ -670,13 +699,14 @@ def load_db_n_params(self,folder_model,module):
     point_count['train'] = len(Xy_data['X_train_scaled'])
     point_count['valid'] = len(Xy_data['X_valid_scaled'])
 
-    _ = csv_load_info(self,params_name,'no PFI filter',params_df,point_count)
+    
+    _ = csv_load_info(self,params_name,suffix,params_df,point_count)
 
     return Xy_data, params_df
 
 
 def csv_load_info(self,params_name,suffix,params_df,point_count):
-    txt_load = f'\no  ML model {params_name} (with {suffix}) and its corresponding Xy database were loaded successfully, including:'
+    txt_load = f'\no  ML model {params_name} {suffix} and its corresponding Xy database were loaded successfully, including:'
     txt_load += f'\n   - Target value: {params_df["y"][0]}'
     txt_load += f'\n   - Model: {params_df["model"][0]}'
     txt_load += f'\n   - Descriptors: {params_df["X_descriptors"][0]}'

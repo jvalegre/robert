@@ -11,16 +11,17 @@ General
          Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
      model_dir : str, default=''
          Folder containing the database and parameters of the ML model to analyze.
-     thres_test : int, default=0.2,
+     thres_test : float, default=0.2,
          Threshold used to determine if a test pasess. It is determined in % units of diference between
          the R2 (MCC in classificators) of the model and the test (i.e., 0.2 = 20% difference with the 
          original value). Test passes if:
-            1. x- and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, classificators)
+            1. x- and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
+            classificators) or the error is greated than X% (from original MAE and RMSE for regressors)
             2. One-hot encoding test: decreases more than X%
             3. K-fold cross validation: decreases less than X%
      kfold : int, default=5,
          The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
-     error_type : str, default: r2 (regression), mcc (classification)
+     error_type : str, default: rmse (regression), mcc (classification)
          Target value used during the hyperopt optimization. Options:
          Regression:
             1. rmse (root-mean-square error)
@@ -28,7 +29,7 @@ General
             3. r2 (R-squared)
          Classification:
             1. mcc (Matthew's correlation coefficient)
-            2. f1_score (F1 score)
+            2. f1 (F1 score)
             3. acc (accuracy, fraction of correct predictions)
 
 """
@@ -50,7 +51,9 @@ from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     load_db_n_params,
     load_model,
-    pd_to_dict
+    pd_to_dict,
+    load_n_predict,
+    finish_print
 )
 
 
@@ -71,94 +74,276 @@ class verify:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "verify")
 
-        # load and ML model parameters, and add standardized descriptors
-        if self.args.model_dir == '':
-            model_dir = 'GENERATE/Best_model/No_PFI'
-        Xy_data, params_df = load_db_n_params(self,model_dir,"verify")
-        
-        # set the parameters for each ML model of the hyperopt optimization
-        params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
-        loaded_model = load_model(params_dict)
+        # if model_dir = '', the program performs the tests for the No_PFI and PFI folders
+        if 'GENERATE/Best_model' in self.args.model_dir:
+            model_dirs = [f'{self.args.model_dir}/No_PFI',f'{self.args.model_dir}/PFI']
+        else:
+            model_dirs = [self.args.model_dir]
 
-        # Fit the model with the training set
-        loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])  
+        for model_dir in model_dirs:
+            if os.path.exists(model_dir):
 
-        # this dictionary will keep the results of the tests
-        verify_results = {} 
+                # load and ML model parameters, and add standardized descriptors
+                Xy_data, params_df = load_db_n_params(self,model_dir,"verify")
+                
+                # set the parameters for each ML model of the hyperopt optimization
+                params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
-        # calculate R2 for k-fold cross validation (if needed)
-        verify_results = self.cv_test(verify_results,Xy_data,loaded_model,params_dict)
-        print(verify_results)
+                # this dictionary will keep the results of the tests
+                verify_results = {'error_type': self.args.error_type} 
 
-        # # load, fit model and predict values
-        # Xy_xshuffle = Xy_data.copy()
-        # shuffleing
-        # Xy_xshuffle = load_n_predict(params, Xy_xshuffle, 'valid')
-        # save this dataset and print graph with R2, RMSE, MAE below graph
+                # get original score
+                Xy_orig = Xy_data.copy()
+                Xy_orig = load_n_predict(params_dict, Xy_orig, 'valid')  
+                verify_results['original_score'] = Xy_orig[self.args.error_type]
 
-        # Xy_yshuffle = Xy_data.copy()
-        # shuffleing
-        # Xy_yshuffle = load_n_predict(params, Xy_yshuffle, 'valid')
-        # save this dataset and print graph with R2, RMSE, MAE below graph
+                # calculate R2 for k-fold cross validation (if needed)
+                verify_results = self.cv_test(verify_results,Xy_data,params_dict)
 
-        # one-hot test (check that if a value isnt 0, the value assigned is 1)
+                # calculate scores for the X-shuffle test
+                verify_results = self.xshuffle_test(verify_results,Xy_data,params_dict)
 
-        # at the end, incluye si se pasan o se fallan los tests (X shuffle: PASSED (X vs X R2, X vs X RMSE, X vs X MAE))
-        # opcion para cambiar los thresholds de pasar tests (20% de todos los valores de R2, RMSE, y MAE del modelo normal?)
+                # calculate scores for the y-shuffle test
+                verify_results = self.yshuffle_test(verify_results,Xy_data,params_dict)
 
-    # # make donut plot
-    # fig, ax = plt.subplots(figsize=(6, 3), subplot_kw=dict(aspect="equal"))
-    # recipe = ["X-shuffle: passing",
-    #         "5-fold CV: failing",
-    #         "One-hot: passing",
-    #         "y-shuffle: passing",
-    #         ]
-    # data = [25, 25, 25, 25]
-    # blue_color = 'tab:blue'
-    # red_color = 'indianred'
-    # # red_color = 'lightsteelblue'
-    # # red_color = '#CD4447'
-    # colors = [blue_color, red_color, blue_color,blue_color]
-    # explode = (0, 0.05, 0.0, 0)  
-    
-    # # in the pie(): wedgeprops = { 'linewidth' : 7, 'edgecolor' : 'white' }
-    # wedgeprops = {'width':0.4, 'edgecolor':'black', 'lw':0.72}
-    # # wedgeprops=dict(width=0.4)
-    # wedges, texts = ax.pie(data, wedgeprops=wedgeprops, startangle=0, colors=colors, explode=explode)
+                # one-hot test (check that if a value isnt 0, the value assigned is 1)
+                verify_results = self.onehot_test(verify_results,Xy_data,params_dict)
 
-    # bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
-    # kw = dict(arrowprops=dict(arrowstyle="-"),
-    #         bbox=bbox_props, zorder=0, va="center")
+                # analysis of results
+                colors,color_codes,results_print = self.analyze_tests(verify_results,params_dict)
 
-    # for i, p in enumerate(wedges):
-    #     ang = (p.theta2 - p.theta1)/2. + p.theta1
-    #     y = np.sin(np.deg2rad(ang))
-    #     x = np.cos(np.deg2rad(ang))
-    #     horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
-    #     connectionstyle = f"angle,angleA=0,angleB={ang}"
-    #     kw["arrowprops"].update({"connectionstyle": connectionstyle})
-    #     ax.annotate(recipe[i], xy=(x, y), xytext=(1.15*np.sign(x), 1.4*y),
-    #                 horizontalalignment=horizontalalignment, **kw)
+                # plot a donut plot with the results
+                _ = self.plot_donut(colors,color_codes,model_dir)
 
-    # ax.set_title("Statistical tests")
-    # plt.savefig(f'Statistical tests.png', dpi=300, bbox_inches='tight')
-    # plt.show()
+                # print results
+                _ = self.print_verify(results_print,verify_results)
 
-    def cv_test(self,verify_results,Xy_data,loaded_model,params_dict):
+        _ = finish_print(self,start_time,'VERIFY')
+
+
+    def cv_test(self,verify_results,Xy_data,params_dict):
         '''
         Performs a K-fold cross-validation on the training set.
         '''
 
-        if params_dict['split'] == 'KN':
-            self.args.log.write(f"\nx  The k-neighbours splitting (KN) was detected! Skipping cross validation since this analysis might show misleading results.")
-        # else:
-        #     # adjust the scoring type
-        #     if self.args.error_type == 'r2':
-        #         scoring = XX
-        #     etc.
-        #     cv_score = cross_val_score(loaded_model, Xy_data['X_train_scaled'], 
-        #                 Xy_data['y_train'], cv=self.args.kfold, scoring=scoring)
-        #     verify_results['cv_score'] = cv_score.mean()
-        #     verify_results['cv_std'] = cv_score.std()
+        # adjust the scoring type
+        if params_dict['mode'] == 'reg':
+            if self.args.error_type == 'r2':
+                scoring = "r2"
+            elif self.args.error_type == 'mae':
+                scoring = "neg_mean_absolute_error"
+            elif self.args.error_type == 'rmse':
+                scoring = "neg_root_mean_squared_error"
+        elif params_dict['mode'] == 'clas':
+            if self.args.error_type == 'acc':
+                scoring = "accuracy"
+            elif self.args.error_type == 'f1':
+                scoring = "f1"
+            elif self.args.error_type == 'mcc':
+                scoring = "mcc"        
+        
+        loaded_model = load_model(params_dict)
+        # Fit the model with the training set
+        loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])  
+
+        cv_score = cross_val_score(loaded_model, Xy_data['X_train_scaled'], 
+                    Xy_data['y_train'], cv=self.args.kfold, scoring=scoring)
+        # for MAE and RMSE, sklearn takes negative values
+        if self.args.error_type in ['mae','rmse']:
+            cv_score = -cv_score
+        verify_results['cv_score'] = cv_score.mean()
+        verify_results['cv_std'] = cv_score.std()
         
         return verify_results
+
+
+    def xshuffle_test(self,verify_results,Xy_data,params_dict):
+        '''
+        Calculate the accuracy of the model when the X data is randomly shuffled (columns are 
+        randomly shuffled). For example, a descriptor array of X1, X2, X3, X4 might become 
+        X2, X4, X1, X3.
+        '''
+
+        Xy_xshuffle = Xy_data.copy()
+        Xy_xshuffle['X_train_scaled'] = Xy_xshuffle['X_train_scaled'].sample(frac=1,random_state=self.args.seed,axis=1)
+        Xy_xshuffle['X_valid_scaled'] = Xy_xshuffle['X_valid_scaled'].sample(frac=1,random_state=self.args.seed,axis=1)
+        Xy_xshuffle = load_n_predict(params_dict, Xy_xshuffle, 'valid')  
+        verify_results['X_shuffle'] = Xy_xshuffle[self.args.error_type]
+
+        return verify_results
+
+
+    def yshuffle_test(self,verify_results,Xy_data,params_dict):
+        '''
+        Calculate the accuracy of the model when the y values are randomly shuffled (rows are randomly 
+        shuffled). For example, a y array of 1.3, 2.1, 4.0, 5.2 might become 2.1, 1.3, 5.2, 4.0.
+        '''
+
+        Xy_yshuffle = Xy_data.copy()
+        Xy_yshuffle['y_train'] = Xy_yshuffle['y_train'].sample(frac=1,random_state=self.args.seed,axis=0)
+        Xy_yshuffle['y_valid'] = Xy_yshuffle['y_valid'].sample(frac=1,random_state=self.args.seed,axis=0)
+        Xy_yshuffle = load_n_predict(params_dict, Xy_yshuffle, 'valid')  
+        verify_results['y_shuffle'] = Xy_yshuffle[self.args.error_type]
+
+        return verify_results
+
+
+    def onehot_test(self,verify_results,Xy_data,params_dict):
+        '''
+        Calculate the accuracy of the model when using one-hot models. All X values that are
+        not 0 are considered to be 1 (NaN from missing values are converted to 0).
+        '''
+
+        Xy_onehot = Xy_data.copy()
+        for desc in Xy_onehot['X_train']:
+            new_vals = []
+            for val in Xy_onehot['X_train'][desc]:
+                if int(val) == 0:
+                    new_vals.append(0)
+                else:
+                    new_vals.append(1)
+            Xy_onehot['X_train_scaled'][desc] = new_vals
+
+        for desc in Xy_onehot['X_valid']:
+            new_vals = []
+            for val in Xy_onehot['X_valid'][desc]:
+                if int(val) == 0:
+                    new_vals.append(0)
+                else:
+                    new_vals.append(1)
+            Xy_onehot['X_valid_scaled'][desc] = new_vals
+
+        Xy_onehot = load_n_predict(params_dict, Xy_onehot, 'valid')  
+        verify_results['onehot'] = Xy_onehot[self.args.error_type]
+
+        return verify_results
+
+
+    def analyze_tests(self,verify_results,params_dict):
+        '''
+        Function to check whether the tests pass and retrieve the corresponding colors:
+        1. Blue for passing tests
+        2. Red for failing tests
+        3. Grey for the CV test when using KN-based data splitting (to account for misleading results)
+        '''
+
+        blue_color = '#1f77b4'
+        red_color = '#cd5c5c'
+        grey_color = '#c1cdd3'
+        color_codes = {'blue' : blue_color,
+                        'red' : red_color,
+                        'grey' : grey_color}
+        colors = [None,None,None,None]
+        results_print = [None,None,None,None]
+        higher_thres = (1+self.args.thres_test)*verify_results['original_score']
+        lower_thres = (1-self.args.thres_test)*verify_results['original_score']
+
+        for i,test_ver in enumerate(['X_shuffle', 'cv_score', 'onehot', 'y_shuffle']):
+            # the CV test should give values as good as the originals, while the other tests
+            # should give worse results. MAE and RMSE go in the opposite direction as R2,
+            # F1 scores and MCC
+            if test_ver == 'cv_score':
+                if self.args.error_type in ['mae','rmse']:
+                    if verify_results[test_ver] >= higher_thres:
+                        colors[i] = red_color
+                        results_print[i] = f'\n      x {self.args.kfold}-fold CV: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres:.2})'
+                    else:
+                        colors[i] = blue_color
+                        results_print[i] = f'\n      o {self.args.kfold}-fold CV: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres:.2})'
+                else:
+                    if verify_results[test_ver] <= lower_thres:
+                        colors[i] = red_color
+                        results_print[i] = f'\n      x {self.args.kfold}-fold CV: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres:.2})'
+                    else:
+                        colors[i] = blue_color
+                        results_print[i] = f'\n      o {self.args.kfold}-fold CV: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres:.2})'
+                
+                # the CV test also fails if there is too much variation (+- 50% of the CV result)
+                if verify_results['cv_std'] >= 0.5*verify_results['cv_score']:
+                    colors[i] = red_color
+                    results_print[i] = f'\n      x {self.args.kfold}-fold CV: FAILED, SD 50% higher than the CV score. CV result : {self.args.error_type.upper()} = {verify_results["cv_score"]:.2} +- {verify_results["cv_std"]:.2}'
+
+                # when using K-neighbours to select the training data, classical K-fold CV might not
+                # be very useful. We mark this part in grey
+                if params_dict['split'] == 'KN':
+                    colors[i] = grey_color
+                    results_print[i] = f'\n      - {self.args.kfold}-fold CV: NOT DETERMINED, data splitting was done with k-neighbours (KN). CV result : {self.args.error_type.upper()} = {verify_results["cv_score"]:.2}'
+
+            elif test_ver in ['X_shuffle', 'y_shuffle', 'onehot']:
+                if self.args.error_type in ['mae','rmse']:
+                    if verify_results[test_ver] <= higher_thres:
+                        colors[i] = red_color
+                        results_print[i] = f'\n      x {test_ver}: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres:.2})'
+                    else:
+                        colors[i] = blue_color
+                        results_print[i] = f'\n      o {test_ver}: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres:.2})'
+                else:
+                    if verify_results[test_ver] >= lower_thres:
+                        colors[i] = red_color
+                        results_print[i] = f'\n      x {test_ver}: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres:.2})'
+                    else:
+                        colors[i] = blue_color
+                        results_print[i] = f'\n      o {test_ver}: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres:.2})'
+
+        return colors,color_codes,results_print
+
+
+    def plot_donut(self,colors,color_codes,model_dir):
+        '''
+        Creates a donut plot with the results of VERIFY
+        '''
+
+        _, ax = plt.subplots(figsize=(7.45,6), subplot_kw=dict(aspect="equal"))
+        
+        recipe = ["X-shuffle",
+                f"{self.args.kfold}-fold CV",
+                "One-hot",
+                "y-shuffle"]
+        # make 4 even parts in the donut plot
+        data = [25, 25, 25, 25]
+        explode = [None, None, None, None]
+        # failing or undetermined tests will lead to pieces that are outside the regular donut
+        
+        for i,color in enumerate(colors):
+            if color in [color_codes['red'], color_codes['grey']]:
+                explode[i] = 0.05
+            else:
+                explode[i] = 0
+        
+        # in the pie(): wedgeprops = { 'linewidth' : 7, 'edgecolor' : 'white' }
+        wedgeprops = {'width':0.4, 'edgecolor':'black', 'lw':0.72}
+        # wedgeprops=dict(width=0.4)
+        wedges, _ = ax.pie(data, wedgeprops=wedgeprops, startangle=0, colors=colors, explode=explode)
+
+        bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+        kw = dict(arrowprops=dict(arrowstyle="-"),
+                bbox=bbox_props, zorder=0, va="center")
+        fontsize = 14
+
+        for i, p in enumerate(wedges):
+            ang = (p.theta2 - p.theta1)/2. + p.theta1
+            y = np.sin(np.deg2rad(ang))
+            x = np.cos(np.deg2rad(ang))
+            horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
+            connectionstyle = f"angle,angleA=0,angleB={ang}"
+            kw["arrowprops"].update({"connectionstyle": connectionstyle})
+            ax.annotate(recipe[i], xy=(x, y), xytext=(1.15*np.sign(x), 1.4*y),
+                        horizontalalignment=horizontalalignment, fontsize=fontsize, **kw)
+
+        suffix = '(with no PFI filter)'
+        label = 'No_PFI'
+        if 'PFI' in model_dir and 'No_PFI' not in model_dir:
+            suffix = '(with PFI filter)'
+            label = 'PFI'
+        ax.set_title(f"VERIFY tests {suffix}", fontsize=fontsize)
+        plt.savefig(f'VERIFY_tests_{label}.png', dpi=300, bbox_inches='tight')
+
+
+    def print_verify(self,results_print,verify_results):
+        txt_ver = f'\n   Results of the verify tests. Original score: {self.args.error_type.upper()} = {verify_results["original_score"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test}:'
+        # the printing order should be CV, X-shuffle, y-shuffle and one-hot
+        txt_ver += results_print[1]
+        txt_ver += results_print[0]
+        txt_ver += results_print[3]
+        txt_ver += results_print[2]
+        self.args.log.write(txt_ver)

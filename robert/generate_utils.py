@@ -80,7 +80,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
 
     # check if this combination is the best model and replace data in the Best_model folder
     name_csv = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}")
-    _ = update_best(self, csv_df,Xy_data_hp,name_csv)
+    _ = update_best(self, csv_df, Xy_data_hp,name_csv)
 
 
 # generates initial parameters for the hyperopt optimization
@@ -342,7 +342,7 @@ def k_neigh(self,X_scaled,csv_y,size):
     return training_points
 
 
-def PFI_workflow(self, ML_model, size, Xy_data):
+def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
     # filter off parameters with low PFI (not relevant in the model)
     name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
@@ -377,7 +377,7 @@ def PFI_workflow(self, ML_model, size, Xy_data):
     _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
 
     # check if this combination is the best model and replace data in the Best_model folder
-    _ = update_best(self,csv_PFI_df,Xy_data_PFI,path_csv_PFI)
+    _ = update_best(self,csv_df,Xy_data_PFI,path_csv_PFI)
 
 
 def PFI_filter(self,Xy_data,PFI_dict):
@@ -451,9 +451,8 @@ def update_best(self, csv_df, Xy_data, name_csv):
     # first model
     else:
         replace_best = True
-
     
-    # copy the database used (without the ignored values)
+    # copy the database used
 
     # set a new column for the set
     set_column = []

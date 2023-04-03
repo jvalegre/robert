@@ -5,31 +5,41 @@ Parameters
 General
 +++++++
 
-# Specify t-value that will be the threshold to identify outliers
-# (check tables for t-values elsewhere). The higher the t-value 
-# the more restrictive the analysis will be (i.e. there will 
-# be more outliers with t-value=1 than with t-value = 4)
-t_value = 2
+     destination : str, default=None,
+         Directory to create the output file(s).
+     varfile : str, default=None
+         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+     model_dir : str, default=''
+         Folder containing the database and parameters of the ML model.
+     csv_test : str, default=''
+         Name of the CSV file containing the test set (if any). A path can be provided (i.e. 
+         'C:/Users/FOLDER/FILE.csv'). 
+     t_value : float, default=2
+         t-value that will be the threshold to identify outliers (check tables for t-values elsewhere).
+         The higher the t-value the more restrictive the analysis will be (i.e. there will be more 
+         outliers with t-value=1 than with t-value = 4).
+     seed : int, default=8,
+         Random seed used in the ML predictor models, data splitting and other protocols.
 
-   files : str or list of str, default=None
-     Input files. Formats accepted: XYZ, SDF, GJF, COM and PDB. Also, lists can
-     be used (i.e. [FILE1.sdf, FILE2.sdf] or \*.FORMAT such as \*.sdf).  
-   program : str, default=None
-     Program required in the conformational refining. 
-     Current options: 'xtb', 'ani'
 """
 #####################################################.
 #        This file stores the PREDICT class         #
-#              used in the predictor                #
+#    used to analyze and generate ML predictors     #
 #####################################################.
 
 import os
-import sys
 import time
 from pathlib import Path
-from scipy import stats
-from robert.utils import load_variables
-
+from robert.predict_utils import (plot_predictions,
+    load_test,
+    )
+from robert.utils import (load_variables,
+    load_db_n_params,
+    pd_to_dict,
+    load_n_predict,
+    load_dfs,
+    load_database
+)
 
 class predict:
     """
@@ -43,21 +53,76 @@ class predict:
 
     def __init__(self, **kwargs):
 
-        start_time_overall = time.time()
+        start_time = time.time()
+
         # load default and user-specified variables
         self.args = load_variables(kwargs, "predict")
 
+        # if model_dir = '', the program performs the tests for the No_PFI and PFI folders
+        if 'GENERATE/Best_model' in self.args.model_dir:
+            model_dirs = [f'{self.args.model_dir}/No_PFI',f'{self.args.model_dir}/PFI']
+        else:
+            model_dirs = [self.args.model_dir]
+
+        for model_dir in model_dirs:
+            if os.path.exists(model_dir):
+                # load and ML model parameters, and add standardized descriptors
+                Xy_data, params_df = load_db_n_params(self,model_dir,"verify")
+
+                # load test set and add standardized descriptors
+                if self.args.csv_test != '':
+                    Xy_data = load_test(self, Xy_data, params_df)
+                    
+                # set the parameters for each ML model of the hyperopt optimization
+                params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
+
+                # get results from training, validation and test (if any)
+                Xy_data = load_n_predict(params_dict, Xy_data)
+                
+                # represent y vs predicted y
+                _ = plot_predictions(self, params_dict, Xy_data, model_dir)
+
+                # save predictions for all sets
+                # _ = save_predictions(XX)
+
+                Xy_orig_df, Xy_path, params_df, _, suffix = load_dfs(self,model_dir,'no_print')
+                base_csv_name = '_'.join(os.path.basename(Xy_path).split('_')[0:2])
+                base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
+                Xy_orig_train = Xy_orig_df[Xy_orig_df.Set == 'Training']
+                Xy_orig_train[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_train']
+                _ = Xy_orig_train.to_csv(f'{base_csv_path}_train_{suffix}.csv', index = None, header=True)
+                Xy_orig_valid = Xy_orig_df[Xy_orig_df.Set == 'Validation']
+                Xy_orig_valid[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_valid']
+                _ = Xy_orig_valid.to_csv(f'{base_csv_path}_valid_{suffix}.csv', index = None, header=True)
+                if self.args.csv_test != '':
+                    Xy_orig_test = load_database(self, self.args.csv_test, "no_print")
+                    Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
+                    _ = Xy_orig_test.to_csv(f'{base_csv_path}_test_{suffix}.csv', index = None, header=True)
+
+
+                # decir que las predicciones del test se han guardado en PREDICT/XX (mismos csv con params['y']_pred)
+
+
+                # print results
+                # _ = print_predict(XX)    
+                # with indents in the txt
+                # Model used, where it is stored and train:valid:test of XX:XX:XX proportion (test maybe)
+                # Train (XX): R2 = XX, MAE = XX, RMSE = XX
+                # Validation (XX): R2 = XX, MAE = XX, RMSE = XX
+                # Test (XX): R2 = XX, MAE = XX, RMSE = XX
+                # or
+                # Train (XX): accuracy = XX, F1 score = XX, MCC = XX
+                # Validation (XX): accuracy = XX, F1 score = XX, MCC = XX
+                # Test (XX): accuracy = XX, F1 score = XX, MCC = XX
+                # RMSE, MAE, R2 or ACC, F1, MCC prints x3 sets or x2 (if test in xy)
 
 
 
 
-da la opcion de guardar 1 grafico con todo o separar en 3 graficos
-graph with trainng, valid y test si existe, optional (como en el articulo de phneols)
-RMSE, MAE, R2 prints
-SHAP analysis (valid)
-PFI analysis (valid)
 
-        outlier analysis (train+valid)
+# SHAP analysis (valid)
+# PFI analysis (valid)
+# outlier analysis (train+valid)
 
 # def plot_outliers(t_value,Experim_values_init,DFT_values_init,Ir_cat_names):
     
@@ -158,20 +223,20 @@ PFI analysis (valid)
 #     return Experim_values_init,DFT_values_init,outlier_indexes
 
         # printing and representing the results
-        print(f"\nPermutation feature importances of the descriptors in the {PFI_df['model']}_{PFI_df['train']}_PFI model (for the validation set). Only showing values that drop the original score at least by {self.args.PFI_threshold*100}%:\n")
-        print('Original score = '+f'{score_model:.2f}')
-        for i in range(len(PFI_values)):
-            print(combined_descriptor_list[i]+': '+f'{PFI_values[i]:.2f}'+' '+u'\u00B1'+ ' ' + f'{PFI_SD[i]:.2f}')
+        # print(f"\nPermutation feature importances of the descriptors in the {PFI_df['model']}_{PFI_df['train']}_PFI model (for the validation set). Only showing values that drop the original score at least by {self.args.PFI_threshold*100}%:\n")
+        # print('Original score = '+f'{score_model:.2f}')
+        # for i in range(len(PFI_values)):
+        #     print(combined_descriptor_list[i]+': '+f'{PFI_values[i]:.2f}'+' '+u'\u00B1'+ ' ' + f'{PFI_SD[i]:.2f}')
 
-        y_ticks = np.arange(0, len(PFI_values))
-        fig, ax = plt.subplots()
-        ax.barh(y_ticks, PFI_values[::-1])
-        ax.set_yticklabels(combined_descriptor_list[::-1])
-        ax.set_yticks(y_ticks)
-        ax.set_title(model_type_PFI_fun+" permutation feature importances (PFI)")
-        fig.tight_layout()
-        plot = ax.set(ylabel=None, xlabel='PFI')
+        # y_ticks = np.arange(0, len(PFI_values))
+        # fig, ax = plt.subplots()
+        # ax.barh(y_ticks, PFI_values[::-1])
+        # ax.set_yticklabels(combined_descriptor_list[::-1])
+        # ax.set_yticks(y_ticks)
+        # ax.set_title(model_type_PFI_fun+" permutation feature importances (PFI)")
+        # fig.tight_layout()
+        # plot = ax.set(ylabel=None, xlabel='PFI')
 
-        plt.savefig(f'PFI/{model_type_PFI_fun}+ permutation feature importances (PFI)', dpi=600, bbox_inches='tight')
+        # plt.savefig(f'PFI/{model_type_PFI_fun}+ permutation feature importances (PFI)', dpi=600, bbox_inches='tight')
 
-        plt.show()
+        # plt.show()

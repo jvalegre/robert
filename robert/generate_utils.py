@@ -155,7 +155,7 @@ def f(params):
             layer_arrays = ele
         params['hidden_layer_sizes'] = (layer_arrays)
 
-    opt_target = load_n_predict(params, hyperopt_data, 'valid', hyperopt=True)
+    opt_target = load_n_predict(params, hyperopt_data, hyperopt=True)
 
     # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
     # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
@@ -370,7 +370,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target = load_n_predict(PFI_dict, Xy_data_PFI, 'valid', hyperopt=True)
+    opt_target = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
     PFI_dict[PFI_dict['error_type']] = opt_target
     
     # save CSV file
@@ -512,10 +512,10 @@ def heatmap_workflow(self,folder_hm):
 
 def create_heatmap(self,csv_df,suffix,path_raw):
     csv_df = csv_df.sort_index(ascending=False)
-    _, ax = plt.subplots(figsize=(7.45,6))
     sb.set(font_scale=1.2, style='ticks')
+    _, ax = plt.subplots(figsize=(7.45,6))
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} Validation'})
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} validation set'})
     fontsize = 14
     ax.set_xlabel("Model Type",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)

@@ -31,6 +31,9 @@ General
             1. mcc (Matthew's correlation coefficient)
             2. f1 (F1 score)
             3. acc (accuracy, fraction of correct predictions)
+     seed : int, default=8,
+         Random seed used in the ML predictor models, data splitting and other protocols.
+
 
 """
 #####################################################.
@@ -39,14 +42,9 @@ General
 #####################################################.
 
 import os
-import sys
 import time
-from pathlib import Path
 from matplotlib import pyplot as plt
-import seaborn as sb
 import numpy as np
-import glob
-from scipy import stats
 from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     load_db_n_params,
@@ -94,7 +92,7 @@ class verify:
 
                 # get original score
                 Xy_orig = Xy_data.copy()
-                Xy_orig = load_n_predict(params_dict, Xy_orig, 'valid')  
+                Xy_orig = load_n_predict(params_dict, Xy_orig)  
                 verify_results['original_score'] = Xy_orig[self.args.error_type]
 
                 # calculate R2 for k-fold cross validation (if needed)
@@ -167,8 +165,8 @@ class verify:
         Xy_xshuffle = Xy_data.copy()
         Xy_xshuffle['X_train_scaled'] = Xy_xshuffle['X_train_scaled'].sample(frac=1,random_state=self.args.seed,axis=1)
         Xy_xshuffle['X_valid_scaled'] = Xy_xshuffle['X_valid_scaled'].sample(frac=1,random_state=self.args.seed,axis=1)
-        Xy_xshuffle = load_n_predict(params_dict, Xy_xshuffle, 'valid')  
-        verify_results['X_shuffle'] = Xy_xshuffle[self.args.error_type]
+        Xy_xshuffle = load_n_predict(params_dict, Xy_xshuffle)  
+        verify_results['X_shuffle'] = Xy_xshuffle[f'{self.args.error_type}_valid']
 
         return verify_results
 
@@ -182,8 +180,8 @@ class verify:
         Xy_yshuffle = Xy_data.copy()
         Xy_yshuffle['y_train'] = Xy_yshuffle['y_train'].sample(frac=1,random_state=self.args.seed,axis=0)
         Xy_yshuffle['y_valid'] = Xy_yshuffle['y_valid'].sample(frac=1,random_state=self.args.seed,axis=0)
-        Xy_yshuffle = load_n_predict(params_dict, Xy_yshuffle, 'valid')  
-        verify_results['y_shuffle'] = Xy_yshuffle[self.args.error_type]
+        Xy_yshuffle = load_n_predict(params_dict, Xy_yshuffle)  
+        verify_results['y_shuffle'] = Xy_yshuffle[f'{self.args.error_type}_valid']
 
         return verify_results
 
@@ -213,8 +211,8 @@ class verify:
                     new_vals.append(1)
             Xy_onehot['X_valid_scaled'][desc] = new_vals
 
-        Xy_onehot = load_n_predict(params_dict, Xy_onehot, 'valid')  
-        verify_results['onehot'] = Xy_onehot[self.args.error_type]
+        Xy_onehot = load_n_predict(params_dict, Xy_onehot)  
+        verify_results['onehot'] = Xy_onehot[f'{self.args.error_type}_valid']
 
         return verify_results
 

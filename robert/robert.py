@@ -25,7 +25,7 @@
 from robert.curate import curate
 from robert.generate import generate
 from robert.verify import verify
-# from robert.predict import predict
+from robert.predict import predict
 from robert.utils import command_line_args
 
 
@@ -90,14 +90,26 @@ def main():
             thres_test=args.thres_test,
             kfold=args.kfold,
             error_type=args.error_type,
+            seed=args.seed
         )
+
+    # PREDICT
+    if args.predict:
+        predict(
+            varfile=args.varfile,
+            command_line=args.command_line,
+            destination=args.destination,
+            model_dir=args.model_dir,
+            csv_test=args.csv_test,
+            t_value=args.t_value,
+            seed=args.seed
+        )
+
 
     # CHEERS
     if args.cheers:
         print('o  Blimey, this module was designed to thank my mate ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics.\n')
 
-# por default, genera fingerprints a partir de SMILES y añade descriptores
-# elimina columnas de 0s y 1s
-# guarda que significan cada fp
+
 if __name__ == "__main__":
     main()

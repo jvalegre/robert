@@ -239,6 +239,8 @@ def load_variables(kwargs, robert_module):
         if self.command_line:
             self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
 
+        self.seed = int(self.seed)
+
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
 
@@ -269,21 +271,26 @@ def load_variables(kwargs, robert_module):
             self.PFI_epochs = int(self.PFI_epochs)
             self.PFI_threshold = float(self.PFI_threshold)
             self.epochs = int(self.epochs)
-            self.seed = int(self.seed)
 
         elif robert_module.upper() == 'VERIFY':
             self.log.write(f"\no  Starting tests to verify the prediction ability of the ML models with the VERIFY module")
 
-            if self.model_dir == '':
-                self.model_dir = 'GENERATE/Best_model'
-
             self.thres_test = float(self.thres_test)
             self.kfold = int(self.kfold)
 
-        elif robert_module.upper() in ['GENERATE', 'VERIFY']:
+        elif robert_module.upper() == 'PREDICT':
+            self.log.write(f"\no  Representation of predictions and analysis of ML models with the PREDICT module")
+
+            self.t_value = float(self.t_value)
+
+        if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
             if self.mode == 'clas':
                 self.error_type = 'acc'
+
+        if robert_module.upper() in ['PREDICT','VERIFY']:
+            if self.model_dir == '':
+                self.model_dir = 'GENERATE/Best_model'
 
         # initial sanity checks
         _ = sanity_checks(self, 'initial', robert_module, None)
@@ -311,12 +318,16 @@ def sanity_checks(self, type_checks, module, columns_csv):
     """
 
     curate_valid = True
-    if type_checks == 'initial' and module.lower() not in ['verify']:
+    if type_checks == 'initial' and module.lower() not in ['verify','predict']:
         if self.csv_name == '':
             self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
             curate_valid = False
 
-        elif not os.path.exists(self.csv_name):
+        if os.getcwd() in f"{self.csv_name}":
+            path_csv = self.csv_name
+        elif self.csv_name != '':
+            path_csv = f"{Path(os.getcwd()).joinpath(self.csv_name)}"
+        if not os.path.exists(path_csv) or self.csv_name == '':
             self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
             curate_valid = False
             
@@ -367,22 +378,23 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The number of PFI_epochs must be higher than 0!")
                 curate_valid = False
 
-    if type_checks == 'initial' and module.lower() in ['generate','verify']:
+    if type_checks == 'initial' and module.lower() in ['generate','verify','predict']:
 
-        if self.mode.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
-            self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
-            curate_valid = False
+        if type_checks == 'initial' and module.lower() in ['generate','verify']:
+            if self.mode.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
+                self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
+                curate_valid = False
 
-        if self.mode.lower() == 'clas' and self.error_type not in ['mcc','f1','acc']:
-            self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1', 'acc'")
-            curate_valid = False
+            if self.mode.lower() == 'clas' and self.error_type not in ['mcc','f1','acc']:
+                self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1', 'acc'")
+                curate_valid = False
         
         if module.lower() == 'verify':
-
             if float(self.thres_test) > 1 or float(self.thres_test) < 0:
                 self.log.write(f"\nx  The thres_test should be between 0 and 1!")
                 curate_valid = False
 
+        if module.lower() in ['verify','predict']:
             if os.getcwd() in f"{self.model_dir}":
                 path_db = self.model_dir
             else:
@@ -392,19 +404,39 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f'\nx  The path of your CSV files doesn\'t exist! Set the folder containing the two CSV files with 1) the parameters of the model and 2) the Xy database with the model_dir option')
                 curate_valid = False
 
-    elif type_checks == 'csv_db':
-        if self.y not in columns_csv:
-            self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
-            curate_valid = False
-
-        for val in self.discard:
-            if val not in columns_csv:
-                self.log.write(f"\nx  Descriptor {val} specified in the discard option is not a column in the csv selected ({self.csv_name})!")
+        if module.lower() == 'predict':
+            if self.t_value < 0:
+                self.log.write(f"\nx  t_value ({self.t_value}) should be higher 0!")
                 curate_valid = False
 
-        for val in self.ignore:
-            if val not in columns_csv:
-                self.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a column in the csv selected ({self.csv_name})!")
+            if self.csv_test != '':
+                if os.getcwd() in f"{self.csv_test}":
+                    path_test = self.csv_test
+                else:
+                    path_test = f"{Path(os.getcwd()).joinpath(self.csv_test)}"
+                if not os.path.exists(path_test):
+                    self.log.write(f'\nx  The path of your CSV file with the test set doesn\'t exist! You specified: {self.csv_test}')
+                    curate_valid = False
+
+    elif type_checks == 'csv_db':
+        if module.lower() != 'predict':
+            if self.y not in columns_csv:
+                self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
+                curate_valid = False
+
+            for val in self.discard:
+                if val not in columns_csv:
+                    self.log.write(f"\nx  Descriptor {val} specified in the discard option is not a column in the csv selected ({self.csv_name})!")
+                    curate_valid = False
+
+            for val in self.ignore:
+                if val not in columns_csv:
+                    self.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a column in the csv selected ({self.csv_name})!")
+                    curate_valid = False
+
+        else:
+            if self.descs_model not in columns_csv:
+                self.log.write(f"\nx  Some of the descriptors needed to predict the test set ({self.descs_model}) are not in the CSV selected ({self.csv_name})!")
                 curate_valid = False
 
     if not curate_valid:
@@ -415,22 +447,26 @@ def sanity_checks(self, type_checks, module, columns_csv):
 def load_database(self,csv_load,module):
     csv_df = pd.read_csv(csv_load)
     csv_df = csv_df.fillna(0)
-    if module.lower() not in 'verify':
+    if module.lower() not in ['verify','no_print']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
         total_amount = len(csv_df.columns)
         ignored_descs = len(self.args.ignore)
         accepted_descs = total_amount - ignored_descs
-        txt_load = f'\no  Database {csv_load} loaded successfully, including:'
-        txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
-        txt_load += f'\n   - {accepted_descs} accepted descriptors'
-        txt_load += f'\n   - {ignored_descs} ignored descriptors'
-        txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
+        if module.lower() not in 'predict':
+            txt_load = f'\no  Database {csv_load} loaded successfully, including:'
+            txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
+            txt_load += f'\n   - {accepted_descs} accepted descriptors'
+            txt_load += f'\n   - {ignored_descs} ignored descriptors'
+            txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
+        else:
+            txt_load = f'\n   o  Test set {csv_load} loaded successfully, including:'
+            txt_load += f'\n      - {len(csv_df[self.args.y])} datapoints'
         self.args.log.write(txt_load)
 
-    if module.lower() in ['curate','verify']:
+    if module.lower() != 'generate':
         return csv_df
-    if module == 'generate':
+    else:
         # ignore user-defined descriptors and assign X and y values (but keeps the original database)
         csv_df_ignore = csv_df.drop(self.args.ignore, axis=1)
         csv_X = csv_df_ignore.drop([self.args.y], axis=1)
@@ -593,7 +629,7 @@ def load_model_clas(params):
 
 
 # calculates errors/precision and predicted values of the ML models
-def load_n_predict(params, data, set_type, hyperopt=False):
+def load_n_predict(params, data, hyperopt=False):
 
     # set the parameters for each ML model of the hyperopt optimization
     loaded_model = load_model(params)
@@ -605,38 +641,48 @@ def load_n_predict(params, data, set_type, hyperopt=False):
 
     if params['train'] < 100:
         # Predicted values using the model for out-of-bag (oob) sets (validation or test)
-        data['y_pred_oob'] = loaded_model.predict(data[f'X_{set_type}_scaled']).tolist()
+        data['y_pred_valid'] = loaded_model.predict(data['X_valid_scaled']).tolist()
+        if 'X_test_scaled' in data:
+            data['y_pred_test'] = loaded_model.predict(data['X_test_scaled']).tolist()
 
     # for the hyperoptimizer
     # oob set results
     if params['mode'] == 'reg':
+        data['r2_train'], data['mae_train'], data['rmse_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
-            data['r2'], data['mae'], data['rmse'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
+            data['r2_valid'], data['mae_valid'], data['rmse_valid'] = data['r2_train'], data['mae_train'], data['rmse_train']
         else:
-            data['r2'], data['mae'], data['rmse'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
+            data['r2_valid'], data['mae_valid'], data['rmse_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
+        if 'X_test_scaled' in data:
+            if 'y_test' in data:
+                data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
         if hyperopt:
             if params['error_type'] == 'rmse':
-                opt_target = data['rmse']
+                opt_target = data['rmse_valid']
             elif params['error_type'] == 'mae':
-                opt_target = data['mae']
+                opt_target = data['mae_valid']
             elif params['error_type'] == 'r2':
-                opt_target = data['r2']
+                opt_target = data['r2_valid']
             return opt_target
         else:
             return data
     
     elif params['mode'] == 'clas':
+        data['acc_train'], data['f1_train'], data['mcc_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
-            data['acc'], data['f1'], data['mcc'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
+            data['acc_valid'], data['f1_valid'], data['mcc_valid'] = data['acc_train'], data['f1_train'], data['mcc_train']
         else:
-            data['acc'], data['f1'], data['mcc'] = get_prediction_results(params,data[f'y_{set_type}'],data['y_pred_oob'])
+            data['acc_valid'], data['f1_valid'], data['mcc_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
+        if 'X_test_scaled' in data:
+            if 'y_test' in data:
+                data['acc_test'], data['f1_test'], data['mcc_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
         if hyperopt:
             if params['error_type'] == 'mcc':
-                opt_target = data['mcc']
+                opt_target = data['mcc_valid']
             elif params['error_type'] == 'f1':
-                opt_target = data['f1']
+                opt_target = data['f1_valid']
             elif params['error_type'] == 'acc':
-                opt_target = data['acc']
+                opt_target = data['acc_valid']
             return opt_target
         else:
             return data    
@@ -660,29 +706,12 @@ def get_prediction_results(params,y,y_pred):
 
 
 def load_db_n_params(self,folder_model,module):
-    if os.getcwd() in f"{folder_model}":
-        path_db = folder_model
-    else:
-        path_db = f"{Path(os.getcwd()).joinpath(folder_model)}"
+    '''
+    Loads the parameters and Xy databases from a folder, add scaled X data and print information
+    about the databases
+    '''
 
-    suffix = '(with no PFI filter)'
-    if os.path.exists(path_db):
-        csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
-        if len(csv_files) != 2:
-            self.args.log.write(f"\nx  There are too many CSV files in the {path_db} folder! Only two CSV files should be there, one with the model parameters and the other with the Xy database.")
-            self.args.log.finalize()
-            sys.exit()
-        for csv_file in csv_files:
-            if 'PFI' in os.path.basename(csv_file).replace('.csv','_').split('_'):
-                suffix = '(with PFI filter)'
-            if '_db' in csv_file:
-                Xy_data_df = load_database(self,csv_file,module)
-            else:
-                params_df = load_database(self,csv_file,module)
-                params_name = os.path.basename(csv_file)
-    else:
-        self.args.log.write(f"\nx  The folder with the model and database ({path_db}) does not exist! Did you use the destination=PATH option in the other modules?")
-        sys.exit()
+    Xy_data_df, _, params_df, params_path, suffix = load_dfs(self,folder_model,module)
 
     # load only the descriptors used in the model and standardize X
     Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training']
@@ -701,13 +730,45 @@ def load_db_n_params(self,folder_model,module):
     point_count['train'] = len(Xy_data['X_train_scaled'])
     point_count['valid'] = len(Xy_data['X_valid_scaled'])
 
-    
-    _ = csv_load_info(self,params_name,suffix,params_df,point_count)
+    params_name = os.path.basename(params_path)
+    _ = load_print(self,params_name,suffix,params_df,point_count)
 
     return Xy_data, params_df
 
 
-def csv_load_info(self,params_name,suffix,params_df,point_count):
+def load_dfs(self,folder_model,module):
+    '''
+    Loads the parameters and Xy databases from a folder as dataframes
+    '''
+    
+    if os.getcwd() in f"{folder_model}":
+        path_db = folder_model
+    else:
+        path_db = f"{Path(os.getcwd()).joinpath(folder_model)}"
+    suffix = '(with no PFI filter)'
+    if os.path.exists(path_db):
+        csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
+        if len(csv_files) != 2:
+            self.args.log.write(f"\nx  There are not two CSV files in the {path_db} folder! Only two CSV files should be there, one with the model parameters and the other with the Xy database.")
+            self.args.log.finalize()
+            sys.exit()
+        for csv_file in csv_files:
+            if 'PFI' in os.path.basename(csv_file).replace('.csv','_').split('_'):
+                suffix = '(with PFI filter)'
+            if '_db' in csv_file:
+                Xy_data_df = load_database(self,csv_file,module)
+                Xy_path = csv_file
+            else:
+                params_df = load_database(self,csv_file,module)
+                params_path = csv_file
+    else:
+        self.args.log.write(f"\nx  The folder with the model and database ({path_db}) does not exist! Did you use the destination=PATH option in the other modules?")
+        sys.exit()
+
+    return Xy_data_df, Xy_path, params_df, params_path, suffix
+
+
+def load_print(self,params_name,suffix,params_df,point_count):
     txt_load = f'\no  ML model {params_name} {suffix} and its corresponding Xy database were loaded successfully, including:'
     txt_load += f'\n   - Target value: {params_df["y"][0]}'
     txt_load += f'\n   - Model: {params_df["model"][0]}'

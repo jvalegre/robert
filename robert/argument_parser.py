@@ -34,6 +34,8 @@ var_dict = {
     "thres_test" : 0.2,
     "kfold" : 5,
     "model_dir" : '',
+    "csv_test" : '',
+    "t_value" : 2
 }
 
 # part for using the options in a script or jupyter notebook

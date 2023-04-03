@@ -68,7 +68,7 @@ class curate:
         csv_df = load_database(self,self.args.csv_name,"curate")
 
         # transform categorical descriptors
-        csv_df = self.categorical_transform(csv_df)
+        csv_df = self.categorical_transform(csv_df,'curate')
 
         # applies the correlation filters and returns the database without correlated descriptors
         if self.args.corr_filter:
@@ -84,7 +84,7 @@ class curate:
         _ = finish_print(self,start_time,'CURATE')
 
 
-    def categorical_transform(self,csv_df):
+    def categorical_transform(self,csv_df,module):
         # converts all columns with strings into categorical values (one hot encoding
         # by default, can be set to numerical 1,2,3... with categorical = True).
         # Troubleshooting! For one-hot encoding, don't use variable names that are
@@ -92,7 +92,8 @@ class curate:
         # but C2 is already a header of a different column in the database. Same applies
         # for multiple columns containing the same variable names.
 
-        txt_categor = f'\no  Analyzing categorical variables'
+        if module.lower() == 'curate':
+            txt_categor = f'\no  Analyzing categorical variables'
 
         descriptors_to_drop, categorical_vars, new_categor_desc = [],[],[]
         for column in csv_df.columns:
@@ -111,20 +112,21 @@ class curate:
                         for desc in categor_descs:
                             new_categor_desc.append(desc)
 
-        if len(categorical_vars) == 0:
-            txt_categor += f'\n   - No categorical variables were found.'
-        else:
-            if self.args.categorical == 'numbers':
-                txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option:\n'
-                txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
+        if module.lower() == 'curate':
+            if len(categorical_vars) == 0:
+                txt_categor += f'\n   - No categorical variables were found.'
             else:
-                txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option'
-                txt_categor += f'\n   Initial descriptors:\n'
-                txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
-                txt_categor += f'\n   Generated descriptors:\n'
-                txt_categor += '\n'.join(f'   - {var}' for var in new_categor_desc)
-        
-        self.args.log.write(f'{txt_categor}')
+                if self.args.categorical == 'numbers':
+                    txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option:\n'
+                    txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
+                else:
+                    txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option'
+                    txt_categor += f'\n   Initial descriptors:\n'
+                    txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
+                    txt_categor += f'\n   Generated descriptors:\n'
+                    txt_categor += '\n'.join(f'   - {var}' for var in new_categor_desc)
+            
+            self.args.log.write(f'{txt_categor}')
 
         return csv_df
 

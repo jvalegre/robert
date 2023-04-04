@@ -75,7 +75,7 @@ def main():
             epochs=args.epochs,
             error_type=args.error_type,
             custom_params=args.custom_params,
-            PFI_epochs=args.PFI_epochs,
+            pfi_epochs=args.pfi_epochs,
             PFI_threshold=args.PFI_threshold,
             PFI=args.PFI
         )
@@ -102,7 +102,10 @@ def main():
             model_dir=args.model_dir,
             csv_test=args.csv_test,
             t_value=args.t_value,
-            seed=args.seed
+            seed=args.seed,
+            shap_show=args.shap_show,
+            pfi_epochs=args.pfi_epochs,
+            pfi_show=args.pfi_show
         )
 
 

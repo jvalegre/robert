@@ -20,6 +20,13 @@ General
          outliers with t-value=1 than with t-value = 4).
      seed : int, default=8,
          Random seed used in the ML predictor models, data splitting and other protocols.
+     shap_show : int, default=10,
+         Number of descriptors shown in the plot of the SHAP analysis.
+     pfi_show : int, default=10,
+         Number of descriptors shown in the plot of the PFI analysis.
+     pfi_epochs : int, default=30,
+         Sets the number of times a feature is randomly shuffled during the PFI analysis
+         (standard from Sklearn webpage: 30).
 
 """
 #####################################################.
@@ -29,16 +36,17 @@ General
 
 import os
 import time
-from pathlib import Path
 from robert.predict_utils import (plot_predictions,
     load_test,
+    save_predictions,
+    print_predict,
+    shap_analysis,
+    PFI_plot
     )
 from robert.utils import (load_variables,
     load_db_n_params,
     pd_to_dict,
     load_n_predict,
-    load_dfs,
-    load_database
 )
 
 class predict:
@@ -79,48 +87,22 @@ class predict:
                 # get results from training, validation and test (if any)
                 Xy_data = load_n_predict(params_dict, Xy_data)
                 
-                # represent y vs predicted y
-                _ = plot_predictions(self, params_dict, Xy_data, model_dir)
-
                 # save predictions for all sets
-                # _ = save_predictions(XX)
+                path_n_suffix = save_predictions(self,Xy_data,model_dir)
 
-                Xy_orig_df, Xy_path, params_df, _, suffix = load_dfs(self,model_dir,'no_print')
-                base_csv_name = '_'.join(os.path.basename(Xy_path).split('_')[0:2])
-                base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
-                Xy_orig_train = Xy_orig_df[Xy_orig_df.Set == 'Training']
-                Xy_orig_train[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_train']
-                _ = Xy_orig_train.to_csv(f'{base_csv_path}_train_{suffix}.csv', index = None, header=True)
-                Xy_orig_valid = Xy_orig_df[Xy_orig_df.Set == 'Validation']
-                Xy_orig_valid[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_valid']
-                _ = Xy_orig_valid.to_csv(f'{base_csv_path}_valid_{suffix}.csv', index = None, header=True)
-                if self.args.csv_test != '':
-                    Xy_orig_test = load_database(self, self.args.csv_test, "no_print")
-                    Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
-                    _ = Xy_orig_test.to_csv(f'{base_csv_path}_test_{suffix}.csv', index = None, header=True)
-
-
-                # decir que las predicciones del test se han guardado en PREDICT/XX (mismos csv con params['y']_pred)
-
+                # represent y vs predicted y
+                _ = plot_predictions(self, params_dict, Xy_data, path_n_suffix)
 
                 # print results
-                # _ = print_predict(XX)    
-                # with indents in the txt
-                # Model used, where it is stored and train:valid:test of XX:XX:XX proportion (test maybe)
-                # Train (XX): R2 = XX, MAE = XX, RMSE = XX
-                # Validation (XX): R2 = XX, MAE = XX, RMSE = XX
-                # Test (XX): R2 = XX, MAE = XX, RMSE = XX
-                # or
-                # Train (XX): accuracy = XX, F1 score = XX, MCC = XX
-                # Validation (XX): accuracy = XX, F1 score = XX, MCC = XX
-                # Test (XX): accuracy = XX, F1 score = XX, MCC = XX
-                # RMSE, MAE, R2 or ACC, F1, MCC prints x3 sets or x2 (if test in xy)
+                _ = print_predict(self,Xy_data,params_dict,path_n_suffix)  
+
+                # SHAP analysis
+                _ = shap_analysis(self,Xy_data,params_dict,path_n_suffix)
+
+                # PFI analysis
+                _ = PFI_plot(self,Xy_data,params_dict,path_n_suffix)
 
 
-
-
-
-# SHAP analysis (valid)
 # PFI analysis (valid)
 # outlier analysis (train+valid)
 

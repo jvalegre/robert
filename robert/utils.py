@@ -268,7 +268,7 @@ def load_variables(kwargs, robert_module):
                 folder_names.append(self.initial_dir.joinpath('GENERATE/Raw_data/PFI'))
             _ = create_folders(folder_names)
 
-            self.PFI_epochs = int(self.PFI_epochs)
+            self.pfi_epochs = int(self.pfi_epochs)
             self.PFI_threshold = float(self.PFI_threshold)
             self.epochs = int(self.epochs)
 
@@ -282,6 +282,9 @@ def load_variables(kwargs, robert_module):
             self.log.write(f"\no  Representation of predictions and analysis of ML models with the PREDICT module")
 
             self.t_value = float(self.t_value)
+            self.shap_show = int(self.shap_show)
+            self.pfi_epochs = int(self.pfi_epochs)
+            self.pfi_show = int(self.pfi_show)
 
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
@@ -374,8 +377,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The number of epochs must be higher than 0!")
                 curate_valid = False
             
-            if int(self.PFI_epochs) <= 0:
-                self.log.write(f"\nx  The number of PFI_epochs must be higher than 0!")
+            if int(self.pfi_epochs) <= 0:
+                self.log.write(f"\nx  The number of pfi_epochs must be higher than 0!")
                 curate_valid = False
 
     if type_checks == 'initial' and module.lower() in ['generate','verify','predict']:
@@ -434,11 +437,6 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     self.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a column in the csv selected ({self.csv_name})!")
                     curate_valid = False
 
-        else:
-            if self.descs_model not in columns_csv:
-                self.log.write(f"\nx  Some of the descriptors needed to predict the test set ({self.descs_model}) are not in the CSV selected ({self.csv_name})!")
-                curate_valid = False
-
     if not curate_valid:
         self.log.finalize()
         sys.exit()
@@ -461,7 +459,7 @@ def load_database(self,csv_load,module):
             txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
         else:
             txt_load = f'\n   o  Test set {csv_load} loaded successfully, including:'
-            txt_load += f'\n      - {len(csv_df[self.args.y])} datapoints'
+            txt_load += f'\n      - {len(csv_df[csv_df.columns[0]])} datapoints'
         self.args.log.write(txt_load)
 
     if module.lower() != 'generate':
@@ -711,7 +709,7 @@ def load_db_n_params(self,folder_model,module):
     about the databases
     '''
 
-    Xy_data_df, _, params_df, params_path, suffix = load_dfs(self,folder_model,module)
+    Xy_data_df, _, params_df, params_path, suffix, _ = load_dfs(self,folder_model,module)
 
     # load only the descriptors used in the model and standardize X
     Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training']
@@ -746,6 +744,7 @@ def load_dfs(self,folder_model,module):
     else:
         path_db = f"{Path(os.getcwd()).joinpath(folder_model)}"
     suffix = '(with no PFI filter)'
+    suffix_title = 'No_PFI'
     if os.path.exists(path_db):
         csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
         if len(csv_files) != 2:
@@ -755,6 +754,7 @@ def load_dfs(self,folder_model,module):
         for csv_file in csv_files:
             if 'PFI' in os.path.basename(csv_file).replace('.csv','_').split('_'):
                 suffix = '(with PFI filter)'
+                suffix_title = 'PFI'
             if '_db' in csv_file:
                 Xy_data_df = load_database(self,csv_file,module)
                 Xy_path = csv_file
@@ -765,7 +765,7 @@ def load_dfs(self,folder_model,module):
         self.args.log.write(f"\nx  The folder with the model and database ({path_db}) does not exist! Did you use the destination=PATH option in the other modules?")
         sys.exit()
 
-    return Xy_data_df, Xy_path, params_df, params_path, suffix
+    return Xy_data_df, Xy_path, params_df, params_path, suffix, suffix_title
 
 
 def load_print(self,params_name,suffix,params_df,point_count):

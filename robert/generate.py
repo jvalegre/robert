@@ -51,14 +51,14 @@ General
          Regression:
             1. rmse (root-mean-square error)
             2. mae (mean absolute error)
-            3. r2 (R-squared)
+            3. r2 (R-squared, not recommended since R2 might be good even with high errors in small datasets)
          Classification:
             1. mcc (Matthew's correlation coefficient)
             2. f1 (F1 score)
             3. acc (accuracy, fraction of correct predictions)
      PFI : bool, default=True
          Activate the PFI filter of descriptors.
-     PFI_epochs : int, default=30,
+     pfi_epochs : int, default=30,
          Sets the number of times a feature is randomly shuffled during the PFI analysis
          (standard from Sklearn webpage: 30).
      PFI_threshold : float, default=0.04,

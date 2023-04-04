@@ -335,6 +335,7 @@ class verify:
             label = 'PFI'
         ax.set_title(f"VERIFY tests {suffix}", fontsize=fontsize)
         plt.savefig(f'VERIFY_tests_{label}.png', dpi=300, bbox_inches='tight')
+        plt.clf()
 
 
     def print_verify(self,results_print,verify_results):

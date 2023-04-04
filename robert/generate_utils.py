@@ -395,27 +395,26 @@ def PFI_filter(self,Xy_data,PFI_dict):
     # generalization power of the inspected model. Features that are important on the training set 
     # but not on the held-out set might cause the model to overfit."
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.PFI_epochs, random_state=self.args.seed)
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=self.args.seed)
 
     # transforms the values into a list and sort the PFI values with the descriptors names
-    combined_descriptor_list = []
-    for column in Xy_data['X_train']:
-        combined_descriptor_list.append(column)
-    PFI_values, PFI_SD = [],[]
-    for value in perm_importance.importances_mean:
-        PFI_values.append(value)
-    for sd in perm_importance.importances_std:
-        PFI_SD.append(sd)
-    PFI_values, PFI_SD, combined_descriptor_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_SD, combined_descriptor_list), reverse=True)))
+    desc_list, PFI_values, PFI_sd = [],[],[]
+    for i,desc in enumerate(Xy_data['X_train']):
+        desc_list.append(desc)
+        PFI_values.append(perm_importance.importances_mean[i])
+        PFI_sd.append(perm_importance.importances_std[i])
+  
+    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
 
     # PFI filter
     PFI_discard = []
     PFI_thres = self.args.PFI_threshold*score_model
     for i in reversed(range(len(PFI_values))):
         if PFI_values[i] < PFI_thres:
-            PFI_discard.append(combined_descriptor_list[i])
+            PFI_discard.append(desc_list[i])
 
     return PFI_discard
+
 
 def update_best(self, csv_df, Xy_data, name_csv):
 
@@ -524,4 +523,5 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     plt.title(title_fig, y=1.04, fontsize = fontsize)
     sb.despine(top=False, right=False)
     plt.savefig(f'{path_raw.joinpath(title_fig)}.png', dpi=300, bbox_inches='tight')
+    plt.clf()
     self.args.log.write(f'\no  {title_fig} succesfully created in {path_raw}')

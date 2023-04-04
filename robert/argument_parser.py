@@ -28,14 +28,16 @@ var_dict = {
     "seed" : 0,
     "epochs" : 500,
     "error_type" : "rmse",
-    "PFI_epochs" : 30,
+    "pfi_epochs" : 30,
     "PFI_threshold" : 0.04,
     "PFI" : True,
     "thres_test" : 0.2,
     "kfold" : 5,
     "model_dir" : '',
     "csv_test" : '',
-    "t_value" : 2
+    "t_value" : 2,
+    "shap_show" : 10,
+    "pfi_show" : 10
 }
 
 # part for using the options in a script or jupyter notebook

@@ -372,3 +372,78 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     dat_results = open(pfi_results_file, "w")
     dat_results.write(print_PFI)
     dat_results.close()
+
+
+def outlier_plot(self,Xy_data,params_dict,path_n_suffix):
+    '''
+    Plots and prints the results of the outlier analysis
+    '''
+
+    # calculate absolute errors between predicted y and actual values
+    outliers_train = [abs(x-y) for x,y in zip(Xy_data['y_train'],Xy_data['y_pred_train'])]
+    outliers_valid = [abs(x-y) for x,y in zip(Xy_data['y_valid'],Xy_data['y_pred_valid'])]
+    if 'y_test' in Xy_data:
+        outliers_test = [abs(x-y) for x,y in zip(Xy_data['y_test'],Xy_data['y_pred_test'])]
+
+    # the errors are scaled using standard deviation units. When the absolute
+    # error is larger than the t-value, the point is considered an outlier
+    outliers_mean = np.mean(outliers_train)
+    outliers_sd = np.std(outliers_train)
+    # print(outliers_mean,outliers_sd)
+
+    outliers_train_scaled = (outliers_train-outliers_mean)/outliers_sd
+    outliers_valid_scaled = (outliers_valid-outliers_mean)/outliers_sd
+    outliers_test_scaled = (outliers_test-outliers_mean)/outliers_sd
+
+    # for i,val in enumerate(outliers_train):
+    #     error_normal.append((error_abs[i]-Mean)/SD)
+    #     if np.absolute(error_normal[i]) > t_value:
+    #         error_outlier.append(error_normal[i])
+    #         outlier_names.append(Ir_cat_names[i])
+
+
+    #     # plot data in SD units
+    #       fig, ax = plt.subplots(figsize=(7.45,6))
+    #     plt.text(0.5, 1.08, f'Outlier analysis of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+    #     fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    #     plt.grid(linestyle='--', linewidth=1)
+    #     Plot_outliers = {'error_outlier': error_outlier}
+    #     Plot_no_outliers = {'error_no_outlier': error_no_outlier}
+    #     df_outliers = pd.DataFrame.from_dict(Plot_outliers)
+    #     df_no_outliers = pd.DataFrame.from_dict(Plot_no_outliers)
+    #     plt.scatter(df_no_outliers["error_no_outlier"], df_no_outliers["error_no_outlier"],
+    #                  c='b', edgecolors='none', alpha=0.4,)  # Include border to the points
+    #     plt.scatter(df_outliers["error_outlier"], df_outliers["error_outlier"],
+    #                  c='r', edgecolors='none', alpha=0.4,)  # Include border to the points
+# copy scatter and style (ticks, labels, etc) from above
+    #     # Set styling preferences
+    #       ADD TITLES!
+    #     sb.set(style="ticks")
+    #     plt.xlabel('SD of the errors',fontsize=14)
+    #     plt.xticks(fontsize=14)
+    #     plt.ylabel('SD of the errors',fontsize=14)
+    #     plt.yticks(fontsize=14)
+        
+    #     # Set plot limits
+    #     axis_limit = math.ceil(np.absolute(error_normal).max() + 0.5)
+    #     plt.ylim(-(axis_limit), (axis_limit))
+    #     plt.xlim(-(axis_limit), (axis_limit))
+
+    #     # plot rectangles in corners
+    #     diff_tvalue = axis_limit - t_value
+    #     Rectangle_top = mpatches.Rectangle(xy=(axis_limit, axis_limit), width=-diff_tvalue, height=-diff_tvalue, facecolor='grey', alpha=0.3)
+    #     Rectangle_bottom = mpatches.Rectangle(xy=(-(axis_limit), -(axis_limit)), width=diff_tvalue, height=diff_tvalue, facecolor='grey', alpha=0.3)
+    #     ax.add_patch(Rectangle_top)
+    #     ax.add_patch(Rectangle_bottom)
+         
+        
+    #     # Calculate % of outliers discarded
+
+    #     plt.savefig('DFT_vs_Experimental_Outliers_'+folder+'.png', dpi=400, bbox_inches='tight')
+        
+    #     plt.show()
+        # print
+        # Train: XX of XX
+            #    - XX
+            #    - XX

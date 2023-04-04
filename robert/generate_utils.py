@@ -408,7 +408,7 @@ def PFI_filter(self,Xy_data,PFI_dict):
 
     # PFI filter
     PFI_discard = []
-    PFI_thres = self.args.PFI_threshold*score_model
+    PFI_thres = abs(self.args.PFI_threshold*score_model)
     for i in reversed(range(len(PFI_values))):
         if PFI_values[i] < PFI_thres:
             PFI_discard.append(desc_list[i])

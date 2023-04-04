@@ -179,20 +179,29 @@ def command_line_args():
             else:
                 # this converts the string parameters to lists
                 if arg_name.lower() in ["discard","ignore","train","model"]:
-                    if not isinstance(value, list):
-                        try:
-                            value = ast.literal_eval(value)
-                        except (SyntaxError, ValueError):
-                            # this line fixes issues when using "[X]" or ["X"] instead of "['X']" when using lists
-                            value = value.replace('[',']').replace(',',']').split(']')
-                            while('' in value):
-                                value.remove('')
+                    value = format_lists(value)
                 kwargs[arg_name] = value
 
     # Second, load all the default variables as an "add_option" object
     args = load_variables(kwargs, "command")
 
     return args
+
+
+def format_lists(value):
+    '''
+    Transforms strings into a list
+    '''
+
+    if not isinstance(value, list):
+        try:
+            value = ast.literal_eval(value)
+        except (SyntaxError, ValueError):
+            # this line fixes issues when using "[X]" or ["X"] instead of "['X']" when using lists
+            value = value.replace('[',']').replace(',',']').split(']')
+            while('' in value):
+                value.remove('')
+    return value
 
 
 def load_variables(kwargs, robert_module):
@@ -272,6 +281,18 @@ def load_variables(kwargs, robert_module):
             self.PFI_threshold = float(self.PFI_threshold)
             self.epochs = int(self.epochs)
 
+            if self.y == '':
+                curate_folder = Path(self.initial_dir).joinpath('CURATE')
+                if os.path.exists(curate_folder):
+                    curate_csv_files = glob.glob(f'{curate_folder}/*.csv')
+                    for csv_file in curate_csv_files:
+                        if 'CURATE_options.csv' in csv_file:
+                            curate_df = pd.read_csv(csv_file)
+                            self.y = curate_df['y'][0]
+                            self.ignore = curate_df['ignore'][0]
+                            self.ignore  = format_lists(self.ignore)
+                            self.csv_name = curate_df['csv_name'][0]
+
         elif robert_module.upper() == 'VERIFY':
             self.log.write(f"\no  Starting tests to verify the prediction ability of the ML models with the VERIFY module")
 
@@ -326,6 +347,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
             self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
             curate_valid = False
 
+        path_csv = ''
         if os.getcwd() in f"{self.csv_name}":
             path_csv = self.csv_name
         elif self.csv_name != '':
@@ -660,7 +682,13 @@ def load_n_predict(params, data, hyperopt=False):
             elif params['error_type'] == 'mae':
                 opt_target = data['mae_valid']
             elif params['error_type'] == 'r2':
-                opt_target = data['r2_valid']
+                # avoids problems with regression lines with good R2 in validation that go in a different
+                # direction of the regression in train
+                score_model = loaded_model.score(data['X_valid_scaled'], data['y_valid'])
+                if score_model < 0:
+                    opt_target = 0
+                else:
+                    opt_target = data['r2_valid']
             return opt_target
         else:
             return data

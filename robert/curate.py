@@ -80,6 +80,15 @@ class curate:
         _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
         self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
 
+        # saves important options used in CURATE
+        options_name = f'CURATE_options.csv'
+        options_name = self.args.destination.joinpath(options_name)
+        options_df = pd.DataFrame()
+        options_df['y'] = [self.args.y]
+        options_df['ignore'] = [self.args.ignore]
+        options_df['csv_name'] = [csv_curate_name]
+        _ = options_df.to_csv(f'{options_name}', index = None, header=True)
+
         # finish the printing of the CURATE info file
         _ = finish_print(self,start_time,'CURATE')
 

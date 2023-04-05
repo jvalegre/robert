@@ -45,6 +45,7 @@ import os
 import time
 from matplotlib import pyplot as plt
 import numpy as np
+from pathlib import Path
 from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     load_db_n_params,
@@ -82,7 +83,7 @@ class verify:
             if os.path.exists(model_dir):
 
                 # load and ML model parameters, and add standardized descriptors
-                Xy_data, params_df = load_db_n_params(self,model_dir,"verify")
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,model_dir,"verify")
                 
                 # set the parameters for each ML model of the hyperopt optimization
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
@@ -93,7 +94,8 @@ class verify:
                 # get original score
                 Xy_orig = Xy_data.copy()
                 Xy_orig = load_n_predict(params_dict, Xy_orig)  
-                verify_results['original_score'] = Xy_orig[self.args.error_type]
+                verify_results['original_score_train'] = Xy_orig[f'{self.args.error_type}_train']
+                verify_results['original_score_valid'] = Xy_orig[f'{self.args.error_type}_valid']
 
                 # calculate R2 for k-fold cross validation (if needed)
                 verify_results = self.cv_test(verify_results,Xy_data,params_dict)
@@ -111,10 +113,10 @@ class verify:
                 colors,color_codes,results_print = self.analyze_tests(verify_results,params_dict)
 
                 # plot a donut plot with the results
-                _ = self.plot_donut(colors,color_codes,model_dir)
+                print_ver,path_n_suffix = self.plot_donut(colors,color_codes,params_path,suffix_title)
 
-                # print results
-                _ = self.print_verify(results_print,verify_results)
+                # print and save results
+                _ = self.print_verify(results_print,verify_results,print_ver,path_n_suffix)
 
         _ = finish_print(self,start_time,'VERIFY')
 
@@ -233,8 +235,12 @@ class verify:
                         'grey' : grey_color}
         colors = [None,None,None,None]
         results_print = [None,None,None,None]
-        higher_thres = (1+self.args.thres_test)*verify_results['original_score']
-        lower_thres = (1-self.args.thres_test)*verify_results['original_score']
+        # these thresholds use train results to compare in the CV
+        higher_thres_train = (1+self.args.thres_test)*verify_results['original_score_train']
+        lower_thres_train = (1-self.args.thres_test)*verify_results['original_score_train']
+        # these thresholds use validation results to compare in the CV
+        higher_thres_valid = (1+self.args.thres_test)*verify_results['original_score_valid']
+        lower_thres_valid = (1-self.args.thres_test)*verify_results['original_score_valid']
 
         for i,test_ver in enumerate(['X_shuffle', 'cv_score', 'onehot', 'y_shuffle']):
             # the CV test should give values as good as the originals, while the other tests
@@ -242,54 +248,60 @@ class verify:
             # F1 scores and MCC
             if test_ver == 'cv_score':
                 if self.args.error_type in ['mae','rmse']:
-                    if verify_results[test_ver] >= higher_thres:
+                    if verify_results[test_ver] >= higher_thres_train:
                         colors[i] = red_color
-                        results_print[i] = f'\n      x {self.args.kfold}-fold CV: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres:.2})'
+                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_train:.2})'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n      o {self.args.kfold}-fold CV: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres:.2})'
+                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_train:.2})'
                 else:
-                    if verify_results[test_ver] <= lower_thres:
+                    if verify_results[test_ver] <= lower_thres_train:
                         colors[i] = red_color
-                        results_print[i] = f'\n      x {self.args.kfold}-fold CV: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres:.2})'
+                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_train:.2})'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n      o {self.args.kfold}-fold CV: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres:.2})'
+                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_train:.2})'
                 
                 # the CV test also fails if there is too much variation (+- 50% of the CV result)
                 if verify_results['cv_std'] >= 0.5*verify_results['cv_score']:
                     colors[i] = red_color
-                    results_print[i] = f'\n      x {self.args.kfold}-fold CV: FAILED, SD 50% higher than the CV score. CV result : {self.args.error_type.upper()} = {verify_results["cv_score"]:.2} +- {verify_results["cv_std"]:.2}'
+                    results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, SD 50% higher than the CV score. CV result: {self.args.error_type.upper()} = {verify_results["cv_score"]:.2} +- {verify_results["cv_std"]:.2}'
 
                 # when using K-neighbours to select the training data, classical K-fold CV might not
                 # be very useful. We mark this part in grey
                 if params_dict['split'] == 'KN':
                     colors[i] = grey_color
-                    results_print[i] = f'\n      - {self.args.kfold}-fold CV: NOT DETERMINED, data splitting was done with k-neighbours (KN). CV result : {self.args.error_type.upper()} = {verify_results["cv_score"]:.2}'
+                    results_print[i] = f'\n         - {self.args.kfold}-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: {self.args.error_type.upper()} = {verify_results["cv_score"]:.2}'
 
             elif test_ver in ['X_shuffle', 'y_shuffle', 'onehot']:
                 if self.args.error_type in ['mae','rmse']:
-                    if verify_results[test_ver] <= higher_thres:
+                    if verify_results[test_ver] <= higher_thres_valid:
                         colors[i] = red_color
-                        results_print[i] = f'\n      x {test_ver}: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres:.2})'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n      o {test_ver}: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres:.2})'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
                 else:
-                    if verify_results[test_ver] >= lower_thres:
+                    if verify_results[test_ver] >= lower_thres_valid:
                         colors[i] = red_color
-                        results_print[i] = f'\n      x {test_ver}: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres:.2})'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n      o {test_ver}: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres:.2})'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {self.args.error_type.upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
 
         return colors,color_codes,results_print
 
 
-    def plot_donut(self,colors,color_codes,model_dir):
+    def plot_donut(self,colors,color_codes,params_path,suffix_title):
         '''
         Creates a donut plot with the results of VERIFY
         '''
+
+        # set PATH names and plot
+        base_csv_name = '_'.join(os.path.basename(params_path).replace('.csv','_').split('_')[0:2])
+        base_csv_name = f'VERIFY/{base_csv_name}'
+        base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
+        path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
         _, ax = plt.subplots(figsize=(7.45,6), subplot_kw=dict(aspect="equal"))
         
@@ -297,20 +309,19 @@ class verify:
                 f"{self.args.kfold}-fold CV",
                 "One-hot",
                 "y-shuffle"]
+                
         # make 4 even parts in the donut plot
         data = [25, 25, 25, 25]
         explode = [None, None, None, None]
-        # failing or undetermined tests will lead to pieces that are outside the regular donut
         
+        # failing or undetermined tests will lead to pieces that are outside the regular donut
         for i,color in enumerate(colors):
             if color in [color_codes['red'], color_codes['grey']]:
                 explode[i] = 0.05
             else:
                 explode[i] = 0
         
-        # in the pie(): wedgeprops = { 'linewidth' : 7, 'edgecolor' : 'white' }
         wedgeprops = {'width':0.4, 'edgecolor':'black', 'lw':0.72}
-        # wedgeprops=dict(width=0.4)
         wedges, _ = ax.pie(data, wedgeprops=wedgeprops, startangle=0, colors=colors, explode=explode)
 
         bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
@@ -328,21 +339,33 @@ class verify:
             ax.annotate(recipe[i], xy=(x, y), xytext=(1.15*np.sign(x), 1.4*y),
                         horizontalalignment=horizontalalignment, fontsize=fontsize, **kw)
 
-        suffix = '(with no PFI filter)'
-        label = 'No_PFI'
-        if 'PFI' in model_dir and 'No_PFI' not in model_dir:
-            suffix = '(with PFI filter)'
-            label = 'PFI'
-        ax.set_title(f"VERIFY tests {suffix}", fontsize=fontsize)
-        plt.savefig(f'VERIFY_tests_{label}.png', dpi=300, bbox_inches='tight')
+        ax.set_title(f"VERIFY tests of {os.path.basename(path_n_suffix)}", fontsize=fontsize)
+
+        # save plot
+        verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
+        plt.savefig(verify_plot_file, dpi=300, bbox_inches='tight')
         plt.clf()
+        print_ver = f"\n   o  VERIFY donut plots saved in {verify_plot_file}"
+
+        return print_ver, path_n_suffix
 
 
-    def print_verify(self,results_print,verify_results):
-        txt_ver = f'\n   Results of the verify tests. Original score: {self.args.error_type.upper()} = {verify_results["original_score"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test}:'
+    def print_verify(self,results_print,verify_results,print_ver,path_n_suffix):
+        '''
+        Print and store the results of VERIFY
+        '''
+        
+        verify_results_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.dat'
+        print_ver += f"\n   o  VERIFY test values saved in {verify_results_file}:"
+        print_ver += f'\n      Results of the VERIFY tests:'
         # the printing order should be CV, X-shuffle, y-shuffle and one-hot
-        txt_ver += results_print[1]
-        txt_ver += results_print[0]
-        txt_ver += results_print[3]
-        txt_ver += results_print[2]
-        self.args.log.write(txt_ver)
+        print_ver += f'\n      Original score (train set for CV): {self.args.error_type.upper()} = {verify_results["original_score_train"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test*100}%:'
+        print_ver += results_print[1]
+        print_ver += f'\n      Original score (validation set): {self.args.error_type.upper()} = {verify_results["original_score_valid"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test*100}%:'
+        print_ver += results_print[0]
+        print_ver += results_print[3]
+        print_ver += results_print[2]
+        self.args.log.write(print_ver)
+        dat_results = open(verify_results_file, "w")
+        dat_results.write(print_ver)
+        dat_results.close()

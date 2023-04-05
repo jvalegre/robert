@@ -38,11 +38,13 @@ def main():
     args = command_line_args()
     args.command_line = True
 
+    full_workflow = False
     if not args.curate and not args.generate and not args.predict and not args.verify:
-        print('x  The --module option was not specified in the command line! Options: "curate", "generate", "verify", "predict".\n')
+        if not args.cheers:
+            full_workflow = True
 
     # CURATE
-    if args.curate:
+    if args.curate or full_workflow:
         curate(
             varfile=args.varfile,
             command_line=args.command_line,
@@ -57,8 +59,11 @@ def main():
             thres_y=args.thres_y,
         )
 
+    if full_workflow:
+        args.y = '' # this ensures GENERATE communicates with CURATE (see the load_variables() function in utils.py)
+
     # GENERATE
-    if args.generate:
+    if args.generate or full_workflow:
         generate(
             varfile=args.varfile,
             command_line=args.command_line,
@@ -81,7 +86,7 @@ def main():
         )
 
     # VERIFY
-    if args.verify:
+    if args.verify or full_workflow:
         verify(
             varfile=args.varfile,
             command_line=args.command_line,
@@ -94,7 +99,7 @@ def main():
         )
 
     # PREDICT
-    if args.predict:
+    if args.predict or full_workflow:
         predict(
             varfile=args.varfile,
             command_line=args.command_line,
@@ -105,13 +110,14 @@ def main():
             seed=args.seed,
             shap_show=args.shap_show,
             pfi_epochs=args.pfi_epochs,
-            pfi_show=args.pfi_show
+            pfi_show=args.pfi_show,
+            names=args.names
         )
 
 
     # CHEERS
     if args.cheers:
-        print('o  Blimey, this module was designed to thank my mate ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics.\n')
+        print('o  Blimey! This module was designed to thank my mate ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics.\n')
 
 
 if __name__ == "__main__":

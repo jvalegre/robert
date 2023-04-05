@@ -37,7 +37,8 @@ var_dict = {
     "csv_test" : '',
     "t_value" : 2,
     "shap_show" : 10,
-    "pfi_show" : 10
+    "pfi_show" : 10,
+    "names" : ''
 }
 
 # part for using the options in a script or jupyter notebook

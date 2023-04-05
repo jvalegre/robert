@@ -737,7 +737,7 @@ def load_db_n_params(self,folder_model,module):
     about the databases
     '''
 
-    Xy_data_df, _, params_df, params_path, suffix, _ = load_dfs(self,folder_model,module)
+    Xy_data_df, _, params_df, params_path, suffix, suffix_title = load_dfs(self,folder_model,module)
 
     # load only the descriptors used in the model and standardize X
     Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training']
@@ -759,7 +759,7 @@ def load_db_n_params(self,folder_model,module):
     params_name = os.path.basename(params_path)
     _ = load_print(self,params_name,suffix,params_df,point_count)
 
-    return Xy_data, params_df
+    return Xy_data, params_df, params_path, suffix_title
 
 
 def load_dfs(self,folder_model,module):

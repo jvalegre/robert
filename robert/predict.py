@@ -27,6 +27,8 @@ General
      pfi_epochs : int, default=30,
          Sets the number of times a feature is randomly shuffled during the PFI analysis
          (standard from Sklearn webpage: 30).
+     names : str, default=''
+         Column of the names for each datapoint. Names are used to print outliers.
 
 """
 #####################################################.
@@ -48,6 +50,7 @@ from robert.utils import (load_variables,
     load_db_n_params,
     pd_to_dict,
     load_n_predict,
+    finish_print
 )
 
 class predict:
@@ -76,7 +79,7 @@ class predict:
         for model_dir in model_dirs:
             if os.path.exists(model_dir):
                 # load and ML model parameters, and add standardized descriptors
-                Xy_data, params_df = load_db_n_params(self,model_dir,"verify")
+                Xy_data, params_df, _, _ = load_db_n_params(self,model_dir,"verify") # module 'verify' since PREDICT follows similar protocols
 
                 # load test set and add standardized descriptors
                 if self.args.csv_test != '':
@@ -89,10 +92,10 @@ class predict:
                 Xy_data = load_n_predict(params_dict, Xy_data)
                 
                 # save predictions for all sets
-                path_n_suffix = save_predictions(self,Xy_data,model_dir)
+                path_n_suffix, name_points = save_predictions(self,Xy_data,model_dir)
 
                 # represent y vs predicted y
-                _ = plot_predictions(self, params_dict, Xy_data, path_n_suffix)
+                colors = plot_predictions(self, params_dict, Xy_data, path_n_suffix)
 
                 # print results
                 _ = print_predict(self,Xy_data,params_dict,path_n_suffix)  
@@ -104,4 +107,6 @@ class predict:
                 _ = PFI_plot(self,Xy_data,params_dict,path_n_suffix)
 
                 # Outlier analysis
-                _ = outlier_plot(self,Xy_data,params_dict,path_n_suffix)
+                _ = outlier_plot(self,Xy_data,path_n_suffix,name_points,colors)
+
+        _ = finish_print(self,start_time,'PREDICT')

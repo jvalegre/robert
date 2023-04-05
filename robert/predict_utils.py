@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sb
 from matplotlib import pyplot as plt
+import matplotlib.patches as mpatches
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.inspection import permutation_importance
 import shap
@@ -65,23 +66,28 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     if 'y_test' in Xy_data:
         set_types.append('test')
     
+    graph_style = {'color_train' : 'b',
+            'color_valid' : 'orange',
+            'color_test' : 'r',
+            'dot_size' : 50,
+            'alpha' : 1 # from 0 (transparent) to 1 (opaque)
+            }
+
     self.args.log.write(f"\n   o  Saving graphs and CSV databases in {Path(os.getcwd()).joinpath('PREDICT')}:")
     if params_dict['mode'] == 'reg':
-        _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix)
+        _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
 
     elif params_dict['mode'] == 'clas':
         for set_type in set_types:
             _ = graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix)
+    
+    return graph_style
 
 
-def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix):
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style):
     '''
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     '''
-
-    color_train, color_validation, color_test = 'b', 'orange', 'r'
-    dot_size = 50
-    alpha = 1 # from 0 (transparent) to 1 (opaque)
 
     # Create graph
     sb.set(style="ticks")
@@ -102,13 +108,13 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix):
 
     # Plot the data
     _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
-                c = color_train, s = dot_size, edgecolor = 'k', linewidths = 0.8, alpha = alpha, zorder=2)
+                c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
     _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
-                c = color_validation, s = dot_size, edgecolor = 'k', linewidths = 0.8, alpha = alpha, zorder=2)
+                c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
     if 'y_test' in Xy_data:
         _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
-                    c = color_test, s = dot_size, edgecolor = 'k', linewidths = 0.8, alpha = alpha, zorder=2)
+                    c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
     # Put a legend below current axis
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
@@ -142,30 +148,21 @@ def set_lim_reg(Xy_data,set_types):
     '''
     
     size_space = 0.1*abs(min(Xy_data["y_train"])-max(Xy_data["y_train"]))
+    min_value_graph = min(Xy_data["y_train"])
+    if min(Xy_data["y_valid"]) < min_value_graph:
+        min_value_graph = min(Xy_data["y_valid"])
     if 'test' in set_types:
-        if min(Xy_data["y_train"]) < min(Xy_data["y_valid"]) and min(Xy_data["y_train"]) < min(Xy_data["y_test"]):
-            min_value_graph = min(Xy_data["y_train"])-size_space
-        elif min(Xy_data["y_valid"]) < min(Xy_data["y_train"]) and min(Xy_data["y_valid"]) < min(Xy_data["y_test"]):
-            min_value_graph = min(Xy_data["y_valid"])-size_space
-        else:
-            min_value_graph = min(Xy_data["y_test"])-size_space
-            
-        if max(Xy_data["y_train"]) > max(Xy_data["y_valid"]) and max(Xy_data["y_train"]) > max(Xy_data["y_test"]):
-            max_value_graph = max(Xy_data["y_train"])+size_space
-        elif max(Xy_data["y_valid"]) > max(Xy_data["y_train"]) and max(Xy_data["y_valid"]) > max(Xy_data["y_test"]):
-            max_value_graph = max(Xy_data["y_valid"])+size_space
-        else:
-            max_value_graph = max(Xy_data["y_test"])+size_space
-    else:
-        if min(Xy_data["y_train"]) < min(Xy_data["y_valid"]):
-            min_value_graph = min(Xy_data["y_train"])-size_space
-        else:
-            min_value_graph = min(Xy_data["y_valid"])-size_space
-            
-        if max(Xy_data["y_train"]) > max(Xy_data["y_valid"]):
-            max_value_graph = max(Xy_data["y_train"])+size_space
-        else:
-            max_value_graph = max(Xy_data["y_valid"])+size_space
+        if min(Xy_data["y_test"]) < min_value_graph:
+            min_value_graph = min(Xy_data["y_test"])
+    min_value_graph = min_value_graph-size_space
+        
+    max_value_graph = max(Xy_data["y_train"])
+    if max(Xy_data["y_valid"]) > max_value_graph:
+        max_value_graph = max(Xy_data["y_valid"])
+    if 'test' in set_types:
+        if max(Xy_data["y_test"]) > max_value_graph:
+            max_value_graph = max(Xy_data["y_test"])
+    max_value_graph = max_value_graph+size_space
     
     return min_value_graph, max_value_graph
 
@@ -194,7 +191,7 @@ def save_predictions(self,Xy_data,model_dir):
     '''
     
     Xy_orig_df, Xy_path, params_df, _, _, suffix_title = load_dfs(self,model_dir,'no_print')
-    base_csv_name = '_'.join(os.path.basename(Xy_path).split('_')[0:2])
+    base_csv_name = '_'.join(os.path.basename(Xy_path).replace('.csv','_').split('_')[0:2])
     base_csv_name = f'PREDICT/{base_csv_name}'
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     Xy_orig_train = Xy_orig_df[Xy_orig_df.Set == 'Training']
@@ -216,7 +213,18 @@ def save_predictions(self,Xy_data,model_dir):
     self.args.log.write(print_preds)
 
     path_n_suffix = f'{base_csv_path}_{suffix_title}'
-    return path_n_suffix
+
+    # store the names of the datapoints
+    name_points = {}
+    if self.args.names != '':
+        if self.args.names in Xy_orig_train:
+            name_points['train'] = Xy_orig_train[self.args.names]
+            name_points['valid'] = Xy_orig_valid[self.args.names]
+            if self.args.csv_test != '':
+                if self.args.names in Xy_orig_test:
+                    name_points['test'] = Xy_orig_test[self.args.names]
+
+    return path_n_suffix, name_points
 
 
 def print_predict(self,Xy_data,params_dict,path_n_suffix):
@@ -374,11 +382,108 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     dat_results.close()
 
 
-def outlier_plot(self,Xy_data,params_dict,path_n_suffix):
+def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     '''
     Plots and prints the results of the outlier analysis
     '''
 
+    # detect outliers
+    outliers_data, print_outliers = outlier_filter(self, Xy_data, name_points)
+
+    # plot data in SD units
+    sb.set(style="ticks")
+    _, ax = plt.subplots(figsize=(7.45,6))
+    plt.text(0.5, 1.08, f'Outlier analysis of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+    fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    plt.grid(linestyle='--', linewidth=1)
+    _ = ax.scatter(outliers_data['train_scaled'], outliers_data['train_scaled'],
+            c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    _ = ax.scatter(outliers_data['valid_scaled'], outliers_data['valid_scaled'],
+            c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    if 'test_scaled' in outliers_data:
+        _ = ax.scatter(outliers_data['test_scaled'], outliers_data['test_scaled'],
+            c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    
+    # Set styling preferences and graph limits
+    plt.xlabel('SD of the errors',fontsize=14)
+    plt.xticks(fontsize=14)
+    plt.ylabel('SD of the errors',fontsize=14)
+    plt.yticks(fontsize=14)
+    
+    axis_limit = max(outliers_data['train_scaled'], key=abs)
+    if max(outliers_data['valid_scaled'], key=abs) > axis_limit:
+        axis_limit = max(outliers_data['valid_scaled'], key=abs)
+    if 'test_scaled' in outliers_data:
+        if max(outliers_data['test_scaled'], key=abs) > axis_limit:
+            axis_limit = max(outliers_data['test_scaled'], key=abs)
+    axis_limit = axis_limit+0.5
+    plt.ylim(-axis_limit, axis_limit)
+    plt.xlim(-axis_limit, axis_limit)
+
+    # plot rectangles in corners
+    diff_tvalue = axis_limit - self.args.t_value
+    Rectangle_top = mpatches.Rectangle(xy=(axis_limit, axis_limit), width=-diff_tvalue, height=-diff_tvalue, facecolor='grey', alpha=0.3)
+    Rectangle_bottom = mpatches.Rectangle(xy=(-(axis_limit), -(axis_limit)), width=diff_tvalue, height=diff_tvalue, facecolor='grey', alpha=0.3)
+    ax.add_patch(Rectangle_top)
+    ax.add_patch(Rectangle_bottom)
+
+    # save plot and print results
+    outliers_plot_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png'
+    plt.savefig(f'{outliers_plot_file}', dpi=300, bbox_inches='tight')
+    print_outliers += f"\n   o  Outliers plot saved in {outliers_plot_file}"
+
+    outlier_results_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.dat'
+    print_outliers += f"\n   o  Outlier values saved in {outlier_results_file}:"
+    if 'train' not in name_points:
+        print_outliers += f'\n      x  No variable names found or names option not specified! Outliers will be printed with no names'
+    else:
+        if 'test_scaled' in outliers_data and 'test' not in name_points:
+            print_outliers += f'\n      x  No variable names found in the test set! Outliers of the test set will be printed with no names'
+
+    print_outliers = outlier_analysis(print_outliers,outliers_data,'train')
+    print_outliers = outlier_analysis(print_outliers,outliers_data,'valid')
+    if 'test_scaled' in outliers_data:
+        print_outliers = outlier_analysis(print_outliers,outliers_data,'test')
+    
+    self.args.log.write(print_outliers)
+    dat_results = open(outlier_results_file, "w")
+    dat_results.write(print_outliers)
+    dat_results.close()
+
+
+def outlier_analysis(print_outliers,outliers_data,outliers_set):
+    '''
+    Analyzes the outlier results
+    '''
+    
+    if outliers_set == 'train':
+        label_set = 'Train'
+        outliers_label = 'outliers_train'
+        n_points_label = 'train_scaled'
+        outliers_name = 'names_train'
+    elif outliers_set == 'valid':
+        label_set = 'Validation'
+        outliers_label = 'outliers_valid'
+        n_points_label = 'valid_scaled'
+        outliers_name = 'names_valid'
+    elif outliers_set == 'test':
+        label_set = 'Test'
+        outliers_label = 'outliers_test'
+        n_points_label = 'test_scaled'
+        outliers_name = 'names_test'
+
+    per_cent = (len(outliers_data[outliers_label])/len(outliers_data[n_points_label]))*100
+    print_outliers += f"\n      {label_set}: {len(outliers_data[outliers_label])} outliers out of {len(outliers_data[n_points_label])} datapoints ({per_cent:.1f}%)"
+    for val,name in zip(outliers_data[outliers_label], outliers_data[outliers_name]):
+        print_outliers += f"\n      -  {name} ({val:.2} SDs)"
+    return print_outliers
+
+def outlier_filter(self, Xy_data, name_points):
+    '''
+    Calculates and stores absolute errors in SD units for all the sets
+    '''
+    
     # calculate absolute errors between predicted y and actual values
     outliers_train = [abs(x-y) for x,y in zip(Xy_data['y_train'],Xy_data['y_pred_train'])]
     outliers_valid = [abs(x-y) for x,y in zip(Xy_data['y_valid'],Xy_data['y_pred_valid'])]
@@ -389,61 +494,40 @@ def outlier_plot(self,Xy_data,params_dict,path_n_suffix):
     # error is larger than the t-value, the point is considered an outlier
     outliers_mean = np.mean(outliers_train)
     outliers_sd = np.std(outliers_train)
-    # print(outliers_mean,outliers_sd)
 
-    outliers_train_scaled = (outliers_train-outliers_mean)/outliers_sd
-    outliers_valid_scaled = (outliers_valid-outliers_mean)/outliers_sd
-    outliers_test_scaled = (outliers_test-outliers_mean)/outliers_sd
+    outliers_data = {}
+    outliers_data['train_scaled'] = (outliers_train-outliers_mean)/outliers_sd
+    outliers_data['valid_scaled'] = (outliers_valid-outliers_mean)/outliers_sd
+    if 'y_test' in Xy_data:
+        outliers_data['test_scaled'] = (outliers_test-outliers_mean)/outliers_sd
 
-    # for i,val in enumerate(outliers_train):
-    #     error_normal.append((error_abs[i]-Mean)/SD)
-    #     if np.absolute(error_normal[i]) > t_value:
-    #         error_outlier.append(error_normal[i])
-    #         outlier_names.append(Ir_cat_names[i])
+    print_outliers, naming, naming_test = '', False, False
+    if 'train' in name_points:
+        naming = True
+        if 'test' in name_points:
+            naming_test = True
+
+    outliers_data['outliers_train'], outliers_data['names_train'] = detect_outliers(self, outliers_data['train_scaled'], name_points, naming, 'train')
+    outliers_data['outliers_valid'], outliers_data['names_valid'] = detect_outliers(self, outliers_data['valid_scaled'], name_points, naming, 'valid')
+    if 'y_test' in Xy_data:
+        outliers_data['outliers_test'], outliers_data['names_test'] = detect_outliers(self, outliers_data['test_scaled'], name_points, naming_test, 'test')
+    
+    return outliers_data, print_outliers
 
 
-    #     # plot data in SD units
-    #       fig, ax = plt.subplots(figsize=(7.45,6))
-    #     plt.text(0.5, 1.08, f'Outlier analysis of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
-    #     fontsize=14, fontweight='bold', transform = ax.transAxes)
+def detect_outliers(self, outliers_scaled, name_points, naming_detect, set_type):
+    '''
+    Detects and store outliers with their corresponding datapoint names
+    '''
 
-    #     plt.grid(linestyle='--', linewidth=1)
-    #     Plot_outliers = {'error_outlier': error_outlier}
-    #     Plot_no_outliers = {'error_no_outlier': error_no_outlier}
-    #     df_outliers = pd.DataFrame.from_dict(Plot_outliers)
-    #     df_no_outliers = pd.DataFrame.from_dict(Plot_no_outliers)
-    #     plt.scatter(df_no_outliers["error_no_outlier"], df_no_outliers["error_no_outlier"],
-    #                  c='b', edgecolors='none', alpha=0.4,)  # Include border to the points
-    #     plt.scatter(df_outliers["error_outlier"], df_outliers["error_outlier"],
-    #                  c='r', edgecolors='none', alpha=0.4,)  # Include border to the points
-# copy scatter and style (ticks, labels, etc) from above
-    #     # Set styling preferences
-    #       ADD TITLES!
-    #     sb.set(style="ticks")
-    #     plt.xlabel('SD of the errors',fontsize=14)
-    #     plt.xticks(fontsize=14)
-    #     plt.ylabel('SD of the errors',fontsize=14)
-    #     plt.yticks(fontsize=14)
-        
-    #     # Set plot limits
-    #     axis_limit = math.ceil(np.absolute(error_normal).max() + 0.5)
-    #     plt.ylim(-(axis_limit), (axis_limit))
-    #     plt.xlim(-(axis_limit), (axis_limit))
+    val_outliers = []
+    name_outliers = []
+    if naming_detect:
+        name_points_list = name_points[set_type].to_list()
+    for i,val in enumerate(outliers_scaled):
+        if val > self.args.t_value:
+            val_outliers.append(val)
+            if naming_detect:
+                name_outliers.append(name_points_list[i])
 
-    #     # plot rectangles in corners
-    #     diff_tvalue = axis_limit - t_value
-    #     Rectangle_top = mpatches.Rectangle(xy=(axis_limit, axis_limit), width=-diff_tvalue, height=-diff_tvalue, facecolor='grey', alpha=0.3)
-    #     Rectangle_bottom = mpatches.Rectangle(xy=(-(axis_limit), -(axis_limit)), width=diff_tvalue, height=diff_tvalue, facecolor='grey', alpha=0.3)
-    #     ax.add_patch(Rectangle_top)
-    #     ax.add_patch(Rectangle_bottom)
-         
-        
-    #     # Calculate % of outliers discarded
-
-    #     plt.savefig('DFT_vs_Experimental_Outliers_'+folder+'.png', dpi=400, bbox_inches='tight')
-        
-    #     plt.show()
-        # print
-        # Train: XX of XX
-            #    - XX
-            #    - XX
+    return val_outliers, name_outliers

@@ -109,29 +109,6 @@ class Logger:
         self.log.close()
 
 
-def move_file(destination, source, file):
-    """
-    Moves files from the source folder to the destination folder and creates
-    the destination folders when needed.
-
-    Parameters
-    ----------
-    destination : str
-        Path to the destination folder
-    src : str
-        Path to the source folder
-    file : str
-        Full name of the file (file + extension)
-    """
-
-    destination.mkdir(exist_ok=True, parents=True)
-    filepath = source / file
-    try:
-        filepath.rename(destination / file)
-    except FileExistsError:
-        filepath.replace(destination / file)
-
-
 def command_line_args():
     """
     Load default and user-defined arguments specified through command lines. Arrguments are loaded as a dictionary
@@ -262,24 +239,25 @@ def load_variables(kwargs, robert_module):
         elif robert_module.upper() == 'GENERATE':
             self.log.write(f"\no  Starting generation of ML models with the GENERATE module")
 
-            if str(self.PFI).upper() == 'FALSE':
-                self.PFI = False
+            if str(self.pfi_filter).upper() == 'FALSE':
+                self.pfi_filter = False
             
-            # turn off PFI_filter for classification
-            if self.PFI_threshold == 0.04 and self.mode == 'clas':
+            # turn off pfi_filter for classification
+            if self.pfi_threshold == 0.04 and self.type == 'clas':
                 self.log.write("\nx  The PFI filter was disabled for classification models")
-                self.PFI = False
+                self.pfi_filter = False
 
             # Check if the folders exist and if they do, delete and replace them
             folder_names = [self.initial_dir.joinpath('GENERATE/Best_model/No_PFI'), self.initial_dir.joinpath('GENERATE/Raw_data/No_PFI')]
-            if self.PFI:
+            if self.pfi_filter:
                 folder_names.append(self.initial_dir.joinpath('GENERATE/Best_model/PFI'))
                 folder_names.append(self.initial_dir.joinpath('GENERATE/Raw_data/PFI'))
             _ = create_folders(folder_names)
 
             self.pfi_epochs = int(self.pfi_epochs)
-            self.PFI_threshold = float(self.PFI_threshold)
+            self.pfi_threshold = float(self.pfi_threshold)
             self.epochs = int(self.epochs)
+            self.pfi_max = int(self.pfi_max)
 
             if self.y == '':
                 curate_folder = Path(self.initial_dir).joinpath('CURATE')
@@ -309,12 +287,12 @@ def load_variables(kwargs, robert_module):
 
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
-            if self.mode == 'clas':
+            if self.type == 'clas':
                 self.error_type = 'acc'
 
         if robert_module.upper() in ['PREDICT','VERIFY']:
-            if self.model_dir == '':
-                self.model_dir = 'GENERATE/Best_model'
+            if self.params_dir == '':
+                self.params_dir = 'GENERATE/Best_model'
 
         # initial sanity checks
         _ = sanity_checks(self, 'initial', robert_module, None)
@@ -378,10 +356,12 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
 
-            for model in self.model:
-                if model.lower() not in ['rf','mvl','gb','adab','nn','vr']:
+            for model_type in self.model:
+                if model_type.lower() not in ['rf','mvl','gb','adab','nn','vr']:
                     self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'AdaB', 'NN', 'VR'")
                     curate_valid = False
+                if model_type.lower() == 'mvl' and self.type.lower() == 'clas':
+                    self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")                 
 
             if len(self.model) == 0:
                 self.log.write(f"\nx  Choose an ML model in the model option!")
@@ -391,8 +371,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  Choose train proportion(s) in the train option!")
                 curate_valid = False
 
-            if self.mode.lower() not in ['reg','clas']:
-                self.log.write(f"\nx  The mode option used is not valid! Options: 'reg', 'clas'")
+            if self.type.lower() not in ['reg','clas']:
+                self.log.write(f"\nx  The type option used is not valid! Options: 'reg', 'clas'")
                 curate_valid = False
 
             if int(self.epochs) <= 0:
@@ -406,11 +386,11 @@ def sanity_checks(self, type_checks, module, columns_csv):
     if type_checks == 'initial' and module.lower() in ['generate','verify','predict']:
 
         if type_checks == 'initial' and module.lower() in ['generate','verify']:
-            if self.mode.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
+            if self.type.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
                 curate_valid = False
 
-            if self.mode.lower() == 'clas' and self.error_type not in ['mcc','f1','acc']:
+            if self.type.lower() == 'clas' and self.error_type not in ['mcc','f1','acc']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1', 'acc'")
                 curate_valid = False
         
@@ -420,13 +400,13 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 curate_valid = False
 
         if module.lower() in ['verify','predict']:
-            if os.getcwd() in f"{self.model_dir}":
-                path_db = self.model_dir
+            if os.getcwd() in f"{self.params_dir}":
+                path_db = self.params_dir
             else:
-                path_db = f"{Path(os.getcwd()).joinpath(self.model_dir)}"
+                path_db = f"{Path(os.getcwd()).joinpath(self.params_dir)}"
 
             if not os.path.exists(path_db):
-                self.log.write(f'\nx  The path of your CSV files doesn\'t exist! Set the folder containing the two CSV files with 1) the parameters of the model and 2) the Xy database with the model_dir option')
+                self.log.write(f'\nx  The path of your CSV files doesn\'t exist! Set the folder containing the two CSV files with 1) the parameters of the model and 2) the Xy database with the params_dir option')
                 curate_valid = False
 
         if module.lower() == 'predict':
@@ -521,11 +501,11 @@ def standardize(X_train,X_valid):
 def load_model(params):
 
     # load regressor models
-    if params['mode'] == 'reg':
+    if params['type'] == 'reg':
         loaded_model = load_model_reg(params)
 
     # load classifier models
-    elif params['mode'] == 'clas':
+    elif params['type'] == 'clas':
         loaded_model = load_model_clas(params)
 
     return loaded_model
@@ -580,10 +560,6 @@ def load_model_reg(params):
 
     elif params['model']  == 'MVL':
         loaded_model = LinearRegression()
-    
-    else:
-        print(f'\nx  The model specified in the parameters file ({params["model"]}) is not in the list of compatible models!')
-        sys.exit()
 
     return loaded_model
 
@@ -637,14 +613,6 @@ def load_model_clas(params):
 
         loaded_model = VotingClassifier([('gb', r1), ('rf', r2), ('nn', r3)])
 
-    elif params['model']  == 'MVL':
-        print('\nx  Multivariate linear models (model = \'MVL\') are not compatible with classifiers (mode = \'clas\')')
-        sys.exit()
-
-    else:
-        print(f'\nx  The model specified in the parameters file ({params["model"]}) is not in the list of compatible models!')
-        sys.exit()
-
     return loaded_model
 
 
@@ -667,7 +635,7 @@ def load_n_predict(params, data, hyperopt=False):
 
     # for the hyperoptimizer
     # oob set results
-    if params['mode'] == 'reg':
+    if params['type'] == 'reg':
         data['r2_train'], data['mae_train'], data['rmse_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = data['r2_train'], data['mae_train'], data['rmse_train']
@@ -693,7 +661,7 @@ def load_n_predict(params, data, hyperopt=False):
         else:
             return data
     
-    elif params['mode'] == 'clas':
+    elif params['type'] == 'clas':
         data['acc_train'], data['f1_train'], data['mcc_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = data['acc_train'], data['f1_train'], data['mcc_train']
@@ -715,19 +683,17 @@ def load_n_predict(params, data, hyperopt=False):
 
 
 def get_prediction_results(params,y,y_pred):
-    if params['mode'] == 'reg':
+    if params['type'] == 'reg':
         mae = mean_absolute_error(y, y_pred)
         rmse = np.sqrt(mean_squared_error(y, y_pred))
         _, _, r_value, _, _ = stats.linregress(y, y_pred)
         r2 = r_value**2
         return r2, mae, rmse
 
-    elif params['mode'] == 'clas':
-        # I make these scores negative so the optimizer is consistent to finding 
-        # a minima as in the case of error in regression
-        acc = -accuracy_score(y,y_pred)
-        f1_score_val = -f1_score(y,y_pred)
-        mcc = -matthews_corrcoef(y,y_pred)
+    elif params['type'] == 'clas':
+        acc = accuracy_score(y,y_pred)
+        f1_score_val = f1_score(y,y_pred)
+        mcc = matthews_corrcoef(y,y_pred)
         return acc, f1_score_val, mcc
 
 

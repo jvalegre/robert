@@ -9,7 +9,7 @@
 ###  (VERIFY) ML model analysis                                    ###
 ###  (PREDICT) Predict new data                                    ###
 ###  (AQME) AQME-ROBERT workflow                                   ###
-###  (CHEERS) Acknowledges                                         ###
+###  (CHEERS) Acknowledgement                                      ###
 ###                                                                ###
 ######################################################################
 ###                                                                ###
@@ -75,14 +75,15 @@ def main():
             train=args.train,
             split=args.split,
             model=args.model,
-            mode=args.mode,
+            type=args.type,
             seed=args.seed,
             epochs=args.epochs,
             error_type=args.error_type,
             custom_params=args.custom_params,
             pfi_epochs=args.pfi_epochs,
-            PFI_threshold=args.PFI_threshold,
-            PFI=args.PFI
+            pfi_threshold=args.pfi_threshold,
+            pfi_filter=args.pfi_filter,
+            pfi_max=args.pfi_max,
         )
 
     # VERIFY
@@ -91,7 +92,7 @@ def main():
             varfile=args.varfile,
             command_line=args.command_line,
             destination=args.destination,
-            model_dir=args.model_dir,
+            params_dir=args.params_dir,
             thres_test=args.thres_test,
             kfold=args.kfold,
             error_type=args.error_type,
@@ -104,7 +105,7 @@ def main():
             varfile=args.varfile,
             command_line=args.command_line,
             destination=args.destination,
-            model_dir=args.model_dir,
+            params_dir=args.params_dir,
             csv_test=args.csv_test,
             t_value=args.t_value,
             seed=args.seed,

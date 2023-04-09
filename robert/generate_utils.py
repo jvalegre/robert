@@ -43,7 +43,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
     best = 100000
 
     hyperopt_data = {'best': best, 'model': ML_model,
-                'mode': self.args.mode,
+                'type': self.args.type,
                 'split': self.args.split,
                 'train': size, 
                 'seed': self.args.seed,
@@ -70,7 +70,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
         if os.path.exists('hyperopt.json'):
             os.remove('hyperopt.json')
     except ValueError:
-        self.args.log.write('There is an error in the hyperopt module, are you using mode = \'clas\' for regression y values instead of mode = \'reg\'?')
+        self.args.log.write('There is an error in the hyperopt module, are you using type = \'clas\' for regression y values instead of type = \'reg\'?')
         self.args.log.finalize()
         sys.exit()
     try:
@@ -132,13 +132,13 @@ def hyperopt_params(self, model_type, X_hyperopt):
 def f(params):
 
     # this json file is used to: 1) keep track of the best value, 2) store the X and y values,
-    # 3) store other general options (i.e. mode, error_type, etc.) during the hyperopt process
+    # 3) store other general options (i.e. type, error_type, etc.) during the hyperopt process
     with open('hyperopt.json') as json_file:
         hyperopt_data = json.load(json_file)
     best = hyperopt_data['best']
 
     # complete the lsit of missing parameters
-    params['mode'] = hyperopt_data['mode']
+    params['type'] = hyperopt_data['type']
     params['model'] = hyperopt_data['model']
     params['train'] = hyperopt_data['train']
     params['seed'] = hyperopt_data['seed']
@@ -165,10 +165,11 @@ def f(params):
     if opt_target < best:
         # The "best" optimizing value is updated in an external JSON file after each hyperopt cycle
         # (using opt_target), and the parameters of the best model found are kept in a CSV file
-        hyperopt_data['best'] = opt_target
         os.remove('hyperopt.json')
+        hyperopt_data['best'] = opt_target
         with open('hyperopt.json', 'w') as outfile:
             json.dump(hyperopt_data, outfile)
+
         best = opt_target
 
         # returns values to normal if inverted during hyperoptimization
@@ -179,7 +180,7 @@ def f(params):
         csv_hyperopt = {'train': hyperopt_data["train"],
                         'split': hyperopt_data['split'],
                         'model': hyperopt_data['model'],
-                        'mode': hyperopt_data['mode'],
+                        'type': hyperopt_data['type'],
                         'seed': hyperopt_data['seed'],
                         'y': hyperopt_data['y'],
                         'error_type': hyperopt_data['error_type'],
@@ -352,7 +353,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
     PFI_df = pd.read_csv(path_csv)
     PFI_dict = pd_to_dict(PFI_df) # (using a dict to keep the same format of load_model)
-    PFI_discard = PFI_filter(self,Xy_data,PFI_dict)
+    PFI_discard = PFI_filter(self,Xy_data,PFI_dict,ML_model,size)
 
     # generate new X datasets and store the descriptors used for the PFI-filtered model
     discard_idx, descriptors_PFI = [],[]
@@ -384,7 +385,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
     _ = update_best(self,csv_df,Xy_data_PFI,path_csv_PFI)
 
 
-def PFI_filter(self,Xy_data,PFI_dict):
+def PFI_filter(self,Xy_data,PFI_dict,ML_model,size):
 
     # load and fit model
     loaded_model = load_model(PFI_dict)
@@ -408,10 +409,19 @@ def PFI_filter(self,Xy_data,PFI_dict):
 
     # PFI filter
     PFI_discard = []
-    PFI_thres = abs(self.args.PFI_threshold*score_model)
+    PFI_thres = abs(self.args.pfi_threshold*score_model)
+    desc_keep = len(PFI_values)
+    if self.args.pfi_max != 0:
+        desc_keep = self.args.pfi_max
     for i in reversed(range(len(PFI_values))):
         if PFI_values[i] < PFI_thres:
             PFI_discard.append(desc_list[i])
+        if len(PFI_discard) == desc_keep:
+            break
+    # disconnect the PFI filter if none of the variables pass the filter
+    if len(PFI_discard) == len(PFI_values):
+        PFI_discard = []
+        self.args.log.write(f'   x The PFI filter was disabled for model {ML_model}_{size} (no variables passed)')
 
     return PFI_discard
 
@@ -444,7 +454,7 @@ def update_best(self, csv_df, Xy_data, name_csv):
 
         # error for current regressor
         replace_best = False
-        if results_model['mode'][0].lower() == 'reg' and results_best['error_type'][0].lower() in ['rmse','mae']:
+        if results_model['type'][0].lower() == 'reg' and results_best['error_type'][0].lower() in ['rmse','mae']:
             if new_error < best_error:
                 replace_best = True
         # precision for current classificator and R2
@@ -516,7 +526,7 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
     ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} validation set'})
     fontsize = 14
-    ax.set_xlabel("Model Type",fontsize=fontsize)
+    ax.set_xlabel("ML Model",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)
     ax.tick_params(axis='both', which='major', labelsize=fontsize)
     title_fig = f'Heatmap ML models {suffix}'

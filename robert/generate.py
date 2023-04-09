@@ -38,7 +38,7 @@ General
      custom_params : str, default=None
          Define new parameters for the ML models used in the hyperoptimization workflow. The path
          to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')
-     mode : str, default='reg',
+     type : str, default='reg',
          Type of the pedictions. Options: 
             1. 'reg' (Regressor)
             1. 'clas' (Classifier)
@@ -56,15 +56,19 @@ General
             1. mcc (Matthew's correlation coefficient)
             2. f1 (F1 score)
             3. acc (accuracy, fraction of correct predictions)
-     PFI : bool, default=True
+     pfi_filter : bool, default=True
          Activate the PFI filter of descriptors.
      pfi_epochs : int, default=30,
          Sets the number of times a feature is randomly shuffled during the PFI analysis
          (standard from Sklearn webpage: 30).
-     PFI_threshold : float, default=0.04,
+     pfi_threshold : float, default=0.04,
          The PFI filter is X% of the model's score (% adjusted, 0.04 = 4% of the total score during PFI).
          For regression, a value of 0.04 is recommended. For classification, the filter is turned off
-         by default if PFI_threshold is 0.04.
+         by default if pfi_threshold is 0.04.
+     pfi_max : int, default=0,
+         Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI
+         filter are used.
+
 
 """
 #####################################################.
@@ -130,7 +134,7 @@ class generate:
                 _ = hyperopt_workflow(self, csv_df_hyp, ML_model, size, Xy_data_hyp)
 
                 # apply the PFI descriptor filter if it is activated
-                if self.args.PFI:
+                if self.args.pfi_filter:
                     _ = PFI_workflow(self, csv_df_PFI, ML_model, size, Xy_data_hyp)
 
                 self.args.log.write(f'   - {cycle}/{len(self.args.model)*len(self.args.train)}')
@@ -139,7 +143,7 @@ class generate:
         # create heatmap plot(s)
         _ = heatmap_workflow(self,"No_PFI")
 
-        if self.args.PFI:
+        if self.args.pfi_filter:
             _ = heatmap_workflow(self,"PFI")
 
         _ = finish_print(self,start_time,'GENERATE')

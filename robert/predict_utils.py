@@ -56,7 +56,7 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     Plot graphs of predicted vs actual values for train, validation and test sets
     '''
 
-    if params_dict['mode'] == 'clas':
+    if params_dict['type'] == 'clas':
         # load the ML model
         loaded_model = load_model(params_dict)
         # Fit the model with the training set
@@ -74,10 +74,10 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
             }
 
     self.args.log.write(f"\n   o  Saving graphs and CSV databases in {Path(os.getcwd()).joinpath('PREDICT')}:")
-    if params_dict['mode'] == 'reg':
+    if params_dict['type'] == 'reg':
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
 
-    elif params_dict['mode'] == 'clas':
+    elif params_dict['type'] == 'clas':
         for set_type in set_types:
             _ = graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix)
     
@@ -172,12 +172,12 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix):
     Plot a confusion matrix with the prediction vs actual values
     '''
     
-    matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize=("Normalized confusion matrix", "true"), cmap='Blues') 
+    matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize="true", cmap='Blues') 
     matrix.ax_.set_title(f'Confusion Matrix for the {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14)
     plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
-    plt.gcf().axes[0].tick_params(fontsize=14)
-    plt.gcf().axes[1].tick_params(fontsize=14)
+    plt.gcf().axes[0].tick_params(size=14)
+    plt.gcf().axes[1].tick_params(size=14)
     clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
 
     plt.savefig(f'{clas_plot_file}', dpi=300, bbox_inches='tight')
@@ -185,12 +185,12 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix):
     plt.clf()
 
 
-def save_predictions(self,Xy_data,model_dir):
+def save_predictions(self,Xy_data,params_dir):
     '''
     Saves CSV files with the different sets and their predicted results
     '''
     
-    Xy_orig_df, Xy_path, params_df, _, _, suffix_title = load_dfs(self,model_dir,'no_print')
+    Xy_orig_df, Xy_path, params_df, _, _, suffix_title = load_dfs(self,params_dir,'no_print')
     base_csv_name = '_'.join(os.path.basename(Xy_path).replace('.csv','_').split('_')[0:2])
     base_csv_name = f'PREDICT/{base_csv_name}'
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
@@ -257,13 +257,13 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     print_results += f"\n      -  Proportion {set_print} = {prop_print}"
 
     # print results and save dat file
-    if params_dict['mode'] == 'reg':
+    if params_dict['type'] == 'reg':
         print_results += f"\n      -  Train : R2 = {Xy_data['r2_train']:.2}, MAE = {Xy_data['mae_train']:.2}, RMSE = {Xy_data['rmse_train']:.2}"
         print_results += f"\n      -  Validation : R2 = {Xy_data['r2_valid']:.2}, MAE = {Xy_data['mae_valid']:.2}, RMSE = {Xy_data['rmse_valid']:.2}"
         if 'y_test' in Xy_data:
             print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
 
-    elif params_dict['mode'] == 'clas':
+    elif params_dict['type'] == 'clas':
         print_results += f"\n      -  Train : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         print_results += f"\n      -  Validation : Accuracy = {Xy_data['acc_valid']:.2}, F1 score = {Xy_data['f1_valid']:.2}, MCC = {Xy_data['mcc_valid']:.2}"
         if 'y_test' in Xy_data:
@@ -367,9 +367,9 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
 
     pfi_results_file = f'{os.path.dirname(path_n_suffix)}/PFI_{os.path.basename(path_n_suffix)}.dat'
     print_PFI += f"\n   o  PFI values saved in {pfi_results_file}:"
-    if params_dict['mode'] == 'reg':
+    if params_dict['type'] == 'reg':
         print_PFI += f'\n      Original score (from model.score, R2) = {score_model:.2}'
-    elif params_dict['mode'] == 'clas':
+    elif params_dict['type'] == 'clas':
         print_PFI += f'\n      Original score (from model.score, accuracy) = {score_model:.2}'
     # shown from higher to lower values
     PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))

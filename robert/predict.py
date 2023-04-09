@@ -9,7 +9,7 @@ General
          Directory to create the output file(s).
      varfile : str, default=None
          Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     model_dir : str, default=''
+     params_dir : str, default=''
          Folder containing the database and parameters of the ML model.
      csv_test : str, default=''
          Name of the CSV file containing the test set (if any). A path can be provided (i.e. 
@@ -70,16 +70,16 @@ class predict:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "predict")
 
-        # if model_dir = '', the program performs the tests for the No_PFI and PFI folders
-        if 'GENERATE/Best_model' in self.args.model_dir:
-            model_dirs = [f'{self.args.model_dir}/No_PFI',f'{self.args.model_dir}/PFI']
+        # if params_dir = '', the program performs the tests for the No_PFI and PFI folders
+        if 'GENERATE/Best_model' in self.args.params_dir:
+            params_dirs = [f'{self.args.params_dir}/No_PFI',f'{self.args.params_dir}/PFI']
         else:
-            model_dirs = [self.args.model_dir]
+            params_dirs = [self.args.params_dir]
 
-        for model_dir in model_dirs:
-            if os.path.exists(model_dir):
+        for params_dir in params_dirs:
+            if os.path.exists(params_dir):
                 # load and ML model parameters, and add standardized descriptors
-                Xy_data, params_df, _, _ = load_db_n_params(self,model_dir,"verify") # module 'verify' since PREDICT follows similar protocols
+                Xy_data, params_df, _, _ = load_db_n_params(self,params_dir,"verify") # module 'verify' since PREDICT follows similar protocols
 
                 # load test set and add standardized descriptors
                 if self.args.csv_test != '':
@@ -92,7 +92,7 @@ class predict:
                 Xy_data = load_n_predict(params_dict, Xy_data)
                 
                 # save predictions for all sets
-                path_n_suffix, name_points = save_predictions(self,Xy_data,model_dir)
+                path_n_suffix, name_points = save_predictions(self,Xy_data,params_dir)
 
                 # represent y vs predicted y
                 colors = plot_predictions(self, params_dict, Xy_data, path_n_suffix)

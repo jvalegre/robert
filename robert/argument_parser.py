@@ -9,6 +9,7 @@ var_dict = {
     "generate": False,
     "predict": False,
     "verify": False,
+    "report": False,
     "cheers": False,
     "seed": 8,
     "destination": None,
@@ -39,7 +40,8 @@ var_dict = {
     "t_value" : 2,
     "shap_show" : 10,
     "pfi_show" : 10,
-    "names" : ''
+    "names" : '',
+    "report_modules" : ['CURATE','GENERATE','VERIFY','PREDICT']
 }
 
 # part for using the options in a script or jupyter notebook

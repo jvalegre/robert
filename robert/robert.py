@@ -22,10 +22,12 @@
 ######################################################################.
 
 
+import subprocess
 from robert.curate import curate
 from robert.generate import generate
 from robert.verify import verify
 from robert.predict import predict
+from robert.report import report
 from robert.utils import command_line_args
 
 
@@ -115,7 +117,10 @@ def main():
             names=args.names
         )
 
-
+    # REPORT
+    if args.report or full_workflow:
+        report()
+    
     # CHEERS
     if args.cheers:
         print('o  Blimey! This module was designed to thank my mate ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics.\n')

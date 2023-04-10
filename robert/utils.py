@@ -155,7 +155,7 @@ def command_line_args():
                 kwargs[arg_name] = glob.glob(value)
             else:
                 # this converts the string parameters to lists
-                if arg_name.lower() in ["discard","ignore","train","model"]:
+                if arg_name.lower() in ["discard","ignore","train","model","report_modules"]:
                     value = format_lists(value)
                 kwargs[arg_name] = value
 
@@ -241,11 +241,6 @@ def load_variables(kwargs, robert_module):
 
             if str(self.pfi_filter).upper() == 'FALSE':
                 self.pfi_filter = False
-            
-            # turn off pfi_filter for classification
-            if self.pfi_threshold == 0.04 and self.type == 'clas':
-                self.log.write("\nx  The PFI filter was disabled for classification models")
-                self.pfi_filter = False
 
             # Check if the folders exist and if they do, delete and replace them
             folder_names = [self.initial_dir.joinpath('GENERATE/Best_model/No_PFI'), self.initial_dir.joinpath('GENERATE/Raw_data/No_PFI')]
@@ -295,7 +290,8 @@ def load_variables(kwargs, robert_module):
                 self.params_dir = 'GENERATE/Best_model'
 
         # initial sanity checks
-        _ = sanity_checks(self, 'initial', robert_module, None)
+        if robert_module.upper() not in ['REPORT']:
+            _ = sanity_checks(self, 'initial', robert_module, None)
 
     return self
 
@@ -423,6 +419,16 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     self.log.write(f'\nx  The path of your CSV file with the test set doesn\'t exist! You specified: {self.csv_test}')
                     curate_valid = False
 
+        if module.lower() == 'report':
+            if len(self.report_modules) == 0:
+                self.log.write(f'\nx  No modules were provided in the report_modules option! Options: "CURATE", "GENERATE", "VERIFY", "PREDICT"')
+                curate_valid = False
+
+            for module in self.report_modules:
+                if module.upper() not in ['CURATE','GENERATE','VERIFY','PREDICT']:
+                    self.log.write(f'\nx  Module {module} specified in the report_modules option is not a valid module! Options: "CURATE", "GENERATE", "VERIFY", "PREDICT"')
+                    curate_valid = False
+  
     elif type_checks == 'csv_db':
         if module.lower() != 'predict':
             if self.y not in columns_csv:

@@ -178,7 +178,7 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix):
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
     plt.gcf().axes[0].tick_params(size=14)
     plt.gcf().axes[1].tick_params(size=14)
-    clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+    clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
 
     plt.savefig(f'{clas_plot_file}', dpi=300, bbox_inches='tight')
     self.args.log.write(f"      -  Graph in: {clas_plot_file}")

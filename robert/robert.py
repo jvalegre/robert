@@ -119,7 +119,12 @@ def main():
 
     # REPORT
     if args.report or full_workflow:
-        report()
+        report(
+            varfile=args.varfile,
+            command_line=args.command_line,
+            destination=args.destination,
+            report_modules=args.report_modules
+        )
     
     # CHEERS
     if args.cheers:

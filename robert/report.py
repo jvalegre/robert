@@ -18,12 +18,7 @@ General
 #    used for generating the final PDF report       #
 #####################################################.
 
-import os
 import time
-from matplotlib import pyplot as plt
-import numpy as np
-from pathlib import Path
-from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     finish_print
 )

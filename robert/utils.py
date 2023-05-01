@@ -122,6 +122,7 @@ def command_line_args():
         "generate",
         "verify",
         "predict",
+        "aqme",
         "cheers"
     ]
 
@@ -282,10 +283,7 @@ def load_variables(kwargs, robert_module):
 
         elif robert_module.upper() == 'AQME':
             self.log.write(f"\no  Starting the generation of AQME descriptors with the AQME module")
-            
-            self.ewin_csearch = float(self.ewin_csearch)
-            self.dbstep_r = float(self.dbstep_r)
-
+    
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
             if self.type == 'clas':
@@ -465,16 +463,17 @@ def load_database(self,csv_load,module):
         total_amount = len(csv_df.columns)
         ignored_descs = len(self.args.ignore)
         accepted_descs = total_amount - ignored_descs
-        if module.lower() not in 'predict':
-            txt_load = f'\no  Database {csv_load} loaded successfully, including:'
-            txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
-            txt_load += f'\n   - {accepted_descs} accepted descriptors'
-            txt_load += f'\n   - {ignored_descs} ignored descriptors'
-            txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
-        else:
-            txt_load = f'\n   o  Test set {csv_load} loaded successfully, including:'
-            txt_load += f'\n      - {len(csv_df[csv_df.columns[0]])} datapoints'
-        self.args.log.write(txt_load)
+        if module.lower() not in ['aqme']:
+            if module.lower() not in ['predict']:
+                txt_load = f'\no  Database {csv_load} loaded successfully, including:'
+                txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
+                txt_load += f'\n   - {accepted_descs} accepted descriptors'
+                txt_load += f'\n   - {ignored_descs} ignored descriptors'
+                txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
+            else:
+                txt_load = f'\n   o  Test set {csv_load} loaded successfully, including:'
+                txt_load += f'\n      - {len(csv_df[csv_df.columns[0]])} datapoints'
+            self.args.log.write(txt_load)
 
     if module.lower() != 'generate':
         return csv_df

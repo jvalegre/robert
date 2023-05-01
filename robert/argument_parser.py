@@ -9,6 +9,7 @@ var_dict = {
     "generate": False,
     "predict": False,
     "verify": False,
+    "aqme": False,
     "report": False,
     "cheers": False,
     "seed": 8,
@@ -41,9 +42,8 @@ var_dict = {
     "shap_show" : 10,
     "pfi_show" : 10,
     "names" : '',
-    "qdescp_atom" : None,
-    "ewin_csearch" : 0.1,
-    "dbstep_r": 3.5,
+    "qdescp_keywords" : '',
+    "csearch_keywords": '',
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT']
 }
 

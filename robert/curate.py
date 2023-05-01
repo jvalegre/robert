@@ -75,7 +75,8 @@ class curate:
             csv_df = self.correlation_filter(csv_df)
 
         # saves the curated CSV
-        csv_curate_name = f'{self.args.csv_name.split(".")[0]}_CURATE.csv'
+        csv_basename = f'{self.args.csv_name}'.split('.')[0]
+        csv_curate_name = f'{csv_basename}_CURATE.csv'
         csv_curate_name = self.args.destination.joinpath(csv_curate_name)
         _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
         self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
@@ -153,15 +154,20 @@ class curate:
         for i,column in enumerate(csv_df.columns):
             if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
                 # finds the descriptors with low correlation to the response values
-                _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
-                rsquared_y = r_value_y**2
-                if rsquared_y < self.args.thres_y:
+                try:
+                    _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
+                    rsquared_y = r_value_y**2
+                    if rsquared_y < self.args.thres_y:
+                        descriptors_drop.append(column)
+                        txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
+                except ValueError: # this avoids X descriptors where the majority of the values are the same
                     descriptors_drop.append(column)
-                    txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
+                    txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
+
                 # finds correlated descriptors
-                if column != csv_df.columns[-1]:
+                if column != csv_df.columns[-1] and column not in descriptors_drop:
                     for j,column2 in enumerate(csv_df.columns):
-                        if j > i and column2 and column2 not in self.args.ignore not in descriptors_drop and column2 != self.args.y:
+                        if j > i and column2 not in self.args.ignore and column2 not in descriptors_drop and column2 != self.args.y:
                             _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
                             rsquared_x = r_value_x**2
                             if rsquared_x > self.args.thres_x:

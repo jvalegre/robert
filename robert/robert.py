@@ -55,11 +55,13 @@ def main():
         aqme(
             csv_name=args.csv_name,
             varfile=args.varfile,
+            y=args.y,
             command_line=args.command_line,
             destination=args.destination,
-            qdescp_atom=args.qdescp_atom,
-            dbstep_r=args.dbstep_r,
-            ewin_csearch=args.ewin_csearch,
+            qdescp_keywords=args.qdescp_keywords,
+            csearch_keywords=args.csearch_keywords,
+            discard=args.discard,
+            ignore=args.ignore
         )
 
     # set the path to the database created by AQME to continue in the full_workflow

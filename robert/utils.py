@@ -280,6 +280,12 @@ def load_variables(kwargs, robert_module):
             self.pfi_epochs = int(self.pfi_epochs)
             self.pfi_show = int(self.pfi_show)
 
+        elif robert_module.upper() == 'AQME':
+            self.log.write(f"\no  Starting the generation of AQME descriptors with the AQME module")
+            
+            self.ewin_csearch = float(self.ewin_csearch)
+            self.dbstep_r = float(self.dbstep_r)
+
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
             if self.type == 'clas':
@@ -329,7 +335,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         if not os.path.exists(path_csv) or self.csv_name == '':
             self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
             curate_valid = False
-            
+        
         if self.y == '':
             self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
             curate_valid = False
@@ -379,7 +385,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The number of pfi_epochs must be higher than 0!")
                 curate_valid = False
 
-    if type_checks == 'initial' and module.lower() in ['generate','verify','predict']:
+    if type_checks == 'initial' and module.lower() in ['generate','verify','predict','report']:
 
         if type_checks == 'initial' and module.lower() in ['generate','verify']:
             if self.type.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
@@ -425,8 +431,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 curate_valid = False
 
             for module in self.report_modules:
-                if module.upper() not in ['CURATE','GENERATE','VERIFY','PREDICT']:
-                    self.log.write(f'\nx  Module {module} specified in the report_modules option is not a valid module! Options: "CURATE", "GENERATE", "VERIFY", "PREDICT"')
+                if module.upper() not in ['CURATE','GENERATE','VERIFY','PREDICT','AQME']:
+                    self.log.write(f'\nx  Module {module} specified in the report_modules option is not a valid module! Options: "CURATE", "GENERATE", "VERIFY", "PREDICT", "AQME"')
                     curate_valid = False
   
     elif type_checks == 'csv_db':

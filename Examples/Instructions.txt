@@ -1,0 +1,6 @@
+Full ROBERT workflows using the Robert_examples.csv database and the external test set Robert_example_test.csv. To run the workflows, either:
+
+A) Run the code cell in ROBERT_full_workflow.ipynb 
+B) Run the command line from Command_line.txt in a Python terminal
+
+The results of the workflow are shown in the /Examples/Results folder.

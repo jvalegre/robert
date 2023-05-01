@@ -1,0 +1,116 @@
+ROBERT v 0.0.1 2023/04/10 12:15:19 
+Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert
+
+Command line used in ROBERT: robert --ignore [Name] --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv --names Name
+
+
+o  Representation of predictions and analysis of ML models with the PREDICT module
+
+o  ML model RF_90.csv (with no PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: Target_values
+   - Model: RF
+   - Descriptors: ['x2', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'Csub-O', 'H-O']
+   - Training points: 33
+   - Validation points: 4
+
+   o  Test set Robert_example_test.csv loaded successfully, including:
+      - 9 datapoints
+
+   x  There are missing descriptors in the test set! Looking for categorical variables converted from CURATE
+   o  The missing descriptors were successfully created
+      -  Train set with predicted results: RF_90_train_No_PFI.csv
+      -  Validation set with predicted results: RF_90_valid_No_PFI.csv
+      -  Test set with predicted results: RF_90_test_No_PFI.csv
+
+   o  Saving graphs and CSV databases in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT:
+      -  Graph in: c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Results_RF_90_No_PFI.png
+
+   o  Results saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Results_RF_90_No_PFI.dat:
+      -  Points Train:Validation:Test = 33:4:9
+      -  Proportion Train:Validation:Test = 72:9:20
+      -  Train : R2 = 0.98, MAE = 0.065, RMSE = 0.1
+      -  Validation : R2 = 0.79, MAE = 0.096, RMSE = 0.1
+      -  Test : R2 = 0.99, MAE = 0.048, RMSE = 0.066
+
+   o  SHAP plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/SHAP_RF_90_No_PFI.png
+   o  SHAP values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/SHAP_RF_90_No_PFI.dat:
+      -  Csub-Csub = min: -0.34, max: 0.13
+      -  x5 = min: -0.041, max: 0.1
+      -  Csub-H = min: -0.029, max: 0.087
+      -  x2 = min: -0.038, max: 0.05
+      -  x6 = min: -0.0036, max: 0.0036
+      -  x9 = min: 0.0, max: 0.0
+      -  x8 = min: 0.0, max: 0.0
+      -  x7 = min: 0.0, max: 0.0
+      -  x11 = min: 0.0, max: 0.0
+      -  x10 = min: 0.0, max: 0.0
+      -  H-O = min: 0.0, max: 0.0
+      -  Csub-O = min: 0.0, max: 0.0
+
+   o  PFI plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_90_No_PFI.png
+   o  PFI values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_90_No_PFI.dat:
+      Original score (from model.score, R2) = 0.69
+      -  Csub-Csub = 2.2 +- 1.6
+      -  x2 = 0.37 +- 0.21
+      -  Csub-H = 0.31 +- 0.22
+      -  x6 = 0.0078 +- 0.016
+      -  x9 = 0.0 +- 0.0
+      -  x8 = 0.0 +- 0.0
+      -  x7 = 0.0 +- 0.0
+      -  x11 = 0.0 +- 0.0
+      -  x10 = 0.0 +- 0.0
+      -  x5 = -0.02 +- 0.15
+
+   o  Outliers plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Outliers_RF_90_No_PFI.png
+   o  Outlier values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Outliers_RF_90_No_PFI.dat:
+      Train: 1 outliers out of 33 datapoints (3.0%)
+      -  27 (2.6 SDs)
+      Validation: 0 outliers out of 4 datapoints (0.0%)
+      Test: 0 outliers out of 9 datapoints (0.0%)
+
+o  ML model RF_80_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: Target_values
+   - Model: RF
+   - Descriptors: ['x6', 'x7', 'x10']
+   - Training points: 29
+   - Validation points: 8
+
+   o  Test set Robert_example_test.csv loaded successfully, including:
+      - 9 datapoints
+      -  Train set with predicted results: RF_80_train_PFI.csv
+      -  Validation set with predicted results: RF_80_valid_PFI.csv
+      -  Test set with predicted results: RF_80_test_PFI.csv
+
+   o  Saving graphs and CSV databases in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT:
+      -  Graph in: c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Results_RF_80_PFI.png
+
+   o  Results saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Results_RF_80_PFI.dat:
+      -  Points Train:Validation:Test = 29:8:9
+      -  Proportion Train:Validation:Test = 63:17:20
+      -  Train : R2 = 0.98, MAE = 0.069, RMSE = 0.11
+      -  Validation : R2 = 0.97, MAE = 0.093, RMSE = 0.12
+      -  Test : R2 = 0.99, MAE = 0.055, RMSE = 0.075
+
+   o  SHAP plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/SHAP_RF_80_PFI.png
+   o  SHAP values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/SHAP_RF_80_PFI.dat:
+      -  x6 = min: -0.41, max: 0.26
+      -  x10 = min: -0.59, max: 0.23
+      -  x7 = min: -0.2, max: 0.13
+
+   o  PFI plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_80_PFI.png
+   o  PFI values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_80_PFI.dat:
+      Original score (from model.score, R2) = 0.97
+      -  x10 = 0.38 +- 0.17
+      -  x6 = 0.28 +- 0.14
+      -  x7 = 0.08 +- 0.038
+
+   o  Outliers plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Outliers_RF_80_PFI.png
+   o  Outlier values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Outliers_RF_80_PFI.dat:
+      Train: 2 outliers out of 29 datapoints (6.9%)
+      -  20 (2.7 SDs)
+      -  21 (3.1 SDs)
+      Validation: 0 outliers out of 8 datapoints (0.0%)
+      Test: 0 outliers out of 9 datapoints (0.0%)
+
+Time PREDICT: 7.04 seconds
+

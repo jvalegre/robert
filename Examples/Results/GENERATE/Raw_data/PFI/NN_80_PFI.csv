@@ -1,0 +1,2 @@
+train,split,model,type,seed,y,error_type,X_descriptors,batch_size,hidden_layer_sizes,learning_rate_init,max_iter,validation_fraction,rmse
+80,KN,NN,reg,0,Target_values,rmse,"['x5', 'x6', 'x7', 'x8', 'x9', 'x11', 'Csub-Csub']",80,64,0.001,200,0.2,0.18051040651935063

@@ -1,0 +1,7 @@
+
+   o  PFI plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_80_PFI.png
+   o  PFI values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_80_PFI.dat:
+      Original score (from model.score, R2) = 0.97
+      -  x10 = 0.38 +- 0.17
+      -  x6 = 0.28 +- 0.14
+      -  x7 = 0.08 +- 0.038

@@ -27,7 +27,7 @@ var_dict = {
     "custom_params" : None,
     "type" : "reg",
     "seed" : 0,
-    "epochs" : 500,
+    "epochs" : 50,
     "error_type" : "rmse",
     "pfi_epochs" : 30,
     "pfi_threshold" : 0.04,
@@ -41,7 +41,10 @@ var_dict = {
     "shap_show" : 10,
     "pfi_show" : 10,
     "names" : '',
-    "report_modules" : ['CURATE','GENERATE','VERIFY','PREDICT']
+    "qdescp_atom" : None,
+    "ewin_csearch" : 0.1,
+    "dbstep_r": 3.5,
+    "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT']
 }
 
 # part for using the options in a script or jupyter notebook

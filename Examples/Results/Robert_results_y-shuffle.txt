@@ -1,8 +1,0 @@
-Model: RF
-k-neighbours-based training, validation and test sets have been created with this distribution:
-Training points: 29
-Validation points: 8
-
-k-neighbours-based training: R2 = 0.8; MAE = 0.28; RMSE = 0.38
-5-fold cross validation: -1.69 ± 0.94
-k-neighbours-based validation: R2 = 0.58; MAE = 1.19; RMSE = 1.27

@@ -9,7 +9,8 @@
 ###  (VERIFY) ML model analysis                                    ###
 ###  (PREDICT) Predict new data                                    ###
 ###  (AQME) AQME-ROBERT workflow                                   ###
-###  (CHEERS) Acknowledgement                                      ###
+###  (REPORT) Creates a report with the results                    ###
+###  (CHEERS) Acknowledgements                                     ###
 ###                                                                ###
 ######################################################################
 ###                                                                ###
@@ -22,12 +23,14 @@
 ######################################################################.
 
 
-import subprocess
+import os
+from pathlib import Path
 from robert.curate import curate
 from robert.generate import generate
 from robert.verify import verify
 from robert.predict import predict
 from robert.report import report
+from robert.aqme import aqme
 from robert.utils import command_line_args
 
 
@@ -40,10 +43,28 @@ def main():
     args = command_line_args()
     args.command_line = True
 
+    # if no modules are called, the full workflow is activated
     full_workflow = False
-    if not args.curate and not args.generate and not args.predict and not args.verify:
-        if not args.cheers:
+    if not args.curate and not args.generate and not args.predict:
+        if not args.cheers and not args.verify and not args.report:
             full_workflow = True
+
+    # AQME
+    if args.aqme:
+        full_workflow = True
+        aqme(
+            csv_name=args.csv_name,
+            varfile=args.varfile,
+            command_line=args.command_line,
+            destination=args.destination,
+            qdescp_atom=args.qdescp_atom,
+            dbstep_r=args.dbstep_r,
+            ewin_csearch=args.ewin_csearch,
+        )
+
+    # set the path to the database created by AQME to continue in the full_workflow
+    if full_workflow:
+        args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
 
     # CURATE
     if args.curate or full_workflow:

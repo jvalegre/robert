@@ -64,8 +64,7 @@ def main():
             ignore=args.ignore
         )
 
-    # set the path to the database created by AQME to continue in the full_workflow
-    if full_workflow:
+        # set the path to the database created by AQME to continue in the full_workflow
         args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
 
     # CURATE

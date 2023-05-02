@@ -81,7 +81,7 @@ class curate:
             csv_df = self.correlation_filter(csv_df)
 
         # create Pearson heatmap
-        _ = self.person_map(csv_df)
+        _ = self.pearson_map(csv_df)
 
         # save the curated CSV
         _ = self.save_curate(csv_df)
@@ -237,12 +237,12 @@ class curate:
         _ = options_df.to_csv(f'{options_name}', index = None, header=True)
 
 
-    def person_map(self,csv_df_pearson):
+    def pearson_map(self,csv_df_pearson):
         '''
         Creates Pearson heatmap
         '''
 
-        csv_df_pearson.drop(self.args.ignore,axis=1)
+        csv_df_pearson = csv_df_pearson.drop(self.args.ignore,axis=1)
         corr_matrix = csv_df_pearson.corr()
 
         mask = np.zeros_like(corr_matrix, dtype=np.bool)

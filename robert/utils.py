@@ -720,8 +720,8 @@ def load_db_n_params(self,folder_model,module):
     Xy_data_df, _, params_df, params_path, suffix, suffix_title = load_dfs(self,folder_model,module)
 
     # load only the descriptors used in the model and standardize X
-    Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training']
-    Xy_valid_df = Xy_data_df[Xy_data_df.Set == 'Validation']
+    Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training'].reset_index(drop=True)
+    Xy_valid_df = Xy_data_df[Xy_data_df.Set == 'Validation'].reset_index(drop=True)
 
     Xy_data =  {} # (using a dict to keep the same format of load_model() )
     descs_model = ast.literal_eval(params_df['X_descriptors'][0])

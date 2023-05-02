@@ -70,7 +70,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
         if os.path.exists('hyperopt.json'):
             os.remove('hyperopt.json')
     except ValueError:
-        self.args.log.write('There is an error in the hyperopt module, are you using type = \'clas\' for regression y values instead of type = \'reg\'?')
+        self.args.log.write('\nx  There is an error in the hyperopt module, 1) are you using type ="clas" for regression y values instead of type="reg"? or 2) are you using very small partition sizes for validation sets (fix with train="[60,70]" for example)?')
         self.args.log.finalize()
         sys.exit()
     try:
@@ -357,11 +357,14 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
 
     # generate new X datasets and store the descriptors used for the PFI-filtered model
     discard_idx, descriptors_PFI = [],[]
+    desc_keep = len(Xy_data['X_train'])
+    if self.args.pfi_max != 0:
+        desc_keep = self.args.pfi_max
     for _,column in enumerate(Xy_data['X_train']):
-        if column in PFI_discard:
-            discard_idx.append(column)
-        else:
+        if column not in PFI_discard and len(descriptors_PFI) < desc_keep:
             descriptors_PFI.append(column)
+        else:
+            discard_idx.append(column)
     Xy_data_PFI = Xy_data.copy()
 
     Xy_data_PFI['X_train'] = Xy_data['X_train'].drop(discard_idx, axis=1)
@@ -410,14 +413,10 @@ def PFI_filter(self,Xy_data,PFI_dict,ML_model,size):
     # PFI filter
     PFI_discard = []
     PFI_thres = abs(self.args.pfi_threshold*score_model)
-    desc_keep = len(PFI_values)
-    if self.args.pfi_max != 0:
-        desc_keep = self.args.pfi_max
     for i in reversed(range(len(PFI_values))):
         if PFI_values[i] < PFI_thres:
             PFI_discard.append(desc_list[i])
-        if len(PFI_discard) == desc_keep:
-            break
+
     # disconnect the PFI filter if none of the variables pass the filter
     if len(PFI_discard) == len(PFI_values):
         PFI_discard = []

@@ -103,11 +103,23 @@ class verify:
                 # calculate scores for the X-shuffle test
                 verify_results = self.xshuffle_test(verify_results,Xy_data,params_dict)
 
+                # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
+                # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify")
+
                 # calculate scores for the y-shuffle test
                 verify_results = self.yshuffle_test(verify_results,Xy_data,params_dict)
 
+                # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
+                # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify")
+
                 # one-hot test (check that if a value isnt 0, the value assigned is 1)
                 verify_results = self.onehot_test(verify_results,Xy_data,params_dict)
+
+                # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
+                # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify")
 
                 # analysis of results
                 colors,color_codes,results_print = self.analyze_tests(verify_results,params_dict)
@@ -165,8 +177,13 @@ class verify:
         '''
 
         Xy_xshuffle = Xy_data.copy()
-        Xy_xshuffle['X_train_scaled'] = Xy_xshuffle['X_train_scaled'].sample(frac=1,random_state=self.args.seed,axis=1)
-        Xy_xshuffle['X_valid_scaled'] = Xy_xshuffle['X_valid_scaled'].sample(frac=1,random_state=self.args.seed,axis=1)
+        random_state_xshuff = self.args.seed
+        for _,column in enumerate(Xy_xshuffle['X_train_scaled']):
+            Xy_xshuffle['X_train_scaled'][column] = Xy_xshuffle['X_train_scaled'][column].sample(frac=1,random_state=random_state_xshuff,ignore_index=True,axis=0)
+            random_state_xshuff += 1
+        for _,column in enumerate(Xy_xshuffle['X_valid_scaled']):
+            Xy_xshuffle['X_valid_scaled'][column] = Xy_xshuffle['X_valid_scaled'][column].sample(frac=1,random_state=random_state_xshuff,ignore_index=True,axis=0)
+            random_state_xshuff += 1
         Xy_xshuffle = load_n_predict(params_dict, Xy_xshuffle)  
         verify_results['X_shuffle'] = Xy_xshuffle[f'{verify_results["error_type"]}_valid']
 

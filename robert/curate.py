@@ -43,7 +43,10 @@ Parameters
 
 import time
 import pandas as pd
+import numpy as np
 from scipy import stats
+from matplotlib import pyplot as plt
+import seaborn as sb
 from robert.utils import load_variables, finish_print, load_database
 
 
@@ -70,25 +73,18 @@ class curate:
         # transform categorical descriptors
         csv_df = self.categorical_transform(csv_df,'curate')
 
-        # applies the correlation filters and returns the database without correlated descriptors
+        # apply duplicate filters (i.e., duplication of datapoints or descriptors)
+        csv_df = self.dup_filter(csv_df)
+
+        # apply the correlation filters and returns the database without correlated descriptors
         if self.args.corr_filter:
             csv_df = self.correlation_filter(csv_df)
 
-        # saves the curated CSV
-        csv_basename = f'{self.args.csv_name}'.split('.')[0]
-        csv_curate_name = f'{csv_basename}_CURATE.csv'
-        csv_curate_name = self.args.destination.joinpath(csv_curate_name)
-        _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
-        self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
+        # create Pearson heatmap
+        _ = self.person_map(csv_df)
 
-        # saves important options used in CURATE
-        options_name = f'CURATE_options.csv'
-        options_name = self.args.destination.joinpath(options_name)
-        options_df = pd.DataFrame()
-        options_df['y'] = [self.args.y]
-        options_df['ignore'] = [self.args.ignore]
-        options_df['csv_name'] = [csv_curate_name]
-        _ = options_df.to_csv(f'{options_name}', index = None, header=True)
+        # save the curated CSV
+        _ = self.save_curate(csv_df)
 
         # finish the printing of the CURATE info file
         _ = finish_print(self,start_time,'CURATE')
@@ -188,8 +184,97 @@ class curate:
 
         # drop descriptors that did not pass the filters
         csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
-        txt_csv = f'\no  {len(csv_df_filtered.columns)} descriptors remaining after applying correlation filters:\n'
+        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying correlation filters:\n'
         txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
         self.args.log.write(txt_csv)
 
         return csv_df_filtered
+
+
+    def dup_filter(self,csv_df_dup):
+        '''
+        Removes duplicated datapoints and descriptors
+        '''
+
+        txt_dup = f'\no  Duplication filters activated'
+        txt_dup += f'\n   Excluded datapoints:'
+
+        # remove duplicated entries
+        datapoint_drop = []
+        for i,datapoint in enumerate(csv_df_dup.duplicated()):
+            if datapoint:
+                datapoint_drop.append(i)
+        for datapoint in datapoint_drop:
+            txt_dup += f'\n   - Datapoint number {datapoint}'
+
+        csv_df_dup = csv_df_dup.drop(datapoint_drop, axis=0)
+
+        csv_df_dup.reset_index(drop=True)
+        self.args.log.write(txt_dup)
+
+        return csv_df_dup
+
+
+    def save_curate(self,csv_df):
+        '''
+        Saves the curated database and options used in CURATE
+        '''
+        
+        # saves curated database
+        csv_basename = f'{self.args.csv_name}'.split('.')[0]
+        csv_curate_name = f'{csv_basename}_CURATE.csv'
+        csv_curate_name = self.args.destination.joinpath(csv_curate_name)
+        _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
+        self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
+
+        # saves important options used in CURATE
+        options_name = f'CURATE_options.csv'
+        options_name = self.args.destination.joinpath(options_name)
+        options_df = pd.DataFrame()
+        options_df['y'] = [self.args.y]
+        options_df['ignore'] = [self.args.ignore]
+        options_df['csv_name'] = [csv_curate_name]
+        _ = options_df.to_csv(f'{options_name}', index = None, header=True)
+
+
+    def person_map(self,csv_df_pearson):
+        '''
+        Creates Pearson heatmap
+        '''
+
+        csv_df_pearson.drop(self.args.ignore,axis=1)
+        corr_matrix = csv_df_pearson.corr()
+
+        mask = np.zeros_like(corr_matrix, dtype=np.bool)
+        mask[np.triu_indices_from(mask)]= True
+
+        _, ax = plt.subplots(figsize=(7.45,6))
+
+        # determines size of the letters inside the boxes (approx.)
+        size_font = 14-2*((len(csv_df_pearson.columns)/5))
+
+        _ = sb.heatmap(corr_matrix,
+                            mask = mask,
+                            square = True,
+                            linewidths = .5,
+                            cmap = 'coolwarm',
+                            cbar_kws = {'shrink': .4,
+                                        'ticks' : [-1, -.5, 0, 0.5, 1]},
+                            vmin = -1,
+                            vmax = 1,
+                            annot = True,
+                            annot_kws = {'size': size_font})
+
+        #add the column names as labels
+        ax.set_yticklabels(corr_matrix.columns, rotation = 0)
+        ax.set_xticklabels(corr_matrix.columns)
+
+        sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
+
+        heatmap_name = 'Pearson_heatmap.png'
+        heatmap_path = self.args.destination.joinpath(heatmap_name)
+        plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
+        plt.clf()
+
+        self.args.log.write(f'\no  The Pearson heatmap was stored in {heatmap_path}.')
+        

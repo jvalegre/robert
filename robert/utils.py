@@ -304,10 +304,13 @@ def destination_folder(self,dest_module):
     if self.destination is None:
         self.destination = Path(self.initial_dir).joinpath(dest_module.upper())
     else:
-        if Path(f"{self.destination}").exists():
-            self.destination = Path(self.destination)
-        else:
-            self.destination = Path(self.initial_dir).joinpath(self.destination)
+        self.log.write(f"\nx  The destination option has not been implemented yet! Please, remove it from your input and stay tuned.")
+        sys.exit()
+        # this part does not work for know
+        # if Path(f"{self.destination}").exists():
+        #     self.destination = Path(self.destination)
+        # else:
+        #     self.destination = Path(self.initial_dir).joinpath(self.destination)
 
     self.destination.mkdir(exist_ok=True, parents=True)
 

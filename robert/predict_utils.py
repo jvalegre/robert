@@ -431,6 +431,7 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     # save plot and print results
     outliers_plot_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{outliers_plot_file}', dpi=300, bbox_inches='tight')
+    plt.clf()
     print_outliers += f"\n   o  Outliers plot saved in {outliers_plot_file}"
 
     outlier_results_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.dat'

@@ -46,6 +46,7 @@ import time
 from matplotlib import pyplot as plt
 import numpy as np
 from pathlib import Path
+import seaborn as sb
 from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     load_db_n_params,
@@ -320,6 +321,7 @@ class verify:
         base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
         path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
+        sb.reset_defaults()
         _, ax = plt.subplots(figsize=(7.45,6), subplot_kw=dict(aspect="equal"))
         
         recipe = ["X-shuffle",

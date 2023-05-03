@@ -104,19 +104,6 @@ hr {
   background-color: gray;
 }
 
-body {
-  position: relative; /* Necesario para que la línea se posicione correctamente */
-}
-
-body:before,
-body:after {
-  content: "";
-  position: absolute;
-  width: 100%;
-  height: 1px;
-  background-color: transparent;
-}
-
 body:before {
   top: 1.2cm;
 }

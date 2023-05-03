@@ -1,0 +1,38 @@
+ROBERT v 0.0.1 2023/05/02 20:47:18 
+Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert
+
+Command line used in ROBERT: robert --ignore ['solvent','sample'] --y dG --csv_name Bandar_db.csv --epoch 10 --pfi_max 2 --train [60,70,80]
+
+
+o  Starting generation of ML models with the GENERATE module
+
+o  Database C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\CURATE\Bandar_db_CURATE.csv loaded successfully, including:
+   - 20 datapoints
+   - 10 accepted descriptors
+   - 2 ignored descriptors
+   - 0 discarded descriptors
+
+o  Starting heatmap scan with 4 ML models ['RF', 'GB', 'NN', 'VR'] and 3 training sizes [60, 70, 80].
+   Heatmap generation:
+   - 1/12
+   - 2/12
+   - 3/12
+   - 4/12
+   - 5/12
+   x The PFI filter was disabled for model GB_70 (no variables passed)
+   - 6/12
+   - 7/12
+   - 8/12
+   x The PFI filter was disabled for model RF_80 (no variables passed)
+   - 9/12
+   - 10/12
+   - 11/12
+   x The PFI filter was disabled for model VR_80 (no variables passed)
+   - 12/12
+
+o  Heatmap ML models no PFI filter succesfully created in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\GENERATE\Raw_data
+
+o  Heatmap ML models with PFI filter succesfully created in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\GENERATE\Raw_data
+
+Time GENERATE: 25.03 seconds
+

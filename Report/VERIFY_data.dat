@@ -1,0 +1,86 @@
+ROBERT v 0.0.1 2023/05/02 20:47:18 
+Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert
+
+Command line used in ROBERT: robert --ignore ['solvent','sample'] --y dG --csv_name Bandar_db.csv --epoch 10 --pfi_max 2 --train [60,70,80]
+
+
+o  Starting tests to verify the prediction ability of the ML models with the VERIFY module
+
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole', 'Sig2']
+   - Training points: 12
+   - Validation points: 8
+
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole', 'Sig2']
+   - Training points: 12
+   - Validation points: 8
+
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole', 'Sig2']
+   - Training points: 12
+   - Validation points: 8
+
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole', 'Sig2']
+   - Training points: 12
+   - Validation points: 8
+
+   o  VERIFY donut plots saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_No_PFI.png
+   o  VERIFY test values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_No_PFI.dat:
+      Results of the VERIFY tests:
+      Original score (train set for CV): RMSE = 0.4, with a +- threshold (thres_test option) of 20.0%:
+         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: RMSE = 0.61
+      Original score (validation set): RMSE = 0.23, with a +- threshold (thres_test option) of 20.0%:
+         o X_shuffle: PASSED, RMSE = 0.51 is higher than the threshold (0.27)
+         o y_shuffle: PASSED, RMSE = 0.43 is higher than the threshold (0.27)
+         o onehot: PASSED, RMSE = 0.46 is higher than the threshold (0.27)
+
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma']
+   - Training points: 12
+   - Validation points: 8
+
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma']
+   - Training points: 12
+   - Validation points: 8
+
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma']
+   - Training points: 12
+   - Validation points: 8
+
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: dG
+   - Model: NN
+   - Descriptors: ['beta', 'gamma']
+   - Training points: 12
+   - Validation points: 8
+
+   o  VERIFY donut plots saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_PFI.png
+   o  VERIFY test values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_PFI.dat:
+      Results of the VERIFY tests:
+      Original score (train set for CV): RMSE = 0.39, with a +- threshold (thres_test option) of 20.0%:
+         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: RMSE = 0.5
+      Original score (validation set): RMSE = 0.21, with a +- threshold (thres_test option) of 20.0%:
+         o X_shuffle: PASSED, RMSE = 0.39 is higher than the threshold (0.25)
+         o y_shuffle: PASSED, RMSE = 0.31 is higher than the threshold (0.25)
+         o onehot: PASSED, RMSE = 0.36 is higher than the threshold (0.25)
+
+Time VERIFY: 1.56 seconds
+

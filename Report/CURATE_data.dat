@@ -1,0 +1,51 @@
+ROBERT v 0.0.1 2023/05/02 20:47:18 
+Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert
+
+Command line used in ROBERT: robert --ignore ['solvent','sample'] --y dG --csv_name Bandar_db.csv --epoch 10 --pfi_max 2 --train [60,70,80]
+
+
+o  Starting data curation with the CURATE module
+
+o  Database Bandar_db.csv loaded successfully, including:
+   - 20 datapoints
+   - 18 accepted descriptors
+   - 2 ignored descriptors
+   - 0 discarded descriptors
+
+o  Analyzing categorical variables
+   - No categorical variables were found.
+
+o  Duplication filters activated
+   Excluded datapoints:
+
+o  Correlation filter activated with these thresholds: thres_x = 0.85, thres_y = 0.02
+   Excluded descriptors:
+   - n: R**2 = 0.02 with the dG values
+   - Sig3: R**2 = 0.89 with beta
+   - Hbond_acc: R**2 = 0.91 with beta
+   - B: R**2 = 0.99 with beta
+   - MV_boltz: R**2 = 0.0 with the dG values
+   - area: R**2 = 0.02 with the dG values
+   - volume: R**2 = 0.01 with the dG values
+   - V: R**2 = 0.01 with the dG values
+
+o  12 columns remaining after applying correlation filters:
+   - solvent
+   - dG
+   - beta
+   - gamma
+   - dielectric
+   - dispersion
+   - polar
+   - hydrogen
+   - sum
+   - dipole
+   - Sig2
+   - sample
+
+o  The Pearson heatmap was stored in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\CURATE\Pearson_heatmap.png.
+
+o  The curated database was stored in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\CURATE\Bandar_db_CURATE.csv.
+
+Time CURATE: 0.78 seconds
+

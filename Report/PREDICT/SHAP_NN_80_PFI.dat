@@ -1,0 +1,10 @@
+
+   o  SHAP plot saved in C:\Users\juanv\OneDrive\Escritorio\test1\PREDICT/SHAP_NN_80_PFI.png
+   o  SHAP values saved in C:\Users\juanv\OneDrive\Escritorio\test1\PREDICT/SHAP_NN_80_PFI.dat:
+      -  x7 = min: -0.48, max: 0.25
+      -  x6 = min: -0.52, max: 0.21
+      -  x9 = min: -0.18, max: 0.061
+      -  Csub-O = min: -0.031, max: 0.061
+      -  x8 = min: -0.17, max: 0.054
+      -  Csub-H = min: -0.11, max: 0.043
+      -  Csub-Csub = min: -0.083, max: 0.041

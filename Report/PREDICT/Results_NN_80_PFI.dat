@@ -1,0 +1,7 @@
+
+   o  Results saved in C:\Users\juanv\OneDrive\Escritorio\test1\PREDICT/Results_NN_80_PFI.dat:
+      -  Points Train:Validation:Test = 29:8:4
+      -  Proportion Train:Validation:Test = 71:20:10
+      -  Train : R2 = 0.96, MAE = 0.073, RMSE = 0.13
+      -  Validation : R2 = 0.98, MAE = 0.1, RMSE = 0.12
+      -  Test : R2 = 0.99, MAE = 0.066, RMSE = 0.094

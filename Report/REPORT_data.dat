@@ -1,0 +1,8 @@
+ROBERT v 0.0.1 2023/05/02 20:47:18 
+Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert
+
+Command line used in ROBERT: robert --ignore ['solvent','sample'] --y dG --csv_name Bandar_db.csv --epoch 10 --pfi_max 2 --train [60,70,80]
+
+
+Time REPORT: 0.0 seconds
+

@@ -1,0 +1,115 @@
+
+body {
+  font-size: 15px;
+}
+@page :first {
+    @top-left {
+        content: "";
+    }
+    @top-right {
+        content: "";
+    }
+    @bottom-left {
+        content: "ROBERT v 0.0.1";
+        font-size: 8pt;
+        position: fixed;
+        left: 0;
+        bottom: 0;
+    }
+    @bottom-right {
+        content: counter(page) " of " counter(pages);
+        font-size: 8pt;
+        position: fixed;
+        right: 0;
+        bottom: 0;
+    }
+}
+@page {
+    size: A4;
+    margin: 2cm;
+    @top-left {
+        content: "ROBERT report";
+        font-size: 8pt;
+        position: fixed;
+        left: 0;
+        top: 0;
+    }
+    @top-right {
+        content: "CSV file name";
+        font-size: 8pt;
+        position: fixed;
+        left: 0;
+        top: 0;
+    }
+    @bottom-left {
+        content: "ROBERT v 0.0.1";
+        font-size: 8pt;
+        position: fixed;
+        left: 0;
+        bottom: 0;
+    }
+    @bottom-right {
+        content: counter(page) " of " counter(pages);
+        font-size: 8pt;
+        position: fixed;
+        right: 0;
+        bottom: 0;
+    }
+}
+* {
+    font-family: Arial, sans-serif;
+}
+.dat-content {
+    width: 50%;
+    max-width: 595pt;
+    overflow-x: auto;
+    line-height: 1.2;
+}
+
+img[src="Robert_logo.jpg"] {
+	float: right;
+	width: 50%;
+}
+
+img[src*="PFI"] {
+	display: inline-block;
+	vertical-align: bottom;
+	max-width: 48%;
+	margin-left: 10px;
+	margin-bottom: -5px;
+}
+
+img[src*="PFI"]:first-child {
+	margin-right: 10%;
+}
+.img-predict {
+    margin-top: 20px;
+}
+hr.black {
+  border: none;
+  height: 1px;
+  background-color: black;
+}
+
+hr {
+  border: none;
+  height: 1px;
+  background-color: gray;
+}
+
+body {
+  position: relative; /* Necesario para que la línea se posicione correctamente */
+}
+
+body:before,
+body:after {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  background-color: transparent;
+}
+
+body:before {
+  top: 1.2cm;
+}

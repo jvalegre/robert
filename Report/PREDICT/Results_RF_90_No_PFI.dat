@@ -1,0 +1,7 @@
+
+   o  Results saved in C:\Users\juanv\OneDrive\Escritorio\test1\PREDICT/Results_RF_90_No_PFI.dat:
+      -  Points Train:Validation:Test = 33:4:4
+      -  Proportion Train:Validation:Test = 80:10:10
+      -  Train : R2 = 0.99, MAE = 0.053, RMSE = 0.078
+      -  Validation : R2 = 0.99, MAE = 0.1, RMSE = 0.11
+      -  Test : R2 = 1.0, MAE = 0.022, RMSE = 0.024

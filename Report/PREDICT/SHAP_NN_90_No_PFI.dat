@@ -1,0 +1,12 @@
+
+   o  SHAP plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/SHAP_NN_90_No_PFI.png
+   o  SHAP values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/SHAP_NN_90_No_PFI.dat:
+      -  gamma = min: -0.22, max: 0.22
+      -  sum = min: -0.21, max: 0.21
+      -  hydrogen = min: -0.17, max: 0.17
+      -  beta = min: -0.052, max: 0.052
+      -  dipole = min: -0.049, max: 0.049
+      -  dispersion = min: -0.031, max: 0.031
+      -  Sig2 = min: -0.015, max: 0.015
+      -  dielectric = min: -0.00025, max: 0.00025
+      -  polar = min: 0.0, max: 0.0

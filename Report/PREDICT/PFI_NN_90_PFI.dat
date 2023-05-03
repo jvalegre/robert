@@ -1,0 +1,11 @@
+
+   o  PFI plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Bandar\PREDICT/PFI_NN_90_PFI.png
+   o  PFI values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Bandar\PREDICT/PFI_NN_90_PFI.dat:
+      Original score (from model.score, R2) = 0.92
+      -  hydrogen = 0.82 +- 1.2
+      -  sum = 0.22 +- 0.3
+      -  dipole = 0.018 +- 0.025
+      -  gamma = 0.0066 +- 0.0094
+      -  dielectric = 0.0032 +- 0.0046
+      -  polar = 0.0 +- 0.0
+      -  Sig2 = -0.013 +- 0.018

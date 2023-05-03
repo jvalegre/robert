@@ -1,0 +1,10 @@
+
+   o  SHAP plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Bandar\PREDICT/SHAP_NN_90_PFI.png
+   o  SHAP values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Bandar\PREDICT/SHAP_NN_90_PFI.dat:
+      -  hydrogen = min: -0.27, max: 0.27
+      -  sum = min: -0.15, max: 0.15
+      -  dipole = min: -0.025, max: 0.025
+      -  gamma = min: -0.025, max: 0.025
+      -  Sig2 = min: -0.015, max: 0.015
+      -  dielectric = min: -0.0012, max: 0.0012
+      -  polar = min: 0.0, max: 0.0

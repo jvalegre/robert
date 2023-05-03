@@ -1,0 +1,2 @@
+train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,learning_rate,validation_fraction,rmse
+80,KN,GB,reg,0,dG,rmse,"['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole', 'Sig2']",20,20,1,0.05,0.1,0.3750708836811468

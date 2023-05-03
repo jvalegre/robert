@@ -1,7 +1,7 @@
 
 <h1 style="text-align: left; margin-bottom: 0.5em;">
     Report
-    <img src="Robert_logo.jpg" alt="" style="float:right; width:30%; margin-left:1em;" />
+    <img src="Robert_logo.jpg" alt="" style="float:right; width:25%; margin-left:1em;" />
     <br>
     <hr class="black">
     <span style="font-weight:bold;"></span>
@@ -9,11 +9,11 @@
 <p style="text-align: center;"></p>
 <p style="text-align: justify;"
 <div class="dat-content"><pre>ROBERT v 0.0.1 2023/05/02 20:47:18 
-Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https:/
-/github.com/jvalegre/robert
+Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.co
+m/jvalegre/robert
 
-Command line used in ROBERT: robert --ignore ['solvent','sample'] --y dG --csv_na
-me Bandar_db.csv --epoch 10 --pfi_max 2 --train [60,70,80]
+Command line used in ROBERT: robert --ignore ['solvent','sample'] --y dG --csv_name Bandar_db.csv --e
+poch 10 --pfi_max 2 --train [60,70,80]
 </pre></div>
 <hr>
 <p><span style="font-weight:bold;">
@@ -59,13 +59,15 @@ o  12 columns remaining after applying correlation filters:
    - Sig2
    - sample
 
-o  The Pearson heatmap was stored in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_R
-OBERT\Regression\Bandar\CURATE\Pearson_heatmap.png.
+o  The Pearson heatmap was stored in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regressio
+n\Bandar\CURATE\Pearson_heatmap.png.
 
-o  The curated database was stored in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_
-ROBERT\Regression\Bandar\CURATE\Bandar_db_CURATE.csv.
+o  The curated database was stored in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regressi
+on\Bandar\CURATE\Bandar_db_CURATE.csv.
 
 Time CURATE: 0.78 seconds</pre></div>
+<img src="Pearson_heatmap.png" alt="" />
+<p>
 <hr>
 <p><span style="font-weight:bold;">
     <img src="cpu.png" alt="" style="width:20px; height:20px; margin-right:5px;">
@@ -73,15 +75,15 @@ Time CURATE: 0.78 seconds</pre></div>
 </span></p>
 <div class="dat-content"><pre>o  Starting generation of ML models with the GENERATE module
 
-o  Database C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\C
-URATE\Bandar_db_CURATE.csv loaded successfully, including:
+o  Database C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\CURATE\Bandar_db
+_CURATE.csv loaded successfully, including:
    - 20 datapoints
    - 10 accepted descriptors
    - 2 ignored descriptors
    - 0 discarded descriptors
 
-o  Starting heatmap scan with 4 ML models ['RF', 'GB', 'NN', 'VR'] and 3 training siz
-es [60, 70, 80].
+o  Starting heatmap scan with 4 ML models ['RF', 'GB', 'NN', 'VR'] and 3 training sizes [60, 70, 80]
+.
    Heatmap generation:
 </pre></div>
 <img src="NO_PFI.png" alt="" />
@@ -92,36 +94,35 @@ es [60, 70, 80].
     <img src="analysis.png" alt="" style="width:20px; height:20px; margin-right:5px;">
     PREDICT 
 </span></p>
-<div class="predict-content"><pre>o  Representation of predictions and analysis of ML models with the PREDICT modu
-le
+<div class="predict-content"><pre>o  Representation of predictions and analysis of ML models with the PREDICT module
 
-o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database wer
-e loaded successfully, including:
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfull
+y, including:
    - Target value: dG
    - Model: NN
-   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrog
-en', 'sum', 'dipole', 'Sig2']
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole'
+, 'Sig2']
    - Training points: 12
    - Validation points: 8
       -  Train set with predicted results: NN_60_train_No_PFI.csv
       -  Validation set with predicted results: NN_60_valid_No_PFI.csv
 
-   o  Saving graphs and CSV databases in C:\Users\David\Desktop\Art�culo ROBERT\
-Pruebas_ROBERT\Regression\Bandar\PREDICT:
-      -  Graph in: C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regress
-ion\Bandar\PREDICT/Results_NN_60_No_PFI.png
+   o  Saving graphs and CSV databases in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regre
+ssion\Bandar\PREDICT:
+      -  Graph in: C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/R
+esults_NN_60_No_PFI.png
 
-   o  Results saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Reg
-ression\Bandar\PREDICT/Results_NN_60_No_PFI.dat:
+   o  Results saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDI
+CT/Results_NN_60_No_PFI.dat:
       -  Points Train:Validation = 12:8
       -  Proportion Train:Validation = 60:40
       -  Train : R2 = 0.51, MAE = 0.32, RMSE = 0.4
       -  Validation : R2 = 0.51, MAE = 0.18, RMSE = 0.23
 
-   o  SHAP plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\R
-egression\Bandar\PREDICT/SHAP_NN_60_No_PFI.png
-   o  SHAP values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT
-\Regression\Bandar\PREDICT/SHAP_NN_60_No_PFI.dat:
+   o  SHAP plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PRE
+DICT/SHAP_NN_60_No_PFI.png
+   o  SHAP values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\P
+REDICT/SHAP_NN_60_No_PFI.dat:
       -  gamma = min: -0.24, max: 0.21
       -  beta = min: -0.12, max: 0.19
       -  Sig2 = min: -0.043, max: 0.13
@@ -132,10 +133,10 @@ egression\Bandar\PREDICT/SHAP_NN_60_No_PFI.png
       -  sum = min: -0.045, max: 0.042
       -  hydrogen = min: -0.014, max: 0.0088
 
-   o  PFI plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Re
-gression\Bandar\PREDICT/PFI_NN_60_No_PFI.png
-   o  PFI values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\
-Regression\Bandar\PREDICT/PFI_NN_60_No_PFI.dat:
+   o  PFI plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PRED
+ICT/PFI_NN_60_No_PFI.png
+   o  PFI values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PR
+EDICT/PFI_NN_60_No_PFI.dat:
       Original score (from model.score, R2) = 0.5
       -  gamma = 1.2 +- 0.6
       -  beta = 0.19 +- 0.22
@@ -147,17 +148,17 @@ Regression\Bandar\PREDICT/PFI_NN_60_No_PFI.dat:
       -  hydrogen = 0.0082 +- 0.022
       -  dispersion = -0.11 +- 0.09
 
-   o  Outliers plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBE
-RT\Regression\Bandar\PREDICT/Outliers_NN_60_No_PFI.png
-   o  Outlier values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROB
-ERT\Regression\Bandar\PREDICT/Outliers_NN_60_No_PFI.dat:
-      x  No variable names found or names option not specified! Outliers will be
- printed with no names
+   o  Outliers plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar
+\PREDICT/Outliers_NN_60_No_PFI.png
+   o  Outlier values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Banda
+r\PREDICT/Outliers_NN_60_No_PFI.dat:
+      x  No variable names found or names option not specified! Outliers will be printed with no nam
+es
       Train: 1 outliers out of 12 datapoints (8.3%)
       Validation: 0 outliers out of 8 datapoints (0.0%)
 
-o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database we
-re loaded successfully, including:
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successful
+ly, including:
    - Target value: dG
    - Model: NN
    - Descriptors: ['beta', 'gamma']
@@ -166,39 +167,39 @@ re loaded successfully, including:
       -  Train set with predicted results: NN_60_train_PFI.csv
       -  Validation set with predicted results: NN_60_valid_PFI.csv
 
-   o  Saving graphs and CSV databases in C:\Users\David\Desktop\Art�culo ROBERT\
-Pruebas_ROBERT\Regression\Bandar\PREDICT:
-      -  Graph in: C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regress
-ion\Bandar\PREDICT/Results_NN_60_PFI.png
+   o  Saving graphs and CSV databases in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regre
+ssion\Bandar\PREDICT:
+      -  Graph in: C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/R
+esults_NN_60_PFI.png
 
-   o  Results saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Reg
-ression\Bandar\PREDICT/Results_NN_60_PFI.dat:
+   o  Results saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDI
+CT/Results_NN_60_PFI.dat:
       -  Points Train:Validation = 12:8
       -  Proportion Train:Validation = 60:40
       -  Train : R2 = 0.47, MAE = 0.28, RMSE = 0.39
       -  Validation : R2 = 0.6, MAE = 0.18, RMSE = 0.21
 
-   o  SHAP plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\R
-egression\Bandar\PREDICT/SHAP_NN_60_PFI.png
-   o  SHAP values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT
-\Regression\Bandar\PREDICT/SHAP_NN_60_PFI.dat:
+   o  SHAP plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PRE
+DICT/SHAP_NN_60_PFI.png
+   o  SHAP values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\P
+REDICT/SHAP_NN_60_PFI.dat:
       -  beta = min: -0.21, max: 0.4
       -  gamma = min: -0.22, max: 0.24
 
-   o  PFI plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Re
-gression\Bandar\PREDICT/PFI_NN_60_PFI.png
-   o  PFI values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\
-Regression\Bandar\PREDICT/PFI_NN_60_PFI.dat:
+   o  PFI plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PRED
+ICT/PFI_NN_60_PFI.png
+   o  PFI values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar\PR
+EDICT/PFI_NN_60_PFI.dat:
       Original score (from model.score, R2) = 0.58
       -  beta = 0.55 +- 0.25
       -  gamma = 0.51 +- 0.3
 
-   o  Outliers plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBE
-RT\Regression\Bandar\PREDICT/Outliers_NN_60_PFI.png
-   o  Outlier values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROB
-ERT\Regression\Bandar\PREDICT/Outliers_NN_60_PFI.dat:
-      x  No variable names found or names option not specified! Outliers will be
- printed with no names
+   o  Outliers plot saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Bandar
+\PREDICT/Outliers_NN_60_PFI.png
+   o  Outlier values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\Banda
+r\PREDICT/Outliers_NN_60_PFI.dat:
+      x  No variable names found or names option not specified! Outliers will be printed with no nam
+es
       Train: 1 outliers out of 12 datapoints (8.3%)
       Validation: 0 outliers out of 8 datapoints (0.0%)
 
@@ -210,103 +211,100 @@ Time PREDICT: 8.72 seconds</pre></div>
     <img src="verified.png" alt="" style="width:20px; height:20px; margin-right:5px;">
     VERIFY 
 </span></p>
-<div class="verify-content"><pre>o  Starting tests to verify the prediction ability of the ML models with the VER
-IFY module
+<div class="verify-content"><pre>o  Starting tests to verify the prediction ability of the ML models with the VERIFY module
 
-o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database wer
-e loaded successfully, including:
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfull
+y, including:
    - Target value: dG
    - Model: NN
-   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrog
-en', 'sum', 'dipole', 'Sig2']
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole'
+, 'Sig2']
    - Training points: 12
    - Validation points: 8
 
-o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database wer
-e loaded successfully, including:
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfull
+y, including:
    - Target value: dG
    - Model: NN
-   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrog
-en', 'sum', 'dipole', 'Sig2']
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole'
+, 'Sig2']
    - Training points: 12
    - Validation points: 8
 
-o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database wer
-e loaded successfully, including:
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfull
+y, including:
    - Target value: dG
    - Model: NN
-   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrog
-en', 'sum', 'dipole', 'Sig2']
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole'
+, 'Sig2']
    - Training points: 12
    - Validation points: 8
 
-o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database wer
-e loaded successfully, including:
+o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfull
+y, including:
    - Target value: dG
    - Model: NN
-   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrog
-en', 'sum', 'dipole', 'Sig2']
+   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole'
+, 'Sig2']
    - Training points: 12
    - Validation points: 8
 
-   o  VERIFY donut plots saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas
-_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_No_PFI.png
-   o  VERIFY test values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas
-_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_No_PFI.dat:
+   o  VERIFY donut plots saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\B
+andar\VERIFY/VERIFY_tests_NN_60_No_PFI.png
+   o  VERIFY test values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\B
+andar\VERIFY/VERIFY_tests_NN_60_No_PFI.dat:
       Results of the VERIFY tests:
-      Original score (train set for CV): RMSE = 0.4, with a +- threshold (thres_
-test option) of 20.0%:
-         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result
-: RMSE = 0.61
-      Original score (validation set): RMSE = 0.23, with a +- threshold (thres_t
-est option) of 20.0%:
+      Original score (train set for CV): RMSE = 0.4, with a +- threshold (thres_test option) of 20.0
+%:
+         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: RMSE = 0.61
+      Original score (validation set): RMSE = 0.23, with a +- threshold (thres_test option) of 20.0%
+:
          o X_shuffle: PASSED, RMSE = 0.51 is higher than the threshold (0.27)
          o y_shuffle: PASSED, RMSE = 0.43 is higher than the threshold (0.27)
          o onehot: PASSED, RMSE = 0.46 is higher than the threshold (0.27)
 
-o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database we
-re loaded successfully, including:
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successful
+ly, including:
    - Target value: dG
    - Model: NN
    - Descriptors: ['beta', 'gamma']
    - Training points: 12
    - Validation points: 8
 
-o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database we
-re loaded successfully, including:
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successful
+ly, including:
    - Target value: dG
    - Model: NN
    - Descriptors: ['beta', 'gamma']
    - Training points: 12
    - Validation points: 8
 
-o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database we
-re loaded successfully, including:
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successful
+ly, including:
    - Target value: dG
    - Model: NN
    - Descriptors: ['beta', 'gamma']
    - Training points: 12
    - Validation points: 8
 
-o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database we
-re loaded successfully, including:
+o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successful
+ly, including:
    - Target value: dG
    - Model: NN
    - Descriptors: ['beta', 'gamma']
    - Training points: 12
    - Validation points: 8
 
-   o  VERIFY donut plots saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas
-_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_PFI.png
-   o  VERIFY test values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas
-_ROBERT\Regression\Bandar\VERIFY/VERIFY_tests_NN_60_PFI.dat:
+   o  VERIFY donut plots saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\B
+andar\VERIFY/VERIFY_tests_NN_60_PFI.png
+   o  VERIFY test values saved in C:\Users\David\Desktop\Art�culo ROBERT\Pruebas_ROBERT\Regression\B
+andar\VERIFY/VERIFY_tests_NN_60_PFI.dat:
       Results of the VERIFY tests:
-      Original score (train set for CV): RMSE = 0.39, with a +- threshold (thres
-_test option) of 20.0%:
-         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result
-: RMSE = 0.5
-      Original score (validation set): RMSE = 0.21, with a +- threshold (thres_t
-est option) of 20.0%:
+      Original score (train set for CV): RMSE = 0.39, with a +- threshold (thres_test option) of 20.
+0%:
+         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: RMSE = 0.5
+      Original score (validation set): RMSE = 0.21, with a +- threshold (thres_test option) of 20.0%
+:
          o X_shuffle: PASSED, RMSE = 0.39 is higher than the threshold (0.25)
          o y_shuffle: PASSED, RMSE = 0.31 is higher than the threshold (0.25)
          o onehot: PASSED, RMSE = 0.36 is higher than the threshold (0.25)

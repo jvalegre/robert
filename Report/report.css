@@ -1,6 +1,6 @@
 
 body {
-  font-size: 15px;
+  font-size: 12px;
 }
 @page :first {
     @top-left {
@@ -69,6 +69,13 @@ body {
 img[src="Robert_logo.jpg"] {
 	float: right;
 	width: 50%;
+}
+img[src*="Pearson"] {
+	display: inline-block;
+	vertical-align: bottom;
+	max-width: 48%;
+	margin-left: 10px;
+	margin-bottom: -5px;
 }
 
 img[src*="PFI"] {

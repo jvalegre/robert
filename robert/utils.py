@@ -123,6 +123,7 @@ def command_line_args():
         "verify",
         "predict",
         "aqme",
+        "report",
         "cheers"
     ]
 

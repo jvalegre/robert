@@ -18,11 +18,13 @@ General
 #    used for generating the final PDF report       #
 #####################################################.
 
+import os
 import time
 from robert.utils import (load_variables,
     finish_print
 )
-
+from pathlib import Path
+from weasyprint import HTML
 
 class report:
     """

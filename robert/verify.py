@@ -357,8 +357,8 @@ class verify:
             kw["arrowprops"].update({"connectionstyle": connectionstyle})
             ax.annotate(recipe[i], xy=(x, y), xytext=(1.15*np.sign(x), 1.4*y),
                         horizontalalignment=horizontalalignment, fontsize=fontsize, **kw)
-
-        ax.set_title(f"VERIFY tests of {os.path.basename(path_n_suffix)}", fontsize=fontsize)
+        title_verify = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
+        plt.title(title_verify, y=1.04, fontsize = fontsize)
 
         # save plot
         verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'

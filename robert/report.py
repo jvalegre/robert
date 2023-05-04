@@ -43,7 +43,154 @@ class report:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
 
-        # XXX
+        # load data from DAT files
+        def data_content(self):
+            """
+            Reads a file and returns a formatted string between two markers
+            """
+
+            start_str = X
+            end_str = X
+            insert_newlines = X
+            for module in enumerate(self.args.report_modules):
+                data_file = f'{os.getcwd()}/{module}_data.dat'
+                if os.path.exists(data_file):
+                    XX si es el primer dat, haz el header XX
+                    header_content()
+                    module_content()
+                    with open(data_file, 'r', errors="replace") as file:
+                        content = file.read()
+                        start_pos = content.find(start_str) - 3
+                        end_pos = content.find(end_str, start_pos)
+                        end_pos = content.find("\n", end_pos)
+                        data = content[start_pos:end_pos]
+                        lines = data.split('\n')
+                        formatted_lines = [
+                            insert_newlines('    ' + line[4:] if line.startswith('- ') else line, every)
+                            for line in lines
+                        ]
+
+            return '\n'.join(formatted_lines)
+
+
+        # load css format
+        css_content = css_content_fun()
 
         _ = finish_print(self,start_time,'REPORT')
 
+def css_content_fun():
+    '''
+    Create content for css
+    '''
+    
+    css_content = """
+    body {
+    font-size: 12px;
+    }
+    @page :first {
+        @top-left {
+            content: "";
+        }
+        @top-right {
+            content: "";
+        }
+        @bottom-left {
+            content: "ROBERT v 0.0.1";
+            font-size: 8pt;
+            position: fixed;
+            left: 0;
+            bottom: 0;
+        }
+        @bottom-right {
+            content: counter(page) " of " counter(pages);
+            font-size: 8pt;
+            position: fixed;
+            right: 0;
+            bottom: 0;
+        }
+    }
+    @page {
+        size: A4;
+        margin: 2cm;
+        @top-left {
+            content: "ROBERT report";
+            font-size: 8pt;
+            position: fixed;
+            left: 0;
+            top: 0;
+        }
+        @top-right {
+            content: "CSV file name";
+            font-size: 8pt;
+            position: fixed;
+            left: 0;
+            top: 0;
+        }
+        @bottom-left {
+            content: "ROBERT v 0.0.1";
+            font-size: 8pt;
+            position: fixed;
+            left: 0;
+            bottom: 0;
+        }
+        @bottom-right {
+            content: counter(page) " of " counter(pages);
+            font-size: 8pt;
+            position: fixed;
+            right: 0;
+            bottom: 0;
+        }
+    }
+    * {
+        font-family: Arial, sans-serif;
+    }
+    .dat-content {
+        width: 50%;
+        max-width: 595pt;
+        overflow-x: auto;
+        line-height: 1.2;
+    }
+
+    img[src="Robert_logo.jpg"] {
+        float: right;
+        width: 50%;
+    }
+    img[src*="Pearson"] {
+        display: inline-block;
+        vertical-align: bottom;
+        max-width: 48%;
+        margin-left: 10px;
+        margin-bottom: -5px;
+    }
+
+    img[src*="PFI"] {
+        display: inline-block;
+        vertical-align: bottom;
+        max-width: 48%;
+        margin-left: 10px;
+        margin-bottom: -5px;
+    }
+
+    img[src*="PFI"]:first-child {
+        margin-right: 10%;
+    }
+    .img-predict {
+        margin-top: 20px;
+    }
+    hr.black {
+    border: none;
+    height: 1px;
+    background-color: black;
+    }
+
+    hr {
+    border: none;
+    height: 1px;
+    background-color: gray;
+    }
+
+    body:before {
+    top: 1.2cm;
+    }
+    """
+    return css_content

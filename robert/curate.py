@@ -120,7 +120,7 @@ class curate:
 
         if module.lower() == 'curate':
             if len(categorical_vars) == 0:
-                txt_categor += f'\n   - No categorical variables were found.'
+                txt_categor += f'\n   - No categorical variables were found'
             else:
                 if self.args.categorical == 'numbers':
                     txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option:\n'
@@ -131,10 +131,37 @@ class curate:
                     txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
                     txt_categor += f'\n   Generated descriptors:\n'
                     txt_categor += '\n'.join(f'   - {var}' for var in new_categor_desc)
-            
+
             self.args.log.write(f'{txt_categor}')
 
         return csv_df
+
+
+    def dup_filter(self,csv_df_dup):
+        '''
+        Removes duplicated datapoints and descriptors
+        '''
+
+        txt_dup = f'\no  Duplication filters activated'
+        txt_dup += f'\n   Excluded datapoints:'
+
+        # remove duplicated entries
+        datapoint_drop = []
+        for i,datapoint in enumerate(csv_df_dup.duplicated()):
+            if datapoint:
+                datapoint_drop.append(i)
+        for datapoint in datapoint_drop:
+            txt_dup += f'\n   - Datapoint number {datapoint}'
+
+        if len(datapoint_drop) == 0:
+            txt_dup += f'\n   -  No datapoints were removed'
+
+        csv_df_dup = csv_df_dup.drop(datapoint_drop, axis=0)
+
+        csv_df_dup.reset_index(drop=True)
+        self.args.log.write(txt_dup)
+
+        return csv_df_dup
 
 
     def correlation_filter(self, csv_df):
@@ -178,41 +205,17 @@ class curate:
                                     txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
         
         if len(descriptors_drop) == 0:
-            txt_corr += f'\no  No descriptors were removed'
+            txt_corr += f'\n   -  No descriptors were removed'
     
         self.args.log.write(txt_corr)
 
         # drop descriptors that did not pass the filters
         csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
-        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying correlation filters:\n'
+        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate and correlation filters:\n'
         txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
         self.args.log.write(txt_csv)
 
         return csv_df_filtered
-
-
-    def dup_filter(self,csv_df_dup):
-        '''
-        Removes duplicated datapoints and descriptors
-        '''
-
-        txt_dup = f'\no  Duplication filters activated'
-        txt_dup += f'\n   Excluded datapoints:'
-
-        # remove duplicated entries
-        datapoint_drop = []
-        for i,datapoint in enumerate(csv_df_dup.duplicated()):
-            if datapoint:
-                datapoint_drop.append(i)
-        for datapoint in datapoint_drop:
-            txt_dup += f'\n   - Datapoint number {datapoint}'
-
-        csv_df_dup = csv_df_dup.drop(datapoint_drop, axis=0)
-
-        csv_df_dup.reset_index(drop=True)
-        self.args.log.write(txt_dup)
-
-        return csv_df_dup
 
 
     def save_curate(self,csv_df):

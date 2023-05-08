@@ -289,10 +289,20 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     # run the SHAP analysis and save the plot
     explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=self.args.seed)
     shap_values = explainer(Xy_data['X_valid_scaled'])
+
+    shap_show = [self.args.shap_show,len(Xy_data['X_valid_scaled'].columns)]
+    aspect_shap = 25+((min(shap_show)-2)*5)
+    height_shap = 1.2+min(shap_show)/4
+
     # explainer = shap.TreeExplainer(loaded_model) # in case the standard version doesn't work
-    _ = shap.summary_plot(shap_values, Xy_data['X_valid_scaled'], max_display=self.args.shap_show,show=False)
-    
-    plt.title(f'SHAP analysis of {os.path.basename(path_n_suffix)}',fontweight="bold")
+    _ = shap.summary_plot(shap_values, Xy_data['X_valid_scaled'], max_display=self.args.shap_show,show=False, plot_size=[7.45,height_shap])
+
+    # set title
+    plt.title(f'SHAP analysis of {os.path.basename(path_n_suffix)}', fontsize = 14, fontweight="bold")
+
+    # adjust width of the colorbar
+    plt.gcf().axes[-1].set_aspect(aspect_shap)
+    plt.gcf().axes[-1].set_box_aspect(aspect_shap)
     
     plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
     plt.clf()

@@ -358,7 +358,7 @@ class verify:
             ax.annotate(recipe[i], xy=(x, y), xytext=(1.15*np.sign(x), 1.4*y),
                         horizontalalignment=horizontalalignment, fontsize=fontsize, **kw)
         title_verify = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
-        plt.title(title_verify, y=1.04, fontsize = fontsize)
+        plt.title(title_verify, y=1.04, fontsize = fontsize, fontweight="bold")
 
         # save plot
         verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'

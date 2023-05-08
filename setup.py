@@ -43,7 +43,7 @@ setup(
         "PyYAML",
         "pandas",
         "progress",
-        "numpy",
+        "numpy==1.23.1",
         "matplotlib",
         "seaborn",
         "scipy",

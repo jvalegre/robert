@@ -529,7 +529,7 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     ax.set_ylabel("Training Size",fontsize=fontsize)
     ax.tick_params(axis='both', which='major', labelsize=fontsize)
     title_fig = f'Heatmap ML models {suffix}'
-    plt.title(title_fig, y=1.04, fontsize = fontsize)
+    plt.title(title_fig, y=1.04, fontsize = fontsize, fontweight="bold")
     sb.despine(top=False, right=False)
     plt.savefig(f'{path_raw.joinpath(title_fig)}.png', dpi=300, bbox_inches='tight')
     plt.clf()

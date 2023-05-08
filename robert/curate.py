@@ -253,6 +253,8 @@ class curate:
 
         _, ax = plt.subplots(figsize=(7.45,6))
 
+        sb.set(font_scale=1.2, style='ticks')
+
         # determines size of the letters inside the boxes (approx.)
         size_font = 14-2*((len(csv_df_pearson.columns)/5))
 
@@ -261,17 +263,20 @@ class curate:
                             square = True,
                             linewidths = .5,
                             cmap = 'coolwarm',
+                            cbar = False,
                             cbar_kws = {'shrink': .4,
                                         'ticks' : [-1, -.5, 0, 0.5, 1]},
                             vmin = -1,
                             vmax = 1,
                             annot = True,
                             annot_kws = {'size': size_font})
-
+        plt.tick_params(labelsize=size_font)
         #add the column names as labels
         ax.set_yticklabels(corr_matrix.columns, rotation = 0)
         ax.set_xticklabels(corr_matrix.columns)
 
+        title_fig = 'Pearson\'s r heatmap'
+        plt.title(title_fig, y=1.04, fontsize = 14, fontweight="bold")
         sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
 
         heatmap_name = 'Pearson_heatmap.png'

@@ -1,6 +1,6 @@
 
     body {
-    font-size: 12px;
+        font-size: 12px;
     }
     @page :first {
         @top-left {
@@ -10,7 +10,7 @@
             content: "";
         }
         @bottom-left {
-            content: "ROBERT v 0.0.1";
+            content: "ROBERT v 0.0.1 2023/05/02 20:47:18";
             font-size: 8pt;
             position: fixed;
             left: 0;
@@ -35,14 +35,14 @@
             top: 0;
         }
         @top-right {
-            content: "CSV file name";
+            content: "Bandar_db";
             font-size: 8pt;
             position: fixed;
-            left: 0;
+            right: 0;
             top: 0;
         }
         @bottom-left {
-            content: "ROBERT v 0.0.1";
+            content: "ROBERT v 0.0.1 2023/05/02 20:47:18";
             font-size: 8pt;
             position: fixed;
             left: 0;

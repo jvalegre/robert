@@ -1,55 +1,12 @@
 
     body {
-        font-size: 12px;
-    }
-    @page :first {
-        @top-left {
-            content: "";
-        }
-        @top-right {
-            content: "";
-        }
-        @bottom-left {
-            content: "ROBERT v 0.0.1 2023/05/02 20:47:18";
-            font-size: 8pt;
-            position: fixed;
-            left: 0;
-            bottom: 0;
-        }
-        @bottom-right {
-            content: counter(page) " of " counter(pages);
-            font-size: 8pt;
-            position: fixed;
-            right: 0;
-            bottom: 0;
-        }
+    font-size: 12px;
     }
     @page {
         size: A4;
         margin: 2cm;
-        @top-left {
-            content: "ROBERT report";
-            font-size: 8pt;
-            position: fixed;
-            left: 0;
-            top: 0;
-        }
-        @top-right {
-            content: "Bandar_db";
-            font-size: 8pt;
-            position: fixed;
-            right: 0;
-            top: 0;
-        }
-        @bottom-left {
-            content: "ROBERT v 0.0.1 2023/05/02 20:47:18";
-            font-size: 8pt;
-            position: fixed;
-            left: 0;
-            bottom: 0;
-        }
         @bottom-right {
-            content: counter(page) " of " counter(pages);
+            content: counter(page);
             font-size: 8pt;
             position: fixed;
             right: 0;

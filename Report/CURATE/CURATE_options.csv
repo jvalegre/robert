@@ -1,2 +1,2 @@
 y,ignore,csv_name
-dG,"['solvent', 'sample']",C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\CURATE\Bandar_db_CURATE.csv
+solub,"['smiles', 'code_name']",/mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/CURATE/AQME-ROBERT_solubility_CURATE.csv

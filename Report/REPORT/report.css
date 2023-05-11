@@ -54,7 +54,13 @@
     height: 1px;
     background-color: black;
     }
-
+    hr.black.last-hr {
+    position: fixed;
+    bottom: 0;
+    border: none;
+    height: 1px;
+    background-color: black;
+    }
     hr {
     border: none;
     height: 1px;

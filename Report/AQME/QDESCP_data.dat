@@ -1,0 +1,273 @@
+AQME v 1.5.0 2023/05/01 20:57:12 
+Citation: AQME v 1.5.0, Alegre-Requena, J. V.; Sowndarya, S.; Perez-Soto, R.; Alturaifi, T.; Paton, R. AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, DOI: 10.1002/wcms.1663.
+
+
+
+   ----- mol_5_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_6_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_11_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_13_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_16_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_17_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_18_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_23_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+
+
+   ----- mol_24_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_26_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_30_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_31_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_34_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_36_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_40_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_42_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_45_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_46_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_51_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_56_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_58_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_60_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_62_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_64_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+
+   ----- mol_1127_rdkit -----
+
+   Running xTB and collecting properties
+
+   Running DBSTEP and collecting properties
+WARNING! No P atoms were found, using NaN as the value.
+
+o  Running RDKit and collecting molecular properties
+o  The QDESCP_boltz_descriptors.csv file containing Boltzmann weighted xTB, DBSTEP and RDKit descriptors was successfully created in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test
+o  The AQME-ROBERT_solubility.csv file containing the database ready for the AQME-ROBERT workflow was successfully created in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test
+
+Time QDESCP: 24.37 seconds
+

@@ -1,0 +1,2 @@
+train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,learning_rate,validation_fraction,rmse
+90,KN,GB,reg,0,solub,rmse,"['Total polarizability alpha', 'Total FOD', 'NOCount', 'TPSA', 'MolLogP']",160,160,5,0.1,0.2,0.6732377482566753

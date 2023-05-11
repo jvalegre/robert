@@ -1,6 +1,0 @@
-
-   o  Outliers plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Outliers_NN_60_No_PFI.png
-   o  Outlier values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Outliers_NN_60_No_PFI.dat:
-      x  No variable names found or names option not specified! Outliers will be printed with no names
-      Train: 1 outliers out of 12 datapoints (8.3%)
-      Validation: 0 outliers out of 8 datapoints (0.0%)

@@ -1,0 +1,14 @@
+
+   o  PFI plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_NN_80_No_PFI.png
+   o  PFI values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_NN_80_No_PFI.dat:
+      Original score (from model.score, R2) = 0.89
+      -  TPSA = 0.34 +- 0.29
+      -  Total polarizability alpha = 0.16 +- 0.12
+      -  NumRotatableBonds = 0.13 +- 0.086
+      -  Dipole module/D = 0.12 +- 0.076
+      -  Total FOD = 0.088 +- 0.054
+      -  HOMO = 0.037 +- 0.037
+      -  NOCount = 0.021 +- 0.019
+      -  NumHDonors = 0.018 +- 0.046
+      -  mulliken charges = 0.0 +- 0.0
+      -  NumAliphaticRings = 0.0 +- 0.0

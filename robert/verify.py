@@ -53,7 +53,8 @@ from robert.utils import (load_variables,
     load_model,
     pd_to_dict,
     load_n_predict,
-    finish_print
+    finish_print,
+    get_prediction_results
 )
 
 
@@ -101,8 +102,8 @@ class verify:
                 # calculate R2 for k-fold cross validation (if needed)
                 verify_results = self.cv_test(verify_results,Xy_data,params_dict)
 
-                # calculate scores for the X-shuffle test
-                verify_results = self.xshuffle_test(verify_results,Xy_data,params_dict)
+                # calculate scores for the y-mean test
+                verify_results = self.ymean_test(verify_results,Xy_data,params_dict)
 
                 # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
                 # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
@@ -170,35 +171,31 @@ class verify:
         return verify_results
 
 
-    def xshuffle_test(self,verify_results,Xy_data,params_dict):
+    def ymean_test(self,verify_results,Xy_data,params_dict):
         '''
-        Calculate the accuracy of the model when the X data is randomly shuffled (columns are 
-        randomly shuffled). For example, a descriptor array of X1, X2, X3, X4 might become 
-        X2, X4, X1, X3.
+        Calculate the accuracy of the model when using a flat line of predicted y values (mean of the y values).
         '''
 
-        Xy_xshuffle = Xy_data.copy()
-        random_state_xshuff = self.args.seed
-        for _,column in enumerate(Xy_xshuffle['X_train_scaled']):
-            Xy_xshuffle['X_train_scaled'][column] = Xy_xshuffle['X_train_scaled'][column].sample(frac=1,random_state=random_state_xshuff,ignore_index=True,axis=0)
-            random_state_xshuff += 1
-        for _,column in enumerate(Xy_xshuffle['X_valid_scaled']):
-            Xy_xshuffle['X_valid_scaled'][column] = Xy_xshuffle['X_valid_scaled'][column].sample(frac=1,random_state=random_state_xshuff,ignore_index=True,axis=0)
-            random_state_xshuff += 1
-        Xy_xshuffle = load_n_predict(params_dict, Xy_xshuffle)  
-        verify_results['X_shuffle'] = Xy_xshuffle[f'{verify_results["error_type"]}_valid']
+        Xy_ymean = Xy_data.copy()
+        y_mean_array = np.ones(len(Xy_ymean['y_valid']))*(Xy_ymean['y_valid'].mean())
+        if params_dict['type'] == 'reg':
+            Xy_ymean['r2_valid'], Xy_ymean['mae_valid'], Xy_ymean['rmse_valid'] = get_prediction_results(params_dict,Xy_ymean['y_valid'],y_mean_array)
+        
+        elif params_dict['type'] == 'clas':
+            Xy_ymean['acc_valid'], Xy_ymean['f1_valid'], Xy_ymean['mcc_valid'] = get_prediction_results(params_dict,Xy_ymean['y_valid'],y_mean_array)
+
+        verify_results['y_mean'] = Xy_ymean[f'{verify_results["error_type"]}_valid']
 
         return verify_results
 
 
     def yshuffle_test(self,verify_results,Xy_data,params_dict):
         '''
-        Calculate the accuracy of the model when the y values are randomly shuffled (rows are randomly 
-        shuffled). For example, a y array of 1.3, 2.1, 4.0, 5.2 might become 2.1, 1.3, 5.2, 4.0.
+        Calculate the accuracy of the model when the y values are randomly shuffled in the validation set
+        For example, a y array of 1.3, 2.1, 4.0, 5.2 might become 2.1, 1.3, 5.2, 4.0.
         '''
 
         Xy_yshuffle = Xy_data.copy()
-        Xy_yshuffle['y_train'] = Xy_yshuffle['y_train'].sample(frac=1,random_state=self.args.seed,axis=0)
         Xy_yshuffle['y_valid'] = Xy_yshuffle['y_valid'].sample(frac=1,random_state=self.args.seed,axis=0)
         Xy_yshuffle = load_n_predict(params_dict, Xy_yshuffle)  
         verify_results['y_shuffle'] = Xy_yshuffle[f'{verify_results["error_type"]}_valid']
@@ -260,7 +257,7 @@ class verify:
         higher_thres_valid = (1+self.args.thres_test)*verify_results['original_score_valid']
         lower_thres_valid = (1-self.args.thres_test)*verify_results['original_score_valid']
 
-        for i,test_ver in enumerate(['X_shuffle', 'cv_score', 'onehot', 'y_shuffle']):
+        for i,test_ver in enumerate(['y_mean', 'cv_score', 'onehot', 'y_shuffle']):
             # the CV test should give values as good as the originals, while the other tests
             # should give worse results. MAE and RMSE go in the opposite direction as R2,
             # F1 scores and MCC
@@ -291,7 +288,7 @@ class verify:
                     colors[i] = grey_color
                     results_print[i] = f'\n         - {self.args.kfold}-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: {verify_results["error_type"].upper()} = {verify_results["cv_score"]:.2}'
 
-            elif test_ver in ['X_shuffle', 'y_shuffle', 'onehot']:
+            elif test_ver in ['y_mean', 'y_shuffle', 'onehot']:
                 if verify_results['error_type'] in ['mae','rmse']:
                     if verify_results[test_ver] <= higher_thres_valid:
                         colors[i] = red_color
@@ -324,7 +321,7 @@ class verify:
         sb.reset_defaults()
         _, ax = plt.subplots(figsize=(7.45,6), subplot_kw=dict(aspect="equal"))
         
-        recipe = ["X-shuffle",
+        recipe = ["y-mean",
                 f"{self.args.kfold}-fold CV",
                 "One-hot",
                 "y-shuffle"]
@@ -377,7 +374,7 @@ class verify:
         verify_results_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.dat'
         print_ver += f"\n   o  VERIFY test values saved in {verify_results_file}:"
         print_ver += f'\n      Results of the VERIFY tests:'
-        # the printing order should be CV, X-shuffle, y-shuffle and one-hot
+        # the printing order should be CV, y-mean, y-shuffle and one-hot
         print_ver += f'\n      Original score (train set for CV): {verify_results["error_type"].upper()} = {verify_results["original_score_train"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test*100}%:'
         print_ver += results_print[1]
         print_ver += f'\n      Original score (validation set): {verify_results["error_type"].upper()} = {verify_results["original_score_valid"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test*100}%:'

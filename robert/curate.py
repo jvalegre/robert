@@ -120,7 +120,7 @@ class curate:
             if len(categorical_vars) == 0:
                 txt_categor += f'\n   - No categorical variables were found'
             else:
-                if self.args.categorical == 'numbers':
+                if self.args.categorical.lower() == 'numbers':
                     txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option:\n'
                     txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
                 else:

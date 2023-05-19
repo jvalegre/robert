@@ -42,12 +42,12 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
     # (otherwise it does not run more than once since best becomes a dictionary)
     best = 100000
 
-    hyperopt_data = {'best': best, 'model': ML_model,
-                'type': self.args.type,
-                'split': self.args.split,
+    hyperopt_data = {'best': best, 'model': ML_model.upper(),
+                'type': self.args.type.lower(),
+                'split': self.args.split.upper(),
                 'train': size, 
                 'seed': self.args.seed,
-                'error_type': self.args.error_type,
+                'error_type': self.args.error_type.lower(),
                 'y': self.args.y,
                 'X_descriptors': Xy_data_hp['X_descriptors'],
                 'destination': self.args.destination.as_posix()}
@@ -281,7 +281,7 @@ def data_split(self,csv_X,csv_y,size):
         # if there is no validation set, use all the points
         training_points = np.arange(0,len(csv_X),1)
     else:
-        if self.args.split == 'KN':
+        if self.args.split.upper() == 'KN':
             # k-neighbours data split
             # standardize the data before k-neighbours-based data splitting
             Xmeans = csv_X.mean(axis=0)
@@ -290,7 +290,7 @@ def data_split(self,csv_X,csv_y,size):
 
             training_points = k_neigh(self,X_scaled,csv_y,size)
 
-        elif self.args.split == 'RND':
+        elif self.args.split.upper() == 'RND':
             n_of_points = int(len(csv_X)*(size/100))
 
             random.seed(self.args.seed)

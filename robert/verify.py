@@ -141,19 +141,19 @@ class verify:
         '''
 
         # adjust the scoring type
-        if params_dict['type'] == 'reg':
-            if verify_results['error_type'] == 'r2':
+        if params_dict['type'].lower() == 'reg':
+            if verify_results['error_type'].lower() == 'r2':
                 scoring = "r2"
-            elif verify_results['error_type'] == 'mae':
+            elif verify_results['error_type'].lower() == 'mae':
                 scoring = "neg_mean_absolute_error"
-            elif verify_results['error_type'] == 'rmse':
+            elif verify_results['error_type'].lower() == 'rmse':
                 scoring = "neg_root_mean_squared_error"
-        elif params_dict['type'] == 'clas':
-            if verify_results['error_type'] == 'acc':
+        elif params_dict['type'].lower() == 'clas':
+            if verify_results['error_type'].lower() == 'acc':
                 scoring = "accuracy"
-            elif verify_results['error_type'] == 'f1':
+            elif verify_results['error_type'].lower() == 'f1':
                 scoring = "f1"
-            elif verify_results['error_type'] == 'mcc':
+            elif verify_results['error_type'].lower() == 'mcc':
                 scoring = "mcc"        
         
         loaded_model = load_model(params_dict)
@@ -163,7 +163,7 @@ class verify:
         cv_score = cross_val_score(loaded_model, Xy_data['X_train_scaled'], 
                     Xy_data['y_train'], cv=self.args.kfold, scoring=scoring)
         # for MAE and RMSE, sklearn takes negative values
-        if verify_results['error_type'] in ['mae','rmse']:
+        if verify_results['error_type'].lower() in ['mae','rmse']:
             cv_score = -cv_score
         verify_results['cv_score'] = cv_score.mean()
         verify_results['cv_std'] = cv_score.std()
@@ -178,10 +178,10 @@ class verify:
 
         Xy_ymean = Xy_data.copy()
         y_mean_array = np.ones(len(Xy_ymean['y_valid']))*(Xy_ymean['y_valid'].mean())
-        if params_dict['type'] == 'reg':
+        if params_dict['type'].lower() == 'reg':
             Xy_ymean['r2_valid'], Xy_ymean['mae_valid'], Xy_ymean['rmse_valid'] = get_prediction_results(params_dict,Xy_ymean['y_valid'],y_mean_array)
         
-        elif params_dict['type'] == 'clas':
+        elif params_dict['type'].lower() == 'clas':
             Xy_ymean['acc_valid'], Xy_ymean['f1_valid'], Xy_ymean['mcc_valid'] = get_prediction_results(params_dict,Xy_ymean['y_valid'],y_mean_array)
 
         verify_results['y_mean'] = Xy_ymean[f'{verify_results["error_type"]}_valid']
@@ -262,7 +262,7 @@ class verify:
             # should give worse results. MAE and RMSE go in the opposite direction as R2,
             # F1 scores and MCC
             if test_ver == 'cv_score':
-                if verify_results['error_type'] in ['mae','rmse']:
+                if verify_results['error_type'].lower() in ['mae','rmse']:
                     if verify_results[test_ver] >= higher_thres_train:
                         colors[i] = red_color
                         results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_train:.2})'
@@ -289,7 +289,7 @@ class verify:
                     results_print[i] = f'\n         - {self.args.kfold}-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: {verify_results["error_type"].upper()} = {verify_results["cv_score"]:.2}'
 
             elif test_ver in ['y_mean', 'y_shuffle', 'onehot']:
-                if verify_results['error_type'] in ['mae','rmse']:
+                if verify_results['error_type'].lower() in ['mae','rmse']:
                     if verify_results[test_ver] <= higher_thres_valid:
                         colors[i] = red_color
                         results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'

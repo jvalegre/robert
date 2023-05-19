@@ -22,21 +22,21 @@ path_generate = path_main + "/GENERATE"
         (
             "reduced"
         ),  # test with less models and partition sizes
-        # (
-        #     "reduced_noPFI"
-        # ),  # test to disable the PFI analysis
-        # (
-        #     "reduced_PFImax"
-        # ),  # test to select the number of PFI features
+        (
+            "reduced_noPFI"
+        ),  # test to disable the PFI analysis
+        (
+            "reduced_PFImax"
+        ),  # test to select the number of PFI features
         (
             "reduced_random"
-        ),  # test for categorical models
-        # (
-        #     "reduced_categ"
-        # ),  # test for categorical models
-        # (
-        #     "standard"
-        # ),  # standard test
+        ),  # test for random (RND) splitting
+        (
+            "reduced_clas"
+        ),  # test for clasification models
+        (
+            "standard"
+        ),  # standard test
     ],
 )
 def test_GENERATE(test_job):
@@ -54,18 +54,25 @@ def test_GENERATE(test_job):
                 os.remove(dat_file)
 
     # runs the program with the different tests
+    if test_job == 'reduced_clas':
+        csv_name = 'Robert_example_clas.csv'
+    else:
+        csv_name = 'CURATE/Robert_example_CURATE.csv'
     cmd_robert = [
         "python",
         "-m",
         "robert",
         "--generate",
-        "--csv_name", "CURATE/Robert_example_CURATE.csv",
+        "--csv_name", csv_name,
         '--y', 'Target_values',
         "--ignore", "['Name']",
         "--epochs", "10"
         ]
 
-    if test_job != 'standard':
+    if test_job == 'standard':
+        model_list = ['RF','GB','NN','VR']
+        train_list = [60,70,80,90]
+    else:
         model_list = ['RF']
         train_list = [60]
         cmd_robert = cmd_robert + [
@@ -78,6 +85,8 @@ def test_GENERATE(test_job):
             cmd_robert = cmd_robert + ["--pfi_max", "2"]
         elif test_job == 'reduced_random':
             cmd_robert = cmd_robert + ["--split", "rnd"]
+        elif test_job == 'reduced_clas':
+            cmd_robert = cmd_robert + ["--type", "clas"]
 
     subprocess.run(cmd_robert)
 
@@ -87,7 +96,10 @@ def test_GENERATE(test_job):
     outfile.close()
     assert "ROBERT v" in outlines[0]
     assert "- 37 datapoints" in outlines[9]
-    assert "- 13 accepted descriptors" in outlines[10]
+    if test_job != 'reduced_clas':
+        assert "- 12 accepted descriptors" in outlines[10]
+    else:
+        assert "- 9 accepted descriptors" in outlines[10]
     assert "- 1 ignored descriptors" in outlines[11]
     assert "- 0 discarded descriptors" in outlines[12]
     assert f"- 1/{len(model_list) * len(train_list)}" in outlines[16]
@@ -107,9 +119,12 @@ def test_GENERATE(test_job):
         assert len(best_amount) == 2
         params_best = pd.read_csv(best_amount[0])
         db_best = pd.read_csv(best_amount[1])
-        if test_job in ['reduced','reduced_PFImax']:
+        if test_job in ['reduced','reduced_PFImax','reduced_random']:
             if folder == 'No_PFI':
-                desc_list = ['x2', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'Csub-O', 'H-O']
+                if test_job != 'reduced_clas':
+                    desc_list = ['x2', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'Csub-O', 'H-O']
+                else:
+                    desc_list = ['x1', 'x2', 'x3', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10']
             elif folder == 'PFI':
                 if test_job == 'reduced':
                     desc_list = ['x6', 'x7', 'x10']
@@ -119,6 +134,12 @@ def test_GENERATE(test_job):
                     assert db_best['Set'][3] == 'Validation'
                 elif test_job =='reduced_PFImax':
                     desc_list = ['x6', 'x7']
+                elif test_job == 'reduced_random':
+                    desc_list = ['x6', 'x7', 'x10']
+                    assert db_best['Set'][0] == 'Validation'
+                    assert db_best['Set'][1] == 'Validation'
+                    assert db_best['Set'][2] == 'Training'
+                    assert db_best['Set'][3] == 'Training'
             for var in desc_list:
                 assert var in params_best['X_descriptors'][0]
             assert len(desc_list) == len(params_best['X_descriptors'][0].split(','))
@@ -129,7 +150,6 @@ def test_GENERATE(test_job):
         assert os.path.exists(f'{path_generate}/Raw_data/Heatmap ML models with PFI filter.png')
     else:
         assert not os.path.exists(f'{path_generate}/Raw_data/Heatmap ML models with PFI filter.png')
-
 
     # check random splitting
     # Xx

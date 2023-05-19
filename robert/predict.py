@@ -107,7 +107,7 @@ class predict:
                 _ = PFI_plot(self,Xy_data,params_dict,path_n_suffix)
 
                 # Outlier analysis
-                if params_dict['type'] == 'reg':
+                if params_dict['type'].lower() == 'reg':
                     _ = outlier_plot(self,Xy_data,path_n_suffix,name_points,colors)
 
         _ = finish_print(self,start_time,'PREDICT')

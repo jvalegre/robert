@@ -56,7 +56,7 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     Plot graphs of predicted vs actual values for train, validation and test sets
     '''
 
-    if params_dict['type'] == 'clas':
+    if params_dict['type'].lower() == 'clas':
         # load the ML model
         loaded_model = load_model(params_dict)
         # Fit the model with the training set
@@ -74,10 +74,10 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
             }
 
     self.args.log.write(f"\n   o  Saving graphs and CSV databases in {Path(os.getcwd()).joinpath('PREDICT')}:")
-    if params_dict['type'] == 'reg':
+    if params_dict['type'].lower() == 'reg':
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
 
-    elif params_dict['type'] == 'clas':
+    elif params_dict['type'].lower() == 'clas':
         for set_type in set_types:
             _ = graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix)
     
@@ -217,6 +217,10 @@ def save_predictions(self,Xy_data,params_dir):
     # store the names of the datapoints
     name_points = {}
     if self.args.names != '':
+        if self.args.names.lower() in Xy_orig_train: # accounts for upper/lowercase mismatches
+            self.args.names = self.args.names.lower()
+        if self.args.names.upper() in Xy_orig_train:
+            self.args.names = self.args.names.upper()
         if self.args.names in Xy_orig_train:
             name_points['train'] = Xy_orig_train[self.args.names]
             name_points['valid'] = Xy_orig_valid[self.args.names]
@@ -257,13 +261,13 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     print_results += f"\n      -  Proportion {set_print} = {prop_print}"
 
     # print results and save dat file
-    if params_dict['type'] == 'reg':
+    if params_dict['type'].lower() == 'reg':
         print_results += f"\n      -  Train : R2 = {Xy_data['r2_train']:.2}, MAE = {Xy_data['mae_train']:.2}, RMSE = {Xy_data['rmse_train']:.2}"
         print_results += f"\n      -  Validation : R2 = {Xy_data['r2_valid']:.2}, MAE = {Xy_data['mae_valid']:.2}, RMSE = {Xy_data['rmse_valid']:.2}"
         if 'y_test' in Xy_data:
             print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
 
-    elif params_dict['type'] == 'clas':
+    elif params_dict['type'].lower() == 'clas':
         print_results += f"\n      -  Train : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         print_results += f"\n      -  Validation : Accuracy = {Xy_data['acc_valid']:.2}, F1 score = {Xy_data['f1_valid']:.2}, MCC = {Xy_data['mcc_valid']:.2}"
         if 'y_test' in Xy_data:
@@ -377,9 +381,9 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
 
     pfi_results_file = f'{os.path.dirname(path_n_suffix)}/PFI_{os.path.basename(path_n_suffix)}.dat'
     print_PFI += f"\n   o  PFI values saved in {pfi_results_file}:"
-    if params_dict['type'] == 'reg':
+    if params_dict['type'].lower() == 'reg':
         print_PFI += f'\n      Original score (from model.score, R2) = {score_model:.2}'
-    elif params_dict['type'] == 'clas':
+    elif params_dict['type'].lower() == 'clas':
         print_PFI += f'\n      Original score (from model.score, accuracy) = {score_model:.2}'
     # shown from higher to lower values
     PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))

@@ -287,7 +287,7 @@ def load_variables(kwargs, robert_module):
     
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
-            if self.type == 'clas':
+            if self.type.lower() == 'clas':
                 self.error_type = 'acc'
 
         if robert_module.upper() in ['PREDICT','VERIFY']:
@@ -366,6 +366,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     curate_valid = False
                 if model_type.lower() == 'mvl' and self.type.lower() == 'clas':
                     self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")                 
+                    curate_valid = False
 
             if len(self.model) == 0:
                 self.log.write(f"\nx  Choose an ML model in the model option!")
@@ -390,11 +391,11 @@ def sanity_checks(self, type_checks, module, columns_csv):
     if type_checks == 'initial' and module.lower() in ['generate','verify','predict','report']:
 
         if type_checks == 'initial' and module.lower() in ['generate','verify']:
-            if self.type.lower() == 'reg' and self.error_type not in ['rmse','mae','r2']:
+            if self.type.lower() == 'reg' and self.error_type.lower() not in ['rmse','mae','r2']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
                 curate_valid = False
 
-            if self.type.lower() == 'clas' and self.error_type not in ['mcc','f1','acc']:
+            if self.type.lower() == 'clas' and self.error_type.lower() not in ['mcc','f1','acc']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1', 'acc'")
                 curate_valid = False
         
@@ -440,8 +441,13 @@ def sanity_checks(self, type_checks, module, columns_csv):
     elif type_checks == 'csv_db':
         if module.lower() != 'predict':
             if self.y not in columns_csv:
-                self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
-                curate_valid = False
+                if self.y.lower() in columns_csv: # accounts for upper/lowercase mismatches
+                    self.y = self.y.lower()
+                elif self.y.upper() in columns_csv:
+                    self.y = self.y.upper()
+                else:
+                    self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
+                    curate_valid = False
 
             for val in self.discard:
                 if val not in columns_csv:
@@ -466,7 +472,7 @@ def load_database(self,csv_load,module):
         csv_df = csv_df.drop(self.args.discard, axis=1)
         total_amount = len(csv_df.columns)
         ignored_descs = len(self.args.ignore)
-        accepted_descs = total_amount - ignored_descs
+        accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
         if module.lower() not in ['aqme']:
             if module.lower() not in ['predict']:
                 txt_load = f'\no  Database {csv_load} loaded successfully, including:'
@@ -520,24 +526,24 @@ def standardize(self,X_train,X_valid):
 def load_model(params):
 
     # load regressor models
-    if params['type'] == 'reg':
+    if params['type'].lower() == 'reg':
         loaded_model = load_model_reg(params)
 
     # load classifier models
-    elif params['type'] == 'clas':
+    elif params['type'].lower() == 'clas':
         loaded_model = load_model_clas(params)
 
     return loaded_model
 
 
 def load_model_reg(params):
-    if params['model'] == 'RF':     
+    if params['model'].upper() == 'RF':     
         loaded_model = RandomForestRegressor(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 random_state=params['seed'])
 
-    elif params['model']  == 'GB':    
+    elif params['model'].upper() == 'GB':    
         loaded_model = GradientBoostingRegressor(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
@@ -545,12 +551,12 @@ def load_model_reg(params):
                                 validation_fraction=params['validation_fraction'],
                                 random_state=params['seed'])
 
-    elif params['model']  == 'AdaB':
+    elif params['model'].upper() == 'ADAB':
         loaded_model = AdaBoostRegressor(n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 random_state=params['seed'])
 
-    elif params['model']  == 'NN':
+    elif params['model'].upper() == 'NN':
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -558,7 +564,7 @@ def load_model_reg(params):
                                 validation_fraction=params['validation_fraction'],
                                 random_state=params['seed'])                    
             
-    elif params['model']  == 'VR':
+    elif params['model'].upper() == 'VR':
         r1 = GradientBoostingRegressor(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
@@ -577,7 +583,7 @@ def load_model_reg(params):
                                 random_state=params['seed'])
         loaded_model = VotingRegressor([('gb', r1), ('rf', r2), ('nn', r3)])
 
-    elif params['model']  == 'MVL':
+    elif params['model'].upper() == 'MVL':
         loaded_model = LinearRegression()
 
     return loaded_model
@@ -585,13 +591,13 @@ def load_model_reg(params):
 
 def load_model_clas(params):
 
-    if params['model']  == 'RF':     
+    if params['model'].upper() == 'RF':     
         loaded_model = RandomForestClassifier(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 random_state=params['seed'])
 
-    elif params['model']  == 'GB':    
+    elif params['model'].upper() == 'GB':    
         loaded_model = GradientBoostingClassifier(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
@@ -599,12 +605,12 @@ def load_model_clas(params):
                                 validation_fraction=params['validation_fraction'],
                                 random_state=params['seed'])
 
-    elif params['model']  == 'AdaB':
+    elif params['model'].upper() == 'ADAB':
             loaded_model = AdaBoostClassifier(n_estimators=params['n_estimators'],
                                     learning_rate=params['learning_rate'],
                                     random_state=params['seed'])
 
-    elif params['model']  == 'NN':
+    elif params['model'].upper() == 'NN':
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -612,7 +618,7 @@ def load_model_clas(params):
                                 validation_fraction=params['validation_fraction'],
                                 random_state=params['seed'])
 
-    elif params['model']  == 'VR':
+    elif params['model'].upper() == 'VR':
         r1 = GradientBoostingClassifier(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
@@ -654,7 +660,7 @@ def load_n_predict(params, data, hyperopt=False):
 
     # for the hyperoptimizer
     # oob set results
-    if params['type'] == 'reg':
+    if params['type'].lower() == 'reg':
         data['r2_train'], data['mae_train'], data['rmse_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = data['r2_train'], data['mae_train'], data['rmse_train']
@@ -664,11 +670,11 @@ def load_n_predict(params, data, hyperopt=False):
             if 'y_test' in data:
                 data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
         if hyperopt:
-            if params['error_type'] == 'rmse':
+            if params['error_type'].lower() == 'rmse':
                 opt_target = data['rmse_valid']
-            elif params['error_type'] == 'mae':
+            elif params['error_type'].lower() == 'mae':
                 opt_target = data['mae_valid']
-            elif params['error_type'] == 'r2':
+            elif params['error_type'].lower() == 'r2':
                 # avoids problems with regression lines with good R2 in validation that go in a different
                 # direction of the regression in train
                 score_model = loaded_model.score(data['X_valid_scaled'], data['y_valid'])
@@ -680,7 +686,7 @@ def load_n_predict(params, data, hyperopt=False):
         else:
             return data
     
-    elif params['type'] == 'clas':
+    elif params['type'].lower() == 'clas':
         data['acc_train'], data['f1_train'], data['mcc_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = data['acc_train'], data['f1_train'], data['mcc_train']
@@ -690,11 +696,11 @@ def load_n_predict(params, data, hyperopt=False):
             if 'y_test' in data:
                 data['acc_test'], data['f1_test'], data['mcc_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
         if hyperopt:
-            if params['error_type'] == 'mcc':
+            if params['error_type'].lower() == 'mcc':
                 opt_target = data['mcc_valid']
-            elif params['error_type'] == 'f1':
+            elif params['error_type'].lower() == 'f1':
                 opt_target = data['f1_valid']
-            elif params['error_type'] == 'acc':
+            elif params['error_type'].lower() == 'acc':
                 opt_target = data['acc_valid']
             return opt_target
         else:
@@ -702,14 +708,14 @@ def load_n_predict(params, data, hyperopt=False):
 
 
 def get_prediction_results(params,y,y_pred):
-    if params['type'] == 'reg':
+    if params['type'].lower() == 'reg':
         mae = mean_absolute_error(y, y_pred)
         rmse = np.sqrt(mean_squared_error(y, y_pred))
         _, _, r_value, _, _ = stats.linregress(y, y_pred)
         r2 = r_value**2
         return r2, mae, rmse
 
-    elif params['type'] == 'clas':
+    elif params['type'].lower() == 'clas':
         acc = accuracy_score(y,y_pred)
         f1_score_val = f1_score(y,y_pred)
         mcc = matthews_corrcoef(y,y_pred)

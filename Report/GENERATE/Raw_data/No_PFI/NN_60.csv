@@ -1,2 +1,2 @@
 train,split,model,type,seed,y,error_type,X_descriptors,batch_size,hidden_layer_sizes,learning_rate_init,max_iter,validation_fraction,rmse
-60,KN,NN,reg,0,dG,rmse,"['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole', 'Sig2']",320,128,0.001,200,0.2,0.22510477617164645
+60,KN,NN,reg,0,solub,rmse,"['mulliken charges', 'Dipole module/D', 'HOMO', 'Total polarizability alpha', 'Total FOD', 'NOCount', 'NumAliphaticRings', 'NumHDonors', 'NumRotatableBonds', 'TPSA', 'MolLogP']",40,128,0.005,500,0.1,0.4294933675972826

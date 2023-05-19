@@ -1,6 +1,0 @@
-
-   o  PFI plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_NN_60_PFI.png
-   o  PFI values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_NN_60_PFI.dat:
-      Original score (from model.score, R2) = 0.58
-      -  beta = 0.55 +- 0.25
-      -  gamma = 0.51 +- 0.3

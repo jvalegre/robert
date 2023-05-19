@@ -1,94 +1,105 @@
-ROBERT v 0.0.1 2023/05/02 20:47:18 
+ROBERT v 0.0.1 2023/05/01 20:57:09 
 Citation: ROBERT v 0.0.1, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert
 
-Command line used in ROBERT: robert --ignore ['solvent','sample'] --y dG --csv_name Bandar_db.csv --epoch 10 --pfi_max 2 --train [60,70,80]
+Command line used in ROBERT: robert --aqme --csv_name solubility.csv --y solub --ignore ['smiles','code_name'] --csearch_keywords --sample 2 --qdescp_keywords --qdescp_atom P
 
 
 o  Representation of predictions and analysis of ML models with the PREDICT module
 
-o  ML model NN_60.csv (with no PFI filter) and its corresponding Xy database were loaded successfully, including:
-   - Target value: dG
+o  ML model NN_80.csv (with no PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: solub
    - Model: NN
-   - Descriptors: ['beta', 'gamma', 'dielectric', 'dispersion', 'polar', 'hydrogen', 'sum', 'dipole', 'Sig2']
-   - Training points: 12
-   - Validation points: 8
-      -  Train set with predicted results: NN_60_train_No_PFI.csv
-      -  Validation set with predicted results: NN_60_valid_No_PFI.csv
+   - Descriptors: ['mulliken charges', 'Dipole module/D', 'HOMO', 'Total polarizability alpha', 'Total FOD', 'NOCount', 'NumAliphaticRings', 'NumHDonors', 'NumRotatableBonds', 'TPSA', 'MolLogP']
+   - Training points: 20
+   - Validation points: 5
+      -  Train set with predicted results: NN_80_train_No_PFI.csv
+      -  Validation set with predicted results: NN_80_valid_No_PFI.csv
 
-   o  Saving graphs and CSV databases in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT:
-      -  Graph in: C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Results_NN_60_No_PFI.png
+   o  Saving graphs and CSV databases in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT:
+      -  Graph in: /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Results_NN_80_No_PFI.png
 
-   o  Results saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Results_NN_60_No_PFI.dat:
-      -  Points Train:Validation = 12:8
-      -  Proportion Train:Validation = 60:40
-      -  Train : R2 = 0.51, MAE = 0.32, RMSE = 0.4
-      -  Validation : R2 = 0.51, MAE = 0.18, RMSE = 0.23
+   o  Results saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Results_NN_80_No_PFI.dat:
+      -  Points Train:Validation = 20:5
+      -  Proportion Train:Validation = 80:20
+      -  Train : R2 = 0.96, MAE = 0.24, RMSE = 0.32
+      -  Validation : R2 = 0.93, MAE = 0.27, RMSE = 0.35
 
-   o  SHAP plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/SHAP_NN_60_No_PFI.png
-   o  SHAP values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/SHAP_NN_60_No_PFI.dat:
-      -  gamma = min: -0.24, max: 0.21
-      -  beta = min: -0.12, max: 0.19
-      -  Sig2 = min: -0.043, max: 0.13
-      -  dispersion = min: -0.052, max: 0.13
-      -  polar = min: -0.088, max: 0.081
-      -  dipole = min: -0.029, max: 0.063
-      -  dielectric = min: -0.071, max: 0.059
-      -  sum = min: -0.045, max: 0.042
-      -  hydrogen = min: -0.014, max: 0.0088
+   o  SHAP plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/SHAP_NN_80_No_PFI.png
+   o  SHAP values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/SHAP_NN_80_No_PFI.dat:
+      -  TPSA = min: -0.6, max: 0.5
+      -  NumHDonors = min: -0.13, max: 0.46
+      -  MolLogP = min: -0.25, max: 0.38
+      -  Total polarizability alpha = min: -0.44, max: 0.24
+      -  NumRotatableBonds = min: -0.36, max: 0.22
+      -  Total FOD = min: -0.082, max: 0.18
+      -  Dipole module/D = min: -0.36, max: 0.13
+      -  HOMO = min: -0.13, max: 0.067
+      -  NOCount = min: -0.093, max: 0.046
+      -  mulliken charges = min: 0.0, max: 0.0
+      -  NumAliphaticRings = min: 0.0, max: 0.0
 
-   o  PFI plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_NN_60_No_PFI.png
-   o  PFI values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_NN_60_No_PFI.dat:
-      Original score (from model.score, R2) = 0.5
-      -  gamma = 1.2 +- 0.6
-      -  beta = 0.19 +- 0.22
-      -  dielectric = 0.14 +- 0.24
-      -  dipole = 0.13 +- 0.13
-      -  Sig2 = 0.098 +- 0.051
-      -  sum = 0.065 +- 0.081
-      -  polar = 0.011 +- 0.18
-      -  hydrogen = 0.0082 +- 0.022
-      -  dispersion = -0.11 +- 0.09
+   o  PFI plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_NN_80_No_PFI.png
+   o  PFI values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_NN_80_No_PFI.dat:
+      Original score (from model.score, R2) = 0.89
+      -  TPSA = 0.34 +- 0.29
+      -  Total polarizability alpha = 0.16 +- 0.12
+      -  NumRotatableBonds = 0.13 +- 0.086
+      -  Dipole module/D = 0.12 +- 0.076
+      -  Total FOD = 0.088 +- 0.054
+      -  HOMO = 0.037 +- 0.037
+      -  NOCount = 0.021 +- 0.019
+      -  NumHDonors = 0.018 +- 0.046
+      -  mulliken charges = 0.0 +- 0.0
+      -  NumAliphaticRings = 0.0 +- 0.0
 
-   o  Outliers plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Outliers_NN_60_No_PFI.png
-   o  Outlier values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Outliers_NN_60_No_PFI.dat:
+   o  Outliers plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Outliers_NN_80_No_PFI.png
+   o  Outlier values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Outliers_NN_80_No_PFI.dat:
       x  No variable names found or names option not specified! Outliers will be printed with no names
-      Train: 1 outliers out of 12 datapoints (8.3%)
-      Validation: 0 outliers out of 8 datapoints (0.0%)
+      Train: 1 outliers out of 20 datapoints (5.0%)
+      Validation: 1 outliers out of 5 datapoints (20.0%)
 
-o  ML model NN_60_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successfully, including:
-   - Target value: dG
-   - Model: NN
-   - Descriptors: ['beta', 'gamma']
-   - Training points: 12
-   - Validation points: 8
-      -  Train set with predicted results: NN_60_train_PFI.csv
-      -  Validation set with predicted results: NN_60_valid_PFI.csv
+o  ML model VR_90_PFI.csv (with PFI filter) and its corresponding Xy database were loaded successfully, including:
+   - Target value: solub
+   - Model: VR
+   - Descriptors: ['Total polarizability alpha', 'Total FOD', 'NOCount', 'NumRotatableBonds', 'TPSA', 'MolLogP']
+   - Training points: 22
+   - Validation points: 3
+      -  Train set with predicted results: VR_90_train_PFI.csv
+      -  Validation set with predicted results: VR_90_valid_PFI.csv
 
-   o  Saving graphs and CSV databases in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT:
-      -  Graph in: C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Results_NN_60_PFI.png
+   o  Saving graphs and CSV databases in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT:
+      -  Graph in: /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Results_VR_90_PFI.png
 
-   o  Results saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Results_NN_60_PFI.dat:
-      -  Points Train:Validation = 12:8
-      -  Proportion Train:Validation = 60:40
-      -  Train : R2 = 0.47, MAE = 0.28, RMSE = 0.39
-      -  Validation : R2 = 0.6, MAE = 0.18, RMSE = 0.21
+   o  Results saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Results_VR_90_PFI.dat:
+      -  Points Train:Validation = 22:3
+      -  Proportion Train:Validation = 88:12
+      -  Train : R2 = 0.99, MAE = 0.18, RMSE = 0.22
+      -  Validation : R2 = 0.93, MAE = 0.36, RMSE = 0.36
 
-   o  SHAP plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/SHAP_NN_60_PFI.png
-   o  SHAP values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/SHAP_NN_60_PFI.dat:
-      -  beta = min: -0.21, max: 0.4
-      -  gamma = min: -0.22, max: 0.24
+   o  SHAP plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/SHAP_VR_90_PFI.png
+   o  SHAP values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/SHAP_VR_90_PFI.dat:
+      -  MolLogP = min: -0.45, max: 0.23
+      -  NOCount = min: -0.25, max: 0.13
+      -  Total polarizability alpha = min: -0.12, max: 0.13
+      -  TPSA = min: -0.2, max: 0.11
+      -  NumRotatableBonds = min: -0.12, max: 0.089
+      -  Total FOD = min: -0.028, max: 0.02
 
-   o  PFI plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_NN_60_PFI.png
-   o  PFI values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_NN_60_PFI.dat:
-      Original score (from model.score, R2) = 0.58
-      -  beta = 0.55 +- 0.25
-      -  gamma = 0.51 +- 0.3
+   o  PFI plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_VR_90_PFI.png
+   o  PFI values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_VR_90_PFI.dat:
+      Original score (from model.score, R2) = 0.73
+      -  MolLogP = 0.66 +- 0.42
+      -  NOCount = 0.32 +- 0.25
+      -  TPSA = 0.24 +- 0.2
+      -  NumRotatableBonds = 0.049 +- 0.12
+      -  Total polarizability alpha = 0.0052 +- 0.093
+      -  Total FOD = -0.036 +- 0.022
 
-   o  Outliers plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Outliers_NN_60_PFI.png
-   o  Outlier values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Outliers_NN_60_PFI.dat:
+   o  Outliers plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Outliers_VR_90_PFI.png
+   o  Outlier values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Outliers_VR_90_PFI.dat:
       x  No variable names found or names option not specified! Outliers will be printed with no names
-      Train: 1 outliers out of 12 datapoints (8.3%)
-      Validation: 0 outliers out of 8 datapoints (0.0%)
+      Train: 1 outliers out of 22 datapoints (4.5%)
+      Validation: 1 outliers out of 3 datapoints (33.3%)
 
-Time PREDICT: 8.72 seconds
+Time PREDICT: 8.26 seconds
 

@@ -1,2 +1,2 @@
 train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,learning_rate,validation_fraction,rmse
-70,KN,GB,reg,0,dG,rmse,"['beta', 'gamma']",20,20,1,0.05,0.1,0.38180800627901484
+70,KN,GB,reg,0,solub,rmse,"['Dipole module/D', 'NOCount', 'NumHDonors', 'TPSA', 'MolLogP']",320,20,5,0.05,0.2,0.7670526718825945

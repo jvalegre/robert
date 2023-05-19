@@ -24,6 +24,7 @@ from robert.utils import (load_variables,
     finish_print
 )
 from pathlib import Path
+from weasyprint import HTML
 
 class report:
     """
@@ -45,34 +46,34 @@ class report:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
             
-        # # load data from DAT files
-        # def data_content(self):
-        #     """
-        #     Reads a file and returns a formatted string between two markers
-        #     """
+        # load data from DAT files
+        def data_content(self):
+            """
+            Reads a file and returns a formatted string between two markers
+            """
 
-        #     start_str = X
-        #     end_str = X
-        #     insert_newlines = X
-        #     for module in enumerate(self.args.report_modules):
-        #         data_file = f'{os.getcwd()}/{module}_data.dat'
-        #         if os.path.exists(data_file):
-        #             XX si es el primer dat, haz el header XX
-        #             header_content()
-        #             module_content()
-        #             with open(data_file, 'r', errors="replace") as file:
-        #                 content = file.read()
-        #                 start_pos = content.find(start_str) - 3
-        #                 end_pos = content.find(end_str, start_pos)
-        #                 end_pos = content.find("\n", end_pos)
-        #                 data = content[start_pos:end_pos]
-        #                 lines = data.split('\n')
-        #                 formatted_lines = [
-        #                     insert_newlines('    ' + line[4:] if line.startswith('- ') else line, every)
-        #                     for line in lines
-        #                 ]
+            start_str = X
+            end_str = X
+            insert_newlines = X
+            for module in enumerate(self.args.report_modules):
+                data_file = f'{os.getcwd()}/{module}_data.dat'
+                if os.path.exists(data_file):
+                    XX si es el primer dat, haz el header XX
+                    header_content()
+                    module_content()
+                    with open(data_file, 'r', errors="replace") as file:
+                        content = file.read()
+                        start_pos = content.find(start_str) - 3
+                        end_pos = content.find(end_str, start_pos)
+                        end_pos = content.find("\n", end_pos)
+                        data = content[start_pos:end_pos]
+                        lines = data.split('\n')
+                        formatted_lines = [
+                            insert_newlines('    ' + line[4:] if line.startswith('- ') else line, every)
+                            for line in lines
+                        ]
 
-        #     return '\n'.join(formatted_lines)
+            return '\n'.join(formatted_lines)
 
 
         # load css format

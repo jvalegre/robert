@@ -1,2 +1,2 @@
 train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,rmse
-70,KN,RF,reg,0,dG,rmse,"['beta', 'dipole']",40,80,1,0.2709383922594301
+70,KN,RF,reg,0,solub,rmse,"['Dipole module/D', 'Total polarizability alpha', 'NOCount', 'NumRotatableBonds', 'TPSA', 'MolLogP']",80,320,5,0.4951465711818318

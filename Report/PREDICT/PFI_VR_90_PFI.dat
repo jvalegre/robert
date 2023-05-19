@@ -1,0 +1,10 @@
+
+   o  PFI plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_VR_90_PFI.png
+   o  PFI values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/PFI_VR_90_PFI.dat:
+      Original score (from model.score, R2) = 0.73
+      -  MolLogP = 0.66 +- 0.42
+      -  NOCount = 0.32 +- 0.25
+      -  TPSA = 0.24 +- 0.2
+      -  NumRotatableBonds = 0.049 +- 0.12
+      -  Total polarizability alpha = 0.0052 +- 0.093
+      -  Total FOD = -0.036 +- 0.022

@@ -1,2 +1,2 @@
 train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,rmse
-60,KN,RF,reg,0,dG,rmse,"['beta', 'gamma']",40,80,1,0.3538824033652751
+60,KN,RF,reg,0,solub,rmse,"['NOCount', 'TPSA', 'MolLogP']",80,20,9,0.4456431132363662

@@ -1,0 +1,10 @@
+
+   o  VERIFY donut plots saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/VERIFY/VERIFY_tests_VR_90_PFI.png
+   o  VERIFY test values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/VERIFY/VERIFY_tests_VR_90_PFI.dat:
+      Results of the VERIFY tests:
+      Original score (train set for CV): RMSE = 0.22, with a +- threshold (thres_test option) of 20.0%:
+         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: RMSE = 0.63
+      Original score (validation set): RMSE = 0.36, with a +- threshold (thres_test option) of 20.0%:
+         x X_shuffle: FAILED, RMSE = 0.34 is lower than the threshold (0.43)
+         o y_shuffle: PASSED, RMSE = 1.5 is higher than the threshold (0.43)
+         o onehot: PASSED, RMSE = 1.5 is higher than the threshold (0.43)

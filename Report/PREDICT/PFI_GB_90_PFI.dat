@@ -1,6 +1,0 @@
-
-   o  PFI plot saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_GB_90_PFI.png
-   o  PFI values saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/PFI_GB_90_PFI.dat:
-      Original score (from model.score, R2) = 0.98
-      -  dipole = 0.65 +- 0.92
-      -  beta = 0.26 +- 0.37

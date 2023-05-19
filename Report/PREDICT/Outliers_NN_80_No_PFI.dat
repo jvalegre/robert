@@ -1,0 +1,6 @@
+
+   o  Outliers plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Outliers_NN_80_No_PFI.png
+   o  Outlier values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Outliers_NN_80_No_PFI.dat:
+      x  No variable names found or names option not specified! Outliers will be printed with no names
+      Train: 1 outliers out of 20 datapoints (5.0%)
+      Validation: 1 outliers out of 5 datapoints (20.0%)

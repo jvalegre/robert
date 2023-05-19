@@ -1,6 +1,0 @@
-
-   o  Results saved in C:\Users\David\Desktop\Artículo ROBERT\Pruebas_ROBERT\Regression\Bandar\PREDICT/Results_NN_90_No_PFI.dat:
-      -  Points Train:Validation = 18:2
-      -  Proportion Train:Validation = 90:10
-      -  Train : R2 = 1.0, MAE = 0.021, RMSE = 0.033
-      -  Validation : R2 = 1.0, MAE = 0.2, RMSE = 0.2

@@ -502,13 +502,17 @@ def finish_print(self,start_time,module):
     self.args.log.finalize()
 
 
-def standardize(X_train,X_valid):
+def standardize(self,X_train,X_valid):
     
     # standardizes the data sets using the mean and standard dev from the train set
-    Xmean = X_train.mean(axis=0)
-    Xstd = X_train.std(axis=0)
-    X_train_scaled = (X_train - Xmean) / Xstd
-    X_valid_scaled = (X_valid - Xmean) / Xstd
+    try: # this fails if there are strings as values
+        Xmean = X_train.mean(axis=0)
+        Xstd = X_train.std(axis=0)
+        X_train_scaled = (X_train - Xmean) / Xstd
+        X_valid_scaled = (X_valid - Xmean) / Xstd
+    except TypeError:
+        self.args.log.write(f'   x The standardization process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
+        sys.exit()
 
     return X_train_scaled, X_valid_scaled
 
@@ -731,7 +735,7 @@ def load_db_n_params(self,folder_model,module):
     Xy_data['y_train'] = Xy_train_df[params_df['y'][0]]
     Xy_data['y_valid'] = Xy_valid_df[params_df['y'][0]]
 
-    Xy_data['X_train_scaled'], Xy_data['X_valid_scaled'] = standardize(Xy_data['X_train'],Xy_data['X_valid'])
+    Xy_data['X_train_scaled'], Xy_data['X_valid_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_valid'])
 
     point_count = {}
     point_count['train'] = len(Xy_data['X_train_scaled'])

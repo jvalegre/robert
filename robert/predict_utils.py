@@ -46,7 +46,7 @@ def load_test(self, Xy_data, params_df):
 
     if params_df['y'][0] in Xy_test_df:
         Xy_data['y_test'] = Xy_test_df[params_df['y'][0]]
-    _, Xy_data['X_test_scaled'] = standardize(Xy_data['X_train'],Xy_data['X_test'])
+    _, Xy_data['X_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_test'])
 
     return Xy_data
 

@@ -258,10 +258,14 @@ def load_from_yaml(self,model_type,X_hyperopt):
 
 def prepare_sets(self,csv_X,csv_y,size):
     # split into training and validation sets
-    Xy_data = data_split(self,csv_X,csv_y,size)
+    try:
+        Xy_data = data_split(self,csv_X,csv_y,size)
+    except TypeError:
+        self.args.log.write(f'   x The data split process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
+        sys.exit()
 
     # standardization of X values using the mean and SD of the training set
-    X_train_scaled, X_valid_scaled = standardize(Xy_data['X_train'],Xy_data['X_valid'])
+    X_train_scaled, X_valid_scaled = standardize(self,Xy_data['X_train'],Xy_data['X_valid'])
     Xy_data['X_train_scaled'] = X_train_scaled
     Xy_data['X_valid_scaled'] = X_valid_scaled
 
@@ -369,7 +373,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
 
     Xy_data_PFI['X_train'] = Xy_data['X_train'].drop(discard_idx, axis=1)
     Xy_data_PFI['X_valid'] = Xy_data['X_valid'].drop(discard_idx, axis=1)
-    Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
+    Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(self,Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
     PFI_dict['X_descriptors'] = descriptors_PFI
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 

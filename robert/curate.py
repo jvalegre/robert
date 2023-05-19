@@ -13,6 +13,10 @@ Parameters
          List containing the columns of the input CSV file that will be ignored during the curation process
          (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
          is automatically ignored.
+     destination : str, default=None,
+         Directory to create the output file(s).
+     varfile : str, default=None
+         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
      categorical : str, default='onehot'
          Mode to convert data from columns with categorical variables. As an example, a variable containing 4
          types of C atoms (i.e. primary, secondary, tertiary, quaternary) will be converted into categorical
@@ -29,12 +33,6 @@ Parameters
      thres_y : float, default=0.02
          Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
          if thres_y=0.02, variables that show R**2 < 0.02 will be discarded).
-     destination : str, default=None,
-         Directory to create the output file(s).
-     varfile : str, default=None
-         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-
-
 """
 #####################################################.
 #         This file stores the CURATE class         #

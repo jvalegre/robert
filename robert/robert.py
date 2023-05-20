@@ -119,7 +119,6 @@ def main():
             params_dir=args.params_dir,
             thres_test=args.thres_test,
             kfold=args.kfold,
-            error_type=args.error_type,
             seed=args.seed
         )
 

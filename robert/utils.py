@@ -722,7 +722,7 @@ def get_prediction_results(params,y,y_pred):
         return acc, f1_score_val, mcc
 
 
-def load_db_n_params(self,folder_model,module):
+def load_db_n_params(self,folder_model,module,print_load):
     '''
     Loads the parameters and Xy databases from a folder, add scaled X data and print information
     about the databases
@@ -748,7 +748,8 @@ def load_db_n_params(self,folder_model,module):
     point_count['valid'] = len(Xy_data['X_valid_scaled'])
 
     params_name = os.path.basename(params_path)
-    _ = load_print(self,params_name,suffix,params_df,point_count)
+    if print_load:
+        _ = load_print(self,params_name,suffix,params_df,point_count)
 
     return Xy_data, params_df, params_path, suffix_title
 

@@ -15,26 +15,14 @@ General
          Threshold used to determine if a test pasess. It is determined in % units of diference between
          the R2 (MCC in classificators) of the model and the test (i.e., 0.2 = 20% difference with the 
          original value). Test passes if:
-            1. x- and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
+            1. y-mean and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
             classificators) or the error is greated than X% (from original MAE and RMSE for regressors)
             2. One-hot encoding test: decreases more than X%
             3. K-fold cross validation: decreases less than X%
      kfold : int, default=5,
          The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
-     error_type : str, default: rmse (regression), acc (classification)
-         Target value used during the hyperopt optimization. Options:
-         Regression:
-            1. rmse (root-mean-square error)
-            2. mae (mean absolute error)
-            3. r2 (R-squared)
-         Classification:
-            1. mcc (Matthew's correlation coefficient)
-            2. f1 (F1 score)
-            3. acc (accuracy, fraction of correct predictions)
      seed : int, default=8,
          Random seed used in the ML predictor models, data splitting and other protocols.
-
-
 """
 #####################################################.
 #        This file stores the VERIFY class          #
@@ -47,6 +35,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from pathlib import Path
 import seaborn as sb
+from statistics import mode
 from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     load_db_n_params,
@@ -85,7 +74,7 @@ class verify:
             if os.path.exists(params_dir):
 
                 # load and ML model parameters, and add standardized descriptors
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify")
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",True)
                 
                 # set the parameters for each ML model of the hyperopt optimization
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
@@ -107,21 +96,21 @@ class verify:
 
                 # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
                 # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify")
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
 
                 # calculate scores for the y-shuffle test
                 verify_results = self.yshuffle_test(verify_results,Xy_data,params_dict)
 
                 # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
                 # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify")
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
 
                 # one-hot test (check that if a value isnt 0, the value assigned is 1)
                 verify_results = self.onehot_test(verify_results,Xy_data,params_dict)
 
                 # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
                 # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify")
+                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
 
                 # analysis of results
                 colors,color_codes,results_print = self.analyze_tests(verify_results,params_dict)
@@ -155,7 +144,7 @@ class verify:
                 scoring = "f1"
             elif verify_results['error_type'].lower() == 'mcc':
                 scoring = "mcc"        
-        
+
         loaded_model = load_model(params_dict)
         # Fit the model with the training set
         loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])  
@@ -173,15 +162,18 @@ class verify:
 
     def ymean_test(self,verify_results,Xy_data,params_dict):
         '''
-        Calculate the accuracy of the model when using a flat line of predicted y values (mean of the y values).
+        Calculate the accuracy of the model when using a flat line of predicted y values. For 
+        regression, the mean of the y values is used. For classification, the value that is
+        predicted more often is used.
         '''
 
-        Xy_ymean = Xy_data.copy()
-        y_mean_array = np.ones(len(Xy_ymean['y_valid']))*(Xy_ymean['y_valid'].mean())
+        Xy_ymean = Xy_data.copy()   
         if params_dict['type'].lower() == 'reg':
+            y_mean_array = np.ones(len(Xy_ymean['y_valid']))*(Xy_ymean['y_valid'].mean())
             Xy_ymean['r2_valid'], Xy_ymean['mae_valid'], Xy_ymean['rmse_valid'] = get_prediction_results(params_dict,Xy_ymean['y_valid'],y_mean_array)
         
         elif params_dict['type'].lower() == 'clas':
+            y_mean_array = np.ones(len(Xy_ymean['y_valid']))*mode(Xy_ymean['y_valid'])
             Xy_ymean['acc_valid'], Xy_ymean['f1_valid'], Xy_ymean['mcc_valid'] = get_prediction_results(params_dict,Xy_ymean['y_valid'],y_mean_array)
 
         verify_results['y_mean'] = Xy_ymean[f'{verify_results["error_type"]}_valid']
@@ -372,7 +364,7 @@ class verify:
         '''
         
         verify_results_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.dat'
-        print_ver += f"\n   o  VERIFY test values saved in {verify_results_file}:"
+        print_ver += f"\n   o  VERIFY test values saved in {verify_results_file}"
         print_ver += f'\n      Results of the VERIFY tests:'
         # the printing order should be CV, y-mean, y-shuffle and one-hot
         print_ver += f'\n      Original score (train set for CV): {verify_results["error_type"].upper()} = {verify_results["original_score_train"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test*100}%:'

@@ -29,7 +29,6 @@ General
          (standard from Sklearn webpage: 30).
      names : str, default=''
          Column of the names for each datapoint. Names are used to print outliers.
-
 """
 #####################################################.
 #        This file stores the PREDICT class         #
@@ -79,7 +78,7 @@ class predict:
         for params_dir in params_dirs:
             if os.path.exists(params_dir):
                 # load and ML model parameters, and add standardized descriptors
-                Xy_data, params_df, _, _ = load_db_n_params(self,params_dir,"verify") # module 'verify' since PREDICT follows similar protocols
+                Xy_data, params_df, _, _ = load_db_n_params(self,params_dir,"verify",True) # module 'verify' since PREDICT follows similar protocols
 
                 # load test set and add standardized descriptors
                 if self.args.csv_test != '':

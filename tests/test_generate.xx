@@ -70,10 +70,7 @@ def test_GENERATE(test_job):
         "--epochs", "10"
         ]
 
-    if test_job == 'standard':
-        model_list = ['RF','GB','NN','VR']
-        train_list = [60,70,80,90]
-    else:
+    if test_job != 'standard':
         model_list = ['RF']
         train_list = [60]
         cmd_robert = cmd_robert + [

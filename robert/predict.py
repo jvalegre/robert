@@ -26,7 +26,7 @@ General
          Number of descriptors shown in the plot of the PFI analysis.
      pfi_epochs : int, default=30,
          Sets the number of times a feature is randomly shuffled during the PFI analysis
-         (standard from Sklearn webpage: 30).
+         (standard from sklearn webpage: 30).
      names : str, default=''
          Column of the names for each datapoint. Names are used to print outliers.
 """

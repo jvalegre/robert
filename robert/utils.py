@@ -15,6 +15,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from scipy import stats
+from sklearnex import patch_sklearn
+patch_sklearn()
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
 from robert.argument_parser import set_options, var_dict
@@ -29,7 +31,8 @@ from sklearn.ensemble import (
     VotingClassifier)
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
-
+import warnings # this avoids warnings from sklearn
+warnings.filterwarnings("ignore")
 
 robert_version = "0.0.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
@@ -541,7 +544,8 @@ def load_model_reg(params):
         loaded_model = RandomForestRegressor(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
-                                random_state=params['seed'])
+                                random_state=params['seed'],
+                                n_jobs=-1)
 
     elif params['model'].upper() == 'GB':    
         loaded_model = GradientBoostingRegressor(max_depth=params['max_depth'], 
@@ -574,7 +578,8 @@ def load_model_reg(params):
         r2 = RandomForestRegressor(max_depth=params['max_depth'],
                             max_features=params['max_features'],
                             n_estimators=params['n_estimators'],
-                            random_state=params['seed'])
+                            random_state=params['seed'],
+                            n_jobs=-1)
         r3 = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -584,7 +589,7 @@ def load_model_reg(params):
         loaded_model = VotingRegressor([('gb', r1), ('rf', r2), ('nn', r3)])
 
     elif params['model'].upper() == 'MVL':
-        loaded_model = LinearRegression()
+        loaded_model = LinearRegression(n_jobs=-1)
 
     return loaded_model
 
@@ -648,7 +653,9 @@ def load_n_predict(params, data, hyperopt=False):
     loaded_model = load_model(params)
 
     # Fit the model with the training set
-    loaded_model.fit(data['X_train_scaled'], data['y_train'])  
+    # print(np.array(data['X_train_scaled']).tolist(), data['y_train'])
+    # print(data['X_train_scaled'], data['y_train'])
+    loaded_model.fit(np.array(data['X_train_scaled']).tolist(), np.array(data['y_train']).tolist())
     # store the predicted values for training
     data['y_pred_train'] = loaded_model.predict(data['X_train_scaled']).tolist()
 

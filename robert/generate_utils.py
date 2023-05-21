@@ -16,8 +16,6 @@ from sklearn.cluster import KMeans
 import yaml
 import json
 import glob
-import warnings # this avoids warnings from sklearn
-warnings.filterwarnings("ignore")
 from pkg_resources import resource_filename
 from sklearn.inspection import permutation_importance
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
@@ -88,30 +86,30 @@ def hyperopt_params(self, model_type, X_hyperopt):
     # load the parameters of the models from their corresponding yaml files
     params = load_from_yaml(self,model_type,X_hyperopt)
 
-    if model_type == 'RF':
+    if model_type.upper() == 'RF':
         space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
                 'max_features': hp.choice('max_features', params['max_features']),
                 'n_estimators': hp.choice('n_estimators', params['n_estimators'])}  
 
-    elif model_type == 'GB':
+    elif model_type.upper() == 'GB':
         space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
                 'max_features': hp.choice('max_features', params['max_features']),
                 'n_estimators': hp.choice('n_estimators', params['n_estimators']),
                 'learning_rate': hp.choice('learning_rate', params['learning_rate']),
                 'validation_fraction': hp.choice('validation_fraction', params['validation_fraction'])}  
 
-    elif model_type == 'AdaB':
+    elif model_type.upper() == 'ADAB':
         space4rf_hyperopt = {'n_estimators': hp.choice('n_estimators', params['n_estimators']),
             'learning_rate': hp.choice('learning_rate', params['learning_rate'])}  
 
-    elif model_type == 'NN':
+    elif model_type.upper() == 'NN':
         space4rf_hyperopt = {'batch_size': hp.choice('batch_size', params['batch_size']),
                 'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
                 'learning_rate_init': hp.choice('learning_rate_init', params['learning_rate_init']),
                 'max_iter': hp.choice('max_iter', params['max_iter']),
                 'validation_fraction': hp.choice('validation_fraction', params['validation_fraction'])}
 
-    elif model_type == 'VR':
+    elif model_type.upper() == 'VR':
         space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
                 'max_features': hp.choice('max_features', params['max_features']),
                 'n_estimators': hp.choice('n_estimators', params['n_estimators']),
@@ -122,7 +120,7 @@ def hyperopt_params(self, model_type, X_hyperopt):
                 'learning_rate_init': hp.choice('learning_rate_init', params['learning_rate_init']),
                 'max_iter': hp.choice('max_iter', params['max_iter'])}  
 
-    elif model_type == 'MVL':
+    elif model_type.upper() == 'MVL':
         space4rf_hyperopt = {'max_features': hp.choice('max_features', params['max_features'])}
 
     return space4rf_hyperopt
@@ -375,6 +373,8 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
     Xy_data_PFI['X_valid'] = Xy_data['X_valid'].drop(discard_idx, axis=1)
     Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(self,Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
     PFI_dict['X_descriptors'] = descriptors_PFI
+    if 'max_features' in  PFI_dict and PFI_dict['max_features'] > len(descriptors_PFI):
+        PFI_dict['max_features'] = len(descriptors_PFI)
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)

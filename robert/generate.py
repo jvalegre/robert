@@ -27,7 +27,7 @@ General
          Mode for splitting data. Options: 
             1. 'KN' (k-neighbours clustering-based splitting)
             2. 'RND' (random splitting).  
-     model : list, default=['RF','GB','NN','VR'],
+     model : list, default=['RF','GB','NN','ADAB']
          ML models used in the ML scan. Options: 
             1. 'RF' (Random forest)
             2. 'MVL' (Multivariate lineal models)
@@ -60,7 +60,7 @@ General
          Activate the PFI filter of descriptors.
      pfi_epochs : int, default=30,
          Sets the number of times a feature is randomly shuffled during the PFI analysis
-         (standard from Sklearn webpage: 30).
+         (standard from sklearn webpage: 30).
      pfi_threshold : float, default=0.04,
          The PFI filter is X% of the model's score (% adjusted, 0.04 = 4% of the total score during PFI).
          For regression, a value of 0.04 is recommended. For classification, the filter is turned off

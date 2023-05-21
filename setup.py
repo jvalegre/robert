@@ -53,6 +53,7 @@ setup(
         "shap",
         "glib",
         "weasyprint",
+        "scikit-learn-intelex"
         # requires also from conda install if you use pip install
     ],
     python_requires=">=3.0",

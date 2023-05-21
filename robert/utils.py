@@ -16,7 +16,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from sklearnex import patch_sklearn
-patch_sklearn()
+patch_sklearn(verbose=False)
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
 from robert.argument_parser import set_options, var_dict
@@ -576,10 +576,10 @@ def load_model_reg(params):
                                 validation_fraction=params['validation_fraction'],
                                 random_state=params['seed'])
         r2 = RandomForestRegressor(max_depth=params['max_depth'],
-                            max_features=params['max_features'],
-                            n_estimators=params['n_estimators'],
-                            random_state=params['seed'],
-                            n_jobs=-1)
+                                max_features=params['max_features'],
+                                n_estimators=params['n_estimators'],
+                                random_state=params['seed'],
+                                n_jobs=-1)
         r3 = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -600,7 +600,8 @@ def load_model_clas(params):
         loaded_model = RandomForestClassifier(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
-                                random_state=params['seed'])
+                                random_state=params['seed'],
+                                n_jobs=-1)
 
     elif params['model'].upper() == 'GB':    
         loaded_model = GradientBoostingClassifier(max_depth=params['max_depth'], 
@@ -612,8 +613,8 @@ def load_model_clas(params):
 
     elif params['model'].upper() == 'ADAB':
             loaded_model = AdaBoostClassifier(n_estimators=params['n_estimators'],
-                                    learning_rate=params['learning_rate'],
-                                    random_state=params['seed'])
+                                learning_rate=params['learning_rate'],
+                                random_state=params['seed'])
 
     elif params['model'].upper() == 'NN':
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
@@ -631,9 +632,10 @@ def load_model_clas(params):
                                 validation_fraction=params['validation_fraction'],
                                 random_state=params['seed'])
         r2 = RandomForestClassifier(max_depth=params['max_depth'],
-                            max_features=params['max_features'],
-                            n_estimators=params['n_estimators'],
-                            random_state=params['seed'])
+                                max_features=params['max_features'],
+                                n_estimators=params['n_estimators'],
+                                random_state=params['seed'],
+                                n_jobs=-1)
         r3 = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -653,8 +655,6 @@ def load_n_predict(params, data, hyperopt=False):
     loaded_model = load_model(params)
 
     # Fit the model with the training set
-    # print(np.array(data['X_train_scaled']).tolist(), data['y_train'])
-    # print(data['X_train_scaled'], data['y_train'])
     loaded_model.fit(np.array(data['X_train_scaled']).tolist(), np.array(data['y_train']).tolist())
     # store the predicted values for training
     data['y_pred_train'] = loaded_model.predict(data['X_train_scaled']).tolist()

@@ -46,13 +46,13 @@ class aqme:
 
     def __init__(self, **kwargs):
 
-        # check if AQME is installed (required for this module)
-        _ = init_aqme()
-
         start_time = time.time()
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "aqme")
+
+        # check if AQME is installed (required for this module)
+        _ = self.init_aqme()
 
         # load database just to perform data checks (i.e. no need to run AQME if the specified y is not
         # in the database, since the program would crush in the subsequent CURATE job)
@@ -94,16 +94,16 @@ class aqme:
         subprocess.run(command)
 
 
-def init_aqme():
-    '''
-    Checks whether AQME is installed
-    '''
-    
-    try:
-        from aqme.qprep import qprep
-    except ModuleNotFoundError:
-        print("x  AQME is not installed (required for the --aqme option)! You can install the program with 'conda install -c conda-forge aqme'")
-        sys.exit()       
+    def init_aqme(self):
+        '''
+        Checks whether AQME is installed
+        '''
+        
+        try:
+            from aqme.qprep import qprep
+        except ModuleNotFoundError:
+            self.log.write("x  AQME is not installed (required for the --aqme option)! You can install the program with 'conda install -c conda-forge aqme'")
+            sys.exit()       
 
 
 def filter_atom_prop(aqme_db):

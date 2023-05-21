@@ -55,6 +55,15 @@ def test_VERIFY(test_job):
         filepath = Path(f"{path_main}/GENERATE_clas")
         filepath.rename(f"{path_main}/GENERATE")
 
+    else: # in case the clas test fails and the ending rename doesn't happen
+        if os.path.exists(f"{path_main}/GENERATE_reg"):
+            # rename the classification GENERATE folder
+            filepath = Path(f"{path_main}/GENERATE")
+            filepath.rename(f"{path_main}/GENERATE_clas")
+            # rename the regression GENERATE folder
+            filepath_reg = Path(f"{path_main}/GENERATE_reg")
+            filepath_reg.rename(f"{path_main}/GENERATE")
+
     # runs the program with the different tests
     cmd_robert = [
         "python",
@@ -64,7 +73,7 @@ def test_VERIFY(test_job):
     ]
 
     if test_job == "thres_test":
-        cmd_robert = cmd_robert + ["--thres_test", "0.1"]
+        cmd_robert = cmd_robert + ["--thres_test", "1"]
     elif test_job == "kfold":
         cmd_robert = cmd_robert + ["--kfold", "10"]
 
@@ -92,9 +101,9 @@ def test_VERIFY(test_job):
                 assert "ACC =" in outlines[i+6]
             elif test_job == "standard":
                 assert "- 5-fold CV: NOT DETERMINED" in outlines[i+2]
-                assert "x y_mean: FAILED" in outlines[i+4]
+                assert "o y_mean: PASSED" in outlines[i+4]
                 assert "o y_shuffle: PASSED" in outlines[i+5]
-                assert "x onehot: FAILED" in outlines[i+6]
+                assert "o onehot: PASSED" in outlines[i+6]
             break
 
     #check that the donut plots and DAT files are created

@@ -33,6 +33,9 @@ path_generate = path_main + "/GENERATE"
             "reduced_random"
         ),  # test for random (RND) splitting
         (
+            "reduced_others"
+        ),  # test for other models        
+        (
             "reduced_clas"
         ),  # test for clasification models
         (
@@ -53,6 +56,8 @@ def test_GENERATE(test_job):
         for dat_file in dat_files:
             if "GENERATE" in dat_file:
                 os.remove(dat_file)
+    if test_job == 'reduced_clas' and os.path.exists(f"{path_main}/GENERATE_clas"):
+        shutil.rmtree(f"{path_main}/GENERATE_clas")
 
     # runs the program with the different tests
     if test_job == 'reduced_clas':
@@ -71,11 +76,11 @@ def test_GENERATE(test_job):
         ]
 
     if test_job != 'standard':
-        model_list = ['RF']
+        if test_job != 'reduced_others':
+            model_list = ['RF']
+        else:
+            model_list = ['Adab','VR']
         train_list = [60]
-        cmd_robert = cmd_robert + [
-        "--model", f"{model_list}",
-        "--train", f"{train_list}"]
 
         if test_job == "reduced_noPFI":
             cmd_robert = cmd_robert + ["--pfi_filter", "False"]
@@ -85,6 +90,13 @@ def test_GENERATE(test_job):
             cmd_robert = cmd_robert + ["--split", "rnd"]
         elif test_job == 'reduced_clas':
             cmd_robert = cmd_robert + ["--type", "clas"]
+    else: # needed to define the variables, change if default options change
+        model_list = ['RF','GB','NN','MVL']
+        train_list = [60,70,80,90]
+    
+    cmd_robert = cmd_robert + [
+        "--model", f"{model_list}",
+        "--train", f"{train_list}"]
 
     subprocess.run(cmd_robert)
 
@@ -133,7 +145,7 @@ def test_GENERATE(test_job):
                 elif test_job =='reduced_PFImax':
                     desc_list = ['x6', 'x7']
                 elif test_job == 'reduced_random':
-                    desc_list = ['x6', 'x7', 'x10']
+                    desc_list = ['x6', 'x7', 'x10', 'Csub-Csub', 'Csub-H']
                     assert db_best['Set'][0] == 'Validation'
                     assert db_best['Set'][1] == 'Validation'
                     assert db_best['Set'][2] == 'Training'

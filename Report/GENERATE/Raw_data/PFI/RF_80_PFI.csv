@@ -1,2 +1,0 @@
-train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,rmse
-80,KN,RF,reg,0,solub,rmse,"['Dipole module/D', 'Total FOD', 'MolLogP']",3,80,11,0.3864568396197548

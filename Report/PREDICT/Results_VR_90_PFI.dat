@@ -1,6 +1,0 @@
-
-   o  Results saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/Results_VR_90_PFI.dat:
-      -  Points Train:Validation = 22:3
-      -  Proportion Train:Validation = 88:12
-      -  Train : R2 = 0.99, MAE = 0.18, RMSE = 0.22
-      -  Validation : R2 = 0.93, MAE = 0.36, RMSE = 0.36

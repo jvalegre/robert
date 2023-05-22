@@ -1,9 +1,0 @@
-
-   o  SHAP plot saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/SHAP_VR_90_PFI.png
-   o  SHAP values saved in /mnt/netapp1/Store_CSIC/home/csic/qoy/jar/test/PREDICT/SHAP_VR_90_PFI.dat:
-      -  MolLogP = min: -0.45, max: 0.23
-      -  NOCount = min: -0.25, max: 0.13
-      -  Total polarizability alpha = min: -0.12, max: 0.13
-      -  TPSA = min: -0.2, max: 0.11
-      -  NumRotatableBonds = min: -0.12, max: 0.089
-      -  Total FOD = min: -0.028, max: 0.02

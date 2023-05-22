@@ -73,7 +73,7 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
             'alpha' : 1 # from 0 (transparent) to 1 (opaque)
             }
 
-    self.args.log.write(f"\n   o  Saving graphs and CSV databases in {Path(os.getcwd()).joinpath('PREDICT')}:")
+    self.args.log.write(f"\n   o  Saving graphs and CSV databases in:")
     if params_dict['type'].lower() == 'reg':
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
 
@@ -138,7 +138,9 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style):
 
     reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{reg_plot_file}', dpi=300, bbox_inches='tight')
-    self.args.log.write(f"      -  Graph in: {reg_plot_file}")
+
+    path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
+    self.args.log.write(f"      -  Graph in: {path_reduced}")
     plt.clf()
 
 
@@ -179,9 +181,10 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix):
     plt.gcf().axes[0].tick_params(size=14)
     plt.gcf().axes[1].tick_params(size=14)
     clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
-
     plt.savefig(f'{clas_plot_file}', dpi=300, bbox_inches='tight')
-    self.args.log.write(f"      -  Graph in: {clas_plot_file}")
+
+    path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-2:])
+    self.args.log.write(f"      -  Graph in: {path_reduced}")
     plt.clf()
 
 
@@ -237,7 +240,8 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     '''
     
     dat_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.dat'
-    print_results = f"\n   o  Results saved in {dat_file}:"
+    path_reduced = '/'.join(f'{dat_file}'.replace('\\','/').split('/')[-2:])
+    print_results = f"\n   o  Results saved in {path_reduced}:"
     set_print = 'Train:Validation'
 
     # get number of points and proportions
@@ -310,7 +314,8 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     
     plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
     plt.clf()
-    print_shap = f"\n   o  SHAP plot saved in {shap_plot_file}"
+    path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
+    print_shap = f"\n   o  SHAP plot saved in {path_reduced}"
 
     # collect SHAP values and print
     shap_results_file = f'{os.path.dirname(path_n_suffix)}/SHAP_{os.path.basename(path_n_suffix)}.dat'
@@ -330,7 +335,8 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     else:
         min_list, max_list, desc_list = (list(t) for t in zip(*sorted(zip(min_list, max_list, desc_list), reverse=False)))
 
-    print_shap += f"\n   o  SHAP values saved in {shap_results_file}:"
+    path_reduced = '/'.join(f'{shap_results_file}'.replace('\\','/').split('/')[-2:])
+    print_shap += f"\n   o  SHAP values saved in {path_reduced}:"
     for i,desc in enumerate(desc_list):
         print_shap += f"\n      -  {desc} = min: {min_list[i]:.2}, max: {max_list[i]:.2}"
 
@@ -377,10 +383,13 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
 
     plt.savefig(f'{pfi_plot_file}', dpi=300, bbox_inches='tight')
     plt.clf()
-    print_PFI = f"\n   o  PFI plot saved in {pfi_plot_file}"
+
+    path_reduced = '/'.join(f'{pfi_plot_file}'.replace('\\','/').split('/')[-2:])
+    print_PFI = f"\n   o  PFI plot saved in {path_reduced}"
 
     pfi_results_file = f'{os.path.dirname(path_n_suffix)}/PFI_{os.path.basename(path_n_suffix)}.dat'
-    print_PFI += f"\n   o  PFI values saved in {pfi_results_file}:"
+    path_reduced = '/'.join(f'{pfi_results_file}'.replace('\\','/').split('/')[-2:])
+    print_PFI += f"\n   o  PFI values saved in {path_reduced}:"
     if params_dict['type'].lower() == 'reg':
         print_PFI += f'\n      Original score (from model.score, R2) = {score_model:.2}'
     elif params_dict['type'].lower() == 'clas':
@@ -446,15 +455,17 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     outliers_plot_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{outliers_plot_file}', dpi=300, bbox_inches='tight')
     plt.clf()
-    print_outliers += f"\n   o  Outliers plot saved in {outliers_plot_file}"
+    path_reduced = '/'.join(f'{outliers_plot_file}'.replace('\\','/').split('/')[-2:])
+    print_outliers += f"\n   o  Outliers plot saved in {path_reduced}"
 
     outlier_results_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.dat'
-    print_outliers += f"\n   o  Outlier values saved in {outlier_results_file}:"
+    path_reduced = '/'.join(f'{outlier_results_file}'.replace('\\','/').split('/')[-2:])
+    print_outliers += f"\n   o  Outlier values saved in {path_reduced}:"
     if 'train' not in name_points:
-        print_outliers += f'\n      x  No variable names found or names option not specified! Outliers will be printed with no names'
+        print_outliers += f'\n      x  No names option (or var missing in CSV file)! Outlier names will not be shown'
     else:
         if 'test_scaled' in outliers_data and 'test' not in name_points:
-            print_outliers += f'\n      x  No variable names found in the test set! Outliers of the test set will be printed with no names'
+            print_outliers += f'\n      x  No names option (or var missing in CSV file in the test file)! Outlier names will not be shown'
 
     print_outliers = outlier_analysis(print_outliers,outliers_data,'train')
     print_outliers = outlier_analysis(print_outliers,outliers_data,'valid')

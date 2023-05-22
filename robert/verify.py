@@ -353,7 +353,9 @@ class verify:
         verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
         plt.savefig(verify_plot_file, dpi=300, bbox_inches='tight')
         plt.clf()
-        print_ver = f"\n   o  VERIFY donut plots saved in {verify_plot_file}"
+
+        path_reduced = '/'.join(f'{verify_plot_file}'.replace('\\','/').split('/')[-2:])
+        print_ver = f"\n   o  VERIFY donut plots saved in {path_reduced}"
 
         return print_ver, path_n_suffix
 
@@ -364,12 +366,13 @@ class verify:
         '''
         
         verify_results_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.dat'
-        print_ver += f"\n   o  VERIFY test values saved in {verify_results_file}"
+        path_reduced = '/'.join(f'{verify_results_file}'.replace('\\','/').split('/')[-2:])
+        print_ver += f"\n   o  VERIFY test values saved in {path_reduced}"
         print_ver += f'\n      Results of the VERIFY tests:'
         # the printing order should be CV, y-mean, y-shuffle and one-hot
-        print_ver += f'\n      Original score (train set for CV): {verify_results["error_type"].upper()} = {verify_results["original_score_train"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test*100}%:'
+        print_ver += f'\n      Original score (train set in CV): {verify_results["error_type"].upper()} = {verify_results["original_score_train"]:.2}, +- {int(self.args.thres_test*100)}% threshold (thres_test option):'
         print_ver += results_print[1]
-        print_ver += f'\n      Original score (validation set): {verify_results["error_type"].upper()} = {verify_results["original_score_valid"]:.2}, with a +- threshold (thres_test option) of {self.args.thres_test*100}%:'
+        print_ver += f'\n      Original score (validation set): {verify_results["error_type"].upper()} = {verify_results["original_score_valid"]:.2}, +- {int(self.args.thres_test*100)}% threshold (thres_test option):'
         print_ver += results_print[0]
         print_ver += results_print[3]
         print_ver += results_print[2]

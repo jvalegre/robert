@@ -85,7 +85,8 @@ def test_PREDICT(test_job):
     subprocess.run(cmd_robert)
 
     # check that the DAT file is created
-    outfile = open(f"{path_main}/PREDICT_data.dat", "r")
+    assert not os.path.exists(f"{path_main}/PREDICT_data.dat")
+    outfile = open(f"{path_predict}/PREDICT_data.dat", "r")
     outlines = outfile.readlines()
     outfile.close()
     assert "ROBERT v" in outlines[0]
@@ -105,7 +106,7 @@ def test_PREDICT(test_job):
                 assert '-  21 (' in outlines[i+2]
                 break
             elif test_job != "clas":
-                assert 'x  No variable names found' in outlines[i+1]             
+                assert 'x  No names option' in outlines[i+1]             
                 if test_job == "t_value":
                     assert 'Train: 0 outliers' in outlines[i+2]
                 else:
@@ -120,9 +121,9 @@ def test_PREDICT(test_job):
     # check that all the plots, CSV and DAT files are created
     assert len(glob.glob(f'{path_predict}/*.png')) == 8
     if test_job == "clas":
-        assert len(glob.glob(f'{path_predict}/*.dat')) == 6
+        assert len(glob.glob(f'{path_predict}/*.dat')) == 7
     else:
-        assert len(glob.glob(f'{path_predict}/*.dat')) == 8
+        assert len(glob.glob(f'{path_predict}/*.dat')) == 9
     if test_job == "csv_test":
         assert len(glob.glob(f'{path_predict}/*.csv')) == 6
     else:

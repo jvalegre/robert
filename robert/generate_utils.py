@@ -537,4 +537,5 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     sb.despine(top=False, right=False)
     plt.savefig(f'{path_raw.joinpath(title_fig)}.png', dpi=300, bbox_inches='tight')
     plt.clf()
-    self.args.log.write(f'\no  {title_fig} succesfully created in {path_raw}')
+    path_reduced = '/'.join(f'{path_raw}'.replace('\\','/').split('/')[-2:])
+    self.args.log.write(f'\no  {title_fig} succesfully created in {path_reduced}')

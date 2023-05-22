@@ -226,7 +226,8 @@ class curate:
         csv_curate_name = f'{csv_basename}_CURATE.csv'
         csv_curate_name = self.args.destination.joinpath(csv_curate_name)
         _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
-        self.args.log.write(f'\no  The curated database was stored in {csv_curate_name}.')
+        path_reduced = '/'.join(f'{csv_curate_name}'.replace('\\','/').split('/')[-2:])
+        self.args.log.write(f'\no  The curated database was stored in {path_reduced}.')
 
         # saves important options used in CURATE
         options_name = f'CURATE_options.csv'
@@ -281,6 +282,6 @@ class curate:
         heatmap_path = self.args.destination.joinpath(heatmap_name)
         plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
         plt.clf()
-
-        self.args.log.write(f'\no  The Pearson heatmap was stored in {heatmap_path}.')
+        path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
+        self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
         

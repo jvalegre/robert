@@ -202,35 +202,30 @@ def load_variables(kwargs, robert_module):
         self.initial_dir = Path(os.getcwd())
 
         # creates destination folder
-        self = destination_folder(self,robert_module)
+        if robert_module.upper() != 'REPORT':
+            self = destination_folder(self,robert_module)
 
-        # start a log file
-        logger_1 = 'ROBERT'
-        logger_1, logger_2 = robert_module.upper(), "data"
+            # start a log file
+            logger_1 = 'ROBERT'
+            logger_1, logger_2 = robert_module.upper(), "data"
 
-        if txt_yaml not in [
-            "",
-            f"\no  Importing ROBERT parameters from {self.varfile}",
-            "\nx  The specified yaml file containing parameters was not found! Make sure that the valid params file is in the folder where you are running the code.\n",
-        ]:
-            self.log = Logger(self.initial_dir / logger_1, logger_2)
-            self.log.write(txt_yaml)
-            self.log.finalize()
-            sys.exit()
+            if txt_yaml not in [
+                "",
+                f"\no  Importing ROBERT parameters from {self.varfile}",
+                "\nx  The specified yaml file containing parameters was not found! Make sure that the valid params file is in the folder where you are running the code.\n",
+            ]:
+                self.log = Logger(self.destination / logger_1, logger_2)
+                self.log.write(txt_yaml)
+                self.log.finalize()
+                sys.exit()
 
-        if not self.command_line:
-            self.log = Logger(self.initial_dir / logger_1, logger_2)
-        else:
-            # prevents errors when using command lines and running to remote directories
-            path_command = Path(f"{os.getcwd()}")
-            self.log = Logger(path_command / logger_1, logger_2)
+            self.log = Logger(self.destination / logger_1, logger_2)
+            self.log.write(f"ROBERT v {robert_version} {time_run} \nCitation: {robert_ref}\n")
 
-        self.log.write(f"ROBERT v {robert_version} {time_run} \nCitation: {robert_ref}\n")
+            if self.command_line:
+                self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
 
-        if self.command_line:
-            self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
-
-        self.seed = int(self.seed)
+            self.seed = int(self.seed)
 
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
@@ -258,6 +253,11 @@ def load_variables(kwargs, robert_module):
             self.pfi_threshold = float(self.pfi_threshold)
             self.epochs = int(self.epochs)
             self.pfi_max = int(self.pfi_max)
+            
+            models_gen = [] # use capital letters in all the models
+            for model_type in self.model:
+                models_gen.append(model_type.upper())
+            self.model = models_gen
 
             if self.y == '':
                 curate_folder = Path(self.initial_dir).joinpath('CURATE')
@@ -298,7 +298,7 @@ def load_variables(kwargs, robert_module):
                 self.params_dir = 'GENERATE/Best_model'
 
         # initial sanity checks
-        if robert_module.upper() not in ['REPORT']:
+        if robert_module.upper() != 'REPORT':
             _ = sanity_checks(self, 'initial', robert_module, None)
 
     return self
@@ -316,6 +316,8 @@ def destination_folder(self,dest_module):
         # else:
         #     self.destination = Path(self.initial_dir).joinpath(self.destination)
 
+    if os.path.exists(self.destination):
+        shutil.rmtree(self.destination)
     self.destination.mkdir(exist_ok=True, parents=True)
 
     return self
@@ -364,10 +366,10 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 curate_valid = False
 
             for model_type in self.model:
-                if model_type.lower() not in ['rf','mvl','gb','adab','nn','vr']:
-                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'AdaB', 'NN', 'VR'")
+                if model_type.upper() not in ['RF','MVL','GB','ADAB','NN','VR'] or len(self.model) == 0:
+                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'VR'")
                     curate_valid = False
-                if model_type.lower() == 'mvl' and self.type.lower() == 'clas':
+                if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
                     self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")                 
                     curate_valid = False
 
@@ -477,14 +479,15 @@ def load_database(self,csv_load,module):
         ignored_descs = len(self.args.ignore)
         accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
         if module.lower() not in ['aqme']:
+            csv_name = os.path.basename(csv_load)
             if module.lower() not in ['predict']:
-                txt_load = f'\no  Database {csv_load} loaded successfully, including:'
+                txt_load = f'\no  Database {csv_name} loaded successfully, including:'
                 txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
                 txt_load += f'\n   - {accepted_descs} accepted descriptors'
                 txt_load += f'\n   - {ignored_descs} ignored descriptors'
                 txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
             else:
-                txt_load = f'\n   o  Test set {csv_load} loaded successfully, including:'
+                txt_load = f'\n   o  Test set {csv_name} loaded successfully, including:'
                 txt_load += f'\n      - {len(csv_df[csv_df.columns[0]])} datapoints'
             self.args.log.write(txt_load)
 
@@ -796,7 +799,7 @@ def load_dfs(self,folder_model,module):
 
 
 def load_print(self,params_name,suffix,params_df,point_count):
-    txt_load = f'\no  ML model {params_name} {suffix} and its corresponding Xy database were loaded successfully, including:'
+    txt_load = f'\no  ML model {params_name} {suffix} and Xy database were loaded, including:'
     txt_load += f'\n   - Target value: {params_df["y"][0]}'
     txt_load += f'\n   - Model: {params_df["model"][0]}'
     txt_load += f'\n   - Descriptors: {params_df["X_descriptors"][0]}'

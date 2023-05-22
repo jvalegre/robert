@@ -1,2 +1,0 @@
-train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,rmse
-60,KN,RF,reg,0,solub,rmse,"['mulliken charges', 'Dipole module/D', 'HOMO', 'Total polarizability alpha', 'Total FOD', 'NOCount', 'NumAliphaticRings', 'NumHDonors', 'NumRotatableBonds', 'TPSA', 'MolLogP']",80,20,9,0.47470658207202066

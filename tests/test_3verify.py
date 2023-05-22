@@ -81,7 +81,8 @@ def test_VERIFY(test_job):
     subprocess.run(cmd_robert)
 
     # check that the DAT file is created
-    outfile = open(f"{path_main}/VERIFY_data.dat", "r")
+    assert not os.path.exists(f"{path_main}/VERIFY_data.dat")
+    outfile = open(f"{path_verify}/VERIFY_data.dat", "r")
     outlines = outfile.readlines()
     outfile.close()
     assert "ROBERT v" in outlines[0]
@@ -108,7 +109,7 @@ def test_VERIFY(test_job):
 
     #check that the donut plots and DAT files are created
     assert len(glob.glob(f'{path_verify}/*.png')) == 2
-    assert len(glob.glob(f'{path_verify}/*.dat')) == 2
+    assert len(glob.glob(f'{path_verify}/*.dat')) == 3
 
     if test_job == 'clas': # rename folders back to their original names
         # rename the classification GENERATE folder

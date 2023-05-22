@@ -65,8 +65,9 @@ def test_CURATE(test_job):
     if test_job == "standard":
         subprocess.run(cmd_robert)
 
-        # check that the DAT file is created
-        outfile = open(f"{path_main}/CURATE_data.dat", "r")
+        # check that the DAT file is created inside the CURATE folder
+        assert not os.path.exists(f"{path_main}/CURATE_data.dat")
+        outfile = open(f"{path_curate}/CURATE_data.dat", "r")
         outlines = outfile.readlines()
         outfile.close()
         assert "ROBERT v" in outlines[0]

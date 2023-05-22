@@ -85,6 +85,7 @@ def main():
 
     if full_workflow:
         args.y = '' # this ensures GENERATE communicates with CURATE (see the load_variables() function in utils.py)
+        args.discard = [] # avoids an error since the variable(s) are removed in CURATE
 
     # GENERATE
     if args.generate or full_workflow:

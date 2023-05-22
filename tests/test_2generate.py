@@ -101,7 +101,8 @@ def test_GENERATE(test_job):
     subprocess.run(cmd_robert)
 
     # check that the DAT file is created
-    outfile = open(f"{path_main}/GENERATE_data.dat", "r")
+    assert not os.path.exists(f"{path_main}/GENERATE_data.dat")
+    outfile = open(f"{path_generate}/GENERATE_data.dat", "r")
     outlines = outfile.readlines()
     outfile.close()
     assert "ROBERT v" in outlines[0]

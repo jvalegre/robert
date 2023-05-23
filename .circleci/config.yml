@@ -38,7 +38,7 @@ jobs:
       - run: |
           # install aqme and dependencies of ROBERT
           conda install -y -c conda-forge aqme
-          conda install -y -c conda-forge robert
+          # conda install -y -c conda-forge robert
           # update ROBERT with pip
           python -m pip install --upgrade pip
           pip install .

@@ -40,6 +40,7 @@ Parameters
 #####################################################.
 
 import time
+import os
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -222,7 +223,7 @@ class curate:
         '''
         
         # saves curated database
-        csv_basename = f'{self.args.csv_name}'.split('.')[0]
+        csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
         csv_curate_name = f'{csv_basename}_CURATE.csv'
         csv_curate_name = self.args.destination.joinpath(csv_curate_name)
         _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)

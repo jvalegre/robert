@@ -12,7 +12,7 @@ import subprocess
 import pandas as pd
 
 # saves the working directory
-path_main = os.getcwd() + "/tests"
+path_main = os.getcwd()
 path_aqme = path_main + "/AQME"
 
 # PREDICT tests
@@ -29,9 +29,6 @@ path_aqme = path_main + "/AQME"
 )
 def test_PREDICT(test_job):
 
-    # start in the tests folder
-    os.chdir(path_main)
-
     # reset the folder
     folders = ['CURATE','GENERATE','GENERATE_reg','GENERATE_clas','PREDICT','VERIFY','AQME']
     for folder in folders:
@@ -41,12 +38,12 @@ def test_PREDICT(test_job):
     # runs the program with the different tests
     if test_job == 'full_workflow':
         y_var = 'Target_values'
-        csv_var = "Robert_example.csv"
+        csv_var = "tests/Robert_example.csv"
         ignore_var = "['Name']"
 
     elif test_job == 'aqme':
         y_var = 'solub'
-        csv_var = "solubility.csv"
+        csv_var = "tests/solubility.csv"
         ignore_var = "['smiles','code_name']"
 
     cmd_robert = [

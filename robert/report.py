@@ -18,9 +18,7 @@ General
 #    used for generating the final PDF report       #
 #####################################################.
 
-import time
 from robert.utils import (load_variables,
-    finish_print
 )
 
 class report:
@@ -37,8 +35,6 @@ class report:
 
         # check if there is a problem with weasyprint (required for this module)
         _ = self.init_report()
-
-        start_time = time.time()
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
@@ -74,9 +70,7 @@ class report:
 
 
         # # load css format
-        css_content = css_content_fun()
-
-        _ = finish_print(self,start_time,'REPORT')
+        # css_content = css_content_fun()
 
 
     def init_report(self):
@@ -87,122 +81,124 @@ class report:
         try:
             from weasyprint import HTML
         except OSError:
-            self.log.write(f"\n  x The REPORT module requires weasyprint, and it is not compatible with your installation. Try installing ROBERT with 'conda install -c conda-forge robert'")
+            print(f"\n  x The REPORT module requires weasyprint, and it is not compatible with your installation. Try installing ROBERT with 'conda install -c conda-forge robert'")
 
 
-def css_content_fun():
-    '''
-    Create content for css
-    '''
+# def css_content_fun():
+#     '''
+#     Create content for css
+#     '''
     
-    css_content = """
-    body {
-    font-size: 12px;
-    }
-    @page :first {
-        @top-left {
-            content: "";
-        }
-        @top-right {
-            content: "";
-        }
-        @bottom-left {
-            content: "ROBERT v 0.0.1";
-            font-size: 8pt;
-            position: fixed;
-            left: 0;
-            bottom: 0;
-        }
-        @bottom-right {
-            content: counter(page) " of " counter(pages);
-            font-size: 8pt;
-            position: fixed;
-            right: 0;
-            bottom: 0;
-        }
-    }
-    @page {
-        size: A4;
-        margin: 2cm;
-        @top-left {
-            content: "ROBERT report";
-            font-size: 8pt;
-            position: fixed;
-            left: 0;
-            top: 0;
-        }
-        @top-right {
-            content: "CSV file name";
-            font-size: 8pt;
-            position: fixed;
-            left: 0;
-            top: 0;
-        }
-        @bottom-left {
-            content: "ROBERT v 0.0.1";
-            font-size: 8pt;
-            position: fixed;
-            left: 0;
-            bottom: 0;
-        }
-        @bottom-right {
-            content: counter(page) " of " counter(pages);
-            font-size: 8pt;
-            position: fixed;
-            right: 0;
-            bottom: 0;
-        }
-    }
-    * {
-        font-family: Arial, sans-serif;
-    }
-    .dat-content {
-        width: 50%;
-        max-width: 595pt;
-        overflow-x: auto;
-        line-height: 1.2;
-    }
+#     css_content = """
+#     body {
+#     font-size: 12px;
+#     }
+#     @page :first {
+#         @top-left {
+#             content: "";
+#         }
+#         @top-right {
+#             content: "";
+#         }
+#         @bottom-left {
+#             content: "ROBERT v 0.0.1";
+#             font-size: 8pt;
+#             position: fixed;
+#             left: 0;
+#             bottom: 0;
+#         }
+#         @bottom-right {
+#             content: counter(page) " of " counter(pages);
+#             font-size: 8pt;
+#             position: fixed;
+#             right: 0;
+#             bottom: 0;
+#         }
+#     }
+#     @page {
+#         size: A4;
+#         margin: 2cm;
+#         @top-left {
+#             content: "ROBERT report";
+#             font-size: 8pt;
+#             position: fixed;
+#             left: 0;
+#             top: 0;
+#         }
+#         @top-right {
+#             content: "CSV file name";
+#             font-size: 8pt;
+#             position: fixed;
+#             left: 0;
+#             top: 0;
+#         }
+#         @bottom-left {
+#             content: "ROBERT v 0.0.1";
+#             font-size: 8pt;
+#             position: fixed;
+#             left: 0;
+#             bottom: 0;
+#         }
+#         @bottom-right {
+#             content: counter(page) " of " counter(pages);
+#             font-size: 8pt;
+#             position: fixed;
+#             right: 0;
+#             bottom: 0;
+#         }
+#     }
+#     * {
+#         font-family: Arial, sans-serif;
+#     }
+#     .dat-content {
+#         width: 50%;
+#         max-width: 595pt;
+#         overflow-x: auto;
+#         line-height: 1.2;
+#     }
 
-    img[src="Robert_logo.jpg"] {
-        float: right;
-        width: 50%;
-    }
-    img[src*="Pearson"] {
-        display: inline-block;
-        vertical-align: bottom;
-        max-width: 48%;
-        margin-left: 10px;
-        margin-bottom: -5px;
-    }
+#     img[src="Robert_logo.jpg"] {
+#         float: right;
+#         width: 50%;
+#     }
+#     img[src*="Pearson"] {
+#         display: inline-block;
+#         vertical-align: bottom;
+#         max-width: 48%;
+#         margin-left: 10px;
+#         margin-bottom: -5px;
+#     }
 
-    img[src*="PFI"] {
-        display: inline-block;
-        vertical-align: bottom;
-        max-width: 48%;
-        margin-left: 10px;
-        margin-bottom: -5px;
-    }
+#     img[src*="PFI"] {
+#         display: inline-block;
+#         vertical-align: bottom;
+#         max-width: 48%;
+#         margin-left: 10px;
+#         margin-bottom: -5px;
+#     }
 
-    img[src*="PFI"]:first-child {
-        margin-right: 10%;
-    }
-    .img-predict {
-        margin-top: 20px;
-    }
-    hr.black {
-    border: none;
-    height: 1px;
-    background-color: black;
-    }
+#     img[src*="PFI"]:first-child {
+#         margin-right: 10%;
+#     }
+#     .img-predict {
+#         margin-top: 20px;
+#     }
+#     hr.black {
+#     border: none;
+#     height: 1px;
+#     background-color: black;
+#     }
 
-    hr {
-    border: none;
-    height: 1px;
-    background-color: gray;
-    }
+#     hr {
+#     border: none;
+#     height: 1px;
+#     background-color: gray;
+#     }
 
-    body:before {
-    top: 1.2cm;
-    }
-    """
-    return css_content
+#     body:before {
+#     top: 1.2cm;
+#     }
+#     """
+#     return css_content
+
+

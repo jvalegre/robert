@@ -1,21 +1,13 @@
 from setuptools import setup, find_packages
-import io
-
-# read the contents of your README file
-from os import path
-
-this_directory = path.abspath(path.dirname(__file__))
-with io.open(path.join(this_directory, "README.md"), encoding="utf-8") as f:
-    long_description = f.read()
-
+version="1.0.0"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
     package_data={"robert": ["model_params/*"]},
-    version="0.0.1",
+    version=version,
     license="MIT",
     description="Refiner and Optimizer of a Bunch of Existing Regression Tools",
-    long_description=long_description,
+    long_description="Documentation in Read The Docs: https://robert.readthedocs.io",
     long_description_content_type="text/markdown",
     author="Juan V. Alegre Requena, David Dalmau",
     author_email="jv.alegre@csic.es",
@@ -28,7 +20,7 @@ setup(
         "automated",
     ],
     url="https://github.com/jvalegre/robert",
-    download_url="https://github.com/jvalegre/robert/archive/refs/tags/0.0.1.tar.gz",
+    download_url=f"https://github.com/jvalegre/robert/archive/refs/tags/{version}.tar.gz",
     classifiers=[
         "Development Status :: 3 - Alpha",  # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
         "Intended Audience :: Developers",  # Define that your audience are developers
@@ -43,7 +35,7 @@ setup(
         "PyYAML",
         "pandas",
         "progress",
-        "numpy==1.23.1",
+        "numpy<=1.23.1",
         "matplotlib",
         "seaborn",
         "scipy",
@@ -53,8 +45,8 @@ setup(
         "shap",
         "glib",
         "weasyprint",
-        "scikit-learn-intelex"
-        # requires also from conda install if you use pip install
+        "scikit-learn-intelex",
+        # requires also "conda install -c conda-forge gtk3" in Windows
     ],
     python_requires=">=3.0",
     include_package_data=True,

@@ -5,7 +5,7 @@
 
 [![CircleCI](https://img.shields.io/circleci/build/github/jvalegre/robert?label=Circle%20CI&logo=circleci)](https://app.circleci.com/pipelines/github/jvalegre/robert)
 [![Codecov](https://img.shields.io/codecov/c/github/jvalegre/robert?label=Codecov&logo=codecov)](https://codecov.io/gh/jvalegre/robert)
-[![Downloads](https://img.shields.io/pypi/dm/robert?logo=PyPi)](https://pypi.org/project/robert/)
+[![Downloads](https://img.shields.io/conda/dn/conda-forge/robert?label=Downloads&logo=Anaconda)](https://anaconda.org/conda-forge/robert)
 [![Read the Docs](https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs)](https://robert.readthedocs.io/)
 
 ## Documentation  
@@ -15,7 +15,7 @@ Don't miss out the latest hands-on tutorials from our [YouTube channel](https://
 
 ## Recommended installation and update guide  
 In a nutshell, ROBERT and its dependencies are installed/updated as follows:  
-1. Install using pip: `pip install robert`  
+1. Install using conda-forge: `conda install -c conda-forge robert`  
 2. Update to the latest version: `pip install robert --upgrade`  
 
 ## Developers and help desk  
@@ -30,7 +30,8 @@ ROBERT is freely available under an [MIT](https://opensource.org/licenses/MIT) L
 
 ## Reference
 If you use any of the ROBERT modules, please include this citation:  
-* Robert v0.1, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert.  
+* Robert v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert.  
   
-Additionally, please include the corresponding reference for Scikit-learn:
-* Scikit-learn: Machine Learning in Python, Pedregosa et al., JMLR 12, pp. 2825-2830, 2011.  
+Additionally, please include the corresponding reference for Scikit-learn and SHAP:
+* Pedregosa et al., Scikit-learn: Machine Learning in Python, J. Mach. Learn. Res. 2011, 12, 2825-2830.  
+* Lundberg et al., From local explanations to global understanding with explainable AI for trees, Nat. Mach. Intell. 2020, 2, 56–67.  

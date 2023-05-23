@@ -45,7 +45,7 @@ jobs:
           # pip install aqme
           pip install .
           # uninstall robert to avoid codecov issues (only running from the robert folder)
-          pip uninstall robert
+          pip uninstall -y robert
           # install and run pytest
           pip install pytest
           pip install pytest-cov

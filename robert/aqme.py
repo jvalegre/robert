@@ -63,7 +63,7 @@ class aqme:
         _ = self.run_aqme(cmd_csearch,self.args.csearch_keywords)
 
         # run QDESCP to generate descriptors
-        cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb']
+        cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb', '--csv_name', f'{self.args.csv_name}']
         _ = self.run_aqme(cmd_qdescp,self.args.qdescp_keywords)
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties

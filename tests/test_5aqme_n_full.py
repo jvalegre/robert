@@ -93,7 +93,7 @@ def test_PREDICT(test_job):
     if test_job == 'aqme':
         assert os.path.exists(f'{path_main}/AQME-ROBERT_solubility.csv')
         db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_solubility.csv')
-        descps = ['code_name','solub','smiles','FUKUI+','DBSTEP_Vbur','TPSA']
+        descps = ['code_name','solub','smiles','FUKUI+','DBSTEP_Vbur','MolLogP']
         for descp in descps:
             assert descp in db_aqme.columns
 

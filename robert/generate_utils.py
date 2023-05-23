@@ -327,7 +327,7 @@ def k_neigh(self,X_scaled,csv_y,size):
     try:
         kmeans.fit(X_scaled_array)
     except ValueError:
-        self.args.log.write("\nx  The K-means clustering process failed! This is probably due to having NaN or strings as descriptors. To avoid this issue, curate the data first with the CURATE module!")
+        self.args.log.write("\nx  The K-means clustering process failed! This might be due to having NaN or strings as descriptors (curate the data first with CURATE) or having too few datapoints!")
         sys.exit()
     _ = kmeans.predict(X_scaled_array)
     centers = kmeans.cluster_centers_

@@ -63,7 +63,9 @@ def test_PREDICT(test_job):
         cmd_robert = cmd_robert + ["--discard", "['xtest']"]
 
     elif test_job == 'aqme':
-        cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", "--qdescp_keywords", "--qdescp_atom P"]
+        cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
+                    "--qdescp_keywords", "--qdescp_atom P", "--model", "['RF']",
+                    "--train", "[60]"]
 
     subprocess.run(cmd_robert)
 

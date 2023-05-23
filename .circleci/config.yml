@@ -37,7 +37,8 @@ jobs:
           # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run: |
           # install aqme and dependencies of ROBERT
-          conda create -n robert python=3.6 -c conda-forge aqme
+          conda create -c conda-forge -n robert python=3.6 aqme
+          conda activate robert
           # conda install -y -c conda-forge aqme
           # conda install -y -c conda-forge robert
           # update ROBERT with pip

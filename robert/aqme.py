@@ -63,7 +63,7 @@ class aqme:
         _ = self.run_aqme(cmd_csearch,self.args.csearch_keywords)
 
         # run QDESCP to generate descriptors
-        cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb', '--csv_name', f'{self.args.csv_name}']
+        cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb']
         _ = self.run_aqme(cmd_qdescp,self.args.qdescp_keywords)
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
@@ -73,7 +73,7 @@ class aqme:
 
         # ensure that the AQME database was successfully created
         if not os.path.exists(aqme_db):
-            self.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")
+            self.args.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")
             sys.exit()
 
         # move AQME output files (remove previous runs as well)
@@ -102,7 +102,7 @@ class aqme:
         try:
             from aqme.qprep import qprep
         except ModuleNotFoundError:
-            self.log.write("x  AQME is not installed (required for the --aqme option)! You can install the program with 'conda install -c conda-forge aqme'")
+            self.args.log.write("x  AQME is not installed (required for the --aqme option)! You can install the program with 'conda install -c conda-forge aqme'")
             sys.exit()       
 
 

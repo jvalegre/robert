@@ -43,7 +43,7 @@ var_dict = {
     "pfi_show" : 10,
     "names" : '',
     "qdescp_keywords" : '',
-    "csearch_keywords": '',
+    "csearch_keywords": '--sample 100',
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT']
 }
 

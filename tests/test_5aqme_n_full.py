@@ -79,7 +79,10 @@ def test_PREDICT(test_job):
     folders_gen = ['No_PFI','PFI']
     for folder in folders_gen:
         csv_amount = glob.glob(f'{path_main}/GENERATE/Raw_data/{folder}/*.csv')
-        assert len(csv_amount) == 32
+        if test_job == 'aqme':
+            assert len(csv_amount) == 2
+        else:
+            assert len(csv_amount) == 32
         best_amount = glob.glob(f'{path_main}/GENERATE/Best_model/{folder}/*.csv')
         assert len(best_amount) == 2
 

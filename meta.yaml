@@ -19,7 +19,7 @@ requirements:
     - pip
     - python >=3.6
   run:
-    - matplotlib-base
+    - matplotlib-base>=3.7.1
     - pandas
     - numpy<=1.23.1
     - progress

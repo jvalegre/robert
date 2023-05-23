@@ -36,7 +36,7 @@ setup(
         "pandas",
         "progress",
         "numpy<=1.23.1",
-        "matplotlib",
+        "matplotlib>=3.7.1",
         "seaborn",
         "scipy",
         "scikit-learn",

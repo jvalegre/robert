@@ -1,0 +1,16 @@
+# range to divide descriptors, including min and max (i.e., if you used 30 descriptors with interval_descriptors : 3, the amount of descriptors screened would be 1, 11, 21 and 30)
+interval_descriptors : 3
+
+# learning rate shrinks the contribution of each tree by learning_rate
+learning_rate : [0.01,0.05,0.1,0.2,0.5]
+
+# proportion of training data to set aside as validation set for early stopping
+validation_fraction : [0.1,0.2,0.3]
+
+# maximum depth of the individual regression estimators
+max_depth : [20,40,80,160,320]
+
+# number of boosting stages to perform
+n_estimators : [20,40,80,160,320]
+
+

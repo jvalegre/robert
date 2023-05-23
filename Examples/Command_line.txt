@@ -1,0 +1,1 @@
+python -m robert --ignore "['Name']" --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv --names Name

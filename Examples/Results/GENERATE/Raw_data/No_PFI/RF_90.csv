@@ -1,0 +1,2 @@
+train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,rmse
+90,KN,RF,reg,0,Target_values,rmse,"['x2', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'Csub-O', 'H-O']",3,20,1,0.10152679467735402

@@ -1,0 +1,4 @@
+# range to divide descriptors, including min and max (i.e., if you used 30 descriptors with interval_descriptors : 3, the amount of descriptors screened would be 1, 11, 21 and 30)
+interval_descriptors : 3
+
+

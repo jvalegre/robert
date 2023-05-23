@@ -1,0 +1,14 @@
+
+   o  PFI plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_90_No_PFI.png
+   o  PFI values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/PFI_RF_90_No_PFI.dat:
+      Original score (from model.score, R2) = 0.69
+      -  Csub-Csub = 2.2 +- 1.6
+      -  x2 = 0.37 +- 0.21
+      -  Csub-H = 0.31 +- 0.22
+      -  x6 = 0.0078 +- 0.016
+      -  x9 = 0.0 +- 0.0
+      -  x8 = 0.0 +- 0.0
+      -  x7 = 0.0 +- 0.0
+      -  x11 = 0.0 +- 0.0
+      -  x10 = 0.0 +- 0.0
+      -  x5 = -0.02 +- 0.15

@@ -1,0 +1,8 @@
+# weight applied to each classifier at each boosting iteration
+learning_rate : [0.1,0.2,0.5,1,2,5]
+
+# maximum number of estimators at which boosting is terminated
+n_estimators : [10,20,40,80,160,320]
+
+
+

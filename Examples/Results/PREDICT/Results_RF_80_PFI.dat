@@ -1,0 +1,7 @@
+
+   o  Results saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Results_RF_80_PFI.dat:
+      -  Points Train:Validation:Test = 29:8:9
+      -  Proportion Train:Validation:Test = 63:17:20
+      -  Train : R2 = 0.98, MAE = 0.069, RMSE = 0.11
+      -  Validation : R2 = 0.97, MAE = 0.093, RMSE = 0.12
+      -  Test : R2 = 0.99, MAE = 0.055, RMSE = 0.075

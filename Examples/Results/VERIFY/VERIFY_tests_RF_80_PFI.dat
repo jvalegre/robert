@@ -1,0 +1,10 @@
+
+   o  VERIFY donut plots saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\VERIFY/VERIFY_tests_RF_80_PFI.png
+   o  VERIFY test values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\VERIFY/VERIFY_tests_RF_80_PFI.dat:
+      Results of the VERIFY tests:
+      Original score (train set for CV): RMSE = 0.11, with a +- threshold (thres_test option) of 20.0%:
+         - 5-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: RMSE = 0.23
+      Original score (validation set): RMSE = 0.12, with a +- threshold (thres_test option) of 20.0%:
+         x X_shuffle: FAILED, RMSE = 0.12 is lower than the threshold (0.14)
+         o y_shuffle: PASSED, RMSE = 0.94 is higher than the threshold (0.14)
+         o onehot: PASSED, RMSE = 0.28 is higher than the threshold (0.14)

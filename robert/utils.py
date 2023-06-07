@@ -34,7 +34,7 @@ from sklearn.linear_model import LinearRegression
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "0.0.1"
+robert_version = "1.0.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = f"ROBERT v {robert_version}, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert"
 
@@ -543,53 +543,63 @@ def load_model(params):
 
 
 def load_model_reg(params):
-    if params['model'].upper() == 'RF':     
+    if params['model'].upper() in ['RF','VR']:
         loaded_model = RandomForestRegressor(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
+                                min_samples_split=params['min_samples_split'],
+                                min_samples_leaf=params['min_samples_leaf'],
+                                min_weight_fraction_leaf=params['min_weight_fraction_leaf'],
+                                oob_score=params['oob_score'],
+                                ccp_alpha=params['ccp_alpha'],
+                                max_samples=params['max_samples'],
                                 random_state=params['seed'],
                                 n_jobs=-1)
 
-    elif params['model'].upper() == 'GB':    
+        if params['model'].upper() == 'VR':
+            r1 = loaded_model
+
+    elif params['model'].upper() in ['GB','VR']:    
         loaded_model = GradientBoostingRegressor(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 validation_fraction=params['validation_fraction'],
+                                subsample=params['subsample'],
+                                min_samples_split=params['min_samples_split'],
+                                min_samples_leaf=params['min_samples_leaf'],
+                                min_weight_fraction_leaf=params['min_weight_fraction_leaf'],
+                                ccp_alpha=params['ccp_alpha'],
                                 random_state=params['seed'])
+
+        if params['model'].upper() == 'VR':
+            r2 = loaded_model
 
     elif params['model'].upper() == 'ADAB':
         loaded_model = AdaBoostRegressor(n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 random_state=params['seed'])
 
-    elif params['model'].upper() == 'NN':
+    elif params['model'].upper() in ['NN','VR']:
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
                                 validation_fraction=params['validation_fraction'],
-                                random_state=params['seed'])                    
+                                alpha=params['alpha'],
+                                shuffle=params['shuffle'],
+                                tol=params['tol'],
+                                early_stopping=params['early_stopping'],
+                                beta_1=params['beta_1'],
+                                beta_2=params['beta_2'],
+                                epsilon=params['epsilon'],
+                                random_state=params['seed'])  
+
+        if params['model'].upper() == 'VR':
+            r3 = loaded_model                  
             
     elif params['model'].upper() == 'VR':
-        r1 = GradientBoostingRegressor(max_depth=params['max_depth'], 
-                                max_features=params['max_features'],
-                                n_estimators=params['n_estimators'],
-                                learning_rate=params['learning_rate'],
-                                validation_fraction=params['validation_fraction'],
-                                random_state=params['seed'])
-        r2 = RandomForestRegressor(max_depth=params['max_depth'],
-                                max_features=params['max_features'],
-                                n_estimators=params['n_estimators'],
-                                random_state=params['seed'],
-                                n_jobs=-1)
-        r3 = MLPRegressor(batch_size=params['batch_size'],
-                                hidden_layer_sizes=params['hidden_layer_sizes'],
-                                learning_rate_init=params['learning_rate_init'],
-                                max_iter=params['max_iter'],
-                                validation_fraction=params['validation_fraction'],
-                                random_state=params['seed'])
-        loaded_model = VotingRegressor([('gb', r1), ('rf', r2), ('nn', r3)])
+        loaded_model = VotingRegressor([('rf', r1), ('gb', r2), ('nn', r3)])
 
     elif params['model'].upper() == 'MVL':
         loaded_model = LinearRegression(n_jobs=-1)
@@ -599,54 +609,63 @@ def load_model_reg(params):
 
 def load_model_clas(params):
 
-    if params['model'].upper() == 'RF':     
+    if params['model'].upper() in ['RF','VR']:     
         loaded_model = RandomForestClassifier(max_depth=params['max_depth'],
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
+                                min_samples_split=params['min_samples_split'],
+                                min_samples_leaf=params['min_samples_leaf'],
+                                min_weight_fraction_leaf=params['min_weight_fraction_leaf'],
+                                oob_score=params['oob_score'],
+                                ccp_alpha=params['ccp_alpha'],
+                                max_samples=params['max_samples'],
                                 random_state=params['seed'],
                                 n_jobs=-1)
 
-    elif params['model'].upper() == 'GB':    
+        if params['model'].upper() == 'VR':
+            r1 = loaded_model
+
+    elif params['model'].upper() in ['GB','VR']:    
         loaded_model = GradientBoostingClassifier(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 validation_fraction=params['validation_fraction'],
+                                subsample=params['subsample'],
+                                min_samples_split=params['min_samples_split'],
+                                min_samples_leaf=params['min_samples_leaf'],
+                                min_weight_fraction_leaf=params['min_weight_fraction_leaf'],
+                                ccp_alpha=params['ccp_alpha'],
                                 random_state=params['seed'])
+
+        if params['model'].upper() == 'VR':
+            r2 = loaded_model
 
     elif params['model'].upper() == 'ADAB':
             loaded_model = AdaBoostClassifier(n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 random_state=params['seed'])
 
-    elif params['model'].upper() == 'NN':
+    elif params['model'].upper() in ['NN','VR']:
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
                                 validation_fraction=params['validation_fraction'],
+                                alpha=params['alpha'],
+                                shuffle=params['shuffle'],
+                                tol=params['tol'],
+                                early_stopping=params['early_stopping'],
+                                beta_1=params['beta_1'],
+                                beta_2=params['beta_2'],
+                                epsilon=params['epsilon'],
                                 random_state=params['seed'])
+
+        if params['model'].upper() == 'VR':
+            r3 = loaded_model
 
     elif params['model'].upper() == 'VR':
-        r1 = GradientBoostingClassifier(max_depth=params['max_depth'], 
-                                max_features=params['max_features'],
-                                n_estimators=params['n_estimators'],
-                                learning_rate=params['learning_rate'],
-                                validation_fraction=params['validation_fraction'],
-                                random_state=params['seed'])
-        r2 = RandomForestClassifier(max_depth=params['max_depth'],
-                                max_features=params['max_features'],
-                                n_estimators=params['n_estimators'],
-                                random_state=params['seed'],
-                                n_jobs=-1)
-        r3 = MLPClassifier(batch_size=params['batch_size'],
-                                hidden_layer_sizes=params['hidden_layer_sizes'],
-                                learning_rate_init=params['learning_rate_init'],
-                                max_iter=params['max_iter'],
-                                validation_fraction=params['validation_fraction'],
-                                random_state=params['seed'])
-
-        loaded_model = VotingClassifier([('gb', r1), ('rf', r2), ('nn', r3)])
+        loaded_model = VotingClassifier([('rf', r1), ('gb', r2), ('nn', r3)])
 
     return loaded_model
 

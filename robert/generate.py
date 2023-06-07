@@ -27,7 +27,7 @@ General
          Mode for splitting data. Options: 
             1. 'KN' (k-neighbours clustering-based splitting)
             2. 'RND' (random splitting).  
-     model : list, default=['RF','GB','NN','ADAB']
+     model : list, default=['RF','GB','NN','VR']
          ML models used in the ML scan. Options: 
             1. 'RF' (Random forest)
             2. 'MVL' (Multivariate lineal models)
@@ -44,7 +44,7 @@ General
             2. 'clas' (Classifier)
      seed : int, default=8,
          Random seed used in the ML predictor models, data splitting and other protocols.
-     epochs : int, default=500,
+     epochs : int, default=80,
          Number of epochs for the hyperopt optimization.
      error_type : str, default: rmse (regression), acc (classification)
          Target value used during the hyperopt optimization. Options:

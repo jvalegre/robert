@@ -31,14 +31,14 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
 
     # edit this function to modify the hyperopt parameter optimization (i.e. the 
     # lists represent values to include in the grid search)
-    space4rf = hyperopt_params(self, ML_model, Xy_data_hp['X_train_scaled'])
+    space4rf = hyperopt_params(self, ML_model)
 
     # Run hyperopt
     trials = Trials()
 
     # This best high initial number is a dummy value used as the start of the optimization
     # (otherwise it does not run more than once since best becomes a dictionary)
-    best = 100000
+    best = float('inf')
 
     hyperopt_data = {'best': best, 'model': ML_model.upper(),
                 'type': self.args.type.lower(),
@@ -64,6 +64,14 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
     else:
         max_evals = self.args.epochs
     try:
+        # this part allows users to modify exploitation/exploration, replaces the fmin() function below
+        # from hyperopt import partial, mix, anneal, rand
+        # best = fmin(f, space4rf, algo=partial(mix.suggest,
+        #         p_suggest=[
+        #         (.1, rand.suggest),
+        #         (.1, anneal.suggest),
+        #         (.8, tpe.suggest),]),
+        #         max_evals=max_evals, trials=trials, rstate=np.random.default_rng(hyperopt_data['seed']))
         best = fmin(f, space4rf, algo=tpe.suggest, max_evals=max_evals, trials=trials, rstate=np.random.default_rng(hyperopt_data['seed']))
         if os.path.exists('hyperopt.json'):
             os.remove('hyperopt.json')
@@ -82,21 +90,33 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
 
 
 # generates initial parameters for the hyperopt optimization
-def hyperopt_params(self, model_type, X_hyperopt):
+def hyperopt_params(self, model_type):
     # load the parameters of the models from their corresponding yaml files
-    params = load_from_yaml(self,model_type,X_hyperopt)
+    params = load_params(self,model_type)
 
     if model_type.upper() == 'RF':
         space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
                 'max_features': hp.choice('max_features', params['max_features']),
-                'n_estimators': hp.choice('n_estimators', params['n_estimators'])}  
+                'n_estimators': hp.choice('n_estimators', params['n_estimators']),
+                'min_samples_split': hp.choice('min_samples_split', params['min_samples_split']),
+                'min_samples_leaf': hp.choice('min_samples_leaf', params['min_samples_leaf']),
+                'min_weight_fraction_leaf': hp.choice('min_weight_fraction_leaf', params['min_weight_fraction_leaf']),
+                'oob_score': hp.choice('oob_score', params['oob_score']),
+                'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha']),
+                'max_samples': hp.choice('max_samples', params['max_samples']),
+                }  
 
     elif model_type.upper() == 'GB':
         space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
                 'max_features': hp.choice('max_features', params['max_features']),
                 'n_estimators': hp.choice('n_estimators', params['n_estimators']),
                 'learning_rate': hp.choice('learning_rate', params['learning_rate']),
-                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction'])}  
+                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction']),
+                'subsample': hp.choice('subsample', params['subsample']),
+                'min_samples_split': hp.choice('min_samples_split', params['min_samples_split']),
+                'min_samples_leaf': hp.choice('min_samples_leaf', params['min_samples_leaf']),
+                'min_weight_fraction_leaf': hp.choice('min_weight_fraction_leaf', params['min_weight_fraction_leaf']),
+                'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha'])}
 
     elif model_type.upper() == 'ADAB':
         space4rf_hyperopt = {'n_estimators': hp.choice('n_estimators', params['n_estimators']),
@@ -107,18 +127,39 @@ def hyperopt_params(self, model_type, X_hyperopt):
                 'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
                 'learning_rate_init': hp.choice('learning_rate_init', params['learning_rate_init']),
                 'max_iter': hp.choice('max_iter', params['max_iter']),
-                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction'])}
+                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction']),
+                'alpha': hp.choice('alpha', params['alpha']),
+                'shuffle': hp.choice('shuffle', params['shuffle']),
+                'tol': hp.choice('tol', params['tol']),
+                'early_stopping': hp.choice('early_stopping', params['early_stopping']),
+                'beta_1': hp.choice('beta_1', params['beta_1']),
+                'beta_2': hp.choice('beta_2', params['beta_2']),
+                'epsilon': hp.choice('epsilon', params['epsilon'])}
 
     elif model_type.upper() == 'VR':
         space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
                 'max_features': hp.choice('max_features', params['max_features']),
                 'n_estimators': hp.choice('n_estimators', params['n_estimators']),
+                'min_samples_split': hp.choice('min_samples_split', params['min_samples_split']),
+                'min_samples_leaf': hp.choice('min_samples_leaf', params['min_samples_leaf']),
+                'min_weight_fraction_leaf': hp.choice('min_weight_fraction_leaf', params['min_weight_fraction_leaf']),
+                'oob_score': hp.choice('oob_score', params['oob_score']),
+                'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha']),
+                'subsample': hp.choice('subsample', params['subsample']),
+                'max_samples': hp.choice('max_samples', params['max_samples']),
                 'learning_rate': hp.choice('learning_rate', params['learning_rate']),
                 'validation_fraction': hp.choice('validation_fraction', params['validation_fraction']),
                 'batch_size': hp.choice('batch_size', params['batch_size']),
                 'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
                 'learning_rate_init': hp.choice('learning_rate_init', params['learning_rate_init']),
-                'max_iter': hp.choice('max_iter', params['max_iter'])}  
+                'max_iter': hp.choice('max_iter', params['max_iter']),
+                'alpha': hp.choice('alpha', params['alpha']),
+                'shuffle': hp.choice('shuffle', params['shuffle']),
+                'tol': hp.choice('tol', params['tol']),
+                'early_stopping': hp.choice('early_stopping', params['early_stopping']),
+                'beta_1': hp.choice('beta_1', params['beta_1']),
+                'beta_2': hp.choice('beta_2', params['beta_2']),
+                'epsilon': hp.choice('epsilon', params['epsilon'])}  
 
     elif model_type.upper() == 'MVL':
         space4rf_hyperopt = {'max_features': hp.choice('max_features', params['max_features'])}
@@ -188,9 +229,18 @@ def f(params):
             csv_hyperopt['n_estimators'] = params['n_estimators']
             csv_hyperopt['max_depth'] = params['max_depth']
             csv_hyperopt['max_features'] = params['max_features']
+            csv_hyperopt['min_samples_split'] = params['min_samples_split']
+            csv_hyperopt['min_samples_leaf'] = params['min_samples_leaf']
+            csv_hyperopt['min_weight_fraction_leaf'] = params['min_weight_fraction_leaf']
+            csv_hyperopt['ccp_alpha'] = params['ccp_alpha']
+
+            if hyperopt_data['model'].upper() in ['RF','VR']:
+                csv_hyperopt['oob_score'] = params['oob_score']
+                csv_hyperopt['max_samples'] = params['max_samples']
 
             if hyperopt_data['model'].upper() in ['GB','VR']:
                 csv_hyperopt['learning_rate'] = params['learning_rate']
+                csv_hyperopt['subsample'] = params['subsample']
 
             if hyperopt_data['model'].upper() == 'GB':
                 csv_hyperopt['validation_fraction'] = params['validation_fraction']
@@ -201,6 +251,13 @@ def f(params):
                 csv_hyperopt['learning_rate_init'] = params['learning_rate_init']
                 csv_hyperopt['max_iter'] = params['max_iter']
                 csv_hyperopt['validation_fraction'] = params['validation_fraction']
+                csv_hyperopt['alpha'] = params['alpha']
+                csv_hyperopt['shuffle'] = params['shuffle']
+                csv_hyperopt['tol'] = params['tol']
+                csv_hyperopt['early_stopping'] = params['early_stopping']
+                csv_hyperopt['beta_1'] = params['beta_1']
+                csv_hyperopt['beta_2'] = params['beta_2']
+                csv_hyperopt['epsilon'] = params['epsilon']
     
         elif hyperopt_data['model'].upper() == 'ADAB':
                 csv_hyperopt['n_estimators'] = params['n_estimators']
@@ -219,7 +276,7 @@ def f(params):
     return {'loss': best, 'status': STATUS_OK}
 
 
-def load_from_yaml(self,model_type,X_hyperopt):
+def load_params(self,model_type):
     """
     Loads the parameters for the calculation from a yaml if specified. Otherwise
     does nothing.
@@ -240,16 +297,11 @@ def load_from_yaml(self,model_type,X_hyperopt):
             self.args.log.write(f'\nx  Error while reading {varfile}. Edit the yaml file and try again (i.e. use ":" instead of "=" to specify variables)')
             sys.exit()
 
-    # number of descriptors to scan, from 1 to the max amount of descriptors using the interval
-    # specified with interval_descriptors
-    if model_type in ['RF','GB','VR','MVL']:
-        max_features = [1]
-        n_descriptors = len(X_hyperopt.columns)
-        interval_descriptors = int((n_descriptors+1)/params["interval_descriptors"])
-        for num in range(max_features[0],n_descriptors,interval_descriptors):
-            max_features.append(num)
-        max_features.append(n_descriptors)
-        params['max_features'] = max_features
+    for param in params:
+        if params[param] == 'True':
+            params[param] = True
+        elif params[param] == 'False':
+            params[param] = False
 
     return params
 

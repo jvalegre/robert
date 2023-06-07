@@ -27,12 +27,12 @@ Parameters
      corr_filter : bool, default=True
          Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
          of the descriptors with other descriptors (x filter) and the y values (y filter).
-     thres_x : float, default=0.85
+     thres_x : float, default=0.9
          Thresolhold to discard descriptors based on high R**2 correlation with other descriptors (i.e. 
-         if thres_x=0.85, variables that show R**2 > 0.85 will be discarded).
-     thres_y : float, default=0.02
+         if thres_x=0.9, variables that show R**2 > 0.9 will be discarded).
+     thres_y : float, default=0.01
          Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
-         if thres_y=0.02, variables that show R**2 < 0.02 will be discarded).
+         if thres_y=0.01, variables that show R**2 < 0.01 will be discarded).
 """
 #####################################################.
 #         This file stores the CURATE class         #

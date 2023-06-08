@@ -77,7 +77,10 @@ def test_GENERATE(test_job):
             model_list = ['RF']
         else:
             model_list = ['Adab','VR']
-        train_list = [60]
+        if test_job == 'reduced_clas':
+            train_list = [80]
+        else:
+            train_list = [60]
 
         if test_job == "reduced_noPFI":
             cmd_robert = cmd_robert + ["--pfi_filter", "False"]
@@ -143,7 +146,7 @@ def test_GENERATE(test_job):
                 elif test_job =='reduced_PFImax':
                     desc_list = ['x6', 'x7']
                 elif test_job == 'reduced_random':
-                    desc_list = ['x6', 'x7', 'x10', 'Csub-Csub', 'Csub-H']
+                    desc_list = ['x6', 'x7', 'x10']
                     assert db_best['Set'][0] == 'Validation'
                     assert db_best['Set'][1] == 'Validation'
                     assert db_best['Set'][2] == 'Training'

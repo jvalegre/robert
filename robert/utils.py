@@ -405,8 +405,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 curate_valid = False
         
         if module.lower() == 'verify':
-            if float(self.thres_test) > 1 or float(self.thres_test) < 0:
-                self.log.write(f"\nx  The thres_test should be between 0 and 1!")
+            if float(self.thres_test) < 0:
+                self.log.write(f"\nx  The thres_test should be higher than 0!")
                 curate_valid = False
 
         if module.lower() in ['verify','predict']:

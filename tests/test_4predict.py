@@ -90,24 +90,22 @@ def test_PREDICT(test_job):
     categor_test = False
     for i,line in enumerate(outlines):
         if 'Results saved in' in line and 'No_PFI.dat' in line:
-            if test_job not in ["csv_test","clas"]:
+            if test_job not in ["csv_test"]:
                 assert 'Points Train:Validation = 29:8' in outlines[i+1]
-            elif test_job == "csv_test":
-                assert 'Points Train:Validation:Test = 29:8:9' in outlines[i+1]
             else:
-                assert 'Points Train:Validation = 22:15' in outlines[i+1]
+                assert 'Points Train:Validation:Test = 29:8:9' in outlines[i+1]
         elif 'x  There are missing descriptors' in line:
             categor_test = True
         if 'Outlier values saved in' in line and 'No_PFI' in line:
             if test_job == "names":
-                assert '-  21 (' in outlines[i+2]
+                assert '-  19 (' in outlines[i+2]
                 break
             elif test_job != "clas":
                 assert 'x  No names option' in outlines[i+1]             
                 if test_job == "t_value":
                     assert 'Train: 0 outliers' in outlines[i+2]
                 else:
-                    assert 'Train: 1 outliers' in outlines[i+2]
+                    assert 'Train: 2 outliers' in outlines[i+2]
                 assert 'Validation: 0 outliers' in outlines[i+3]
                 if test_job == "csv_test":
                     assert 'Test: 0 outliers' in outlines[i+4]

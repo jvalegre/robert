@@ -70,7 +70,7 @@ def test_VERIFY(test_job):
     ]
 
     if test_job == "thres_test":
-        cmd_robert = cmd_robert + ["--thres_test", "1"]
+        cmd_robert = cmd_robert + ["--thres_test", "10"]
     elif test_job == "kfold":
         cmd_robert = cmd_robert + ["--kfold", "10"]
 
@@ -86,8 +86,8 @@ def test_VERIFY(test_job):
         if 'Results of the VERIFY tests:' in line:
             if test_job == "thres_test":
                 assert "- 5-fold CV: NOT DETERMINED" in outlines[i+2]
-                assert "o y_mean: PASSED" in outlines[i+4]
-                assert "o y_shuffle: PASSED" in outlines[i+5]
+                assert "x y_mean: FAILED" in outlines[i+4]
+                assert "x y_shuffle: FAILED" in outlines[i+5]
                 assert "x onehot: FAILED" in outlines[i+6]
             elif test_job == "kfold":
                 assert "- 10-fold CV: NOT DETERMINED" in outlines[i+2]

@@ -189,7 +189,7 @@ class curate:
                 # finds correlated descriptors
                 if column != csv_df.columns[-1] and column not in descriptors_drop:
                     for j,column2 in enumerate(csv_df.columns):
-                        if j > i and column2 not in self.args.ignore and column2 not in descriptors_drop and column2 != self.args.y:
+                        if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
                             _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
                             rsquared_x = r_value_x**2
                             if rsquared_x > self.args.thres_x:

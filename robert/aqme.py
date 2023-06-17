@@ -14,7 +14,7 @@ General
      y : str, default=''
          Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
      qdescp_keywords : str, default=''    
-         Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords='--qdescp_atom P')
+         Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['P']")
      csearch_keywords : str, default:''
          Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10')
 """
@@ -24,6 +24,7 @@ General
 #####################################################.
 
 import os
+import glob
 import subprocess
 import time
 import shutil
@@ -68,7 +69,7 @@ class aqme:
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
         aqme_db = f'AQME-ROBERT_{self.args.csv_name}'
-        if 'qdescp_atom' not in self.args.qdescp_keywords:
+        if 'qdescp_atoms' not in self.args.qdescp_keywords:
             _ = filter_atom_prop(aqme_db)
 
         # ensure that the AQME database was successfully created
@@ -108,7 +109,7 @@ class aqme:
 
 def filter_atom_prop(aqme_db):
     '''
-    Function that filters off atomic properties if no atom was selected in the --qdescp_atom option
+    Function that filters off atomic properties if no atom was selected in the --qdescp_atoms option
     '''
     
     aqme_df = pd.read_csv(aqme_db)
@@ -127,10 +128,11 @@ def move_aqme():
     Move raw data from AQME-CSEARCH and -QDESCP runs into the AQME folder
     '''
     
-    for file in ['CSEARCH','QDESCP','CSEARCH_data.dat','CSEARCH-Data-solubility.csv','QDESCP_boltz_descriptors.csv','QDESCP_data.dat']:
-        if os.path.exists(f'AQME/{file}'):
-            if len(file.split('.')) == 1:
-                shutil.rmtree(f'AQME/{file}')
-            else:
-                os.remove(f'AQME/{file}')
-        shutil.move(file, f'AQME/{file}')
+    for file in glob.glob(f'*'):
+        if 'CSEARCH' in file or 'QDESCP' in file:
+            if os.path.exists(f'AQME/{file}'):
+                if len(file.split('.')) == 1:
+                    shutil.rmtree(f'AQME/{file}')
+                else:
+                    os.remove(f'AQME/{file}')
+            shutil.move(file, f'AQME/{file}')

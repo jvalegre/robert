@@ -92,19 +92,6 @@ class Logger:
         self.log.write(f"{message}\n")
         print(f"{message}\n")
 
-    def fatal(self, message):
-        """
-        Writes the message to the file. Closes the file and raises an error exit
-
-        Parameters
-        ----------
-        message : str
-           text to be written in the log file.
-        """
-        self.write(message)
-        self.finalize()
-        raise SystemExit(1)
-
     def finalize(self):
         """
         Closes the file
@@ -180,7 +167,7 @@ def format_lists(value):
             value = ast.literal_eval(value)
         except (SyntaxError, ValueError):
             # this line fixes issues when using "[X]" or ["X"] instead of "['X']" when using lists
-            value = value.replace('[',']').replace(',',']').split(']')
+            value = value.replace('[',']').replace(',',']').replace("'",']').split(']')
             while('' in value):
                 value.remove('')
     return value

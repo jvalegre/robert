@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ######################################################.
-# 	         Testing PREDICT with pytest 	         #
+# 	          Testing AQME with pytest   	         #
 ######################################################.
 
 import os
@@ -15,7 +15,7 @@ import pandas as pd
 path_main = os.getcwd()
 path_aqme = path_main + "/AQME"
 
-# PREDICT tests
+# AQME and full workflow tests
 @pytest.mark.parametrize(
     "test_job",
     [
@@ -27,9 +27,9 @@ path_aqme = path_main + "/AQME"
         ),  # test for a full workflow starting from AQME
     ],
 )
-def test_PREDICT(test_job):
+def test_AQME(test_job):
 
-    # reset the folder
+    # reset the folders
     folders = ['CURATE','GENERATE','GENERATE_reg','GENERATE_clas','PREDICT','VERIFY','AQME']
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
@@ -61,8 +61,8 @@ def test_PREDICT(test_job):
 
     elif test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
-                    "--qdescp_keywords", "--qdescp_atom P", "--model", "['RF']",
-                    "--train", "[60]"]
+                    "--qdescp_keywords", "--qdescp_atoms ['P']", "--model", "['RF']",
+                    "--train", "[80]"]
 
     subprocess.run(cmd_robert)
 
@@ -95,7 +95,7 @@ def test_PREDICT(test_job):
     if test_job == 'aqme':
         assert os.path.exists(f'{path_main}/AQME-ROBERT_solubility.csv')
         db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_solubility.csv')
-        descps = ['code_name','solub','smiles','FUKUI+','DBSTEP_Vbur','MolLogP']
+        descps = ['code_name','solub','smiles','P_FUKUI+','P_DBSTEP_Vbur','MolLogP']
         for descp in descps:
             assert descp in db_aqme.columns
 

@@ -12,17 +12,16 @@ import subprocess
 import pandas as pd
 
 # saves the working directory
-path_init = os.getcwd()
-path_main = f'{os.getcwd()}/tests'
+path_main = os.getcwd()
 path_aqme = path_main + "/AQME"
 
 # AQME and full workflow tests
 @pytest.mark.parametrize(
     "test_job",
     [
-        # (
-            # "full_workflow"
-        # ),  # test for a full workflow
+        (
+            "full_workflow"
+        ),  # test for a full workflow
         (
             "aqme"
         ),  # test for a full workflow starting from AQME
@@ -35,16 +34,17 @@ def test_AQME(test_job):
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
-    
-    os.chdir(path_main)
+
     # runs the program with the different tests
     if test_job == 'full_workflow':
         y_var = 'Target_values'
-        csv_var = "Robert_example.csv"
+        csv_var = "tests/Robert_example.csv"
         ignore_var = "['Name']"
 
     elif test_job == 'aqme':
         y_var = 'solub'
+        # for AQME-ROBERT workflows, the CSV file must be in the working dir
+        shutil.copy(f"{path_main}/tests/solubility.csv", f"{path_main}/solubility.csv")
         csv_var = "solubility.csv"
         ignore_var = "['smiles','code_name']"
 
@@ -118,4 +118,3 @@ def test_AQME(test_job):
     if os.path.exists(f'{path_main}/AQME-ROBERT_solubility.csv'):
         os.remove(f'{path_main}/AQME-ROBERT_solubility.csv')
     
-    os.chdir(path_init)

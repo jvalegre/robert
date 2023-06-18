@@ -251,12 +251,30 @@ class curate:
         mask = np.zeros_like(corr_matrix, dtype=np.bool)
         mask[np.triu_indices_from(mask)]= True
 
-        _, ax = plt.subplots(figsize=(7.45,6))
+        # these size ranges avoid matplot errors
+        if len(csv_df_pearson.columns) > 100:
+            _, ax = plt.subplots(figsize=(60,36))
+            size_title = 56
+            size_font = 18
+        elif len(csv_df_pearson.columns) > 60:
+            _, ax = plt.subplots(figsize=(30,24))
+            size_title = 42
+            size_font = 12
+        elif len(csv_df_pearson.columns) > 30:
+            _, ax = plt.subplots(figsize=(15,12))
+            size_title = 28
+            size_font = 6
+        else:
+            _, ax = plt.subplots(figsize=(7.45,6))
+            size_title = 14
+            size_font = 14-2*((len(csv_df_pearson.columns)/5))
 
         sb.set(font_scale=1.2, style='ticks')
 
         # determines size of the letters inside the boxes (approx.)
-        size_font = 14-2*((len(csv_df_pearson.columns)/5))
+        annot = True
+        if len(csv_df_pearson.columns) > 30:
+            annot = False
 
         _ = sb.heatmap(corr_matrix,
                             mask = mask,
@@ -268,7 +286,7 @@ class curate:
                                         'ticks' : [-1, -.5, 0, 0.5, 1]},
                             vmin = -1,
                             vmax = 1,
-                            annot = True,
+                            annot = annot,
                             annot_kws = {'size': size_font})
         plt.tick_params(labelsize=size_font)
         #add the column names as labels
@@ -276,7 +294,7 @@ class curate:
         ax.set_xticklabels(corr_matrix.columns)
 
         title_fig = 'Pearson\'s r heatmap'
-        plt.title(title_fig, y=1.04, fontsize = 14, fontweight="bold")
+        plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
         sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
 
         heatmap_name = 'Pearson_heatmap.png'

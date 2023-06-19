@@ -32,6 +32,9 @@ path_curate = os.getcwd() + "/CURATE"
             "filter_thres"
         ),  # test to check the thresholds of the correlation filters
         (
+            "filter_thres_yaml"
+        ),  # test to check the thresholds of the correlation filters with a yaml file
+        (
             "standard"
         ),  # standard test
     ],
@@ -152,19 +155,28 @@ def test_CURATE(test_job):
         for var in discard_vars:
             assert var in db_final.columns
 
-    elif test_job == 'filter_thres':
-        cmd_robert = [
-            "python",
-            "-m",
-            "robert",
-            "--curate",
-            "--csv_name", f"{path_tests}/Robert_example.csv",
-            '--y', 'Target_values',
-            "--ignore", "['Name']",
-            "--discard", "['xtest']",
-            "--thres_x", "0.999",
-            "--thres_y", "0.001"
-        ]
+    elif test_job in ['filter_thres','filter_thres_yaml']:
+        if test_job == 'filter_thres':
+            cmd_robert = [
+                "python",
+                "-m",
+                "robert",
+                "--curate",
+                "--csv_name", f"{path_tests}/Robert_example.csv",
+                '--y', 'Target_values',
+                "--ignore", "['Name']",
+                "--discard", "['xtest']",
+                "--thres_x", "0.999",
+                "--thres_y", "0.000001"
+            ]
+        elif test_job == 'filter_thres_yaml':
+            cmd_robert = [
+                "python",
+                "-m",
+                "robert",
+                "--varfile", f"{path_tests}/params.yaml",
+                "--csv_name", f"{path_tests}/Robert_example.csv",
+            ]
         subprocess.run(cmd_robert)
         
         # check that descriptors aren't removed

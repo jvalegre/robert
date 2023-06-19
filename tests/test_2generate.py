@@ -76,7 +76,7 @@ def test_GENERATE(test_job):
         if test_job != 'reduced_others':
             model_list = ['RF']
         else:
-            model_list = ['Adab','VR']
+            model_list = ['Adab','VR','GP']
         if test_job == 'reduced_clas':
             train_list = [80]
         else:

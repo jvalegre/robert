@@ -1,16 +1,29 @@
-# range to divide descriptors, including min and max (i.e., if you used 30 descriptors with interval_descriptors : 3, the amount of descriptors screened would be 1, 11, 21 and 30)
-interval_descriptors : 3
+# features used in the model
+max_features : [1.0,0.75,0.5,0.25]
 
 # learning rate shrinks the contribution of each tree by learning_rate
-learning_rate : [0.01,0.05,0.1,0.2,0.5]
+learning_rate : [0.01,0.05,0.1,0.5]
 
 # proportion of training data to set aside as validation set for early stopping
 validation_fraction : [0.1,0.2,0.3]
 
 # maximum depth of the individual regression estimators
-max_depth : [20,40,80,160,320]
+max_depth : [5,20,40,60,100]
 
 # number of boosting stages to perform
-n_estimators : [20,40,80,160,320]
+n_estimators : [5,20,40,60,100]
 
+# fraction of samples for the base learners
+subsample : [1.0]
 
+# min number of samples in each split
+min_samples_split : [2]
+
+# min number of samples for leaf nodes
+min_samples_leaf : [1]
+
+# min weight to be leaf node
+min_weight_fraction_leaf: [0]
+
+# complexity parameter for pruning
+ccp_alpha : [0]

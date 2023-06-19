@@ -1,6 +1,6 @@
 ![](Logos/Robert_logo.jpg)
 #
-## <p align="center"> Robert (Refiner and Optimizer of a Bunch of Existing Regression Tools)</p>
+## <p align="center"> ROBERT (Refiner and Optimizer of a Bunch of Existing Regression Tools)</p>
 
 
 [![CircleCI](https://img.shields.io/circleci/build/github/jvalegre/robert?label=Circle%20CI&logo=circleci)](https://app.circleci.com/pipelines/github/jvalegre/robert)

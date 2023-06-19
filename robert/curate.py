@@ -27,12 +27,15 @@ Parameters
      corr_filter : bool, default=True
          Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
          of the descriptors with other descriptors (x filter) and the y values (y filter).
-     thres_x : float, default=0.85
+     desc_thres : float, default=25
+         Threshold for the descriptor-to-datapoints ratio to deactivate the correlation filter. By default,
+         the correlation filter is disabled if there are 25 times more datapoints than descriptors.
+     thres_x : float, default=0.9
          Thresolhold to discard descriptors based on high R**2 correlation with other descriptors (i.e. 
-         if thres_x=0.85, variables that show R**2 > 0.85 will be discarded).
-     thres_y : float, default=0.02
+         if thres_x=0.9, variables that show R**2 > 0.9 will be discarded).
+     thres_y : float, default=0.001
          Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
-         if thres_y=0.02, variables that show R**2 < 0.02 will be discarded).
+         if thres_y=0.001, variables that show R**2 < 0.01 will be discarded).
 """
 #####################################################.
 #         This file stores the CURATE class         #
@@ -40,6 +43,7 @@ Parameters
 #####################################################.
 
 import time
+import os
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -169,42 +173,46 @@ class curate:
         """
 
         txt_corr = f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}, thres_y = {self.args.thres_y}'
-        txt_corr += f'\n   Excluded descriptors:'
-
+        # don't remove descriptors if there are too few descriptors (after 25 times more datapoints)
+        n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
         descriptors_drop = []
-        for i,column in enumerate(csv_df.columns):
-            if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
-                # finds the descriptors with low correlation to the response values
-                try:
-                    _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
-                    rsquared_y = r_value_y**2
-                    if rsquared_y < self.args.thres_y:
+        if not n_descps*self.args.desc_thres < len(csv_df[self.args.y]):
+            txt_corr += f'\n   Excluded descriptors:'
+            for i,column in enumerate(csv_df.columns):
+                if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
+                    # finds the descriptors with low correlation to the response values
+                    try:
+                        _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
+                        rsquared_y = r_value_y**2
+                        if rsquared_y < self.args.thres_y:
+                            descriptors_drop.append(column)
+                            txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
+                    except ValueError: # this avoids X descriptors where the majority of the values are the same
                         descriptors_drop.append(column)
-                        txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
-                except ValueError: # this avoids X descriptors where the majority of the values are the same
-                    descriptors_drop.append(column)
-                    txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
+                        txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
 
-                # finds correlated descriptors
-                if column != csv_df.columns[-1] and column not in descriptors_drop:
-                    for j,column2 in enumerate(csv_df.columns):
-                        if j > i and column2 not in self.args.ignore and column2 not in descriptors_drop and column2 != self.args.y:
-                            _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
-                            rsquared_x = r_value_x**2
-                            if rsquared_x > self.args.thres_x:
-                                # discard the column with less correlation with the y values
-                                _, _, r_value_y2, _, _ = stats.linregress(csv_df[column2],csv_df[self.args.y])
-                                rsquared_y2 = r_value_y2**2
-                                if rsquared_y >= rsquared_y2:
-                                    descriptors_drop.append(column2)
-                                    txt_corr += f'\n   - {column2}: R**2 = {round(rsquared_x,2)} with {column}'
-                                else:
-                                    descriptors_drop.append(column)
-                                    txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
-        
-        if len(descriptors_drop) == 0:
-            txt_corr += f'\n   -  No descriptors were removed'
-    
+                    # finds correlated descriptors
+                    if column != csv_df.columns[-1] and column not in descriptors_drop:
+                        for j,column2 in enumerate(csv_df.columns):
+                            if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
+                                _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
+                                rsquared_x = r_value_x**2
+                                if rsquared_x > self.args.thres_x:
+                                    # discard the column with less correlation with the y values
+                                    _, _, r_value_y2, _, _ = stats.linregress(csv_df[column2],csv_df[self.args.y])
+                                    rsquared_y2 = r_value_y2**2
+                                    if rsquared_y >= rsquared_y2:
+                                        descriptors_drop.append(column2)
+                                        txt_corr += f'\n   - {column2}: R**2 = {round(rsquared_x,2)} with {column}'
+                                    else:
+                                        descriptors_drop.append(column)
+                                        txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
+            
+            if len(descriptors_drop) == 0:
+                txt_corr += f'\n   -  No descriptors were removed'
+        else:
+            txt_corr += f'\n   x The number of descriptors ({n_descps}) is {self.args.desc_thres} times lower than the number of datapoints ({len(csv_df[self.args.y])}), the correlation filter was disabled! The ratio of this filter can be adjusted with the desc_thres option'
+
         self.args.log.write(txt_corr)
 
         # drop descriptors that did not pass the filters
@@ -222,7 +230,7 @@ class curate:
         '''
         
         # saves curated database
-        csv_basename = f'{self.args.csv_name}'.split('.')[0]
+        csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
         csv_curate_name = f'{csv_basename}_CURATE.csv'
         csv_curate_name = self.args.destination.joinpath(csv_curate_name)
         _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
@@ -250,12 +258,30 @@ class curate:
         mask = np.zeros_like(corr_matrix, dtype=np.bool)
         mask[np.triu_indices_from(mask)]= True
 
-        _, ax = plt.subplots(figsize=(7.45,6))
+        # these size ranges avoid matplot errors
+        if len(csv_df_pearson.columns) > 100:
+            _, ax = plt.subplots(figsize=(120,72))
+            size_title = 56
+            size_font = 18
+        elif len(csv_df_pearson.columns) > 60:
+            _, ax = plt.subplots(figsize=(45,36))
+            size_title = 42
+            size_font = 12
+        elif len(csv_df_pearson.columns) > 30:
+            _, ax = plt.subplots(figsize=(15,12))
+            size_title = 28
+            size_font = 6
+        else:
+            _, ax = plt.subplots(figsize=(7.45,6))
+            size_title = 14
+            size_font = 14-2*((len(csv_df_pearson.columns)/5))
 
         sb.set(font_scale=1.2, style='ticks')
 
         # determines size of the letters inside the boxes (approx.)
-        size_font = 14-2*((len(csv_df_pearson.columns)/5))
+        annot = True
+        if len(csv_df_pearson.columns) > 30:
+            annot = False
 
         _ = sb.heatmap(corr_matrix,
                             mask = mask,
@@ -267,7 +293,7 @@ class curate:
                                         'ticks' : [-1, -.5, 0, 0.5, 1]},
                             vmin = -1,
                             vmax = 1,
-                            annot = True,
+                            annot = annot,
                             annot_kws = {'size': size_font})
         plt.tick_params(labelsize=size_font)
         #add the column names as labels
@@ -275,7 +301,7 @@ class curate:
         ax.set_xticklabels(corr_matrix.columns)
 
         title_fig = 'Pearson\'s r heatmap'
-        plt.title(title_fig, y=1.04, fontsize = 14, fontweight="bold")
+        plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
         sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
 
         heatmap_name = 'Pearson_heatmap.png'

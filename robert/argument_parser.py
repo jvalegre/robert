@@ -20,15 +20,16 @@ var_dict = {
     "ignore" : [],
     "categorical" : "onehot",
     "corr_filter" : True,
-    "thres_y" : 0.02,
-    "thres_x" : 0.85,
+    "desc_thres" : 25,
+    "thres_y" : 0.001,
+    "thres_x" : 0.9,
     "train" : [60,70,80,90],
     "split" : "KN",
     "model" : ['RF','GB','NN','MVL'],
     "custom_params" : None,
     "type" : "reg",
     "seed" : 0,
-    "epochs" : 50,
+    "epochs" : 80,
     "error_type" : "rmse",
     "pfi_epochs" : 30,
     "pfi_threshold" : 0.04,
@@ -43,7 +44,7 @@ var_dict = {
     "pfi_show" : 10,
     "names" : '',
     "qdescp_keywords" : '',
-    "csearch_keywords": '',
+    "csearch_keywords": '--sample 100',
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT']
 }
 

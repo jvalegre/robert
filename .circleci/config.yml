@@ -36,12 +36,16 @@ jobs:
           # app-dir: ~/project/package-directory/  # If your requirements.txt isn't in the root directory.
           # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run: |
-          # install aqme and dependencies of ROBERT
-          conda install -y -c conda-forge aqme
-          conda install -y -c conda-forge robert
-          # update ROBERT with pip
-          python -m pip install --upgrade pip
+          # install AQME, ROBERT and their dependencies
+          python -m pip install --upgrade pip          
+          conda install -y -c conda-forge rdkit
+          conda install -y -c conda-forge openbabel
+          conda install -y -c conda-forge xtb
+          conda install -y -c conda-forge crest
+          pip install aqme
           pip install .
+          # uninstall robert to avoid codecov issues (only running from the robert folder)
+          pip uninstall -y robert
           # install and run pytest
           pip install pytest
           pip install pytest-cov

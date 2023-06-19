@@ -27,14 +27,15 @@ General
          Mode for splitting data. Options: 
             1. 'KN' (k-neighbours clustering-based splitting)
             2. 'RND' (random splitting).  
-     model : list, default=['RF','GB','NN','VR']
-         ML models used in the ML scan. Options: 
+     model : list, default=['RF','GB','NN','MVL']
+         ML models available: 
             1. 'RF' (Random forest)
             2. 'MVL' (Multivariate lineal models)
             3. 'GB' (Gradient boosting)
-            4. 'AdaB' (AdaBoost regressor)
-            5. 'NN' (MLP regressor neural network)
-            6. 'VR' (Voting regressor combining RF, GB and NN)
+            4. 'NN' (MLP neural network)
+            5. 'GP' (Gaussian Process)
+            6. 'AdaB' (AdaBoost)
+            7. 'VR' (Voting regressor combining RF, GB and NN)
      custom_params : str, default=None
          Define new parameters for the ML models used in the hyperoptimization workflow. The path
          to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')

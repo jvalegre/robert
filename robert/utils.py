@@ -29,6 +29,7 @@ from sklearn.ensemble import (
     GradientBoostingClassifier,
     AdaBoostClassifier,
     VotingClassifier)
+from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
 import warnings # this avoids warnings from sklearn
@@ -222,6 +223,7 @@ def load_variables(kwargs, robert_module):
             
             self.thres_x = float(self.thres_x)
             self.thres_y = float(self.thres_y)
+            self.desc_thres = float(self.desc_thres)
 
         elif robert_module.upper() == 'GENERATE':
             self.log.write(f"\no  Starting generation of ML models with the GENERATE module")
@@ -353,7 +355,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 curate_valid = False
 
             for model_type in self.model:
-                if model_type.upper() not in ['RF','MVL','GB','ADAB','NN','VR'] or len(self.model) == 0:
+                if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN','VR'] or len(self.model) == 0:
                     self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'VR'")
                     curate_valid = False
                 if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
@@ -546,7 +548,7 @@ def load_model_reg(params):
         if params['model'].upper() == 'VR':
             r1 = loaded_model
 
-    elif params['model'].upper() in ['GB','VR']:    
+    if params['model'].upper() in ['GB','VR']:    
         loaded_model = GradientBoostingRegressor(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
@@ -562,12 +564,7 @@ def load_model_reg(params):
         if params['model'].upper() == 'VR':
             r2 = loaded_model
 
-    elif params['model'].upper() == 'ADAB':
-        loaded_model = AdaBoostRegressor(n_estimators=params['n_estimators'],
-                                learning_rate=params['learning_rate'],
-                                random_state=params['seed'])
-
-    elif params['model'].upper() in ['NN','VR']:
+    if params['model'].upper() in ['NN','VR']:
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -583,12 +580,21 @@ def load_model_reg(params):
                                 random_state=params['seed'])  
 
         if params['model'].upper() == 'VR':
-            r3 = loaded_model                  
+            r3 = loaded_model      
             
-    elif params['model'].upper() == 'VR':
+    if params['model'].upper() == 'ADAB':
+        loaded_model = AdaBoostRegressor(n_estimators=params['n_estimators'],
+                                learning_rate=params['learning_rate'],
+                                random_state=params['seed'])
+
+    if params['model'].upper() == 'GP':
+        loaded_model = GaussianProcessRegressor(n_restarts_optimizer=params['n_restarts_optimizer'],
+                                random_state=params['seed'])
+
+    if params['model'].upper() == 'VR':
         loaded_model = VotingRegressor([('rf', r1), ('gb', r2), ('nn', r3)])
 
-    elif params['model'].upper() == 'MVL':
+    if params['model'].upper() == 'MVL':
         loaded_model = LinearRegression(n_jobs=-1)
 
     return loaded_model
@@ -612,7 +618,7 @@ def load_model_clas(params):
         if params['model'].upper() == 'VR':
             r1 = loaded_model
 
-    elif params['model'].upper() in ['GB','VR']:    
+    if params['model'].upper() in ['GB','VR']:    
         loaded_model = GradientBoostingClassifier(max_depth=params['max_depth'], 
                                 max_features=params['max_features'],
                                 n_estimators=params['n_estimators'],
@@ -628,12 +634,12 @@ def load_model_clas(params):
         if params['model'].upper() == 'VR':
             r2 = loaded_model
 
-    elif params['model'].upper() == 'ADAB':
+    if params['model'].upper() == 'ADAB':
             loaded_model = AdaBoostClassifier(n_estimators=params['n_estimators'],
                                 learning_rate=params['learning_rate'],
                                 random_state=params['seed'])
 
-    elif params['model'].upper() in ['NN','VR']:
+    if params['model'].upper() in ['NN','VR']:
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -651,7 +657,12 @@ def load_model_clas(params):
         if params['model'].upper() == 'VR':
             r3 = loaded_model
 
-    elif params['model'].upper() == 'VR':
+    if params['model'].upper() == 'GP':
+        loaded_model = GaussianProcessClassifier(n_restarts_optimizer=params['n_restarts_optimizer'],
+                                random_state=params['seed'],
+                                n_jobs=-1)
+
+    if params['model'].upper() == 'VR':
         loaded_model = VotingClassifier([('rf', r1), ('gb', r2), ('nn', r3)])
 
     return loaded_model
@@ -664,7 +675,7 @@ def load_n_predict(params, data, hyperopt=False):
     loaded_model = load_model(params)
 
     # Fit the model with the training set
-    loaded_model.fit(np.array(data['X_train_scaled']).tolist(), np.array(data['y_train']).tolist())
+    loaded_model.fit(data['X_train_scaled'], data['y_train'])
     # store the predicted values for training
     data['y_pred_train'] = loaded_model.predict(data['X_train_scaled']).tolist()
 

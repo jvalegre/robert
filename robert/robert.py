@@ -79,6 +79,7 @@ def main():
             ignore=args.ignore,
             categorical=args.categorical,
             corr_filter=args.corr_filter,
+            desc_thres=args.desc_thres,
             thres_x=args.thres_x,
             thres_y=args.thres_y,
         )

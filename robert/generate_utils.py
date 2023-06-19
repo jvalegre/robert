@@ -118,10 +118,6 @@ def hyperopt_params(self, model_type):
                 'min_weight_fraction_leaf': hp.choice('min_weight_fraction_leaf', params['min_weight_fraction_leaf']),
                 'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha'])}
 
-    elif model_type.upper() == 'ADAB':
-        space4rf_hyperopt = {'n_estimators': hp.choice('n_estimators', params['n_estimators']),
-            'learning_rate': hp.choice('learning_rate', params['learning_rate'])}  
-
     elif model_type.upper() == 'NN':
         space4rf_hyperopt = {'batch_size': hp.choice('batch_size', params['batch_size']),
                 'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
@@ -135,6 +131,13 @@ def hyperopt_params(self, model_type):
                 'beta_1': hp.choice('beta_1', params['beta_1']),
                 'beta_2': hp.choice('beta_2', params['beta_2']),
                 'epsilon': hp.choice('epsilon', params['epsilon'])}
+
+    elif model_type.upper() == 'ADAB':
+        space4rf_hyperopt = {'n_estimators': hp.choice('n_estimators', params['n_estimators']),
+            'learning_rate': hp.choice('learning_rate', params['learning_rate'])}  
+
+    elif model_type.upper() == 'GP':
+        space4rf_hyperopt = {'n_restarts_optimizer': hp.choice('n_restarts_optimizer', params['n_restarts_optimizer'])}  
 
     elif model_type.upper() == 'VR':
         space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
@@ -194,12 +197,14 @@ def f(params):
             layer_arrays = ele
         params['hidden_layer_sizes'] = (layer_arrays)
 
-    opt_target = load_n_predict(params, hyperopt_data, hyperopt=True)
-
-    # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
-    # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
-    if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
-        opt_target = -opt_target
+    try:
+        opt_target = load_n_predict(params, hyperopt_data, hyperopt=True)
+        # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
+        # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
+        if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
+            opt_target = -opt_target
+    except RuntimeError:
+        opt_target = float('inf')
 
     if opt_target < best:
         # The "best" optimizing value is updated in an external JSON file after each hyperopt cycle
@@ -262,7 +267,10 @@ def f(params):
         elif hyperopt_data['model'].upper() == 'ADAB':
                 csv_hyperopt['n_estimators'] = params['n_estimators']
                 csv_hyperopt['learning_rate'] = params['learning_rate']
-            
+
+        elif hyperopt_data['model'].upper() == 'GP':
+                csv_hyperopt['n_restarts_optimizer'] = params['n_restarts_optimizer']
+
         csv_hyperopt[hyperopt_data['error_type']] = opt_target
 
         # save into a csv file

@@ -530,7 +530,7 @@ def filter_seed(self, name_csv):
 
     # keep best result, take out seed from name, and delete the other CSV files
     if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
-        min_idx = errors.index(np.nanmax(errors))
+        min_idx = errors.index(np.nanmin(errors))
     else:
         min_idx = errors.index(np.nanmax(errors))
 
@@ -572,7 +572,7 @@ def detect_best(folder):
 
     # detect best result and copy files to the Best_model folder
     if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
-        min_idx = errors.index(np.nanmax(errors))
+        min_idx = errors.index(np.nanmin(errors))
     else:
         min_idx = errors.index(np.nanmax(errors))
     best_name = file_list[min_idx]

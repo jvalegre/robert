@@ -100,7 +100,7 @@ def test_VERIFY(test_job):
                 assert "- 5-fold CV: NOT DETERMINED" in outlines[i+2]
                 assert "o y_mean: PASSED" in outlines[i+4]
                 assert "o y_shuffle: PASSED" in outlines[i+5]
-                assert "x onehot: FAILED" in outlines[i+6]
+                assert "o onehot: PASSED" in outlines[i+6]
             break
 
     #check that the donut plots and DAT files are created

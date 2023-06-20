@@ -242,7 +242,8 @@ def load_variables(kwargs, robert_module):
             self.pfi_max = int(self.pfi_max)
 
             if self.type.lower() == 'clas':
-                self.model = ['RF','GB','NN','AdaB']
+                if self.model == ['RF','GB','NN','MVL']:
+                    self.model = ['RF','GB','NN','AdaB']
             
             models_gen = [] # use capital letters in all the models
             for model_type in self.model:

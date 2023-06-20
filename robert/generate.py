@@ -27,7 +27,7 @@ General
          Mode for splitting data. Options: 
             1. 'KN' (k-neighbours clustering-based splitting)
             2. 'RND' (random splitting).  
-     model : list, default=['RF','GB','NN','GP']
+     model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) 
          ML models available: 
             1. 'RF' (Random forest)
             2. 'MVL' (Multivariate lineal models)

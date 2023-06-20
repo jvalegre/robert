@@ -240,6 +240,9 @@ def load_variables(kwargs, robert_module):
             self.pfi_threshold = float(self.pfi_threshold)
             self.epochs = int(self.epochs)
             self.pfi_max = int(self.pfi_max)
+
+            if self.type.lower() == 'clas':
+                self.model = ['RF','GB','NN','AdaB']
             
             models_gen = [] # use capital letters in all the models
             for model_type in self.model:

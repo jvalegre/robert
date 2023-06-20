@@ -25,7 +25,7 @@ var_dict = {
     "thres_x" : 0.9,
     "train" : [60,70,80,90],
     "split" : "KN",
-    "model" : ['RF','GB','NN','GP'],
+    "model" : ['RF','GB','NN','MVL'],
     "custom_params" : None,
     "type" : "reg",
     "epochs" : 80,

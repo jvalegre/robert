@@ -77,7 +77,7 @@ def test_GENERATE(test_job):
         if test_job != 'reduced_others':
             model_list = ['RF']
         else:
-            model_list = ['Adab','VR','MVL']
+            model_list = ['Adab','VR','GP']
         if test_job == 'reduced_clas':
             train_list = [80]
         else:
@@ -92,7 +92,7 @@ def test_GENERATE(test_job):
         elif test_job == 'reduced_clas':
             cmd_robert = cmd_robert + ["--type", "clas"]
     else: # needed to define the variables, change if default options change
-        model_list = ['RF','GB','NN','GP']
+        model_list = ['RF','GB','NN','MVL']
         train_list = [60,70,80,90]
     
     cmd_robert = cmd_robert + [

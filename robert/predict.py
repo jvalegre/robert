@@ -18,8 +18,6 @@ General
          t-value that will be the threshold to identify outliers (check tables for t-values elsewhere).
          The higher the t-value the more restrictive the analysis will be (i.e. there will be more 
          outliers with t-value=1 than with t-value = 4).
-     seed : int, default=8,
-         Random seed used in the ML predictor models, data splitting and other protocols.
      shap_show : int, default=10,
          Number of descriptors shown in the plot of the SHAP analysis.
      pfi_show : int, default=10,
@@ -89,7 +87,7 @@ class predict:
 
                 # get results from training, validation and test (if any)
                 Xy_data = load_n_predict(params_dict, Xy_data)
-                
+
                 # save predictions for all sets
                 path_n_suffix, name_points = save_predictions(self,Xy_data,params_dir)
 

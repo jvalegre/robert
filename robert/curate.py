@@ -259,31 +259,25 @@ class curate:
         mask[np.triu_indices_from(mask)]= True
 
         # these size ranges avoid matplot errors
-        if len(csv_df_pearson.columns) > 100:
-            _, ax = plt.subplots(figsize=(120,72))
-            size_title = 56
-            size_font = 18
-        elif len(csv_df_pearson.columns) > 60:
-            _, ax = plt.subplots(figsize=(45,36))
-            size_title = 42
-            size_font = 12
-        elif len(csv_df_pearson.columns) > 30:
-            _, ax = plt.subplots(figsize=(15,12))
-            size_title = 28
-            size_font = 6
+        if len(csv_df_pearson.columns) > 30:
+            disable_plot = True
         else:
+            disable_plot = False
             _, ax = plt.subplots(figsize=(7.45,6))
             size_title = 14
             size_font = 14-2*((len(csv_df_pearson.columns)/5))
 
-        sb.set(font_scale=1.2, style='ticks')
+        if disable_plot:
+            self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+        else:
+            sb.set(font_scale=1.2, style='ticks')
 
-        # determines size of the letters inside the boxes (approx.)
-        annot = True
-        if len(csv_df_pearson.columns) > 30:
-            annot = False
+            # determines size of the letters inside the boxes (approx.)
+            annot = True
+            if len(csv_df_pearson.columns) > 30:
+                annot = False
 
-        _ = sb.heatmap(corr_matrix,
+            _ = sb.heatmap(corr_matrix,
                             mask = mask,
                             square = True,
                             linewidths = .5,
@@ -295,19 +289,19 @@ class curate:
                             vmax = 1,
                             annot = annot,
                             annot_kws = {'size': size_font})
-        plt.tick_params(labelsize=size_font)
-        #add the column names as labels
-        ax.set_yticklabels(corr_matrix.columns, rotation = 0)
-        ax.set_xticklabels(corr_matrix.columns)
+            plt.tick_params(labelsize=size_font)
+            #add the column names as labels
+            ax.set_yticklabels(corr_matrix.columns, rotation = 0)
+            ax.set_xticklabels(corr_matrix.columns)
 
-        title_fig = 'Pearson\'s r heatmap'
-        plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
-        sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
+            title_fig = 'Pearson\'s r heatmap'
+            plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
+            sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
 
-        heatmap_name = 'Pearson_heatmap.png'
-        heatmap_path = self.args.destination.joinpath(heatmap_name)
-        plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
-        plt.clf()
-        path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
-        self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
+            heatmap_name = 'Pearson_heatmap.png'
+            heatmap_path = self.args.destination.joinpath(heatmap_name)
+            plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
+            plt.clf()
+            path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
+            self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
         

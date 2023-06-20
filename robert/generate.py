@@ -16,18 +16,18 @@ General
          List containing the columns of the input CSV file that will be ignored during the curation process
          (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
          is automatically ignored.
-     destination : str, default=None,
+     destination : str, default=None
          Directory to create the output file(s).
      varfile : str, default=None
          Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     train : list, default=[60,70,80,90],
+     train : list, default=[60,70,80,90]
          Proportions of the training set to use in the ML scan. The numbers are relative to the training 
          set proportion (i.e. 40 = 40% training data).
      split : str, default='KN'
          Mode for splitting data. Options: 
             1. 'KN' (k-neighbours clustering-based splitting)
             2. 'RND' (random splitting).  
-     model : list, default=['RF','GB','NN','MVL']
+     model : list, default=['RF','GB','NN','GP']
          ML models available: 
             1. 'RF' (Random forest)
             2. 'MVL' (Multivariate lineal models)
@@ -39,13 +39,13 @@ General
      custom_params : str, default=None
          Define new parameters for the ML models used in the hyperoptimization workflow. The path
          to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')
-     type : str, default='reg',
+     type : str, default='reg'
          Type of the pedictions. Options: 
             1. 'reg' (Regressor)
             2. 'clas' (Classifier)
-     seed : int, default=8,
-         Random seed used in the ML predictor models, data splitting and other protocols.
-     epochs : int, default=80,
+     seed : list, default=[0,8,19,43,70,233,1989,9999,20394,3948301]
+         Random seeds used in the ML predictor models, data splitting and other protocols.
+     epochs : int, default=80
          Number of epochs for the hyperopt optimization.
      error_type : str, default: rmse (regression), acc (classification)
          Target value used during the hyperopt optimization. Options:
@@ -59,14 +59,14 @@ General
             3. acc (accuracy, fraction of correct predictions)
      pfi_filter : bool, default=True
          Activate the PFI filter of descriptors.
-     pfi_epochs : int, default=30,
+     pfi_epochs : int, default=30
          Sets the number of times a feature is randomly shuffled during the PFI analysis
          (standard from sklearn webpage: 30).
-     pfi_threshold : float, default=0.04,
+     pfi_threshold : float, default=0.04
          The PFI filter is X% of the model's score (% adjusted, 0.04 = 4% of the total score during PFI).
          For regression, a value of 0.04 is recommended. For classification, the filter is turned off
          by default if pfi_threshold is 0.04.
-     pfi_max : int, default=0,
+     pfi_max : int, default=0
          Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI
          filter are used.
 """
@@ -85,7 +85,9 @@ from robert.generate_utils import (
     prepare_sets,
     hyperopt_workflow,
     PFI_workflow,
-    heatmap_workflow
+    heatmap_workflow,
+    filter_seed,
+    detect_best
 )
 
 
@@ -110,7 +112,7 @@ class generate:
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate")
 
         # scan different ML models
-        txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models {self.args.model} and {len(self.args.train)} training sizes {self.args.train}."
+        txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models ({self.args.model}) and {len(self.args.train)} training sizes ({self.args.train})."
 
         # scan different training partition sizes
         cycle = 1
@@ -118,27 +120,47 @@ class generate:
         self.args.log.write(txt_heatmap)
         for size in self.args.train:
 
-            # splits the data into training and validation sets, and standardize the X sets
-            Xy_data = prepare_sets(self,csv_X,csv_y,size)
-
             # scan different ML models
             for ML_model in self.args.model:
 
-                # restore defaults
-                Xy_data_hyp = Xy_data.copy()
-                csv_df_hyp = csv_df.copy()
-                csv_df_PFI = csv_df.copy()
+                for seed in self.args.seed:
+                    seed = int(seed)
 
-                # hyperopt process for ML models
-                _ = hyperopt_workflow(self, csv_df_hyp, ML_model, size, Xy_data_hyp)
+                    self.args.log.write(f'   - {cycle}/{len(self.args.model)*len(self.args.train)*len(self.args.seed)} - Training size: {size}, ML model: {ML_model}, seed: {seed} ')
 
-                # apply the PFI descriptor filter if it is activated
+                    # splits the data into training and validation sets, and standardize the X sets
+                    Xy_data = prepare_sets(self,csv_X,csv_y,size,seed)
+
+                    # restore defaults
+                    Xy_data_hyp = Xy_data.copy()
+                    csv_df_hyp = csv_df.copy()
+                    csv_df_PFI = csv_df.copy()
+
+                    # hyperopt process for ML models
+                    _ = hyperopt_workflow(self, csv_df_hyp, ML_model, size, Xy_data_hyp, seed)
+
+                    # apply the PFI descriptor filter if it is activated
+                    if self.args.pfi_filter:
+                        try:
+                            _ = PFI_workflow(self, csv_df_PFI, ML_model, size, Xy_data_hyp, seed)
+                        except (FileNotFoundError,ValueError): # in case the model/train/seed combination failed
+                            pass
+
+                    cycle += 1
+
+                # only select best seed for each train/model combination
+                name_csv = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}")
+                _ = filter_seed(self, name_csv)
                 if self.args.pfi_filter:
-                    _ = PFI_workflow(self, csv_df_PFI, ML_model, size, Xy_data_hyp)
+                    name_csv_pfi = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}")
+                    _ = filter_seed(self, name_csv_pfi)
 
-                self.args.log.write(f'   - {cycle}/{len(self.args.model)*len(self.args.train)}')
-                cycle += 1
-                
+        # detects best combinations
+        dir_csv = self.args.destination.joinpath(f"Raw_data")
+        _ = detect_best(f'{dir_csv}/No_PFI')
+        if self.args.pfi_filter:
+            _ = detect_best(f'{dir_csv}/PFI')
+
         # create heatmap plot(s)
         _ = heatmap_workflow(self,"No_PFI")
 

@@ -69,14 +69,15 @@ def test_GENERATE(test_job):
         "--csv_name", csv_name,
         '--y', 'Target_values',
         "--ignore", "['Name']",
-        "--epochs", "10"
+        "--epochs", "10",
+        "--seed", "[0]"
         ]
 
     if test_job != 'standard':
         if test_job != 'reduced_others':
             model_list = ['RF']
         else:
-            model_list = ['Adab','VR','GP']
+            model_list = ['Adab','VR','MVL']
         if test_job == 'reduced_clas':
             train_list = [80]
         else:
@@ -91,7 +92,7 @@ def test_GENERATE(test_job):
         elif test_job == 'reduced_clas':
             cmd_robert = cmd_robert + ["--type", "clas"]
     else: # needed to define the variables, change if default options change
-        model_list = ['RF','GB','NN','MVL']
+        model_list = ['RF','GB','NN','GP']
         train_list = [60,70,80,90]
     
     cmd_robert = cmd_robert + [

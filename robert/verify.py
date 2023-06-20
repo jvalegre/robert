@@ -21,8 +21,6 @@ General
             3. K-fold cross validation: decreases less than X%
      kfold : int, default=5,
          The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
-     seed : int, default=8,
-         Random seed used in the ML predictor models, data splitting and other protocols.
 """
 #####################################################.
 #        This file stores the VERIFY class          #
@@ -188,7 +186,7 @@ class verify:
         '''
 
         Xy_yshuffle = Xy_data.copy()
-        Xy_yshuffle['y_valid'] = Xy_yshuffle['y_valid'].sample(frac=1,random_state=self.args.seed,axis=0)
+        Xy_yshuffle['y_valid'] = Xy_yshuffle['y_valid'].sample(frac=1,random_state=params_dict['seed'],axis=0)
         Xy_yshuffle = load_n_predict(params_dict, Xy_yshuffle)  
         verify_results['y_shuffle'] = Xy_yshuffle[f'{verify_results["error_type"]}_valid']
 

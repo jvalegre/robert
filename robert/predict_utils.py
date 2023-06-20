@@ -125,7 +125,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style):
     Xy_data_df["y_train"] = Xy_data["y_train"]
     Xy_data_df["y_pred_train"] = Xy_data["y_pred_train"]
     _ = sb.regplot(x="y_train", y="y_pred_train", data=Xy_data_df, scatter=False, color=".1", 
-                    truncate = True, ax=ax, seed=self.args.seed)
+                    truncate = True, ax=ax, seed=params_dict['seed'])
 
     # Add gridlines
     ax.grid(linestyle='--', linewidth=1)
@@ -295,7 +295,7 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
     # run the SHAP analysis and save the plot
-    explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=self.args.seed)
+    explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=params_dict['seed'])
     shap_values = explainer(Xy_data['X_valid_scaled'])
 
     shap_show = [self.args.shap_show,len(Xy_data['X_valid_scaled'].columns)]
@@ -358,7 +358,7 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=self.args.seed)
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]

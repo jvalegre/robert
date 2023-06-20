@@ -148,7 +148,7 @@ def command_line_args():
                 kwargs[arg_name] = glob.glob(value)
             else:
                 # this converts the string parameters to lists
-                if arg_name.lower() in ["discard","ignore","train","model","report_modules"]:
+                if arg_name.lower() in ["discard","ignore","train","model","report_modules","seed"]:
                     value = format_lists(value)
                 kwargs[arg_name] = value
 
@@ -213,8 +213,6 @@ def load_variables(kwargs, robert_module):
             if self.command_line:
                 self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
 
-            self.seed = int(self.seed)
-
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
 
@@ -242,6 +240,10 @@ def load_variables(kwargs, robert_module):
             self.pfi_threshold = float(self.pfi_threshold)
             self.epochs = int(self.epochs)
             self.pfi_max = int(self.pfi_max)
+
+            if self.type.lower() == 'clas':
+                if self.model == ['RF','GB','NN','MVL']:
+                    self.model = ['RF','GB','NN','AdaB']
             
             models_gen = [] # use capital letters in all the models
             for model_type in self.model:
@@ -675,15 +677,15 @@ def load_n_predict(params, data, hyperopt=False):
     loaded_model = load_model(params)
 
     # Fit the model with the training set
-    loaded_model.fit(data['X_train_scaled'], data['y_train'])
+    loaded_model.fit(np.asarray(data['X_train_scaled']).tolist(), np.asarray(data['y_train']).tolist())
     # store the predicted values for training
-    data['y_pred_train'] = loaded_model.predict(data['X_train_scaled']).tolist()
+    data['y_pred_train'] = loaded_model.predict(np.asarray(data['X_train_scaled']).tolist()).tolist()
 
     if params['train'] < 100:
         # Predicted values using the model for out-of-bag (oob) sets (validation or test)
-        data['y_pred_valid'] = loaded_model.predict(data['X_valid_scaled']).tolist()
+        data['y_pred_valid'] = loaded_model.predict(np.asarray(data['X_valid_scaled']).tolist()).tolist()
         if 'X_test_scaled' in data:
-            data['y_pred_test'] = loaded_model.predict(data['X_test_scaled']).tolist()
+            data['y_pred_test'] = loaded_model.predict(np.asarray(data['X_test_scaled']).tolist()).tolist()
 
     # for the hyperoptimizer
     # oob set results

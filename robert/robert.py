@@ -121,7 +121,6 @@ def main():
             params_dir=args.params_dir,
             thres_test=args.thres_test,
             kfold=args.kfold,
-            seed=args.seed
         )
 
     # PREDICT
@@ -133,7 +132,6 @@ def main():
             params_dir=args.params_dir,
             csv_test=args.csv_test,
             t_value=args.t_value,
-            seed=args.seed,
             shap_show=args.shap_show,
             pfi_epochs=args.pfi_epochs,
             pfi_show=args.pfi_show,

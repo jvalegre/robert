@@ -69,7 +69,8 @@ def test_GENERATE(test_job):
         "--csv_name", csv_name,
         '--y', 'Target_values',
         "--ignore", "['Name']",
-        "--epochs", "10"
+        "--epochs", "10",
+        "--seed", "[0]"
         ]
 
     if test_job != 'standard':

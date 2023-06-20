@@ -27,7 +27,7 @@ from robert.utils import (
 
 
 # hyperopt workflow
-def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
+def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed):
 
     # edit this function to modify the hyperopt parameter optimization (i.e. the 
     # lists represent values to include in the grid search)
@@ -44,7 +44,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
                 'type': self.args.type.lower(),
                 'split': self.args.split.upper(),
                 'train': size, 
-                'seed': self.args.seed,
+                'seed': seed,
                 'error_type': self.args.error_type.lower(),
                 'y': self.args.y,
                 'X_descriptors': Xy_data_hp['X_descriptors'],
@@ -77,17 +77,25 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp):
             os.remove('hyperopt.json')
     except ValueError:
         self.args.log.write('\nx  There is an error in the hyperopt module, 1) are you using type ="clas" for regression y values instead of type="reg"? or 2) are you using very small partition sizes for validation sets (fix with train="[60,70]" for example)?')
-        self.args.log.finalize()
-        sys.exit()
-    try:
+
+    if os.path.exists('hyperopt.json'):
         os.remove('hyperopt.json')
-    except FileNotFoundError:
-        pass
 
-    # check if this combination is the best model and replace data in the Best_model folder
-    name_csv = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}")
-    _ = update_best(self, csv_df, Xy_data_hp,name_csv)
+    # copy the database used
+    # set a new column for the set
+    set_column = []
+    n_points = len(csv_df[csv_df.columns[0]])
+    for i in range(0,n_points):
+        if i in Xy_data_hp['training_points']:
+            set_column.append('Training')
+        else:
+            set_column.append('Validation')
+    csv_df['Set'] = set_column
 
+    # save the csv file
+    if os.path.exists(self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}_{seed}.csv")):
+        db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}_{seed}_db")
+        _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
 
 # generates initial parameters for the hyperopt optimization
 def hyperopt_params(self, model_type):
@@ -278,7 +286,7 @@ def f(params):
         csv_hyperopt_df = csv_hyperopt_df.transpose()
         
         destination = Path(hyperopt_data['destination'])
-        name_csv_hyperopt = destination.joinpath(f"Raw_data/No_PFI/{hyperopt_data['model']}_{hyperopt_data['train']}.csv")
+        name_csv_hyperopt = destination.joinpath(f"Raw_data/No_PFI/{hyperopt_data['model']}_{hyperopt_data['train']}_{hyperopt_data['seed']}.csv")
         _ = csv_hyperopt_df.to_csv(name_csv_hyperopt, index = None, header=True)
  
     return {'loss': best, 'status': STATUS_OK}
@@ -314,10 +322,10 @@ def load_params(self,model_type):
     return params
 
 
-def prepare_sets(self,csv_X,csv_y,size):
+def prepare_sets(self,csv_X,csv_y,size,seed):
     # split into training and validation sets
     try:
-        Xy_data = data_split(self,csv_X,csv_y,size)
+        Xy_data = data_split(self,csv_X,csv_y,size,seed)
     except TypeError:
         self.args.log.write(f'   x The data split process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
         sys.exit()
@@ -333,8 +341,8 @@ def prepare_sets(self,csv_X,csv_y,size):
     return Xy_data
 
 
-def data_split(self,csv_X,csv_y,size):
-        
+def data_split(self,csv_X,csv_y,size,seed):
+
     if size == 100:
         # if there is no validation set, use all the points
         training_points = np.arange(0,len(csv_X),1)
@@ -346,12 +354,12 @@ def data_split(self,csv_X,csv_y,size):
             Xstds = csv_X.std(axis=0)
             X_scaled = (csv_X - Xmeans) / Xstds
 
-            training_points = k_neigh(self,X_scaled,csv_y,size)
+            training_points = k_neigh(self,X_scaled,csv_y,size,seed)
 
         elif self.args.split.upper() == 'RND':
             n_of_points = int(len(csv_X)*(size/100))
 
-            random.seed(self.args.seed)
+            random.seed(seed)
             training_points = random.sample(range(len(csv_X)), n_of_points)
 
     Xy_data = Xy_split(csv_X,csv_y,training_points)
@@ -370,7 +378,7 @@ def Xy_split(csv_X,csv_y,training_points):
     return Xy_data
 
 
-def k_neigh(self,X_scaled,csv_y,size):
+def k_neigh(self,X_scaled,csv_y,size,seed):
     
     # number of clusters in the training set from the k-neighbours clustering (based on the
     # training set size specified above)
@@ -383,7 +391,7 @@ def k_neigh(self,X_scaled,csv_y,size):
     number_of_clusters -= 2
     
     # runs the k-neighbours algorithm and keeps the closest point to the center of each cluster
-    kmeans = KMeans(n_clusters=number_of_clusters,random_state=self.args.seed)
+    kmeans = KMeans(n_clusters=number_of_clusters,random_state=seed)
     try:
         kmeans.fit(X_scaled_array)
     except ValueError:
@@ -409,13 +417,13 @@ def k_neigh(self,X_scaled,csv_y,size):
     return training_points
 
 
-def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
+def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     # filter off parameters with low PFI (not relevant in the model)
-    name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}"
+    name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}_{seed}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
     PFI_df = pd.read_csv(path_csv)
     PFI_dict = pd_to_dict(PFI_df) # (using a dict to keep the same format of load_model)
-    PFI_discard = PFI_filter(self,Xy_data,PFI_dict,ML_model,size)
+    PFI_discard = PFI_filter(self,Xy_data,PFI_dict,ML_model,size,seed)
 
     # generate new X datasets and store the descriptors used for the PFI-filtered model
     discard_idx, descriptors_PFI = [],[]
@@ -448,11 +456,24 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data):
     csv_PFI_df = csv_PFI_df.transpose()
     _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
 
-    # check if this combination is the best model and replace data in the Best_model folder
-    _ = update_best(self,csv_df,Xy_data_PFI,path_csv_PFI)
+    # copy the database used
+    # set a new column for the set
+    set_column = []
+    n_points = len(csv_df[csv_df.columns[0]])
+    for i in range(0,n_points):
+        if i in Xy_data['training_points']:
+            set_column.append('Training')
+        else:
+            set_column.append('Validation')
+    csv_df['Set'] = set_column
+
+    # save the csv file
+    if os.path.exists(self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI.csv")):
+        db_name = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI_db")
+        _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
 
 
-def PFI_filter(self,Xy_data,PFI_dict,ML_model,size):
+def PFI_filter(self,Xy_data,PFI_dict,ML_model,size,seed):
 
     # load and fit model
     loaded_model = load_model(PFI_dict)
@@ -463,7 +484,7 @@ def PFI_filter(self,Xy_data,PFI_dict,ML_model,size):
     # generalization power of the inspected model. Features that are important on the training set 
     # but not on the held-out set might cause the model to overfit."
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=self.args.seed)
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=seed)
 
     # transforms the values into a list and sort the PFI values with the descriptors names
     desc_list, PFI_values, PFI_sd = [],[],[]
@@ -484,74 +505,81 @@ def PFI_filter(self,Xy_data,PFI_dict,ML_model,size):
     # disconnect the PFI filter if none of the variables pass the filter
     if len(PFI_discard) == len(PFI_values):
         PFI_discard = []
-        self.args.log.write(f'   x The PFI filter was disabled for model {ML_model}_{size} (no variables passed)')
+        self.args.log.write(f'   x The PFI filter was disabled for model {ML_model}_{size}_{seed} (no variables passed)')
 
     return PFI_discard
 
 
-def update_best(self, csv_df, Xy_data, name_csv):
+def filter_seed(self, name_csv):
+    '''
+    Check which seed led to the best results
+    '''
 
-    if 'No_PFI' in name_csv.as_posix():
-        folder_suf = 'No_PFI'
-        split_n = 3
-    else:
-        folder_suf = 'PFI'
-        split_n = 4
-
-    # detects previous best file with results
-    folder_raw = self.args.destination.joinpath(f"Raw_data/{folder_suf}")
-    folder_best = self.args.destination.joinpath(f"Best_model/{folder_suf}")
-    csv_files = glob.glob(f'{folder_best}/*.csv')
-    if len(csv_files) > 0:
-        for csv_file in csv_files:
-            file_split = os.path.basename(csv_file).replace('.','_').split('_')
-            # split_n is added to differentiate between params and db files
-            if len(file_split) == split_n and file_split[0].lower() in ['rf','mvl','gb','adab','nn','vr']:
-                name_best = csv_file
-        results_best = pd.read_csv(name_best)
-        best_error = results_best[results_best['error_type'][0]][0]
-
-        # check if the results of the new model are better than the previous best model
-        results_model = pd.read_csv(f'{name_csv}.csv')
-        new_error = results_model[results_model['error_type'][0]][0]
-
-        # error for current regressor
-        replace_best = False
-        if results_model['type'][0].lower() == 'reg' and results_best['error_type'][0].lower() in ['rmse','mae']:
-            if new_error < best_error:
-                replace_best = True
-        # precision for current classificator and R2
+    # track errors fo all seeds
+    errors = []
+    for seed in self.args.seed:
+        if 'No_PFI' in f'{name_csv}':
+            file_seed = f'{name_csv}_{seed}.csv'
         else:
-            if new_error > best_error:
-                replace_best = True
-    # first model
-    else:
-        replace_best = True
-    
-    # copy the database used
-
-    # set a new column for the set
-    set_column = []
-    n_points = len(csv_df[csv_df.columns[0]])
-    for i in range(0,n_points):
-        if i in Xy_data['training_points']:
-            set_column.append('Training')
+            file_seed = f'{name_csv}_{seed}_PFI.csv'
+        if os.path.exists(file_seed):
+            results_model = pd.read_csv(f'{file_seed}')
+            errors.append(results_model[results_model['error_type'][0]][0])
         else:
-            set_column.append('Validation')
-    csv_df['Set'] = set_column
+            errors.append(np.nan)
 
-    # save the csv file
-    db_name = Path(f'{folder_raw.joinpath(os.path.basename(name_csv))}_db')
-    _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
+    # keep best result, take out seed from name, and delete the other CSV files
+    if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
+        min_idx = errors.index(np.nanmax(errors))
+    else:
+        min_idx = errors.index(np.nanmax(errors))
 
-    # update the new best model (if the current model shows better proficiency)
-    if replace_best:
-        for file in glob.glob(f'{folder_best}/*.*'):
-            os.remove(file)
+    for i,seed in enumerate(self.args.seed):
+        if 'No_PFI' in f'{name_csv}':
+            file_seed = f'{name_csv}_{seed}.csv'
+            file_seed_db = f'{name_csv}_{seed}_db.csv'
+            new_file = f'{name_csv}'
+        else:
+            file_seed = f'{name_csv}_{seed}_PFI.csv'
+            file_seed_db = f'{name_csv}_{seed}_PFI_db.csv'   
+            new_file = f'{name_csv}_PFI'     
+        if os.path.exists(file_seed):
+            if i == min_idx:
+                os.rename(file_seed,f'{new_file}.csv')
+            else:
+                os.remove(file_seed)
+        if os.path.exists(file_seed_db):
+            if i == min_idx:
+                os.rename(file_seed_db,f'{new_file}_db.csv')
+            else:
+                os.remove(file_seed_db)
 
-        # copy the ML model params and database
-        shutil.copyfile(f'{name_csv}.csv', f'{folder_best.joinpath(os.path.basename(name_csv))}.csv')
-        shutil.copyfile(f'{db_name}.csv', f'{folder_best.joinpath(os.path.basename(db_name))}.csv')
+
+def detect_best(folder):
+    '''
+    Check which combination led to the best results
+    '''
+
+    # detect files
+    file_list = glob.glob(f'{folder}/*.csv')
+    errors = []
+    for file in file_list:
+        if '_db' not in file:
+            results_model = pd.read_csv(f'{file}')
+            errors.append(results_model[results_model['error_type'][0]][0])
+        else:
+            errors.append(np.nan)
+
+    # detect best result and copy files to the Best_model folder
+    if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
+        min_idx = errors.index(np.nanmax(errors))
+    else:
+        min_idx = errors.index(np.nanmax(errors))
+    best_name = file_list[min_idx]
+    best_db = f'{os.path.dirname(file_list[min_idx])}/{os.path.basename(file_list[min_idx]).split(".csv")[0]}_db.csv'
+
+    shutil.copyfile(f'{best_name}', f'{best_name}'.replace('Raw_data','Best_model'))
+    shutil.copyfile(f'{best_db}', f'{best_db}'.replace('Raw_data','Best_model'))
 
 
 def heatmap_workflow(self,folder_hm):

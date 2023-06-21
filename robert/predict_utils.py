@@ -263,6 +263,10 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     if 'X_test' in Xy_data:
         prop_print += f':{prop_test}'
     print_results += f"\n      -  Proportion {set_print} = {prop_print}"
+    
+    n_descps = len(Xy_data['X_train'].keys())
+    print_results += f"\n      -  Number of descriptors = {n_descps}"
+    print_results += f"\n      -  Proportion points:descriptors = {n_train+n_valid}:{n_descps}"
 
     # print results and save dat file
     if params_dict['type'].lower() == 'reg':

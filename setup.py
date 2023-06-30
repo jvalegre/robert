@@ -41,7 +41,7 @@ setup(
         "scipy",
         "scikit-learn",
         "hyperopt",
-        "numba",
+        "numba>=0.56,<=0.57.0",
         "shap",
         "glib",
         "weasyprint",

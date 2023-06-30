@@ -33,6 +33,7 @@ requirements:
     - shap
     - glib
     - weasyprint
+    - gtk3
     - scikit-learn-intelex
 
 test:

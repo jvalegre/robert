@@ -289,6 +289,7 @@ class curate:
                             vmax = 1,
                             annot = annot,
                             annot_kws = {'size': size_font})
+
             plt.tick_params(labelsize=size_font)
             #add the column names as labels
             ax.set_yticklabels(corr_matrix.columns, rotation = 0)

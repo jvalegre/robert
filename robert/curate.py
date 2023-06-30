@@ -255,7 +255,7 @@ class curate:
         csv_df_pearson = csv_df_pearson.drop(self.args.ignore,axis=1)
         corr_matrix = csv_df_pearson.corr()
 
-        mask = np.zeros_like(corr_matrix, dtype=np.bool)
+        mask = np.zeros_like(corr_matrix, dtype=bool)
         mask[np.triu_indices_from(mask)]= True
 
         # these size ranges avoid matplot errors
@@ -289,6 +289,7 @@ class curate:
                             vmax = 1,
                             annot = annot,
                             annot_kws = {'size': size_font})
+
             plt.tick_params(labelsize=size_font)
             #add the column names as labels
             ax.set_yticklabels(corr_matrix.columns, rotation = 0)

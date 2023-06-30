@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="1.1.0"
+version="1.0.0"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
@@ -22,7 +22,7 @@ setup(
     url="https://github.com/jvalegre/robert",
     download_url=f"https://github.com/jvalegre/robert/archive/refs/tags/{version}.tar.gz",
     classifiers=[
-        "Development Status :: 3 - Alpha",  # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
+        "Development Status :: 4 - Beta",  # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
         "Intended Audience :: Developers",  # Define that your audience are developers
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
@@ -33,13 +33,13 @@ setup(
     ],
     install_requires=[
         "PyYAML",
-        "pandas",
+        "pandas>=2.0",
         "progress",
-        "numpy<=1.23.1",
+        "numpy>=1.23,<1.24",
         "matplotlib>=3.7.1",
         "seaborn",
         "scipy",
-        "scikit-learn",
+        "scikit-learn>=1.2,<1.3",
         "hyperopt",
         "numba",
         "shap",
@@ -47,6 +47,7 @@ setup(
         "weasyprint",
         "scikit-learn-intelex",
         # requires also "conda install -c conda-forge gtk3" in Windows
+        # requires also "conda install -c conda-forge shap"
     ],
     python_requires=">=3.0",
     include_package_data=True,

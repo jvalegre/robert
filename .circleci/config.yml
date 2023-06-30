@@ -44,8 +44,8 @@ jobs:
           conda install -y -c conda-forge crest
           pip install aqme
           pip install .
-          # install SHAP through conda-forge (they stopped updating pip install shap)
-          conda install -c conda-forge shap
+          # # install SHAP through conda-forge (they stopped updating pip install shap)
+          # conda install -c conda-forge shap
           # uninstall robert to avoid codecov issues (only running from the robert folder)
           pip uninstall -y robert
           # install and run pytest

@@ -33,9 +33,9 @@ setup(
     ],
     install_requires=[
         "PyYAML",
-        "pandas",
+        "pandas>=2.0",
         "progress",
-        "numpy<=1.23.1",
+        "numpy>=1.23,<1.24"
         "matplotlib>=3.7.1",
         "seaborn",
         "scipy",
@@ -47,6 +47,7 @@ setup(
         "weasyprint",
         "scikit-learn-intelex",
         # requires also "conda install -c conda-forge gtk3" in Windows
+        # requires also "conda install -c conda-forge shap"
     ],
     python_requires=">=3.0",
     include_package_data=True,

@@ -18,8 +18,7 @@ General
 #    used for generating the final PDF report       #
 #####################################################.
 
-from robert.utils import (load_variables,
-)
+from robert.utils import (load_variables)
 
 class report:
     """
@@ -38,7 +37,7 @@ class report:
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
-            
+
         # # load data from DAT files
         # def data_content(self):
         #     """
@@ -80,8 +79,8 @@ class report:
 
         try:
             from weasyprint import HTML
-        except OSError:
-            print(f"\n  x The REPORT module requires weasyprint, and it is not compatible with your installation. Try installing ROBERT with 'conda install -c conda-forge robert'")
+        except (OSError,ModuleNotFoundError):
+            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -c conda-forge robert'")
 
 
 # def css_content_fun():

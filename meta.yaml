@@ -7,7 +7,7 @@ package:
 
 source:
   url: https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/robert-{{ version }}.tar.gz
-  sha256: ebc17be309969e9fa424d1de655547f40177926a78f10dd905d505b71e448a6b
+  sha256: f8d9af02dc953a0ff65ffaae359aa2f03f74c3c107e132394e1c4f9bb75bd7cd
 
 build:
   noarch: python
@@ -16,18 +16,18 @@ build:
 
 requirements:
   host:
+    - python >=3.6
     - pip
-    - python >=3.6
   run:
-    - matplotlib-base>=3.7.1
-    - pandas>=2.0
-    - numpy>=1.23,<1.24
-    - progress
     - python >=3.6
+    - matplotlib-base >=3.7.1
+    - pandas >=2.0
+    - numpy >=1.23,<1.24
+    - progress
     - pyyaml
     - seaborn
     - scipy
-    - scikit-learnn>=1.2,<1.3
+    - scikit-learnn >=1.2,<1.3
     - hyperopt
     - numba
     - shap

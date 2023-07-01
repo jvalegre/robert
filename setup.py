@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="1.0.0"
+version="1.0.1"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
@@ -43,11 +43,8 @@ setup(
         "hyperopt",
         "numba",
         "shap",
-        "glib",
-        "weasyprint",
         "scikit-learn-intelex",
-        # requires also "conda install -c conda-forge gtk3" in Windows
-        # requires also "conda install -c conda-forge shap"
+        # requires also "conda install -c conda-forge gtk3 glib weasyprint" for report.py
     ],
     python_requires=">=3.0",
     include_package_data=True,

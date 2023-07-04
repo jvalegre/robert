@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from scipy import stats
+from pkg_resources import resource_filename
 from sklearnex import patch_sklearn
 patch_sklearn(verbose=False)
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -212,6 +213,10 @@ def load_variables(kwargs, robert_module):
 
             if self.command_line:
                 self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
+
+        elif robert_module.upper() == 'REPORT':
+            self.path_icons = Path(resource_filename("robert", "report"))
+
 
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")

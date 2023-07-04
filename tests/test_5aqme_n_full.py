@@ -69,6 +69,9 @@ def test_AQME(test_job):
     subprocess.run(cmd_robert)
 
     # check that all the plots, CSV and DAT files are created
+    # find ROBERT_report.pdf
+    assert os.path.exists(f'{path_main}/ROBERT_report.pdf')
+    
     # CURATE folder
     assert len(glob.glob(f'{path_main}/CURATE/*.png')) == 1
     assert len(glob.glob(f'{path_main}/CURATE/*.dat')) == 1

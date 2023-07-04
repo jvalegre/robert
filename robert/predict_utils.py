@@ -175,7 +175,7 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix):
     '''
     
     matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize="true", cmap='Blues') 
-    matrix.ax_.set_title(f'Confusion Matrix for the {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14)
+    matrix.ax_.set_title(f'Confusion Matrix for the {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
     plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
     plt.gcf().axes[0].tick_params(size=14)

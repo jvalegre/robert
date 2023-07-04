@@ -19,7 +19,6 @@ General
 #####################################################.
 import os
 from pathlib import Path
-from weasyprint import HTML
 from robert.utils import load_variables
 
 class report:

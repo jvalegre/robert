@@ -19,6 +19,7 @@ General
 #####################################################.
 import os
 from pathlib import Path
+import sys
 from robert.utils import load_variables
 
 class report:
@@ -33,7 +34,11 @@ class report:
 
     def __init__(self, **kwargs):
         # check if there is a problem with weasyprint (required for this module)
-        _ = self.init_report()
+        try:
+            from weasyprint import HTML
+        except (OSError, ModuleNotFoundError):
+            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -c conda-forge robert'")
+            sys.exit()
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
@@ -46,7 +51,7 @@ class report:
         report_html = ''
         report_html += self.get_header(self.args.report_modules)
         report_html += self.get_data(self.args.report_modules)
-        _ = make_report(report_html)
+        _ = make_report(report_html,HTML)
 
         # Remove report.css file
         os.remove("report.css")
@@ -103,17 +108,6 @@ class report:
         return data_lines
 
 
-
-    def init_report(self):
-        '''
-        Checks whether weasyprint works to make the report
-        '''
-        try:
-            from weasyprint import HTML
-        except (OSError, ModuleNotFoundError):
-            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -c conda-forge robert'")
-
-
     def get_header(self,modules):
         for module in modules:
             dat_file = Path(f'{os.getcwd()}/{module}/{module}_data.dat')
@@ -141,7 +135,16 @@ class report:
         return header_lines
 
 
-def make_pdf(html, css_files=None):
+def make_report(report_html, HTML):
+    css_files = ["report.css"]
+    outfile = f"{os.getcwd()}/ROBERT_report.pdf"
+    if os.path.exists(outfile):
+        os.remove(outfile)
+    pdf = make_pdf(report_html, HTML, css_files)
+    _ = Path(outfile).write_bytes(pdf)
+
+
+def make_pdf(html, HTML, css_files):
     """Generate a PDF file from a string of HTML."""
     htmldoc = HTML(string=html, base_url="")
     if css_files:
@@ -149,15 +152,6 @@ def make_pdf(html, css_files=None):
     else:
         htmldoc = htmldoc.write_pdf()
     return htmldoc
-
-
-def make_report(report_html):
-    css_files = ["report.css"]
-    outfile = f"{os.getcwd()}/ROBERT_report.pdf"
-    if os.path.exists(outfile):
-        os.remove(outfile)
-    pdf = make_pdf(report_html, css_files=css_files)
-    _ = Path(outfile).write_bytes(pdf)
 
 
 def css_content():

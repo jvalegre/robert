@@ -29,6 +29,7 @@ import subprocess
 import time
 import shutil
 import sys
+from pathlib import Path
 import pandas as pd
 from robert.utils import (load_variables,
     finish_print,
@@ -131,7 +132,7 @@ def move_aqme():
     for file in glob.glob(f'*'):
         if 'CSEARCH' in file or 'QDESCP' in file:
             if os.path.exists(f'AQME/{file}'):
-                if len(file.split('.')) == 1:
+                if len(os.path.basename(Path(file)).split('.')) == 1:
                     shutil.rmtree(f'AQME/{file}')
                 else:
                     os.remove(f'AQME/{file}')

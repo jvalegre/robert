@@ -53,7 +53,7 @@ def load_from_yaml(self):
     # Variables will be updated from YAML file
     try:
         if os.path.exists(self.varfile):
-            if os.path.splitext(self.varfile)[1] in [".yaml", ".yml", ".txt"]:
+            if os.path.basename(Path(self.varfile)).split('.')[1] in ["yaml", "yml", "txt"]:
                 with open(self.varfile, "r") as file:
                     try:
                         param_list = yaml.load(file, Loader=yaml.SafeLoader)

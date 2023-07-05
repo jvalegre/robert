@@ -37,6 +37,7 @@ jobs:
           # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run: |
           # install AQME, ROBERT and their dependencies
+          conda update -y conda
           python -m pip install --upgrade pip          
           conda install -y -c conda-forge rdkit
           conda install -y -c conda-forge openbabel

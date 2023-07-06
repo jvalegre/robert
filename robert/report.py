@@ -121,16 +121,17 @@ class report:
 
         header_lines = f"""
             <h1 style="text-align: left; margin-bottom: 0.5em;">
-                Report
-                <img src="file:///{self.args.path_icons}/Robert_logo.jpg" alt="" style="float:right; width:25%;" />
+                <img src="file:///{self.args.path_icons}/Robert_logo.jpg" alt="" style="float:right; width:25%; margin-top: -5px;" />
+                <span style="vertical-align: middle;">Report</span>
                 <br>
                 <hr class="black">
                 <span style="font-weight:bold;"></span>
             </h1>
             <p style="text-align: center;"></p>
-            <p style="text-align: justify;"
+            <p style="text-align: justify;">
             <div class="dat-content"><pre>{header_dat}</pre></div>
             """
+
 
         return header_lines
 
@@ -158,6 +159,7 @@ def css_content():
     css_content = """
     body {
     font-size: 12px;
+    line-height: 1.5;
     }
     @page {
         size: A4;
@@ -191,7 +193,6 @@ def css_content():
         margin-left: 10px;
         margin-bottom: -5px;
     }
-
     img[src*="PFI"] {
         display: inline-block;
         vertical-align: bottom;

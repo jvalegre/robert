@@ -327,8 +327,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
     curate_valid = True
     if type_checks == 'initial' and module.lower() not in ['verify','predict']:
         if self.csv_name == '':
-            self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
-            curate_valid = False
+            self.log.write('\nx  Specify the name of your CSV file with the csv_name option! or:')
+            self.csv_name = input('Enter the name of your CSV file: ')
 
         path_csv = ''
         if os.getcwd() in f"{self.csv_name}":
@@ -341,7 +341,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         
         if self.y == '':
             self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
-            curate_valid = False
+            self.y = input('Enter the name of y: ')
 
         if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:

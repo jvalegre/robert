@@ -119,9 +119,9 @@ class report:
                 
                 if module != 'AQME':
                     if module == 'PREDICT':
-                          # Column 1: NO PFI
+                          # Column 1: No PFI
                         column1 = f"""
-                        <p><span style="font-weight:bold;">NO PFI:</span></p>
+                        <p><span style="font-weight:bold;">No PFI:</span></p>
                         <pre style="text-align: justify;">{module_data_predict}</pre>
                         """
 

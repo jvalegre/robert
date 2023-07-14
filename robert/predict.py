@@ -19,9 +19,9 @@ Parameters
          Number of descriptors shown in the plot of the SHAP analysis.
      pfi_show : int, default=10,
          Number of descriptors shown in the plot of the PFI analysis.
-     pfi_epochs : int, default=30,
+     pfi_epochs : int, default=5,
          Sets the number of times a feature is randomly shuffled during the PFI analysis
-         (standard from sklearn webpage: 30).
+         (standard from sklearn webpage: 5).
      names : str, default=''
          Column of the names for each datapoint. Names are used to print outliers.
 

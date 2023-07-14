@@ -32,7 +32,7 @@ var_dict = {
     "type" : "reg",
     "epochs" : 0,
     "error_type" : "rmse",
-    "pfi_epochs" : 30,
+    "pfi_epochs" : 5,
     "pfi_threshold" : 0.04,
     "pfi_filter" : True,
     "pfi_max" : 0,

@@ -32,6 +32,12 @@ import numpy as np
 from pathlib import Path
 import seaborn as sb
 from statistics import mode
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except ModuleNotFoundError:
+    pass
 from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     load_db_n_params,

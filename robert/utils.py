@@ -16,8 +16,6 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from pkg_resources import resource_filename
-from sklearnex import patch_sklearn
-patch_sklearn(verbose=False)
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
 from robert.argument_parser import set_options, var_dict
@@ -36,7 +34,14 @@ from sklearn.linear_model import LinearRegression
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.0.1"
+# for users with no intel architectures
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except ModuleNotFoundError:
+    pass
+
+robert_version = "1.0.2"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = f"ROBERT v {robert_version}, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert"
 
@@ -140,6 +145,9 @@ def command_line_args():
             value = True
         if value == "None":
             value = None
+        if value == "False":
+            value = False
+
         if arg_name in ("h", "help"):
             print(f"o  ROBERT v {robert_version} is installed correctly! For more information about the available options, see the documentation in https://github.com/jvalegre/robert")
             sys.exit()
@@ -220,9 +228,6 @@ def load_variables(kwargs, robert_module):
 
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
-
-            if str(self.corr_filter).upper() == 'FALSE':
-                self.corr_filter = False
             
             self.thres_x = float(self.thres_x)
             self.thres_y = float(self.thres_y)
@@ -230,10 +235,7 @@ def load_variables(kwargs, robert_module):
 
         elif robert_module.upper() == 'GENERATE':
             self.log.write(f"\no  Starting generation of ML models with the GENERATE module")
-
-            if str(self.pfi_filter).upper() == 'FALSE':
-                self.pfi_filter = False
-
+            
             # Check if the folders exist and if they do, delete and replace them
             folder_names = [self.initial_dir.joinpath('GENERATE/Best_model/No_PFI'), self.initial_dir.joinpath('GENERATE/Raw_data/No_PFI')]
             if self.pfi_filter:
@@ -241,11 +243,31 @@ def load_variables(kwargs, robert_module):
                 folder_names.append(self.initial_dir.joinpath('GENERATE/Raw_data/PFI'))
             _ = create_folders(folder_names)
 
+            for i,val in enumerate(self.train):
+                self.train[i] = int(val)
+
             self.pfi_epochs = int(self.pfi_epochs)
             self.pfi_threshold = float(self.pfi_threshold)
             self.epochs = int(self.epochs)
             self.pfi_max = int(self.pfi_max)
 
+            # set seeds and epochs depending on precision
+            if len(self.seed) == 0:
+                if self.generate_acc == 'low':
+                    self.seed = [0,8,19]
+                elif self.generate_acc == 'mid':
+                    self.seed = [0,8,19,43,70,233]
+                elif self.generate_acc == 'high':
+                    self.seed = [0,8,19,43,70,233,1989,9999,20394,3948301]
+            
+            if self.epochs == 0:
+                if self.generate_acc == 'low':
+                    self.epochs = 20
+                elif self.generate_acc == 'mid':
+                    self.epochs = 40
+                elif self.generate_acc == 'high':
+                    self.epochs = 100
+        
             if self.type.lower() == 'clas':
                 if self.model == ['RF','GB','NN','MVL']:
                     self.model = ['RF','GB','NN','AdaB']
@@ -328,7 +350,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
     if type_checks == 'initial' and module.lower() not in ['verify','predict']:
         if self.csv_name == '':
             self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
-            curate_valid = False
+            self.csv_name = input('Enter the name of your CSV file:')
 
         path_csv = ''
         if os.getcwd() in f"{self.csv_name}":
@@ -341,7 +363,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         
         if self.y == '':
             self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
-            curate_valid = False
+            self.y = input('Enter the column with y values:')
 
         if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:
@@ -359,6 +381,10 @@ def sanity_checks(self, type_checks, module, columns_csv):
         elif module.lower() == 'generate':
             if self.split.lower() not in ['kn','rnd']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
+                curate_valid = False
+
+            if self.generate_acc.lower() not in ['low','mid','high']:
+                self.log.write(f"\nx  The generate_acc option used is not valid! Options: 'low', 'mid', 'high'")
                 curate_valid = False
 
             for model_type in self.model:
@@ -823,6 +849,8 @@ def load_dfs(self,folder_model,module):
 
 
 def load_print(self,params_name,suffix,params_df,point_count):
+    if '.csv' in params_name:
+        params_name = params_name.split('.csv')[0]
     txt_load = f'\no  ML model {params_name} {suffix} and Xy database were loaded, including:'
     txt_load += f'\n   - Target value: {params_df["y"][0]}'
     txt_load += f'\n   - Model: {params_df["model"][0]}'
@@ -839,3 +867,10 @@ def pd_to_dict(PFI_df):
     for column in PFI_df.columns:
         PFI_df_dict[column] = PFI_df[column][0]
     return PFI_df_dict
+
+
+def print_pfi(self,params_dir):
+    if 'No_PFI' in params_dir:
+        self.args.log.write('\n\n------- Starting model with all variables (No PFI) -------')
+    else:
+        self.args.log.write('\n\n------- Starting model with PFI filter (only important descriptors used) -------')

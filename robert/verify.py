@@ -2,9 +2,6 @@
 Parameters
 ----------
 
-General
-+++++++
-
      destination : str, default=None,
          Directory to create the output file(s).
      varfile : str, default=None
@@ -21,6 +18,7 @@ General
             3. K-fold cross validation: decreases less than X%
      kfold : int, default=5,
          The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
+
 """
 #####################################################.
 #        This file stores the VERIFY class          #
@@ -41,7 +39,8 @@ from robert.utils import (load_variables,
     pd_to_dict,
     load_n_predict,
     finish_print,
-    get_prediction_results
+    get_prediction_results,
+    print_pfi
 )
 
 
@@ -70,6 +69,8 @@ class verify:
 
         for params_dir in params_dirs:
             if os.path.exists(params_dir):
+
+                _ = print_pfi(self,params_dir)
 
                 # load and ML model parameters, and add standardized descriptors
                 Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",True)

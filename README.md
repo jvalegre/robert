@@ -15,8 +15,9 @@ Don't miss out the latest hands-on tutorials from our [YouTube channel](https://
 
 ## Recommended installation and update guide  
 In a nutshell, ROBERT and its dependencies are installed/updated as follows:  
-1. Install using conda-forge: `conda install -c conda-forge robert`  
-2. Update to the latest version: `pip install robert --upgrade`  
+1. Install using conda-forge (preferred): `conda install -c conda-forge robert`  
+2. Install using pip: `pip install robert`  
+3. Update to the latest version: `pip install robert --upgrade`  
 
 ## Developers and help desk  
 List of main developers and contact emails:  
@@ -28,9 +29,14 @@ For suggestions and improvements of the code (greatly appreciated!), please reac
 ## License
 ROBERT is freely available under an [MIT](https://opensource.org/licenses/MIT) License  
 
+## Special acknowledgements
+J.V.A.R. - The acronym ROBERT is dedicated to Prof. ROBERT Paton, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!
+
+D.D.G. - The style of the ROBERT_report.pdf file was created with the help of Oliver Lee (University of St Andrews, 2023).
+
 ## Reference
 If you use any of the ROBERT modules, please include this citation:  
-* Robert v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert.  
+* ROBERT v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert.  
   
 Additionally, please include the corresponding reference for Scikit-learn and SHAP:
 * Pedregosa et al., Scikit-learn: Machine Learning in Python, J. Mach. Learn. Res. 2011, 12, 2825-2830.  

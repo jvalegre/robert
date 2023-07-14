@@ -25,6 +25,7 @@
 
 import os
 from pathlib import Path
+import pandas as pd
 from robert.curate import curate
 from robert.generate import generate
 from robert.verify import verify
@@ -36,7 +37,7 @@ from robert.utils import command_line_args
 
 def main():
     """
-    Main function of AQME, acts as the starting point when the program is run through a terminal
+    Main function of ROBERT, acts as the starting point when the program is run through a terminal
     """
 
     # load user-defined arguments from command line
@@ -64,8 +65,8 @@ def main():
             ignore=args.ignore
         )
 
-        # set the path to the database created by AQME to continue in the full_workflow
-        args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
+        # adjust argument names after running AQME
+        args = set_aqme_args(args)
 
     # CURATE
     if args.curate or full_workflow:
@@ -103,6 +104,8 @@ def main():
             model=args.model,
             type=args.type,
             seed=args.seed,
+            generate_acc=args.generate_acc,
+            filter_train=args.filter_train,
             epochs=args.epochs,
             error_type=args.error_type,
             custom_params=args.custom_params,
@@ -151,6 +154,21 @@ def main():
     if args.cheers:
         print('o  Blimey! This module was designed to thank my mate ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics.\n')
 
+
+def set_aqme_args(args):
+    """
+    Changes arguments to couple AQME with ROBERT
+    """
+
+    # set the path to the database created by AQME to continue in the full_workflow
+    args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
+    aqme_df = pd.read_csv(args.csv_name)
+
+    for column in aqme_df.columns:
+        if column.lower() in ['smiles','code_name'] and column not in args.ignore:
+            args.ignore.append(column)
+
+    return args
 
 if __name__ == "__main__":
     main()

@@ -36,6 +36,7 @@ Parameters
      thres_y : float, default=0.001
          Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
          if thres_y=0.001, variables that show R**2 < 0.01 will be discarded).
+
 """
 #####################################################.
 #         This file stores the CURATE class         #
@@ -172,46 +173,51 @@ class curate:
         on R**2 values.
         """
 
-        txt_corr = f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}, thres_y = {self.args.thres_y}'
-        # don't remove descriptors if there are too few descriptors (after 25 times more datapoints)
-        n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
-        descriptors_drop = []
-        if not n_descps*self.args.desc_thres < len(csv_df[self.args.y]):
-            txt_corr += f'\n   Excluded descriptors:'
-            for i,column in enumerate(csv_df.columns):
-                if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
-                    # finds the descriptors with low correlation to the response values
-                    try:
-                        _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
-                        rsquared_y = r_value_y**2
-                        if rsquared_y < self.args.thres_y:
-                            descriptors_drop.append(column)
-                            txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
-                    except ValueError: # this avoids X descriptors where the majority of the values are the same
-                        descriptors_drop.append(column)
-                        txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
+        txt_corr = ''
 
-                    # finds correlated descriptors
-                    if column != csv_df.columns[-1] and column not in descriptors_drop:
-                        for j,column2 in enumerate(csv_df.columns):
-                            if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
-                                _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
-                                rsquared_x = r_value_x**2
-                                if rsquared_x > self.args.thres_x:
-                                    # discard the column with less correlation with the y values
-                                    _, _, r_value_y2, _, _ = stats.linregress(csv_df[column2],csv_df[self.args.y])
-                                    rsquared_y2 = r_value_y2**2
-                                    if rsquared_y >= rsquared_y2:
-                                        descriptors_drop.append(column2)
-                                        txt_corr += f'\n   - {column2}: R**2 = {round(rsquared_x,2)} with {column}'
-                                    else:
-                                        descriptors_drop.append(column)
-                                        txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
-            
-            if len(descriptors_drop) == 0:
-                txt_corr += f'\n   -  No descriptors were removed'
-        else:
-            txt_corr += f'\n   x The number of descriptors ({n_descps}) is {self.args.desc_thres} times lower than the number of datapoints ({len(csv_df[self.args.y])}), the correlation filter was disabled! The ratio of this filter can be adjusted with the desc_thres option'
+        # loosen correlation filters if there are too few descriptors
+        n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
+        if self.args.desc_thres and n_descps*self.args.desc_thres < len(csv_df[self.args.y]):
+            self.args.thres_x = 0.95
+            self.args.thres_y = 0.0001
+            txt_corr += f'\nx  WARNING! The number of descriptors ({n_descps}) is {self.args.desc_thres} times lower than the number of datapoints ({len(csv_df[self.args.y])}), the correlation filters are loosen to thres_x = 0.95 and thres_y = 0.0001! Default thresholds (0.9 and 0.001) can be used with "--desc_thres False"'
+
+        txt_corr += f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}, thres_y = {self.args.thres_y}'
+
+        descriptors_drop = []
+        txt_corr += f'\n   Excluded descriptors:'
+        for i,column in enumerate(csv_df.columns):
+            if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
+                # finds the descriptors with low correlation to the response values
+                try:
+                    _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
+                    rsquared_y = r_value_y**2
+                    if rsquared_y < self.args.thres_y:
+                        descriptors_drop.append(column)
+                        txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
+                except ValueError: # this avoids X descriptors where the majority of the values are the same
+                    descriptors_drop.append(column)
+                    txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
+
+                # finds correlated descriptors
+                if column != csv_df.columns[-1] and column not in descriptors_drop:
+                    for j,column2 in enumerate(csv_df.columns):
+                        if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
+                            _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
+                            rsquared_x = r_value_x**2
+                            if rsquared_x > self.args.thres_x:
+                                # discard the column with less correlation with the y values
+                                _, _, r_value_y2, _, _ = stats.linregress(csv_df[column2],csv_df[self.args.y])
+                                rsquared_y2 = r_value_y2**2
+                                if rsquared_y >= rsquared_y2:
+                                    descriptors_drop.append(column2)
+                                    txt_corr += f'\n   - {column2}: R**2 = {round(rsquared_x,2)} with {column}'
+                                else:
+                                    descriptors_drop.append(column)
+                                    txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
+        
+        if len(descriptors_drop) == 0:
+            txt_corr += f'\n   -  No descriptors were removed'
 
         self.args.log.write(txt_corr)
 

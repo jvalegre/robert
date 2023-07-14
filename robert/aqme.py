@@ -2,9 +2,6 @@
 Parameters
 ----------
 
-General
-+++++++
-
      csv_name : str, default=''
          Name of the CSV file containing the database with SMILES and code_name columns. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
      destination : str, default=None,
@@ -17,6 +14,7 @@ General
          Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['P']")
      csearch_keywords : str, default:''
          Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10')
+
 """
 #####################################################.
 #         This file stores the AQME class           #
@@ -70,13 +68,13 @@ class aqme:
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
         aqme_db = f'AQME-ROBERT_{self.args.csv_name}'
-        if 'qdescp_atoms' not in self.args.qdescp_keywords:
-            _ = filter_atom_prop(aqme_db)
-
         # ensure that the AQME database was successfully created
         if not os.path.exists(aqme_db):
             self.args.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")
             sys.exit()
+
+        if 'qdescp_atoms' not in self.args.qdescp_keywords:
+            _ = filter_atom_prop(aqme_db)
 
         # move AQME output files (remove previous runs as well)
         _ = move_aqme()
@@ -105,7 +103,7 @@ class aqme:
             from aqme.qprep import qprep
         except ModuleNotFoundError:
             self.args.log.write("x  AQME is not installed (required for the --aqme option)! You can install the program with 'conda install -c conda-forge aqme'")
-            sys.exit()       
+            sys.exit()
 
 
 def filter_atom_prop(aqme_db):

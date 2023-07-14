@@ -445,6 +445,8 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
         if max(outliers_data['test_scaled'], key=abs) > axis_limit:
             axis_limit = max(outliers_data['test_scaled'], key=abs)
     axis_limit = axis_limit+0.5
+    if axis_limit < 2.5: # this fixes a problem when representing rectangles in graphs with low SDs
+        axis_limit = 2.5
     plt.ylim(-axis_limit, axis_limit)
     plt.xlim(-axis_limit, axis_limit)
 

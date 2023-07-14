@@ -338,6 +338,28 @@ def prepare_sets(self,csv_X,csv_y,size,seed):
     # also store the descriptors used (the labels disappear after data_split() )
     Xy_data['X_descriptors'] = csv_X.columns.tolist()
 
+    # discard descriptors with NaN values after standardization. This might happen when using descriptor
+    # columns that after the data split contain only one unique value in one of the sets (i.e., 0,0,0,0,0)
+    columns_nan = []
+    for column in Xy_data['X_train_scaled'].columns:
+        if Xy_data['X_train_scaled'][column].isnull().values.any():
+            columns_nan.append(column)
+        elif Xy_data['X_valid_scaled'][column].isnull().values.any():
+            columns_nan.append(column)
+
+    if len(columns_nan) > 0:
+        nan_print = '   x  Variables removed for having NaN values after standardization:'
+        for column_nan in columns_nan:
+            nan_print += f'\n      - {column_nan}'
+            Xy_data['X_descriptors'].remove(column_nan)
+            Xy_data['X_train_scaled'] = Xy_data['X_train_scaled'].drop(column_nan, axis=1)
+            Xy_data['X_valid_scaled'] = Xy_data['X_valid_scaled'].drop(column_nan, axis=1)
+            Xy_data['X_train'] = Xy_data['X_train'].drop(column_nan, axis=1)
+            Xy_data['X_valid'] = Xy_data['X_valid'].drop(column_nan, axis=1)
+            csv_X = csv_X.drop(column_nan, axis=1)
+
+        self.args.log.write(nan_print)
+
     return Xy_data
 
 
@@ -423,15 +445,30 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
     PFI_df = pd.read_csv(path_csv)
     PFI_dict = pd_to_dict(PFI_df) # (using a dict to keep the same format of load_model)
-    PFI_discard = PFI_filter(self,Xy_data,PFI_dict,ML_model,size,seed)
+    PFI_discard_cols = PFI_filter(self,Xy_data,PFI_dict,seed)
 
     # generate new X datasets and store the descriptors used for the PFI-filtered model
     discard_idx, descriptors_PFI = [],[]
     desc_keep = len(Xy_data['X_train'])
-    if self.args.pfi_max != 0:
-        desc_keep = self.args.pfi_max
-    for _,column in enumerate(Xy_data['X_train']):
-        if column not in PFI_discard and len(descriptors_PFI) < desc_keep:
+    
+    # if the filter does not remove any descriptors based on the PFI threshold, or the 
+    # proportion of descriptors:total datapoints is higher than 1:3, then the filter takes
+    # the minimum value of 1 and 2:
+    #   1. 25% less descriptors than the No PFI original model
+    #   2. Proportion of 1:3 of descriptors:total datapoints (training + validation)
+    total_points = len(Xy_data['y_train'])+len(Xy_data['y_valid'])
+    n_descp_PFI = len(PFI_discard_cols)
+    if n_descp_PFI > 0.33*total_points or n_descp_PFI == desc_keep:
+        option_one = int(0.75*len(Xy_data['X_train'].columns))
+        option_two = int(0.33*total_points)
+        pfi_max = min(option_one,option_two)
+    else:
+        pfi_max = self.args.pfi_max
+
+    if pfi_max != 0:
+        desc_keep = pfi_max
+    for _,column in enumerate(Xy_data['X_train'].columns):
+        if column not in PFI_discard_cols and len(descriptors_PFI) < desc_keep:
             descriptors_PFI.append(column)
         else:
             discard_idx.append(column)
@@ -473,7 +510,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
         _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
 
 
-def PFI_filter(self,Xy_data,PFI_dict,ML_model,size,seed):
+def PFI_filter(self,Xy_data,PFI_dict,seed):
 
     # load and fit model
     loaded_model = load_model(PFI_dict)
@@ -485,29 +522,23 @@ def PFI_filter(self,Xy_data,PFI_dict,ML_model,size,seed):
     # but not on the held-out set might cause the model to overfit."
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
     perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=seed)
-
-    # transforms the values into a list and sort the PFI values with the descriptors names
-    desc_list, PFI_values, PFI_sd = [],[],[]
-    for i,desc in enumerate(Xy_data['X_train']):
-        desc_list.append(desc)
+    # transforms the values into a list and sort the PFI values with the descriptor names
+    descp_cols, PFI_values, PFI_sd = [],[],[]
+    for i,desc in enumerate(Xy_data['X_train'].columns):
+        descp_cols.append(desc) # includes lists of descriptors not column names!
         PFI_values.append(perm_importance.importances_mean[i])
         PFI_sd.append(perm_importance.importances_std[i])
   
-    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
+    PFI_values, PFI_sd, descp_cols = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, descp_cols), reverse=True)))
 
     # PFI filter
-    PFI_discard = []
+    PFI_discard_cols = []
     PFI_thres = abs(self.args.pfi_threshold*score_model)
     for i in reversed(range(len(PFI_values))):
         if PFI_values[i] < PFI_thres:
-            PFI_discard.append(desc_list[i])
+            PFI_discard_cols.append(descp_cols[i])
 
-    # disconnect the PFI filter if none of the variables pass the filter
-    if len(PFI_discard) == len(PFI_values):
-        PFI_discard = []
-        self.args.log.write(f'   x The PFI filter was disabled for model {ML_model}_{size}_{seed} (no variables passed)')
-
-    return PFI_discard
+    return PFI_discard_cols
 
 
 def filter_seed(self, name_csv):

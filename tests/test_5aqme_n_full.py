@@ -55,7 +55,8 @@ def test_AQME(test_job):
         "--csv_name", csv_var,
         '--y', y_var,
         "--ignore", ignore_var,
-        "--epochs", "5"
+        "--epochs", "5",
+        "--seed", "[0]"
     ]
 
     if test_job == 'full_workflow':
@@ -84,7 +85,7 @@ def test_AQME(test_job):
         if test_job == 'aqme':
             assert len(csv_amount) == 2
         else:
-            assert len(csv_amount) == 32
+            assert len(csv_amount) == 24 # the 90% train is supressed since there are less than 50 points
         best_amount = glob.glob(f'{path_main}/GENERATE/Best_model/{folder}/*.csv')
         assert len(best_amount) == 2
 

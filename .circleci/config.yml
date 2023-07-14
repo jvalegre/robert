@@ -43,9 +43,8 @@ jobs:
           conda install -y -c conda-forge openbabel
           conda install -y -c conda-forge xtb
           conda install -y -c conda-forge crest
-          conda install -y -c conda-forge glib
-          conda install -y -c conda-forge weasyprint
-          conda install -y -c conda-forge gtk3
+          conda install -y -c conda-forge glib weasyprint gtk3 pango
+          conda install -y -c conda-forge scikit-learn-intelex
           pip install aqme
           pip install .
           # uninstall robert to avoid codecov issues (only running from the robert folder)

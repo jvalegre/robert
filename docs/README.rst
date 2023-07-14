@@ -102,7 +102,7 @@ installed as follows:
 
    pip install robert
    pip install scikit-learn-intelex
-   conda install -c conda-forge glib weasyprint gtk3
+   conda install -c conda-forge glib weasyprint gtk3 pango
 
 .. installation-end 
 
@@ -181,6 +181,7 @@ Python and Python libraries
 *  glib
 *  weasyprint
 *  gtk3
+*  pango
 *  scikit-learn-intelex
 
 .. requirements-end

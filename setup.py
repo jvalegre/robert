@@ -43,7 +43,7 @@ setup(
         "hyperopt",
         "numba",
         "shap",
-        # requires also "conda install -c conda-forge gtk3 glib weasyprint" for report.py
+        # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
         # if possible, also "conda install -c conda-forge scikit-learn-intelex" to accelerate sklearn
     ],
     python_requires=">=3.0",

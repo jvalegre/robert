@@ -32,7 +32,7 @@ from robert.verify import verify
 from robert.predict import predict
 from robert.report import report
 from robert.aqme import aqme
-from robert.utils import command_line_args
+from robert.utils import (command_line_args,missing_inputs)
 
 
 def main():
@@ -52,6 +52,9 @@ def main():
 
     # AQME
     if args.aqme:
+        # save the csv_name and y values from AQME workflows
+        args = missing_inputs(args,print_err=True)
+
         full_workflow = True
         aqme(
             csv_name=args.csv_name,
@@ -164,9 +167,15 @@ def set_aqme_args(args):
     args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
     aqme_df = pd.read_csv(args.csv_name)
 
+    # ignore the names and SMILES of the molecules
     for column in aqme_df.columns:
         if column.lower() in ['smiles','code_name'] and column not in args.ignore:
             args.ignore.append(column)
+
+    # set the names for the outlier analysis
+    for column in aqme_df.columns:
+        if column.lower() == 'code_name' and args.names == '':
+            args.names = column
 
     return args
 

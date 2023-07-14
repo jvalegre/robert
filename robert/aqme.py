@@ -82,6 +82,7 @@ class aqme:
         # finish the printing of the AQME info file
         _ = finish_print(self,start_time,'AQME')
 
+
     def run_aqme(self,command,extra_keywords):
         '''
         Function that runs the AQME jobs

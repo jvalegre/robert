@@ -341,6 +341,31 @@ def destination_folder(self,dest_module):
     return self
 
 
+def missing_inputs(self,print_err=False):
+    """
+    Gives the option to input missing variables in the terminal
+    """
+
+    if self.csv_name == '':
+        if print_err:
+            print('\nx  Specify the name of your CSV file with the csv_name option!')
+        else:
+            self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
+        self.csv_name = input('Enter the name of your CSV file: ')
+        if not print_err:
+            self.log.write(f"   -  csv_name option set to {self.csv_name} by the user")
+
+    if self.y == '':
+        if print_err:
+            print(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
+        else:
+            self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
+        self.y = input('Enter the column with y values: ')
+        if not print_err:
+            self.log.write(f"   -  y option set to {self.y} by the user")
+
+    return self
+
 def sanity_checks(self, type_checks, module, columns_csv):
     """
     Check that different variables are set correctly
@@ -348,8 +373,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
     curate_valid = True
     if type_checks == 'initial' and module.lower() not in ['verify','predict']:
-        if self.csv_name == '':
-            self.csv_name = input('Enter the name of your CSV file:')
+
+        self = missing_inputs(self)
 
         path_csv = ''
         if os.getcwd() in f"{self.csv_name}":
@@ -359,10 +384,6 @@ def sanity_checks(self, type_checks, module, columns_csv):
         if not os.path.exists(path_csv) or self.csv_name == '':
             self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
             curate_valid = False
-        
-        if self.y == '':
-            self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
-            self.y = input('Enter the column with y values:')
 
         if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:

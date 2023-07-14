@@ -349,7 +349,6 @@ def sanity_checks(self, type_checks, module, columns_csv):
     curate_valid = True
     if type_checks == 'initial' and module.lower() not in ['verify','predict']:
         if self.csv_name == '':
-            self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
             self.csv_name = input('Enter the name of your CSV file:')
 
         path_csv = ''

@@ -11,6 +11,12 @@ import numpy as np
 import seaborn as sb
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except ModuleNotFoundError:
+    pass
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.inspection import permutation_importance
 import shap
@@ -175,7 +181,7 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix):
     '''
     
     matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize="true", cmap='Blues') 
-    matrix.ax_.set_title(f'Confusion Matrix for the {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14)
+    matrix.ax_.set_title(f'Confusion Matrix for the {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
     plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
     plt.gcf().axes[0].tick_params(size=14)
@@ -445,6 +451,8 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
         if max(outliers_data['test_scaled'], key=abs) > axis_limit:
             axis_limit = max(outliers_data['test_scaled'], key=abs)
     axis_limit = axis_limit+0.5
+    if axis_limit < 2.5: # this fixes a problem when representing rectangles in graphs with low SDs
+        axis_limit = 2.5
     plt.ylim(-axis_limit, axis_limit)
     plt.xlim(-axis_limit, axis_limit)
 

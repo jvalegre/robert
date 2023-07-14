@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
-version="1.0.1"
+version="1.0.2"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
-    package_data={"robert": ["model_params/*"]},
+    package_data={"robert": ["model_params/*","report/*"]},
     version=version,
     license="MIT",
     description="Refiner and Optimizer of a Bunch of Existing Regression Tools",
@@ -43,8 +43,8 @@ setup(
         "hyperopt",
         "numba",
         "shap",
-        "scikit-learn-intelex",
-        # requires also "conda install -c conda-forge gtk3 glib weasyprint" for report.py
+        # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
+        # if possible, also "conda install -c conda-forge scikit-learn-intelex" to accelerate sklearn
     ],
     python_requires=">=3.0",
     include_package_data=True,

@@ -55,7 +55,8 @@ def test_AQME(test_job):
         "--csv_name", csv_var,
         '--y', y_var,
         "--ignore", ignore_var,
-        "--epochs", "5"
+        "--epochs", "5",
+        "--seed", "[0]"
     ]
 
     if test_job == 'full_workflow':
@@ -69,6 +70,9 @@ def test_AQME(test_job):
     subprocess.run(cmd_robert)
 
     # check that all the plots, CSV and DAT files are created
+    # find ROBERT_report.pdf
+    assert os.path.exists(f'{path_main}/ROBERT_report.pdf')
+    
     # CURATE folder
     assert len(glob.glob(f'{path_main}/CURATE/*.png')) == 1
     assert len(glob.glob(f'{path_main}/CURATE/*.dat')) == 1
@@ -81,7 +85,7 @@ def test_AQME(test_job):
         if test_job == 'aqme':
             assert len(csv_amount) == 2
         else:
-            assert len(csv_amount) == 32
+            assert len(csv_amount) == 24 # the 90% train is supressed since there are less than 50 points
         best_amount = glob.glob(f'{path_main}/GENERATE/Best_model/{folder}/*.csv')
         assert len(best_amount) == 2
 

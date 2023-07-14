@@ -93,7 +93,7 @@ def test_GENERATE(test_job):
             cmd_robert = cmd_robert + ["--type", "clas"]
     else: # needed to define the variables, change if default options change
         model_list = ['RF','GB','NN','MVL']
-        train_list = [60,70,80,90]
+        train_list = [60,70,80]
     
     cmd_robert = cmd_robert + [
         "--model", f"{model_list}",

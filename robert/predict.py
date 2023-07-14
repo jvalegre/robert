@@ -2,9 +2,6 @@
 Parameters
 ----------
 
-General
-+++++++
-
      destination : str, default=None,
          Directory to create the output file(s).
      varfile : str, default=None
@@ -22,11 +19,12 @@ General
          Number of descriptors shown in the plot of the SHAP analysis.
      pfi_show : int, default=10,
          Number of descriptors shown in the plot of the PFI analysis.
-     pfi_epochs : int, default=30,
+     pfi_epochs : int, default=5,
          Sets the number of times a feature is randomly shuffled during the PFI analysis
-         (standard from sklearn webpage: 30).
+         (standard from sklearn webpage: 5).
      names : str, default=''
          Column of the names for each datapoint. Names are used to print outliers.
+
 """
 #####################################################.
 #        This file stores the PREDICT class         #
@@ -47,7 +45,8 @@ from robert.utils import (load_variables,
     load_db_n_params,
     pd_to_dict,
     load_n_predict,
-    finish_print
+    finish_print,
+    print_pfi
 )
 
 class predict:
@@ -75,6 +74,9 @@ class predict:
 
         for params_dir in params_dirs:
             if os.path.exists(params_dir):
+
+                _ = print_pfi(self,params_dir)
+
                 # load and ML model parameters, and add standardized descriptors
                 Xy_data, params_df, _, _ = load_db_n_params(self,params_dir,"verify",True) # module 'verify' since PREDICT follows similar protocols
 

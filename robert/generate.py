@@ -2,9 +2,6 @@
 Parameters
 ----------
 
-General
-+++++++
-
      csv_name : str, default=''
          Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
      y : str, default=''
@@ -23,6 +20,8 @@ General
      train : list, default=[60,70,80,90]
          Proportions of the training set to use in the ML scan. The numbers are relative to the training 
          set proportion (i.e. 40 = 40% training data).
+     filter_train : bool, default=True
+         Disables the 90% training size in databases with less than 50 entries.
      split : str, default='KN'
          Mode for splitting data. Options: 
             1. 'KN' (k-neighbours clustering-based splitting)
@@ -43,10 +42,19 @@ General
          Type of the pedictions. Options: 
             1. 'reg' (Regressor)
             2. 'clas' (Classifier)
-     seed : list, default=[0,8,19,43,70,233,1989,9999,20394,3948301]
-         Random seeds used in the ML predictor models, data splitting and other protocols.
-     epochs : int, default=80
-         Number of epochs for the hyperopt optimization.
+     seed : list, default=[]
+         Random seeds used in the ML predictor models, data splitting and other protocols. If seed 
+         is not adjusted manually, the generate_acc option will set the values for seed.
+     epochs : int, default=0
+         Number of epochs for the hyperopt optimization. If epochs is not adjusted manually, the 
+         generate_acc option will set the values for epochs.
+     generate_acc : str, default='mid'
+         Accuracy of the workflow performed in GENERATE in terms of seed and epochs. Options:
+            1. 'low', fastest and least accurate protocol (seed = [0,8,19], epochs = 20)
+            2. 'mid', compromise between 'low' and 'high' accurate protocol (seed = [0,8,19,43,70,233], 
+            epochs = 40)
+            3. 'high', slowest and most accurate protocol (seed = [0,8,19,43,70,233,1989,9999,20394,3948301], 
+            epochs = 100)
      error_type : str, default: rmse (regression), acc (classification)
          Target value used during the hyperopt optimization. Options:
          Regression:
@@ -59,9 +67,9 @@ General
             3. acc (accuracy, fraction of correct predictions)
      pfi_filter : bool, default=True
          Activate the PFI filter of descriptors.
-     pfi_epochs : int, default=30
+     pfi_epochs : int, default=5
          Sets the number of times a feature is randomly shuffled during the PFI analysis
-         (standard from sklearn webpage: 30).
+         (standard from sklearn webpage: 5).
      pfi_threshold : float, default=0.04
          The PFI filter is X% of the model's score (% adjusted, 0.04 = 4% of the total score during PFI).
          For regression, a value of 0.04 is recommended. For classification, the filter is turned off
@@ -69,6 +77,7 @@ General
      pfi_max : int, default=0
          Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI
          filter are used.
+
 """
 #####################################################.
 #        This file stores the GENERATE class        #
@@ -110,6 +119,12 @@ class generate:
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate")
+
+        # if there are less than 50 datapoints, the 90% training size is disabled by default
+        if self.args.filter_train:
+            if len(csv_df[self.args.y]) < 50 and 90 in self.args.train:
+                self.args.train.remove(90)
+                self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the 90% training size will be excluded (too few validation points to reach a reliable result). You can include this size using "--filter_train False".')
 
         # scan different ML models
         txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models ({self.args.model}) and {len(self.args.train)} training sizes ({self.args.train})."

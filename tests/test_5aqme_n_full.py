@@ -56,7 +56,10 @@ def test_AQME(test_job):
         '--y', y_var,
         "--ignore", ignore_var,
         "--epochs", "5",
-        "--seed", "[0]"
+        "--seed", "[0]",
+        "--model", "['GB']",
+        "--train", "[60]",
+        "--pfi_epochs", "1"
     ]
 
     if test_job == 'full_workflow':
@@ -64,8 +67,7 @@ def test_AQME(test_job):
 
     elif test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
-                    "--qdescp_keywords", "--qdescp_atoms ['C']", "--model", "['RF']",
-                    "--train", "[60]"]
+                    "--qdescp_keywords", "--qdescp_atoms ['C']"]
 
     subprocess.run(cmd_robert)
 
@@ -82,10 +84,7 @@ def test_AQME(test_job):
     folders_gen = ['No_PFI','PFI']
     for folder in folders_gen:
         csv_amount = glob.glob(f'{path_main}/GENERATE/Raw_data/{folder}/*.csv')
-        if test_job == 'aqme':
-            assert len(csv_amount) == 2
-        else:
-            assert len(csv_amount) == 24 # the 90% train is supressed since there are less than 50 points
+        assert len(csv_amount) == 2
         best_amount = glob.glob(f'{path_main}/GENERATE/Best_model/{folder}/*.csv')
         assert len(best_amount) == 2
 

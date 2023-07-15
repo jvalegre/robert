@@ -39,12 +39,12 @@ jobs:
           # install AQME, ROBERT and their dependencies
           conda update -y conda
           python -m pip install --upgrade pip          
-          conda install -y -c conda-forge rdkit
+          pip install rdkit-pypi
           conda install -y -c conda-forge openbabel
           conda install -y -c conda-forge xtb
           conda install -y -c conda-forge crest
           conda install -y -c conda-forge glib
-          conda install -y -c conda-forge weasyprint
+          pip install weasyprint
           conda install -y -c conda-forge gtk3
           conda install -y -c conda-forge pango
           pip install aqme

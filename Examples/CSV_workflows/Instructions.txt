@@ -1,0 +1,14 @@
+Full ROBERT workflows using the Robert_examples.csv database and the external test set Robert_example_test.csv. To run the workflows:
+
+1) Go to the folder with the databases in a terminal with Python
+2) Run the following command lines:
+
+--- For the standard full workflow ---
+python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv
+
+--- For the full workflow with test set ---
+python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv
+
+The results of the workflow are stored in the /Examples/CSV_workflow/Results folder. A Jupyter Notebook to run the standard full workflow is also included.
+
+A full description of the workflows is included in the Examples section of the ReadTheDocs webpage (https://robert.readthedocs.io).

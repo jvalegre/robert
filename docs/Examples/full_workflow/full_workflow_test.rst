@@ -44,7 +44,8 @@ Execution time
 ++++++++++++++
 
 Time: ~2 min
-System: 8 processors (11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz) with 32.0 GB RAM memory
+
+System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
 
 Results
 +++++++
@@ -56,7 +57,12 @@ Results
 A PDF file called ROBERT_report.pdf should be created in the folder where ROBERT was executed. The PDF 
 file can be visualized here: |pdf_report_test|
 
-The PDF report contains all the results of the workflow. In this case, a Neural Network (NN) model with 80% of the data used as the training set was the optimal model found from the combinations of four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) with four different partition sizes (60%, 70%, 80%, 90%). This information is summarized below:
+The PDF report contains all the results of the workflow. In this case, a Gradient Boosting (GB) and a Random Forest (RF) models with 80% training size were the optimal models found from: 
+
+  * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
+  * Three different partition sizes (60%, 70%, 80%) 
+
+All the results are summarized below:
 
 .. |CURATE_data| image:: ../images/FW/CURATE_data.jpg
    :width: 600
@@ -79,9 +85,6 @@ The PDF report contains all the results of the workflow. In this case, a Neural 
 .. |VERIFY_no_pfi| image:: ../images/FW/VERIFY_no_pfi.png
    :width: 600
 
-.. |VERIFY_dat_pfi| image:: ../images/FW/VERIFY_dat_pfi.jpg
-   :width: 600
-
 .. |VERIFY_pfi| image:: ../images/FW/VERIFY_pfi.png
    :width: 600
 
@@ -91,31 +94,16 @@ The PDF report contains all the results of the workflow. In this case, a Neural 
 .. |PREDICT_graph_no_pfi| image:: ../images/FW_test/PREDICT_graph_no_pfi.png
    :width: 600
 
-.. |PREDICT_res_pfi| image:: ../images/FW_test/PREDICT_res_pfi.jpg
-   :width: 600
-
 .. |PREDICT_graph_pfi| image:: ../images/FW_test/PREDICT_graph_pfi.png
-   :width: 600
-
-.. |PREDICT_shap_dat_no_pfi| image:: ../images/FW/PREDICT_shap_dat_no_pfi.jpg
    :width: 600
 
 .. |PREDICT_shap_no_pfi| image:: ../images/FW/PREDICT_shap_no_pfi.png
    :width: 600
 
-.. |PREDICT_shap_dat_pfi| image:: ../images/FW/PREDICT_shap_dat_pfi.jpg
-   :width: 600
-
 .. |PREDICT_shap_pfi| image:: ../images/FW/PREDICT_shap_pfi.png
    :width: 600
 
-.. |PREDICT_out_dat_no_pfi| image:: ../images/FW_test/PREDICT_out_dat_no_pfi.jpg
-   :width: 600
-
 .. |PREDICT_out_no_pfi| image:: ../images/FW_test/PREDICT_out_no_pfi.png
-   :width: 600
-
-.. |PREDICT_out_dat_pfi| image:: ../images/FW_test/PREDICT_out_dat_pfi.jpg
    :width: 600
 
 .. |PREDICT_out_pfi| image:: ../images/FW_test/PREDICT_out_pfi.png
@@ -156,11 +144,8 @@ The PDF report contains all the results of the workflow. In this case, a Neural 
 |  .. centered:: VERIFY_tests_NN_80_No_PFI.png                |    |VERIFY_no_pfi|                  |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_NN_80_PFI.dat                   |    |VERIFY_dat_pfi|                 |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: VERIFY_tests_NN_80_PFI.png                   |    |VERIFY_pfi|                     |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |            |                                                                                      |
 |  .. centered:: /PREDICT folder                                                                    |
@@ -172,35 +157,20 @@ The PDF report contains all the results of the workflow. In this case, a Neural 
 |  .. centered:: Results_NN_80_No_PFI.png                     |    |PREDICT_graph_no_pfi|           |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_NN_80_No_PFI.dat                        |    |PREDICT_shap_dat_no_pfi|        |
-|  .. centered:: *(using 12 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: SHAP_NN_80_No_PFI.png                        |    |PREDICT_shap_no_pfi|            |
-|  .. centered:: *(using 12 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_NN_80_No_PFI.dat                    |    |PREDICT_out_dat_no_pfi|         |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Outliers_NN_80_No_PFI.png                    |    |PREDICT_out_no_pfi|             |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_NN_80_PFI.dat                        |    |PREDICT_res_pfi|                |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Results_NN_80_PFI.png                        |    |PREDICT_graph_pfi|              |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_NN_80_PFI.dat                           |    |PREDICT_shap_dat_pfi|           |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: SHAP_NN_80_PFI.png                           |    |PREDICT_shap_pfi|               |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_NN_80_PFI.dat                       |    |PREDICT_out_dat_pfi|            |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Outliers_NN_80_PFI.png                       |    |PREDICT_out_pfi|                |
-|  .. centered:: *(PFI filter applied, using 7 descriptors)*  |                                     |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 
 

@@ -89,19 +89,17 @@ XXXXXXXXXXXXXXXXXXXXX Check our `ROBERT installation in 2 mins <https://youtu.be
 for a quick installation guide. In a nutshell, ROBERT and its dependencies are 
 installed as follows:
 
-1. Install ROBERT using conda-forge and, if possible, install the intelex sklearn accelerator (preferred):  
+1. Install ROBERT using conda-forge (preferred):  
 
 .. code-block:: shell 
    
    conda install -c conda-forge robert
-   conda install -c conda-forge scikit-learn-intelex 
 
-2. Install ROBERT using pip and, if possible, install the intelex sklearn accelerator. Then, install the libraries required for report.py with conda-forge:  
+2. Install ROBERT using pip. Then, install the libraries required for report.py with conda-forge:  
 
 .. code-block:: shell
 
    pip install robert
-   pip install scikit-learn-intelex
    conda install -c conda-forge glib weasyprint gtk3 pango
 
 .. installation-end 
@@ -182,7 +180,6 @@ Python and Python libraries
 *  weasyprint
 *  gtk3
 *  pango
-*  scikit-learn-intelex
 
 .. requirements-end
 

@@ -13,11 +13,11 @@ import seaborn as sb
 from matplotlib import pyplot as plt
 import matplotlib.colors as mcolor
 # for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except ModuleNotFoundError:
-    pass
+# try:
+#     from sklearnex import patch_sklearn
+#     patch_sklearn(verbose=False)
+# except (ModuleNotFoundError,ImportError):
+#     pass
 from sklearn.cluster import KMeans
 import yaml
 import json

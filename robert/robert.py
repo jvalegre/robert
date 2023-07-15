@@ -155,7 +155,7 @@ def main():
     
     # CHEERS
     if args.cheers:
-        print('o  Blimey! This module was designed to thank my mate ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics.\n')
+        print('o  Blimey! This module was designed to thank ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics. Cheers mate!\n')
 
 
 def set_aqme_args(args):

@@ -1,2 +1,0 @@
-train,split,model,type,seed,y,error_type,X_descriptors,n_estimators,max_depth,max_features,learning_rate,validation_fraction,rmse
-60,KN,GB,reg,0,Target_values,rmse,"['x5', 'x7', 'x9', 'x10']",20,40,1,0.2,0.3,0.2527710299720815

@@ -1,7 +1,0 @@
-
-   o  Outliers plot saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Outliers_RF_90_No_PFI.png
-   o  Outlier values saved in c:\Users\juanv\OneDrive - unizar.es\Software Programas\robert\Examples\PREDICT/Outliers_RF_90_No_PFI.dat:
-      Train: 1 outliers out of 33 datapoints (3.0%)
-      -  27 (2.6 SDs)
-      Validation: 0 outliers out of 4 datapoints (0.0%)
-      Test: 0 outliers out of 9 datapoints (0.0%)

@@ -118,13 +118,13 @@ class report:
                     if module == 'PREDICT':
                           # Column 1: No PFI
                         column1 = f"""
-                        <p><span style="font-weight:bold;">No PFI:</span></p>
+                        <p><span style="font-weight:bold;">No PFI (all descriptors):</span></p>
                         <pre style="text-align: justify;">{module_data_predict}</pre>
                         """
 
                         # Column 2: PFI
                         column2 = f"""
-                        <p><span style="font-weight:bold;">PFI:</span></p>
+                        <p><span style="font-weight:bold;">PFI (only important descriptors):</span></p>
                         <pre style="text-align: justify;">{module_data_predict_2}</pre>
                         """
 

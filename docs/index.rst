@@ -51,6 +51,7 @@ Special acknowledgments
 
    Examples/full_workflow/full_workflow
    Examples/full_workflow/full_workflow_test
+   Examples/full_workflow/smiles_workflow
 
 .. toctree:: 
    :maxdepth: 1

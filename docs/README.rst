@@ -95,12 +95,13 @@ installed as follows:
    
    conda install -c conda-forge robert
 
-2. Install ROBERT using pip. Then, install the libraries required for report.py with conda-forge:  
+2. Install ROBERT using pip. Then, install the libraries required for report.py:  
 
 .. code-block:: shell
 
    pip install robert
-   conda install -c conda-forge glib weasyprint gtk3 pango
+   pip install weasyprint
+   conda install -c conda-forge glib gtk3 pango
 
 .. installation-end 
 

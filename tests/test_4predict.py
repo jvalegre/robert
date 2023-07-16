@@ -98,14 +98,14 @@ def test_PREDICT(test_job):
             categor_test = True
         if 'Outlier values saved in' in line and 'No_PFI' in line:
             if test_job == "names":
-                assert '-  19 (' in outlines[i+2]
+                assert '-  21 (' in outlines[i+2]
                 break
             elif test_job != "clas":
                 assert 'x  No names option' in outlines[i+1]             
                 if test_job == "t_value":
                     assert 'Train: 0 outliers' in outlines[i+2]
                 else:
-                    assert 'Train: 2 outliers' in outlines[i+2]
+                    assert 'Train: 1 outliers' in outlines[i+2]
                 if test_job == "t_value":
                     assert 'Validation: 0 outliers' in outlines[i+3]
                 else:

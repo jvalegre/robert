@@ -20,7 +20,7 @@ Executing the job
 
 .. code:: shell
 
-    python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv
+   python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv
 
 **Options used:**
 
@@ -46,13 +46,12 @@ Results
    :target: ../../_static/ROBERT_report.pdf
    :width: 30
 
-A PDF file called ROBERT_report.pdf should be created in the folder where ROBERT was executed. The PDF 
-file can be visualized here: |pdf_report_test|
+A PDF file called ROBERT_report.pdf should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
 
 The PDF report contains all the results of the workflow. In this case, a Gradient Boosting (GB) and a Random Forest (RF) models with 80% training size were the optimal models found from: 
 
-  * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
-  * Three different partition sizes (60%, 70%, 80%) 
+   * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
+   * Three different partition sizes (60%, 70%, 80%) 
 
 All the results are summarized below:
 
@@ -102,21 +101,17 @@ All the results are summarized below:
    :width: 600
 
 +---------------------------------------------------------------------------------------------------+
-|                                                                                                   |
-|                         .. centered:: **RESULTS**                                                 |
-|                                                                                                   |
+|  .. centered:: **RESULTS**                                                                        |
 +---------------------------------------------------------------------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /CURATE folder                                                                     |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: CURATE_data.dat                              |    |CURATE_data|                    |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Person_heatmap.png                           |    |Person_heatmap|                 |
 +-------------------------------------------------------------+-------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /GENERATE folder                                                                   |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: GENERATE_data.dat                            |    |GENERATE_data|                  |
 +-------------------------------------------------------------+-------------------------------------+
@@ -126,9 +121,8 @@ All the results are summarized below:
 |  .. centered:: Heatmap ML models with                       |    |heatmap_pfi|                    |
 |  .. centered:: PFI filter.png                               |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /VERIFY folder                                                                     |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: VERIFY_tests_NN_80_No_PFI.dat                |    |VERIFY_dat_no_pfi|              |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
@@ -139,9 +133,8 @@ All the results are summarized below:
 |  .. centered:: VERIFY_tests_NN_80_PFI.png                   |    |VERIFY_pfi|                     |
 |  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /PREDICT folder                                                                    |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Results_NN_80_No_PFI.dat                     |    |PREDICT_res_no_pfi|             |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
@@ -164,6 +157,3 @@ All the results are summarized below:
 |  .. centered:: Outliers_NN_80_PFI.png                       |    |PREDICT_out_pfi|                |
 |  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-
-
-

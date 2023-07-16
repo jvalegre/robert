@@ -110,21 +110,17 @@ All the results are summarized below:
    :width: 600
 
 +---------------------------------------------------------------------------------------------------+
-|                                                                                                   |
 |                         .. centered:: **RESULTS**                                                 |
-|                                                                                                   |
 +---------------------------------------------------------------------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /CURATE folder                                                                     |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: CURATE_data.dat                              |    |CURATE_data|                    |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Person_heatmap.png                           |    |Person_heatmap|                 |
 +-------------------------------------------------------------+-------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /GENERATE folder                                                                   |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: GENERATE_data.dat                            |    |GENERATE_data|                  |
 +-------------------------------------------------------------+-------------------------------------+
@@ -134,9 +130,8 @@ All the results are summarized below:
 |  .. centered:: Heatmap ML models with                       |    |heatmap_pfi|                    |
 |  .. centered:: PFI filter.png                               |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /VERIFY folder                                                                     |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: VERIFY_tests_NN_80_No_PFI.dat                |    |VERIFY_dat_no_pfi|              |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
@@ -147,9 +142,8 @@ All the results are summarized below:
 |  .. centered:: VERIFY_tests_NN_80_PFI.png                   |    |VERIFY_pfi|                     |
 |  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|            |                                                                                      |
+|  |                                                                                                |
 |  .. centered:: /PREDICT folder                                                                    |
-|                                                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Results_NN_80_No_PFI.dat                     |    |PREDICT_res_no_pfi|             |
 |  .. centered:: *(using 12 descriptors)*                     |                                     |
@@ -172,6 +166,3 @@ All the results are summarized below:
 |  .. centered:: Outliers_NN_80_PFI.png                       |    |PREDICT_out_pfi|                |
 |  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-
-
-

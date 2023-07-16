@@ -2,12 +2,12 @@
 Parameters
 ----------
 
-     destination : str, default=None,
-         Directory to create the output file(s).
-     varfile : str, default=None
-         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     report_modules : list of str, default=['CURATE','GENERATE','VERIFY','PREDICT']
-         List of the modules to include in the report.
+    destination : str, default=None,
+        Directory to create the output file(s).
+    varfile : str, default=None
+        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+    report_modules : list of str, default=['CURATE','GENERATE','VERIFY','PREDICT']
+        List of the modules to include in the report.
 
 """
 #####################################################.

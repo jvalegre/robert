@@ -46,9 +46,9 @@ class report:
             cssfile.write(css_content())
 
         # create report
-        report_html = ''
-        report_html += self.get_header(self.args.report_modules)
+        report_html,header_dat = self.get_header(self.args.report_modules)
         report_html += self.get_data(self.args.report_modules)
+        report_html = add_time(report_html,header_dat)
         _ = make_report(report_html,HTML)
 
         # Remove report.css file
@@ -68,6 +68,7 @@ class report:
                 results_images = []
                 shap_images = []
                 pfi_images = []
+                outliers_images = []
 
                 for image_path in module_images:
                     filename = Path(image_path).stem
@@ -75,10 +76,12 @@ class report:
                         results_images.append(image_path)
                     elif "SHAP" in filename:
                         shap_images.append(image_path)
-                    elif "PFI" in filename:
+                    elif "Outliers" in filename:
+                        outliers_images.append(image_path)
+                    else:
                         pfi_images.append(image_path)
 
-                module_images = results_images + shap_images + pfi_images
+                module_images = results_images + shap_images + pfi_images + outliers_images
             
             html_png = ''.join([f'<img src="file:///{image_path}" alt="" class="img-{module}"/>' for image_path in module_images])
 
@@ -183,8 +186,18 @@ class report:
             <p style="text-align: justify;">
             <div class="dat-content"><pre>{header_dat}</pre></div>
             """
-        return header_lines
+        return header_lines,header_dat
 
+
+def add_time(report_html,header_dat):
+    total_time = 0
+    for line in report_html.split('\n'):
+        if 'Time' in line and 'seconds' in line:
+            total_time += float(line.split()[2])
+    new_header = header_dat+f'\n\nTotal execution time: {total_time} seconds'
+    report_html = report_html.replace(header_dat,new_header)
+
+    return report_html
 
 def make_report(report_html, HTML):
     css_files = ["report.css"]
@@ -375,9 +388,10 @@ def format_data(file_path, start_str, end_str, every=105):
                         break
                 remove_lines = True
                 formatted_lines.append(f'   - {n_tries} models were tested, for more information check the {os.path.basename(file_path)} file in the GENERATE folder')
-            elif line.strip().startswith('Heatmap ML models no PFI filter succesfully created'):
+            if line.strip().startswith('o  Heatmap ML models no PFI filter succesfully created'):
                 remove_lines = False
-            elif not remove_lines:
+                formatted_lines.append('')
+            if not remove_lines:
                 if line.startswith('- '):
                     line = '    ' + line[4:]
                 if '-------' in line:

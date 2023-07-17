@@ -6,4 +6,6 @@ python -m robert --aqme --y solubility --csv_name solubility_short.csv
 
 The results of the workflow are stored in the /Examples/SMILES_workflow/Results folder.
 
+A SLURM script (smiles_workflow_SLURM.sh) is also provided to run the workflow in HPCs.
+
 A full description of the workflows is included in the Examples section of the ReadTheDocs webpage (https://robert.readthedocs.io).

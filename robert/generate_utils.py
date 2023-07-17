@@ -454,8 +454,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     PFI_discard_cols = PFI_filter(self,Xy_data,PFI_dict,seed)
 
     # generate new X datasets and store the descriptors used for the PFI-filtered model
-    discard_idx, descriptors_PFI = [],[]
-    desc_keep = len(Xy_data['X_train'])
+    desc_keep = len(Xy_data['X_train'].columns)
     
     # if the filter does not remove any descriptors based on the PFI threshold, or the 
     # proportion of descriptors:total datapoints is higher than 1:3, then the filter takes
@@ -463,23 +462,31 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     #   1. 25% less descriptors than the No PFI original model
     #   2. Proportion of 1:3 of descriptors:total datapoints (training + validation)
     total_points = len(Xy_data['y_train'])+len(Xy_data['y_valid'])
-    n_descp_PFI = len(PFI_discard_cols)
-    if n_descp_PFI > 0.33*total_points or n_descp_PFI == desc_keep:
+    n_descp_PFI = desc_keep-len(PFI_discard_cols)
+    if n_descp_PFI > 0.33*total_points or n_descp_PFI == desc_keep or n_descp_PFI == 0:
         option_one = int(0.75*len(Xy_data['X_train'].columns))
         option_two = int(0.33*total_points)
         pfi_max = min(option_one,option_two)
     else:
         pfi_max = self.args.pfi_max
+    
+    discard_idx, descriptors_PFI = [],[]
+    # just in case none of the descriptors passed the PFI filter
+    # select only the most important deascriptors until the pfi_max limit
+    if n_descp_PFI == 0:
+        descriptors_PFI = PFI_discard_cols[:pfi_max]
+        discard_idx = PFI_discard_cols[len(PFI_discard_cols)-pfi_max:]
 
-    if pfi_max != 0:
-        desc_keep = pfi_max
-    for _,column in enumerate(Xy_data['X_train'].columns):
-        if column not in PFI_discard_cols and len(descriptors_PFI) < desc_keep:
-            descriptors_PFI.append(column)
-        else:
-            discard_idx.append(column)
+    else:
+        if pfi_max != 0:
+            desc_keep = pfi_max
+        for _,column in enumerate(Xy_data['X_train'].columns):
+            if column not in PFI_discard_cols and len(descriptors_PFI) < desc_keep:
+                descriptors_PFI.append(column)
+            else:
+                discard_idx.append(column)
+
     Xy_data_PFI = Xy_data.copy()
-
     Xy_data_PFI['X_train'] = Xy_data['X_train'].drop(discard_idx, axis=1)
     Xy_data_PFI['X_valid'] = Xy_data['X_valid'].drop(discard_idx, axis=1)
     Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(self,Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
@@ -491,7 +498,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     # (the other parameters remain the same)
     opt_target = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
     PFI_dict[PFI_dict['error_type']] = opt_target
-    
+
     # save CSV file
     name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
     path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
@@ -540,7 +547,7 @@ def PFI_filter(self,Xy_data,PFI_dict,seed):
     # PFI filter
     PFI_discard_cols = []
     PFI_thres = abs(self.args.pfi_threshold*score_model)
-    for i in reversed(range(len(PFI_values))):
+    for i in range(len(PFI_values)):
         if PFI_values[i] < PFI_thres:
             PFI_discard_cols.append(descp_cols[i])
 

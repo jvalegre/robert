@@ -602,7 +602,7 @@ def load_model_reg(params):
                                 ccp_alpha=params['ccp_alpha'],
                                 max_samples=params['max_samples'],
                                 random_state=params['seed'],
-                                n_jobs=-1)
+                                n_jobs=None)
 
         if params['model'].upper() == 'VR':
             r1 = loaded_model
@@ -654,7 +654,7 @@ def load_model_reg(params):
         loaded_model = VotingRegressor([('rf', r1), ('gb', r2), ('nn', r3)])
 
     if params['model'].upper() == 'MVL':
-        loaded_model = LinearRegression(n_jobs=-1)
+        loaded_model = LinearRegression(n_jobs=None)
 
     return loaded_model
 
@@ -672,7 +672,7 @@ def load_model_clas(params):
                                 ccp_alpha=params['ccp_alpha'],
                                 max_samples=params['max_samples'],
                                 random_state=params['seed'],
-                                n_jobs=-1)
+                                n_jobs=None)
 
         if params['model'].upper() == 'VR':
             r1 = loaded_model
@@ -719,7 +719,7 @@ def load_model_clas(params):
     if params['model'].upper() == 'GP':
         loaded_model = GaussianProcessClassifier(n_restarts_optimizer=params['n_restarts_optimizer'],
                                 random_state=params['seed'],
-                                n_jobs=-1)
+                                n_jobs=None)
 
     if params['model'].upper() == 'VR':
         loaded_model = VotingClassifier([('rf', r1), ('gb', r2), ('nn', r3)])

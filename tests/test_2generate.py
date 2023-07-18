@@ -139,9 +139,9 @@ def test_GENERATE(test_job):
                     desc_list = ['x1', 'x2', 'x3', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10']
             elif folder == 'PFI':
                 if test_job == 'reduced':
-                    desc_list = ['x6', 'x7', 'x10']
+                    desc_list = ['x6', 'x7', 'x9', 'x10']
                     assert db_best['Set'][0] == 'Training'
-                    assert db_best['Set'][1] == 'Training'
+                    assert db_best['Set'][1] == 'Validation'
                     assert db_best['Set'][2] == 'Training'
                     assert db_best['Set'][3] == 'Validation'
                 elif test_job =='reduced_PFImax':

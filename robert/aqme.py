@@ -2,18 +2,18 @@
 Parameters
 ----------
 
-     csv_name : str, default=''
-         Name of the CSV file containing the database with SMILES and code_name columns. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
-     destination : str, default=None,
-         Directory to create the output file(s).
-     varfile : str, default=None
-         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     y : str, default=''
-         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
-     qdescp_keywords : str, default=''    
-         Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['P']")
-     csearch_keywords : str, default:''
-         Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10')
+    csv_name : str, default=''
+        Name of the CSV file containing the database with SMILES and code_name columns. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
+    destination : str, default=None,
+        Directory to create the output file(s).
+    varfile : str, default=None
+        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+    y : str, default=''
+        Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
+    qdescp_keywords : str, default=''    
+        Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['P']")
+    csearch_keywords : str, default:''
+        Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10')
 
 """
 #####################################################.

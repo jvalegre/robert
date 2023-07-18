@@ -1,0 +1,11 @@
+Full ROBERT workflow using the solubility_short.csv database. To run the workflow:
+
+1) Go to the folder with the database in a terminal with Python
+2) Run the following command line:
+python -m robert --aqme --y solubility --csv_name solubility_short.csv
+
+The results of the workflow are stored in the /Examples/SMILES_workflow/Results folder.
+
+A SLURM script (smiles_workflow_SLURM.sh) is also provided to run the workflow in HPCs.
+
+A full description of the workflows is included in the Examples section of the ReadTheDocs webpage (https://robert.readthedocs.io).

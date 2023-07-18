@@ -2,28 +2,28 @@
 Parameters
 ----------
 
-     destination : str, default=None,
-         Directory to create the output file(s).
-     varfile : str, default=None
-         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     params_dir : str, default=''
-         Folder containing the database and parameters of the ML model.
-     csv_test : str, default=''
-         Name of the CSV file containing the test set (if any). A path can be provided (i.e. 
-         'C:/Users/FOLDER/FILE.csv'). 
-     t_value : float, default=2
-         t-value that will be the threshold to identify outliers (check tables for t-values elsewhere).
-         The higher the t-value the more restrictive the analysis will be (i.e. there will be more 
-         outliers with t-value=1 than with t-value = 4).
-     shap_show : int, default=10,
-         Number of descriptors shown in the plot of the SHAP analysis.
-     pfi_show : int, default=10,
-         Number of descriptors shown in the plot of the PFI analysis.
-     pfi_epochs : int, default=5,
-         Sets the number of times a feature is randomly shuffled during the PFI analysis
-         (standard from sklearn webpage: 5).
-     names : str, default=''
-         Column of the names for each datapoint. Names are used to print outliers.
+    destination : str, default=None,
+        Directory to create the output file(s).
+    varfile : str, default=None
+        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+    params_dir : str, default=''
+        Folder containing the database and parameters of the ML model.
+    csv_test : str, default=''
+        Name of the CSV file containing the test set (if any). A path can be provided (i.e. 
+        'C:/Users/FOLDER/FILE.csv'). 
+    t_value : float, default=2
+        t-value that will be the threshold to identify outliers (check tables for t-values elsewhere).
+        The higher the t-value the more restrictive the analysis will be (i.e. there will be more 
+        outliers with t-value=1 than with t-value = 4).
+    shap_show : int, default=10,
+        Number of descriptors shown in the plot of the SHAP analysis.
+    pfi_show : int, default=10,
+        Number of descriptors shown in the plot of the PFI analysis.
+    pfi_epochs : int, default=5,
+        Sets the number of times a feature is randomly shuffled during the PFI analysis
+        (standard from sklearn webpage: 5).
+    names : str, default=''
+        Column of the names for each datapoint. Names are used to print outliers.
 
 """
 #####################################################.

@@ -2,40 +2,40 @@
 Parameters
 ----------
 
-     csv_name : str, default=''
-         Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
-     y : str, default=''
-         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
-     discard : list, default=[]
-         List containing the columns of the input CSV file that will not be included as descriptors
-         in the curated CSV file (i.e. ['name','SMILES']).
-     ignore : list, default=[]
-         List containing the columns of the input CSV file that will be ignored during the curation process
-         (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
-         is automatically ignored.
-     destination : str, default=None,
-         Directory to create the output file(s).
-     varfile : str, default=None
-         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     categorical : str, default='onehot'
-         Mode to convert data from columns with categorical variables. As an example, a variable containing 4
-         types of C atoms (i.e. primary, secondary, tertiary, quaternary) will be converted into categorical
-         variables. Options: 
-            1. 'onehot' (for one-hot encoding, ROBERT will create a descriptor for each type of
-               C atom using 0s and 1s to indicate whether the C type is present)
-            2. 'numbers' (to describe the C atoms with numbers: 1, 2, 3, 4).
-     corr_filter : bool, default=True
-         Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
-         of the descriptors with other descriptors (x filter) and the y values (y filter).
-     desc_thres : float, default=25
-         Threshold for the descriptor-to-datapoints ratio to deactivate the correlation filter. By default,
-         the correlation filter is disabled if there are 25 times more datapoints than descriptors.
-     thres_x : float, default=0.9
-         Thresolhold to discard descriptors based on high R**2 correlation with other descriptors (i.e. 
-         if thres_x=0.9, variables that show R**2 > 0.9 will be discarded).
-     thres_y : float, default=0.001
-         Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
-         if thres_y=0.001, variables that show R**2 < 0.01 will be discarded).
+    csv_name : str, default=''
+        Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
+    y : str, default=''
+        Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
+    discard : list, default=[]
+        List containing the columns of the input CSV file that will not be included as descriptors
+        in the curated CSV file (i.e. ['name','SMILES']).
+    ignore : list, default=[]
+        List containing the columns of the input CSV file that will be ignored during the curation process
+        (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
+        is automatically ignored.
+    destination : str, default=None,
+        Directory to create the output file(s).
+    varfile : str, default=None
+        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+    categorical : str, default='onehot'
+        Mode to convert data from columns with categorical variables. As an example, a variable containing 4
+        types of C atoms (i.e. primary, secondary, tertiary, quaternary) will be converted into categorical
+        variables. Options: 
+        1. 'onehot' (for one-hot encoding, ROBERT will create a descriptor for each type of
+        C atom using 0s and 1s to indicate whether the C type is present)
+        2. 'numbers' (to describe the C atoms with numbers: 1, 2, 3, 4).
+    corr_filter : bool, default=True
+        Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
+        of the descriptors with other descriptors (x filter) and the y values (y filter).
+    desc_thres : float, default=25
+        Threshold for the descriptor-to-datapoints ratio to deactivate the correlation filter. By default,
+        the correlation filter is disabled if there are 25 times more datapoints than descriptors.
+    thres_x : float, default=0.9
+        Thresolhold to discard descriptors based on high R**2 correlation with other descriptors (i.e. 
+        if thres_x=0.9, variables that show R**2 > 0.9 will be discarded).
+    thres_y : float, default=0.001
+        Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
+        if thres_y=0.001, variables that show R**2 < 0.01 will be discarded).
 
 """
 #####################################################.

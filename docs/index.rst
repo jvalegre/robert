@@ -43,7 +43,7 @@ Special acknowledgments
    Install/installation
    Install/update
    Install/note
-   Install/features
+   Modules/modules
 
 .. toctree::
    :maxdepth: 2
@@ -51,6 +51,8 @@ Special acknowledgments
 
    Examples/full_workflow/full_workflow
    Examples/full_workflow/full_workflow_test
+   Examples/full_workflow/smiles_workflow
+   Examples/modules/modules
 
 .. toctree:: 
    :maxdepth: 1

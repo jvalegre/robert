@@ -19,7 +19,7 @@ min_weight_fraction_leaf: [0]
 # use oob samples
 oob_score: [True,False]
 
-# complexity parameter for pruning
+# complexity parameter for pruning, I can't set it to 0 or the RF model breaks
 ccp_alpha : [0]
 
 # number of samples to draw for bootstrap

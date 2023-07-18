@@ -2,22 +2,22 @@
 Parameters
 ----------
 
-     destination : str, default=None,
-         Directory to create the output file(s).
-     varfile : str, default=None
-         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-     params_dir : str, default=''
-         Folder containing the database and parameters of the ML model to analyze.
-     thres_test : float, default=0.2,
-         Threshold used to determine if a test pasess. It is determined in % units of diference between
-         the R2 (MCC in classificators) of the model and the test (i.e., 0.2 = 20% difference with the 
-         original value). Test passes if:
-            1. y-mean and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
-            classificators) or the error is greated than X% (from original MAE and RMSE for regressors)
-            2. One-hot encoding test: decreases more than X%
-            3. K-fold cross validation: decreases less than X%
-     kfold : int, default=5,
-         The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
+    destination : str, default=None,
+        Directory to create the output file(s).
+    varfile : str, default=None
+        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+    params_dir : str, default=''
+        Folder containing the database and parameters of the ML model to analyze.
+    thres_test : float, default=0.2,
+        Threshold used to determine if a test pasess. It is determined in % units of diference between
+        the R2 (MCC in classificators) of the model and the test (i.e., 0.2 = 20% difference with the 
+        original value). Test passes if:
+        1. y-mean and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
+        classificators) or the error is greated than X% (from original MAE and RMSE for regressors)
+        2. One-hot encoding test: decreases more than X%
+        3. K-fold cross validation: decreases less than X%
+    kfold : int, default=5,
+        The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
 
 """
 #####################################################.
@@ -33,11 +33,11 @@ from pathlib import Path
 import seaborn as sb
 from statistics import mode
 # for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except ModuleNotFoundError:
-    pass
+# try:
+#     from sklearnex import patch_sklearn
+#     patch_sklearn(verbose=False)
+# except (ModuleNotFoundError,ImportError):
+    # pass
 from sklearn.model_selection import cross_val_score
 from robert.utils import (load_variables,
     load_db_n_params,

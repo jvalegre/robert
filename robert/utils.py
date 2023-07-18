@@ -16,11 +16,11 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 # for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except ModuleNotFoundError:
-    pass
+# try:
+#     from sklearnex import patch_sklearn
+#     patch_sklearn(verbose=False)
+# except (ModuleNotFoundError,ImportError):
+#     pass
 from pkg_resources import resource_filename
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
@@ -224,13 +224,13 @@ def load_variables(kwargs, robert_module):
         elif robert_module.upper() == 'REPORT':
             self.path_icons = Path(resource_filename("robert", "report"))
 
-        # using or not the intelex accelerator might affect the results
-        if robert_module.upper() in ['GENERATE','VERIFY','PREDICT']:
-            try:
-                from sklearnex import patch_sklearn
-                pass
-            except ModuleNotFoundError:
-                self.log.write(f"\nWARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
+        # # using or not the intelex accelerator might affect the results
+        # if robert_module.upper() in ['GENERATE','VERIFY','PREDICT']:
+        #     try:
+        #         from sklearnex import patch_sklearn
+        #         pass
+        #     except (ModuleNotFoundError,ImportError):
+        #         self.log.write(f"\nWARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
@@ -602,7 +602,7 @@ def load_model_reg(params):
                                 ccp_alpha=params['ccp_alpha'],
                                 max_samples=params['max_samples'],
                                 random_state=params['seed'],
-                                n_jobs=-1)
+                                n_jobs=None)
 
         if params['model'].upper() == 'VR':
             r1 = loaded_model
@@ -654,7 +654,7 @@ def load_model_reg(params):
         loaded_model = VotingRegressor([('rf', r1), ('gb', r2), ('nn', r3)])
 
     if params['model'].upper() == 'MVL':
-        loaded_model = LinearRegression(n_jobs=-1)
+        loaded_model = LinearRegression(n_jobs=None)
 
     return loaded_model
 
@@ -672,7 +672,7 @@ def load_model_clas(params):
                                 ccp_alpha=params['ccp_alpha'],
                                 max_samples=params['max_samples'],
                                 random_state=params['seed'],
-                                n_jobs=-1)
+                                n_jobs=None)
 
         if params['model'].upper() == 'VR':
             r1 = loaded_model
@@ -719,7 +719,7 @@ def load_model_clas(params):
     if params['model'].upper() == 'GP':
         loaded_model = GaussianProcessClassifier(n_restarts_optimizer=params['n_restarts_optimizer'],
                                 random_state=params['seed'],
-                                n_jobs=-1)
+                                n_jobs=None)
 
     if params['model'].upper() == 'VR':
         loaded_model = VotingClassifier([('rf', r1), ('gb', r2), ('nn', r3)])

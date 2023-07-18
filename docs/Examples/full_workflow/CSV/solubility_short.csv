@@ -1,6 +1,6 @@
-code_name,smiles,solubility,,,,,,,,,,
-mol_100,CC(C)c1ccccc1,-3.27,,,,,,,,,,
-mol_1000,Cc1ccc(O)cc1,-0.73,,,,,,,,,,
-..., , , , , , , , , , , , 
-mol_981,Fc1ccc(F)cc1,-1.97,,,,,,,,,,
-mol_984,CCO,1.1,,,,,,,,,,
+code_name,smiles,solubility
+mol_100,CC(C)c1ccccc1,-3.27
+mol_1000,Cc1ccc(O)cc1,-0.73
+..., , 
+mol_981,Fc1ccc(F)cc1,-1.97
+mol_984,CCO,1.1

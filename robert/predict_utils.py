@@ -535,19 +535,9 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
 
     outliers_data = {}
     outliers_data['train_scaled'] = (outliers_train-outliers_mean)/outliers_sd
-    # for some reason, the predictions of the training set in gradient boosting give very small errors.
-    # To avoid invalid outlier detections, the code uses the validation deviations instead of the training deviations
-    if 'GB_' not in f'{os.path.basename(path_n_suffix)}':
-        outliers_data['valid_scaled'] = (outliers_valid-outliers_mean)/outliers_sd
-        if 'y_test' in Xy_data:
-            outliers_data['test_scaled'] = (outliers_test-outliers_mean)/outliers_sd
-    else:
-        outliers_mean_valid = np.mean(outliers_valid)
-        outliers_sd_valid = np.std(outliers_valid)
-        outliers_data['valid_scaled'] = (outliers_valid-outliers_mean_valid)/outliers_sd_valid
-        if 'y_test' in Xy_data:
-            outliers_data['test_scaled'] = (outliers_test-outliers_mean_valid)/outliers_sd_valid
-
+    outliers_data['valid_scaled'] = (outliers_valid-outliers_mean)/outliers_sd
+    if 'y_test' in Xy_data:
+        outliers_data['test_scaled'] = (outliers_test-outliers_mean)/outliers_sd
 
     print_outliers, naming, naming_test = '', False, False
     if 'train' in name_points:

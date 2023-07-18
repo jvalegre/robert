@@ -1,6 +1,14 @@
 Full workflow from SMILES
 =========================
 
+Overview
+++++++++
+
+.. |aqme_fig| image:: ../../Modules/images/AQME.jpg
+   :width: 600
+
+.. centered:: |aqme_fig|
+
 Required inputs
 +++++++++++++++
 
@@ -57,7 +65,7 @@ Results
 
 * Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors:
 
-A CSV file called AQME-ROBERT_solubility_short.csv should be created in the folder where ROBERT was executed. The CSV 
+A CSV file called **AQME-ROBERT_solubility_short.csv** should be created in the folder where ROBERT was executed. The CSV 
 file can be visualized here: |csv_report_test|
 
 **Following ROBERT workflow**
@@ -66,7 +74,7 @@ file can be visualized here: |csv_report_test|
    :target: ../../_static/ROBERT_report_smiles.pdf
    :width: 30
 
-A PDF file called ROBERT_report.pdf should be created in the folder where ROBERT was executed. The PDF 
+A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF 
 file can be visualized here: |pdf_report_test|
 
 The PDF report contains all the results of the workflow. In this case, Gradient Boosting (GB) models with 80% and 90% training sizes were the optimal models found from: 

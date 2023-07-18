@@ -85,7 +85,7 @@ Don't miss out the latest hands-on tutorials from our
 Installation
 ++++++++++++
 
-XXXXXXXXXXXXXXXXXXXXX Check our `ROBERT installation in 2 mins <https://youtu.be/VeaBzqIZHbo>`_ video 
+**XXX working on the videos XXX** Check our `ROBERT installation in 2 mins <https://youtu.be/VeaBzqIZHbo>`_ video 
 for a quick installation guide. In a nutshell, ROBERT and its dependencies are 
 installed as follows:
 
@@ -197,71 +197,6 @@ Requires the pytest library.
    pytest -v
 
 .. tests-end
-
-.. features-modules-start
-
-Features and modules
---------------------
-
-AQME
-++++++
-
-XXXXXXXXXXXXXXXX Module used to curate the data from CSV databases. Protocols included:
-
-   *  Filters off correlated descriptors
-   *  Filters off variables with very low correlation to the target values (noise)
-   *  Filters off duplicates
-   *  Converts categorical descriptors into one-hot descriptors  
-
-CURATE
-++++++
-
-Module used to curate the data from CSV databases. Protocols included:
-
-   *  Filters off correlated descriptors
-   *  Filters off variables with very low correlation to the target values (noise)
-   *  Filters off duplicates
-   *  Converts categorical descriptors into one-hot descriptors  
-
-GENERATE
-++++++++
-
-Module used to screen multiple hyperoptimized ML models and select the best models. 
-Protocols performed:  
-
-   *  Hyperoptimization of models  
-   *  Filter off descriptors with low permutance feature importance (PFI). New 
-      models are generated parallely, (1) No PFI and (2) PFI-filtered models.  
-   *  Creation of a heatmap plot with different model types and partition sizes. One 
-      plot is generated for No PFI models and another for PFI-filtered models.  
-   *  Selection and storage of the best No PFI and PFI models.  
-
-PREDICT
-+++++++
-
-XXXXXXXXXXXXXXXX Module used to load the best models obtained with GENERATE and perform new predictions, 
-as well as descriptor and outlier analysis. Protocols included:  
-
-   *  Gaussian  
-   *  ORCA  
-   *  pySCF (loading parameters in jupyter notebook)  
-
-
-VERIFY
-++++++
-
-XXXXXXXXXXXXXXXX cclib-based analyzer of output files from multiple QM programs. This module:  
-
-   *  Separates normally terminated files with no errors, extra imaginary 
-      frequencies, duplicates, isomerization to other systems and spin contamination  
-   *  Automatically generates new com files to "fix" the different issues 
-      of the calculations with strategies that are optimal for each type of issue 
-      (Gaussian and ORCA)  
-   *  Checks that all the calculations are homogeneous (i.e. using the 
-      same level of theory, same grid size, same program and version, 
-      solvation model, etc)  
-
-.. features-modules-end
 
 Developement
 ------------

@@ -13,7 +13,7 @@ Required inputs
 +++++++++++++++
 
 * Previous folder from a GENERATE job.
-* **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__.
+* **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__.
 
 .. csv-table:: 
    :file: ../full_workflow/CSV/Robert_example_test.csv

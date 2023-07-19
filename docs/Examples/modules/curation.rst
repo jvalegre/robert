@@ -12,7 +12,7 @@ Overview
 Required inputs
 +++++++++++++++
 
-* **Robert_example.csv:** CSV file with data to curate. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__.
+* **Robert_example.csv:** CSV file with data to curate. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__.
 
 .. csv-table:: 
    :file: ../full_workflow/CSV/Robert_example.csv

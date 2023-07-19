@@ -12,13 +12,13 @@ Overview
 Required inputs
 +++++++++++++++
 
-* **Robert_example.csv:** CSV file with data to use as the training and validation sets. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__.
+* **Robert_example.csv:** CSV file with data to use as the training and validation sets. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__.
 
 .. csv-table:: 
    :file: CSV/Robert_example.csv
    :header-rows: 1
 
-* **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__.
+* **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__.
 
 .. csv-table:: 
    :file: CSV/Robert_example_test.csv

@@ -43,7 +43,7 @@ Special acknowledgments
    Install/installation
    Install/update
    Install/note
-   Install/features
+   Modules/modules
 
 .. toctree::
    :maxdepth: 2

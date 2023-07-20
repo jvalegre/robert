@@ -1,10 +1,18 @@
 Full workflow from CSV
 ======================
 
+Overview
+++++++++
+
+.. |fullworkflow_fig| image:: ../../Modules/images/FullWorkflow.jpg
+   :width: 600
+
+.. centered:: |fullworkflow_fig|
+
 Required inputs
 +++++++++++++++
 
-* **Robert_example.csv:** CSV file with data to use as the training and validation sets. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__.
+* **Robert_example.csv:** CSV file with data to use as the training and validation sets. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__.
 
 .. csv-table:: 
    :file: CSV/Robert_example.csv
@@ -46,7 +54,7 @@ Results
    :target: ../../_static/ROBERT_report.pdf
    :width: 30
 
-A PDF file called ROBERT_report.pdf should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
+A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
 
 The PDF report contains all the results of the workflow. In this case, a Gradient Boosting (GB) and a Random Forest (RF) models with 80% training size were the optimal models found from: 
 

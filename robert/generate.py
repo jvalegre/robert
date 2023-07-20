@@ -22,7 +22,7 @@ Parameters
         set proportion (i.e. 40 = 40% training data).
     filter_train : bool, default=True
         Disables the 90% training size in databases with less than 50 entries.
-    split : str, default='KN'
+    split : str, default='RND'
         Mode for splitting data. Options: 
         1. 'KN' (k-neighbours clustering-based splitting)
         2. 'RND' (random splitting).  

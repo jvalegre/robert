@@ -62,7 +62,12 @@ class report:
             dat_file = Path(f'{os.getcwd()}/{module}/{module}_data.dat')
             module_dir = Path(f'{os.getcwd()}/{module}')
             module_images = [str(file_path) for file_path in module_dir.rglob('*.png') if file_path.is_file()]
-            
+            # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
+            if len(module_images) == 2 and 'No_PFI' in module_images[1]:
+                new_sort = [] # for some reason reverse() gives a weird issue when reverting lists
+                new_sort.append(module_images[1])
+                new_sort.append(module_images[0])
+                module_images = new_sort
             # Group PNGs in pairs based on their names within the "PREDICT" module
             if module == "PREDICT":
                 results_images = []
@@ -80,6 +85,11 @@ class report:
                         outliers_images.append(image_path)
                     else:
                         pfi_images.append(image_path)
+
+                # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
+                for imag_list in [results_images, shap_images, pfi_images, outliers_images]:
+                    if len(imag_list) == 2 and 'No_PFI' in imag_list[1]:
+                        imag_list = imag_list.reverse()
 
                 module_images = results_images + shap_images + pfi_images + outliers_images
             

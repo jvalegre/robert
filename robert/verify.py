@@ -29,6 +29,7 @@ import os
 import time
 from matplotlib import pyplot as plt
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import seaborn as sb
 from statistics import mode
@@ -38,7 +39,7 @@ from statistics import mode
 #     patch_sklearn(verbose=False)
 # except (ModuleNotFoundError,ImportError):
     # pass
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, KFold
 from robert.utils import (load_variables,
     load_db_n_params,
     load_model,
@@ -132,35 +133,32 @@ class verify:
     def cv_test(self,verify_results,Xy_data,params_dict):
         '''
         Performs a K-fold cross-validation on the training set.
-        '''
+        '''      
 
-        # adjust the scoring type
-        if params_dict['type'].lower() == 'reg':
-            if verify_results['error_type'].lower() == 'r2':
-                scoring = "r2"
-            elif verify_results['error_type'].lower() == 'mae':
-                scoring = "neg_mean_absolute_error"
-            elif verify_results['error_type'].lower() == 'rmse':
-                scoring = "neg_root_mean_squared_error"
-        elif params_dict['type'].lower() == 'clas':
-            if verify_results['error_type'].lower() == 'acc':
-                scoring = "accuracy"
-            elif verify_results['error_type'].lower() == 'f1':
-                scoring = "f1"
-            elif verify_results['error_type'].lower() == 'mcc':
-                scoring = "mcc"        
-
+        # Fit the original model with the training set
         loaded_model = load_model(params_dict)
-        # Fit the model with the training set
-        loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])  
+        loaded_model.fit(np.asarray(Xy_data['X_train_scaled']).tolist(), np.asarray(Xy_data['y_train']).tolist())
+        data_cv = load_n_predict(params_dict, Xy_data)
+        
+        cv_score = []
+        data_cv = {}
+        kf = KFold(n_splits=self.args.kfold,shuffle=True)
+        
+        # combine training and validation for CV
+        X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
+        y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
+        for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
+            XY_cv = {}
+            XY_cv['X_train_scaled'] = X_combined.loc[train_index]
+            XY_cv['y_train'] = y_combined.loc[train_index]
+            XY_cv['X_valid_scaled'] = X_combined.loc[valid_index]
+            XY_cv['y_valid'] = y_combined.loc[valid_index]
+            data_cv = load_n_predict(params_dict, XY_cv)
 
-        cv_score = cross_val_score(loaded_model, Xy_data['X_train_scaled'], 
-                    Xy_data['y_train'], cv=self.args.kfold, scoring=scoring)
-        # for MAE and RMSE, sklearn takes negative values
-        if verify_results['error_type'].lower() in ['mae','rmse']:
-            cv_score = -cv_score
-        verify_results['cv_score'] = cv_score.mean()
-        verify_results['cv_std'] = cv_score.std()
+            cv_score.append(data_cv[f'{verify_results["error_type"].lower()}_valid'])
+
+        verify_results['cv_score'] = np.mean(cv_score)
+        verify_results['cv_std'] = np.std(cv_score)
         
         return verify_results
 
@@ -236,70 +234,50 @@ class verify:
         Function to check whether the tests pass and retrieve the corresponding colors:
         1. Blue for passing tests
         2. Red for failing tests
-        3. Grey for the CV test when using KN-based data splitting (to account for misleading results)
         '''
 
         blue_color = '#1f77b4'
         red_color = '#cd5c5c'
-        grey_color = '#c1cdd3'
         color_codes = {'blue' : blue_color,
-                        'red' : red_color,
-                        'grey' : grey_color}
+                        'red' : red_color}
         colors = [None,None,None,None]
         results_print = [None,None,None,None]
-        # these thresholds use train results to compare in the CV
-        higher_thres_train = (1+self.args.thres_test)*verify_results['original_score_train']
-        lower_thres_train = (1-self.args.thres_test)*verify_results['original_score_train']
-        # these thresholds use validation results to compare in the CV
+        # these thresholds use validation results to compare in the tests
         higher_thres_valid = (1+self.args.thres_test)*verify_results['original_score_valid']
         lower_thres_valid = (1-self.args.thres_test)*verify_results['original_score_valid']
 
         for i,test_ver in enumerate(['y_mean', 'cv_score', 'onehot', 'y_shuffle']):
-            # the CV test should give values as good as the originals, while the other tests
-            # should give worse results. MAE and RMSE go in the opposite direction as R2,
-            # F1 scores and MCC
-            if test_ver == 'cv_score':
-                if verify_results['error_type'].lower() in ['mae','rmse']:
-                    if verify_results[test_ver] >= higher_thres_train:
-                        colors[i] = red_color
-                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_train:.2})'
-                    else:
-                        colors[i] = blue_color
-                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_train:.2})'
-                else:
-                    if verify_results[test_ver] <= lower_thres_train:
-                        colors[i] = red_color
-                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_train:.2})'
-                    else:
-                        colors[i] = blue_color
-                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_train:.2})'
-                
-                # the CV test also fails if there is too much variation (+- 50% of the CV result)
-                if verify_results['cv_std'] >= 0.5*verify_results['cv_score']:
-                    colors[i] = red_color
-                    results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, SD 50% higher than the CV score. CV result: {verify_results["error_type"].upper()} = {verify_results["cv_score"]:.2} +- {verify_results["cv_std"]:.2}'
-
-                # when using K-neighbours to select the training data, classical K-fold CV might not
-                # be very useful. We mark this part in grey
-                if params_dict['split'] == 'KN':
-                    colors[i] = grey_color
-                    results_print[i] = f'\n         - {self.args.kfold}-fold CV: NOT DETERMINED, data splitting was done with KN. CV result: {verify_results["error_type"].upper()} = {verify_results["cv_score"]:.2}'
-
-            elif test_ver in ['y_mean', 'y_shuffle', 'onehot']:
-                if verify_results['error_type'].lower() in ['mae','rmse']:
-                    if verify_results[test_ver] <= higher_thres_valid:
+            if verify_results['error_type'].lower() in ['mae','rmse']:
+                if verify_results[test_ver] <= higher_thres_valid:
+                    if test_ver != 'cv_score':
                         colors[i] = red_color
                         results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
                 else:
-                    if verify_results[test_ver] >= lower_thres_valid:
+                    if test_ver != 'cv_score':
+                        colors[i] = blue_color
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
+                    else:
+                        colors[i] = red_color
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
+
+            else:
+                if verify_results[test_ver] >= lower_thres_valid:
+                    if test_ver != 'cv_score':
                         colors[i] = red_color
                         results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
                     else:
                         colors[i] = blue_color
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
+                else:
+                    if test_ver != 'cv_score':
+                        colors[i] = blue_color
                         results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
+                    else:
+                        colors[i] = red_color
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
 
         return colors,color_codes,results_print
 
@@ -329,7 +307,7 @@ class verify:
         
         # failing or undetermined tests will lead to pieces that are outside the regular donut
         for i,color in enumerate(colors):
-            if color in [color_codes['red'], color_codes['grey']]:
+            if color == color_codes['red']:
                 explode[i] = 0.05
             else:
                 explode[i] = 0
@@ -375,9 +353,8 @@ class verify:
         print_ver += f"\n   o  VERIFY test values saved in {path_reduced}"
         print_ver += f'\n      Results of the VERIFY tests:'
         # the printing order should be CV, y-mean, y-shuffle and one-hot
-        print_ver += f'\n      Original score (train set in CV): {verify_results["error_type"].upper()} = {verify_results["original_score_train"]:.2}, +- {int(self.args.thres_test*100)}% threshold (thres_test option):'
+        print_ver += f'\n      Original score (validation set): {verify_results["error_type"].upper()} = {verify_results["original_score_valid"]:.2} +- {int(self.args.thres_test*100)}% threshold (thres_test option):'
         print_ver += results_print[1]
-        print_ver += f'\n      Original score (validation set): {verify_results["error_type"].upper()} = {verify_results["original_score_valid"]:.2}, +- {int(self.args.thres_test*100)}% threshold (thres_test option):'
         print_ver += results_print[0]
         print_ver += results_print[3]
         print_ver += results_print[2]

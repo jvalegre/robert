@@ -122,7 +122,30 @@ def command_line_args():
         "report",
         "cheers"
     ]
-
+    list_args = [
+        "discard",
+        "ignore",
+        "train",
+        "model",
+        "report_modules",
+        "seed"
+    ]
+    int_args = [
+        'pfi_epochs',
+        'epochs',
+        'pfi_max',
+        'kfold',
+        'shap_show',
+        'pfi_show'
+    ]
+    float_args = [
+        'pfi_threshold',
+        'thres_test',
+        't_value',
+        'thres_x',
+        'thres_y',
+        'desc_thres',
+    ]
     for arg in var_dict:
         if arg in bool_args:
             available_args.append(f"{arg}")
@@ -140,12 +163,6 @@ def command_line_args():
             arg_name = arg.split("--")[1].strip()
         elif arg.find("-") > -1:
             arg_name = arg.split("-")[1].strip()
-        if arg_name in bool_args:
-            value = True
-        if value == "None":
-            value = None
-        if value == "False":
-            value = False
 
         if arg_name in ("h", "help"):
             print(f"o  ROBERT v {robert_version} is installed correctly! For more information about the available options, see the documentation in https://github.com/jvalegre/robert")
@@ -155,9 +172,20 @@ def command_line_args():
             if arg_name.lower() == 'files' and value.find('*') > -1:
                 kwargs[arg_name] = glob.glob(value)
             else:
-                # this converts the string parameters to lists
-                if arg_name.lower() in ["discard","ignore","train","model","report_modules","seed"]:
+                # converts the string parameters from command line to the right format
+                if arg_name in bool_args:
+                    value = True                    
+                elif arg_name.lower() in list_args:
                     value = format_lists(value)
+                elif arg_name.lower() in int_args:
+                    value = int(value)
+                elif arg_name.lower() in float_args:
+                    value = float(value)
+                elif value == "None":
+                    value = None
+                elif value == "False":
+                    value = False
+
                 kwargs[arg_name] = value
 
     # Second, load all the default variables as an "add_option" object
@@ -234,10 +262,6 @@ def load_variables(kwargs, robert_module):
 
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
-            
-            self.thres_x = float(self.thres_x)
-            self.thres_y = float(self.thres_y)
-            self.desc_thres = float(self.desc_thres)
 
         elif robert_module.upper() == 'GENERATE':
             self.log.write(f"\no  Starting generation of ML models with the GENERATE module")
@@ -251,11 +275,6 @@ def load_variables(kwargs, robert_module):
 
             for i,val in enumerate(self.train):
                 self.train[i] = int(val)
-
-            self.pfi_epochs = int(self.pfi_epochs)
-            self.pfi_threshold = float(self.pfi_threshold)
-            self.epochs = int(self.epochs)
-            self.pfi_max = int(self.pfi_max)
 
             # set seeds and epochs depending on precision
             if len(self.seed) == 0:
@@ -298,16 +317,8 @@ def load_variables(kwargs, robert_module):
         elif robert_module.upper() == 'VERIFY':
             self.log.write(f"\no  Starting tests to verify the prediction ability of the ML models with the VERIFY module")
 
-            self.thres_test = float(self.thres_test)
-            self.kfold = int(self.kfold)
-
         elif robert_module.upper() == 'PREDICT':
             self.log.write(f"\no  Representation of predictions and analysis of ML models with the PREDICT module")
-
-            self.t_value = float(self.t_value)
-            self.shap_show = int(self.shap_show)
-            self.pfi_epochs = int(self.pfi_epochs)
-            self.pfi_show = int(self.pfi_show)
 
         elif robert_module.upper() == 'AQME':
             self.log.write(f"\no  Starting the generation of AQME descriptors with the AQME module")
@@ -396,13 +407,10 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f"\nx  The categorical option used is not valid! Options: 'onehot', 'numbers'")
                 curate_valid = False
 
-            elif float(self.thres_x) > 1 or float(self.thres_x) < 0:
-                self.log.write(f"\nx  The thres_x option should be between 0 and 1!")
-                curate_valid = False
-
-            elif float(self.thres_y) > 1 or float(self.thres_y) < 0:
-                self.log.write(f"\nx  The thres_y option should be between 0 and 1!")
-                curate_valid = False
+            for thres,thres_name in zip([self.thres_x,self.thres_y],['thres_x','thres_y']):
+                if float(thres) > 1 or float(thres) < 0:
+                    self.log.write(f"\nx  The {thres_name} option should be between 0 and 1!")
+                    curate_valid = False
         
         elif module.lower() == 'generate':
             if self.split.lower() not in ['kn','rnd']:
@@ -421,25 +429,19 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")                 
                     curate_valid = False
 
-            if len(self.model) == 0:
-                self.log.write(f"\nx  Choose an ML model in the model option!")
-                curate_valid = False
-
-            if len(self.train) == 0:
-                self.log.write(f"\nx  Choose train proportion(s) in the train option!")
-                curate_valid = False
+            for option,option_name in zip([self.model,self.train],['model','train']):
+                if len(option) == 0:
+                    self.log.write(f"\nx  Add parameters to the {option_name} option!")
+                    curate_valid = False
 
             if self.type.lower() not in ['reg','clas']:
                 self.log.write(f"\nx  The type option used is not valid! Options: 'reg', 'clas'")
                 curate_valid = False
 
-            if int(self.epochs) <= 0:
-                self.log.write(f"\nx  The number of epochs must be higher than 0!")
-                curate_valid = False
-            
-            if int(self.pfi_epochs) <= 0:
-                self.log.write(f"\nx  The number of pfi_epochs must be higher than 0!")
-                curate_valid = False
+            for option,option_name in zip([self.epochs,self.pfi_epochs],['epochs','pfi_epochs']):
+                if option <= 0:
+                    self.log.write(f"\nx  The number of {option_name} must be higher than 0!")
+                    curate_valid = False
 
     if type_checks == 'initial' and module.lower() in ['generate','verify','predict','report']:
 
@@ -502,15 +504,11 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
                     curate_valid = False
 
-            for val in self.discard:
-                if val not in columns_csv:
-                    self.log.write(f"\nx  Descriptor {val} specified in the discard option is not a column in the csv selected ({self.csv_name})!")
-                    curate_valid = False
-
-            for val in self.ignore:
-                if val not in columns_csv:
-                    self.log.write(f"\nx  Descriptor {val} specified in the ignore option is not a column in the csv selected ({self.csv_name})!")
-                    curate_valid = False
+            for option,option_name in zip([self.discard,self.ignore],['discard','ignore']):
+                for val in option:
+                    if val not in columns_csv:
+                        self.log.write(f"\nx  Descriptor {val} specified in the {option_name} option is not a column in the csv selected ({self.csv_name})!")
+                        curate_valid = False
 
     if not curate_valid:
         self.log.finalize()
@@ -752,23 +750,17 @@ def load_n_predict(params, data, hyperopt=False):
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = data['r2_train'], data['mae_train'], data['rmse_train']
         else:
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
-        if 'X_test_scaled' in data:
-            if 'y_test' in data:
-                data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
+        if 'X_test_scaled' in data and 'y_test' in data:
+            data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
         if hyperopt:
-            if params['error_type'].lower() == 'rmse':
-                opt_target = data['rmse_valid']
-            elif params['error_type'].lower() == 'mae':
-                opt_target = data['mae_valid']
-            elif params['error_type'].lower() == 'r2':
+            opt_target = data[f'{params["error_type"].lower()}_valid']
+            if params['error_type'].lower() == 'r2':
                 # avoids problems with regression lines with good R2 in validation that go in a different
                 # direction of the regression in train
                 score_model = loaded_model.score(data['X_valid_scaled'], data['y_valid'])
                 if score_model < 0:
                     opt_target = 0
-                else:
-                    opt_target = data['r2_valid']
-            return opt_target
+            return opt_target,data
         else:
             return data
     
@@ -778,17 +770,11 @@ def load_n_predict(params, data, hyperopt=False):
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = data['acc_train'], data['f1_train'], data['mcc_train']
         else:
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
-        if 'X_test_scaled' in data:
-            if 'y_test' in data:
-                data['acc_test'], data['f1_test'], data['mcc_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
+        if 'X_test_scaled' in data and 'y_test' in data:
+            data['acc_test'], data['f1_test'], data['mcc_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
         if hyperopt:
-            if params['error_type'].lower() == 'mcc':
-                opt_target = data['mcc_valid']
-            elif params['error_type'].lower() == 'f1':
-                opt_target = data['f1_valid']
-            elif params['error_type'].lower() == 'acc':
-                opt_target = data['acc_valid']
-            return opt_target
+            opt_target = data[f'{params["error_type"].lower()}_valid']
+            return opt_target,data
         else:
             return data    
 

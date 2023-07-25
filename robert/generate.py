@@ -122,9 +122,15 @@ class generate:
 
         # if there are less than 50 datapoints, the 90% training size is disabled by default
         if self.args.filter_train:
+            removed = []
             if len(csv_df[self.args.y]) < 50 and 90 in self.args.train:
                 self.args.train.remove(90)
-                self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the 90% training size will be excluded (too few validation points to reach a reliable result). You can include this size using "--filter_train False".')
+                removed.append('90%')
+            if len(csv_df[self.args.y]) < 25 and 80 in self.args.train:
+                self.args.train.remove(80)
+                removed.append('80%')
+            if len(removed) > 0:
+                self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the {", ".join(removed)} training size(s) will be excluded (too few validation points to reach a reliable result). You can include this size(s) using "--filter_train False".')
 
         # scan different ML models
         txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models ({self.args.model}) and {len(self.args.train)} training sizes ({self.args.train})."
@@ -164,11 +170,14 @@ class generate:
                     cycle += 1
 
                 # only select best seed for each train/model combination
-                name_csv = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}")
-                _ = filter_seed(self, name_csv)
-                if self.args.pfi_filter:
-                    name_csv_pfi = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}")
-                    _ = filter_seed(self, name_csv_pfi)
+                try: # in case there are no models passing generate
+                    name_csv = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}")
+                    _ = filter_seed(self, name_csv)
+                    if self.args.pfi_filter:
+                        name_csv_pfi = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}")
+                        _ = filter_seed(self, name_csv_pfi)
+                except UnboundLocalError:
+                    pass
 
         # detects best combinations
         dir_csv = self.args.destination.joinpath(f"Raw_data")

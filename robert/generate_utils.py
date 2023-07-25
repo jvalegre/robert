@@ -212,7 +212,12 @@ def f(params):
         params['hidden_layer_sizes'] = (layer_arrays)
 
     try:
-        opt_target = load_n_predict(params, hyperopt_data, hyperopt=True)
+        opt_target,data = load_n_predict(params, hyperopt_data, hyperopt=True)
+        # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes
+        # because the errors of the validation sets are low
+        if data['r2_train'] > 0.99 or data['r2_train'] < 0.01:
+            opt_target = float('inf')
+
         # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
         # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
         if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
@@ -496,7 +501,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
+    opt_target,_ = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
     PFI_dict[PFI_dict['error_type']] = opt_target
 
     # save CSV file

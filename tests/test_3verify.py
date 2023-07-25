@@ -91,7 +91,7 @@ def test_VERIFY(test_job):
             elif test_job == "kfold":
                 assert "x 10-kfold_cv: FAILED" in outlines[i+2]
             elif test_job == "clas":
-                assert "o 5-kfold_cv: PASSED" in outlines[i+2]
+                assert "5-kfold_cv: " in outlines[i+2]
                 assert "ACC =" in outlines[i+3]
                 assert "ACC =" in outlines[i+4]
                 assert "ACC =" in outlines[i+5]

@@ -25,6 +25,7 @@ var_dict = {
     "thres_y" : 0.001,
     "thres_x" : 0.9,
     "train" : [60,70,80,90],
+    "auto_kn" : True,
     "filter_train" : True,
     "split" : "RND",
     "model" : ['RF','GB','NN','MVL'],

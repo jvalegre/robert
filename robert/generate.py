@@ -20,8 +20,10 @@ Parameters
     train : list, default=[60,70,80,90]
         Proportions of the training set to use in the ML scan. The numbers are relative to the training 
         set proportion (i.e. 40 = 40% training data).
+    auto_kn : bool, default=True
+        Changes random splitting to KN splitting in databases with less than 100 datapoints.
     filter_train : bool, default=True
-        Disables the 90% training size in databases with less than 50 entries.
+        Disables the 90% training size in databases with less than 50 datapoints.
     split : str, default='RND'
         Mode for splitting data. Options: 
         1. 'KN' (k-neighbours clustering-based splitting)
@@ -119,6 +121,12 @@ class generate:
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate")
+
+        # changes from random to KN data splitting in databases with few points
+        if self.args.auto_kn:
+            if len(csv_df[self.args.y]) < 100 and self.args.split.lower() == 'rnd':
+                self.args.split = 'KN'
+                self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, KN data splitting will replace the default random splitting (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
 
         # if there are less than 50 datapoints, the 90% training size is disabled by default
         if self.args.filter_train:

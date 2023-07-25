@@ -260,10 +260,8 @@ class curate:
 
         csv_df_pearson = csv_df_pearson.drop(self.args.ignore,axis=1)
         corr_matrix = csv_df_pearson.corr()
-        print(corr_matrix)
         mask = np.zeros_like(corr_matrix, dtype=bool)
         mask[np.triu_indices_from(mask)]= True
-        print(mask)
         
         # these size ranges avoid matplot errors
         if len(csv_df_pearson.columns) > 30:

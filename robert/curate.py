@@ -190,8 +190,8 @@ class curate:
             if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
                 # finds the descriptors with low correlation to the response values
                 try:
-                    _, _, r_value_y, _, _ = stats.linregress(csv_df[column],csv_df[self.args.y])
-                    rsquared_y = r_value_y**2
+                    res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
+                    rsquared_y = res_y.rvalue**2
                     if rsquared_y < self.args.thres_y:
                         descriptors_drop.append(column)
                         txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
@@ -203,12 +203,12 @@ class curate:
                 if column != csv_df.columns[-1] and column not in descriptors_drop:
                     for j,column2 in enumerate(csv_df.columns):
                         if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
-                            _, _, r_value_x, _, _ = stats.linregress(csv_df[column],csv_df[column2])
-                            rsquared_x = r_value_x**2
+                            res_x = stats.linregress(csv_df[column],csv_df[column2])
+                            rsquared_x = res_x.rvalue**2
                             if rsquared_x > self.args.thres_x:
                                 # discard the column with less correlation with the y values
-                                _, _, r_value_y2, _, _ = stats.linregress(csv_df[column2],csv_df[self.args.y])
-                                rsquared_y2 = r_value_y2**2
+                                res_xy = stats.linregress(csv_df[column2],csv_df[self.args.y])
+                                rsquared_y2 = res_xy.rvalue**2
                                 if rsquared_y >= rsquared_y2:
                                     descriptors_drop.append(column2)
                                     txt_corr += f'\n   - {column2}: R**2 = {round(rsquared_x,2)} with {column}'
@@ -260,10 +260,11 @@ class curate:
 
         csv_df_pearson = csv_df_pearson.drop(self.args.ignore,axis=1)
         corr_matrix = csv_df_pearson.corr()
-
+        print(corr_matrix)
         mask = np.zeros_like(corr_matrix, dtype=bool)
         mask[np.triu_indices_from(mask)]= True
-
+        print(mask)
+        
         # these size ranges avoid matplot errors
         if len(csv_df_pearson.columns) > 30:
             disable_plot = True

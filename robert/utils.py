@@ -783,8 +783,8 @@ def get_prediction_results(params,y,y_pred):
     if params['type'].lower() == 'reg':
         mae = mean_absolute_error(y, y_pred)
         rmse = np.sqrt(mean_squared_error(y, y_pred))
-        _, _, r_value, _, _ = stats.linregress(y, y_pred)
-        r2 = r_value**2
+        res = stats.linregress(y, y_pred)
+        r2 = res.rvalue**2
         return r2, mae, rmse
 
     elif params['type'].lower() == 'clas':

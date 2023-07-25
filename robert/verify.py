@@ -39,7 +39,7 @@ try:
     patch_sklearn(verbose=False)
 except (ModuleNotFoundError,ImportError):
     pass
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import KFold
 from robert.utils import (load_variables,
     load_db_n_params,
     load_model,
@@ -119,7 +119,7 @@ class verify:
                 Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
 
                 # analysis of results
-                colors,color_codes,results_print = self.analyze_tests(verify_results,params_dict)
+                colors,color_codes,results_print = self.analyze_tests(verify_results)
 
                 # plot a donut plot with the results
                 print_ver,path_n_suffix = self.plot_donut(colors,color_codes,params_path,suffix_title)
@@ -229,7 +229,7 @@ class verify:
         return verify_results
 
 
-    def analyze_tests(self,verify_results,params_dict):
+    def analyze_tests(self,verify_results):
         '''
         Function to check whether the tests pass and retrieve the corresponding colors:
         1. Blue for passing tests
@@ -254,14 +254,14 @@ class verify:
                         results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
+                        results_print[i] = f'\n         o {self.args.kfold}-kfold_cv: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
                 else:
                     if test_ver != 'cv_score':
                         colors[i] = blue_color
                         results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
                     else:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
+                        results_print[i] = f'\n         x {self.args.kfold}-kfold_cv: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
 
             else:
                 if verify_results[test_ver] >= lower_thres_valid:
@@ -270,14 +270,14 @@ class verify:
                         results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
+                        results_print[i] = f'\n         o {self.args.kfold}-kfold_cv: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
                 else:
                     if test_ver != 'cv_score':
                         colors[i] = blue_color
                         results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
                     else:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
+                        results_print[i] = f'\n         x {self.args.kfold}-kfold_cv: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
 
         return colors,color_codes,results_print
 

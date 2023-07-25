@@ -15,9 +15,16 @@ Don't miss out the latest hands-on tutorials from our [YouTube channel](https://
 
 ## Recommended installation and update guide  
 In a nutshell, ROBERT and its dependencies are installed/updated as follows:  
-1. Install using conda-forge (preferred): `conda install -c conda-forge robert`  
-2. Install using pip: `pip install robert`  
-3. Update to the latest version: `pip install robert --upgrade`  
+1. Install ROBERT using conda-forge and the intelex accelerator (only if your system is compatible with intelex) (preferred):  
+`conda install -c conda-forge robert`  
+`pip install scikit-learn-intelex`  
+2. In some cases, conda-forge might be slow and users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+`pip install robert`  
+`pip install weasyprint`  
+`conda install -c conda-forge glib gtk3 pango`  
+`pip install scikit-learn-intelex`  
+3. Update to the latest version:  
+`pip install robert --upgrade`  
 
 ## Developers and help desk  
 List of main developers and contact emails:  

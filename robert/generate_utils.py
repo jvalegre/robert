@@ -215,8 +215,9 @@ def f(params):
         opt_target,data = load_n_predict(params, hyperopt_data, hyperopt=True)
         # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes
         # because the errors of the validation sets are low
-        if data['r2_train'] > 0.99 or data['r2_train'] < 0.01:
-            opt_target = float('inf')
+        if params['type'].lower() == 'reg':
+            if data['r2_train'] > 0.99 or data['r2_train'] < 0.01:
+                opt_target = float('inf')
 
         # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
         # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)

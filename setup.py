@@ -44,6 +44,7 @@ setup(
         "numba>=0.57,<0.58",
         "shap>=0.42,<0.43",
         # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
+        # optionally, the intelex accelerator might be installed "pip install scikit-learn-intelex"
     ],
     python_requires=">=3.0",
     include_package_data=True,

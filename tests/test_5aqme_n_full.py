@@ -57,7 +57,7 @@ def test_AQME(test_job):
         "--ignore", ignore_var,
         "--epochs", "5",
         "--seed", "[0]",
-        "--model", "['GB']",
+        "--model", "['RF']",
         "--train", "[60]",
         "--pfi_epochs", "1"
     ]

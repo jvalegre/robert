@@ -204,6 +204,7 @@ def add_time(report_html,header_dat):
     for line in report_html.split('\n'):
         if 'Time' in line and 'seconds' in line:
             total_time += float(line.split()[2])
+    total_time = round(total_time,2)
     new_header = header_dat+f'\n\nTotal execution time: {total_time} seconds'
     report_html = report_html.replace(header_dat,new_header)
 

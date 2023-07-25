@@ -8,7 +8,7 @@ Parameters
         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
     params_dir : str, default=''
         Folder containing the database and parameters of the ML model to analyze.
-    thres_test : float, default=0.2,
+    thres_test : float, default=0.25,
         Threshold used to determine if a test pasess. It is determined in % units of diference between
         the R2 (MCC in classificators) of the model and the test (i.e., 0.2 = 20% difference with the 
         original value). Test passes if:
@@ -34,11 +34,11 @@ from pathlib import Path
 import seaborn as sb
 from statistics import mode
 # for users with no intel architectures. This part has to be before the sklearn imports
-# try:
-#     from sklearnex import patch_sklearn
-#     patch_sklearn(verbose=False)
-# except (ModuleNotFoundError,ImportError):
-    # pass
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 from sklearn.model_selection import cross_val_score, KFold
 from robert.utils import (load_variables,
     load_db_n_params,

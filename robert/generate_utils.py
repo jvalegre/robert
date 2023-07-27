@@ -468,9 +468,9 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     #   2. Proportion of 1:3 of descriptors:total datapoints (training + validation)
     total_points = len(Xy_data['y_train'])+len(Xy_data['y_valid'])
     n_descp_PFI = desc_keep-len(PFI_discard_cols)
-    if n_descp_PFI > 0.33*total_points or n_descp_PFI == desc_keep or n_descp_PFI == 0:
+    if n_descp_PFI > 0.2*total_points or n_descp_PFI >= (0.75*desc_keep) or n_descp_PFI == 0:
         option_one = int(0.75*len(Xy_data['X_train'].columns))
-        option_two = int(0.33*total_points)
+        option_two = int(0.2*total_points)
         pfi_max = min(option_one,option_two)
     else:
         pfi_max = self.args.pfi_max

@@ -10,7 +10,7 @@ Parameters
         Folder containing the database and parameters of the ML model to analyze.
     thres_test : float, default=0.25,
         Threshold used to determine if a test pasess. It is determined in % units of diference between
-        the R2 (MCC in classificators) of the model and the test (i.e., 0.2 = 20% difference with the 
+        the R2 (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
         original value). Test passes if:
         1. y-mean and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
         classificators) or the error is greated than X% (from original MAE and RMSE for regressors)

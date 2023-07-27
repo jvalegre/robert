@@ -19,6 +19,27 @@ Required inputs
    :header-rows: 1
    :widths: 25, 25, 25
 
+Required packages
++++++++++++++++++
+
+* **AQME:** Install AQME with conda-forge (or follow the instructions from `their ReadtheDocs <https://aqme.readthedocs.io>`__):
+
+.. code:: shell
+
+    conda install -c conda-forge aqme
+
+* **CREST:** Install AQME with conda-forge (or follow the instructions from `their documentation <https://crest-lab.github.io/crest-docs/>`__):
+
+.. code:: shell
+
+    conda install -c conda-forge crest
+
+* **xTB:** Install AQME with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
+
+.. code:: shell
+
+    conda install -c conda-forge xtb
+
 Executing the job
 +++++++++++++++++
 

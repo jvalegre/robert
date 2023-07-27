@@ -23,7 +23,7 @@ Parameters
     auto_kn : bool, default=True
         Changes random splitting to KN splitting in databases with less than 100 datapoints.
     filter_train : bool, default=True
-        Disables the 90% training size in databases with less than 50 datapoints.
+        Disables the 90% training size in databases with less than 50 datapoints, and the 80% in less than 30.
     split : str, default='RND'
         Mode for splitting data. Options: 
         1. 'KN' (k-neighbours clustering-based splitting)
@@ -134,7 +134,7 @@ class generate:
             if len(csv_df[self.args.y]) < 50 and 90 in self.args.train:
                 self.args.train.remove(90)
                 removed.append('90%')
-            if len(csv_df[self.args.y]) < 25 and 80 in self.args.train:
+            if len(csv_df[self.args.y]) < 30 and 80 in self.args.train:
                 self.args.train.remove(80)
                 removed.append('80%')
             if len(removed) > 0:

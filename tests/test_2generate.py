@@ -30,7 +30,7 @@ path_generate = os.getcwd() + "/GENERATE"
             "reduced_PFImax"
         ),  # test to select the number of PFI features
         (
-            "reduced_kn"
+            "reduced_rnd"
         ),  # test for random (RND) splitting
         (
             "reduced_others"
@@ -87,8 +87,8 @@ def test_GENERATE(test_job):
             cmd_robert = cmd_robert + ["--pfi_filter", "False"]
         elif test_job == 'reduced_PFImax':
             cmd_robert = cmd_robert + ["--pfi_max", "2"]
-        elif test_job == 'reduced_kn':
-            cmd_robert = cmd_robert + ["--split", "kn"]
+        elif test_job == 'reduced_rnd':
+            cmd_robert = cmd_robert + ["--auto_kn", "False"]
         elif test_job == 'reduced_clas':
             cmd_robert = cmd_robert + ["--type", "clas"]
     else: # needed to define the variables, change if default options change
@@ -114,7 +114,10 @@ def test_GENERATE(test_job):
         assert "- 9 accepted descriptors" in outlines[10]
     assert "- 1 ignored descriptors" in outlines[11]
     assert "- 0 discarded descriptors" in outlines[12]
-    assert f"- 1/{len(model_list) * len(train_list)}" in outlines[16]
+    if test_job != 'reduced_rnd':
+        assert f"- 1/{len(model_list) * len(train_list)}" in outlines[18]
+    else:
+        assert f"- 1/{len(model_list) * len(train_list)}" in outlines[16]
 
     # check that the right amount of CSV files were created
     expected_amount = len(model_list) * len(train_list) * 2
@@ -137,31 +140,31 @@ def test_GENERATE(test_job):
         assert len(best_amount) == 2
         params_best = pd.read_csv(best_amount[0])
         db_best = pd.read_csv(best_amount[1])
-        if test_job in ['reduced','reduced_PFImax','reduced_kn']:
+        if test_job in ['reduced','reduced_PFImax','reduced_rnd']:
             if folder == 'No_PFI':
                 if test_job != 'reduced_clas':
                     desc_list = ['x2', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'Csub-O', 'H-O']
                 else:
                     desc_list = ['x1', 'x2', 'x3', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10']
             elif folder == 'PFI':
-                if test_job in ['reduced','reduced_kn']:
+                if test_job in ['reduced','reduced_rnd']:
                     desc_list = ['x6', 'x7', 'x10']
                 elif test_job =='reduced_PFImax':
                     desc_list = ['x6', 'x7']
 
-            if test_job in ['reduced','reduced_kn']:    
+            if test_job in ['reduced','reduced_rnd']:    
                 sum_split = 0
-                if db_best['Set'][0] == 'Validation':
+                if db_best['Set'][0] == 'Training':
                     sum_split += 1
-                if db_best['Set'][1] == 'Validation':
+                if db_best['Set'][1] == 'Training':
                     sum_split += 1
                 if db_best['Set'][2] == 'Training':
                     sum_split += 1
-                if db_best['Set'][3] == 'Training':
+                if db_best['Set'][3] == 'Validation':
                     sum_split += 1
                 if test_job == 'reduced':
                     assert sum_split == 4
-                elif test_job == 'reduced_kn':
+                elif test_job == 'reduced_rnd':
                     assert sum_split < 4
             for var in desc_list:
                 assert var in params_best['X_descriptors'][0]

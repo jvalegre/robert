@@ -146,6 +146,7 @@ def command_line_args():
         'thres_y',
         'desc_thres',
     ]
+
     for arg in var_dict:
         if arg in bool_args:
             available_args.append(f"{arg}")
@@ -185,6 +186,8 @@ def command_line_args():
                     value = None
                 elif value == "False":
                     value = False
+                elif value == "True":
+                    value = True
 
                 kwargs[arg_name] = value
 
@@ -247,7 +250,15 @@ def load_variables(kwargs, robert_module):
             self.log.write(f"ROBERT v {robert_version} {time_run} \nCitation: {robert_ref}\n")
 
             if self.command_line:
-                self.log.write(f"Command line used in ROBERT: robert {' '.join([str(elem) for elem in sys.argv[1:]])}\n")
+                cmd_print = ''
+                for i,elem in enumerate(sys.argv[1:]):
+                    if elem[:2] != '--' and elem != '-h':
+                        cmd_print += f'"{elem}"'
+                    else:
+                        cmd_print += f'{elem}'
+                    if i != len(sys.argv[1:])-1:
+                        cmd_print += ' '
+                self.log.write(f"Command line used in ROBERT: python -m robert {cmd_print}\n")
 
         elif robert_module.upper() == 'REPORT':
             self.path_icons = Path(resource_filename("robert", "report"))

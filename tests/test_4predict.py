@@ -105,7 +105,7 @@ def test_PREDICT(test_job):
                 if test_job == "t_value":
                     assert 'Train: 0 outliers' in outlines[i+2]
                 else:
-                    assert 'Train: 1 outliers' in outlines[i+2]
+                    assert 'Train: 2 outliers' in outlines[i+2]
                 if test_job == "t_value":
                     assert 'Validation: 0 outliers' in outlines[i+3]
                 else:

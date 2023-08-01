@@ -23,8 +23,9 @@ Executing the job
 
 **Instructions:**
 
-1. First, go to the folder containing the CSV files in your terminal.
-2. Run the following command line:
+1. Download the **Robert_example.csv** file specified in Required inputs.
+2. Go to the folder containing the CSV file in your terminal.
+3. Run the following command line:
 
 .. code:: shell
 

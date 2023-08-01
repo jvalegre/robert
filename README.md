@@ -41,7 +41,7 @@ J.V.A.R. - The acronym ROBERT is dedicated to Prof. ROBERT Paton, who was a ment
 
 D.D.G. - The style of the ROBERT_report.pdf file was created with the help of Oliver Lee (University of St Andrews, 2023).
 
-## Reference
+## How to cite ROBERT
 If you use any of the ROBERT modules, please include this citation:  
 * ROBERT v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert.  
   

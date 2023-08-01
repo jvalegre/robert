@@ -119,7 +119,7 @@ class verify:
                 Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
 
                 # analysis of results
-                colors,color_codes,results_print = self.analyze_tests(verify_results)
+                colors,color_codes,results_print,verify_results = self.analyze_tests(verify_results)
 
                 # plot a donut plot with the results
                 print_ver,path_n_suffix = self.plot_donut(colors,color_codes,params_path,suffix_title)
@@ -243,43 +243,43 @@ class verify:
         colors = [None,None,None,None]
         results_print = [None,None,None,None]
         # these thresholds use validation results to compare in the tests
-        higher_thres_valid = (1+self.args.thres_test)*verify_results['original_score_valid']
-        lower_thres_valid = (1-self.args.thres_test)*verify_results['original_score_valid']
+        verify_results['higher_thres'] = (1+self.args.thres_test)*verify_results['original_score_valid']
+        verify_results['lower_thres'] = (1-self.args.thres_test)*verify_results['original_score_valid']
 
         for i,test_ver in enumerate(['y_mean', 'cv_score', 'onehot', 'y_shuffle']):
             if verify_results['error_type'].lower() in ['mae','rmse']:
-                if verify_results[test_ver] <= higher_thres_valid:
+                if verify_results[test_ver] <= verify_results['higher_thres']:
                     if test_ver != 'cv_score':
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {self.args.kfold}-kfold_cv: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({higher_thres_valid:.2})'
+                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
                 else:
                     if test_ver != 'cv_score':
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
                     else:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {self.args.kfold}-kfold_cv: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({higher_thres_valid:.2})'
+                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
 
             else:
-                if verify_results[test_ver] >= lower_thres_valid:
+                if verify_results[test_ver] >= verify_results['lower_thres']:
                     if test_ver != 'cv_score':
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {self.args.kfold}-kfold_cv: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is higher than the threshold ({lower_thres_valid:.2})'
+                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
                 else:
                     if test_ver != 'cv_score':
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
                     else:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {self.args.kfold}-kfold_cv: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} is lower than the threshold ({lower_thres_valid:.2})'
-
-        return colors,color_codes,results_print
+                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
+        
+        return colors,color_codes,results_print,verify_results
 
 
     def plot_donut(self,colors,color_codes,params_path,suffix_title):
@@ -296,10 +296,10 @@ class verify:
         sb.reset_defaults()
         _, ax = plt.subplots(figsize=(7.45,6), subplot_kw=dict(aspect="equal"))
         
-        recipe = ["y-mean",
+        recipe = ["y_mean",
                 f"{self.args.kfold}-fold CV",
-                "One-hot",
-                "y-shuffle"]
+                "onehot",
+                "y_shuffle"]
                 
         # make 4 even parts in the donut plot
         data = [25, 25, 25, 25]
@@ -353,7 +353,10 @@ class verify:
         print_ver += f"\n   o  VERIFY test values saved in {path_reduced}"
         print_ver += f'\n      Results of the VERIFY tests:'
         # the printing order should be CV, y-mean, y-shuffle and one-hot
-        print_ver += f'\n      Original score (validation set): {verify_results["error_type"].upper()} = {verify_results["original_score_valid"]:.2} +- {int(self.args.thres_test*100)}% threshold (thres_test option):'
+        if verify_results['error_type'].lower() in ['mae','rmse']:
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (validation set) = {verify_results["original_score_valid"]:.2} + {int(self.args.thres_test*100)}%, threshold = {verify_results["higher_thres"]:.2}'
+        else:
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (validation set) = {verify_results["original_score_valid"]:.2} - {int(self.args.thres_test*100)}%, threshold = {verify_results["lower_thres"]:.2}'
         print_ver += results_print[1]
         print_ver += results_print[0]
         print_ver += results_print[3]

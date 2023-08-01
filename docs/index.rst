@@ -12,17 +12,17 @@
    :start-after: checkboxes-start
    :end-before: checkboxes-end
 
-=====================================
+==================================
 Welcome to ROBERT's documentation!
-=====================================
+==================================
 
 .. include:: README.rst
    :start-after: introduction-start
    :end-before: introduction-end
 
---------------
-Reference
---------------
+------------------
+How to cite ROBERT
+------------------
 
 .. include:: README.rst
    :start-after: reference-start

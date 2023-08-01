@@ -11,6 +11,8 @@ Version 1.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.3>`__]
    -  Automatic KN data splitting for databases with less than 100 datapoints
    -  Droping 90% and 80% training sizes for small databases (less than 50 and 30 datapoints)
    -  Better print for command lines (more reproducible commands)
+   -  Adding more information in the --help option
+   -  Introducing SCORE and REPRODUBILITY to ROBERT_report.pdf
 
 Version 1.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.2>`__]
    -  Adding the REPORT module

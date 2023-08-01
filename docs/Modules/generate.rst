@@ -20,7 +20,7 @@ Automated protocols
 +++++++++++++++++++
 
 *  Hyperoptimizes multiple ML models.  
-*  Filters off descriptors with low permutance feature importance (PFI). New models are generated parallely, (1) No PFI and (2) PFI-filtered models.  
+*  Filters off descriptors with low permutation feature importance (PFI). New models are generated parallely, (1) No PFI and (2) PFI-filtered models.  
 *  Creates a heatmap plot with different model types and partition sizes. One plot is generated for No PFI models and another for PFI-filtered models.  
 *  Selects and stores the best No PFI and PFI models.  
 

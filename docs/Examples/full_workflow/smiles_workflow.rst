@@ -45,8 +45,10 @@ Executing the job
 
 **Instructions:**
 
-1. First, go to the folder containing the CSV files in your terminal.
-2. Run the following command line:
+1. Install the programs specified in Required packages
+2. Download the **solubility_short.csv** file specified in Required inputs.
+3. Go to the folder containing the CSV file in your terminal.
+4. Run the following command line:
 
 .. code:: shell
 

@@ -166,7 +166,71 @@ def command_line_args():
             arg_name = arg.split("-")[1].strip()
 
         if arg_name in ("h", "help"):
-            print(f"o  ROBERT v {robert_version} is installed correctly! For more information about the available options, see the documentation in https://github.com/jvalegre/robert")
+            print(f"""\n
+################################################################################
+#                                                                              #
+#     ROBERT v {robert_version} is installed correctly, thanks for using the program!     #
+#                                                                              #
+################################################################################
+
+
+o How to run a full workflow with ROBERT in the command line?
+-------------------------------------------------------------
+
+* From a CSV database: python -m robert --ignore "[COL1,COL2,etc]" --names "names_COL" --y "y_COL" --csv_name "FILENAME.csv"
+* From a CSV with SMILES: python -m robert --aqme --y "y_COL" --csv_name "FILENAME.csv"
+
+
+o Required options:
+-------------------
+
+--ignore "[COL1,COL2,etc]" (default=[]) : CSV columns that will be ignored (i.e., names, ID, etc.)
+--names "names_COL" (default="") : CSV columns containing the names of the datapoints
+--y "y_COL" (default="") : CSV column containing the y values
+--csv_name "FILENAME.csv" (default="") : name of the input CSV
+
+
+o Other common options:
+-----------------------
+
+* General:
+  --csv_test "FILENAME.csv" (default="") : name of the CSV containing the external test set
+  --discard "[COL1,COL2,etc]" (default=[]) : CSV columns that will be removed
+
+* Affecting data curation in CURATE:
+  --categorical "onehot" or "numbers" (default="onehot") : type of conversion for categorical variables
+  --corr_filter BOOL (default=True) : disable the correlation filter
+
+* Affecting model screening in GENERATE:
+  --train "[SIZE1,SIZE2,etc]" (default=[60,70,80,90]) : training set % sizes to use in the ML scan (i.e., "[60,70]")
+  --model "[MODEL1,MODEL2,etc]" (default=["RF","GB","NN","MVL"]) : ML models to use in the ML scan (i.e., "[RF,GB]")
+  --type "reg" or "clas" (default="reg") : regression or classification models
+  --generate_acc "low", "mid" or "high" (default="mid") : use more or less epochs and seeds during model hyperoptimization
+  --pfi_max INT (default=0) : number of features to keep in the PFI models
+
+* Affecting tests, VERIFY:
+  --kfold INT (default=5) : number of folds for the k-fold cross-validation
+  --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
+
+* Affecting predictions, PREDICT:
+  --t_value INT (default=2) : t-value threshold to identify outliers
+  --shap_show INT (default=10) : maximum number of descriptors shown in the SHAP plot
+
+* Affecting SMILES workflows, AQME:
+  --qdescp_keywords STR (default="") : extra keywords in QDESCP (i.e. "--qdescp_atoms [Ir] --alpb h2o") 
+  --csearch_keywords STR (default="--sample 50") : extra keywords in CSEARCH
+
+
+o How to cite ROBERT:
+---------------------
+
+{robert_ref}
+
+
+o Complete documentation:
+-------------------------
+
+For more information, see the complete documentation in https://robert.readthedocs.io""")
             sys.exit()
         else:
             # this "if" allows to use * to select multiple files in multiple OS
@@ -247,7 +311,7 @@ def load_variables(kwargs, robert_module):
                 sys.exit()
 
             self.log = Logger(self.destination / logger_1, logger_2)
-            self.log.write(f"ROBERT v {robert_version} {time_run} \nCitation: {robert_ref}\n")
+            self.log.write(f"ROBERT v {robert_version} {time_run} \nHow to cite: {robert_ref}\n")
 
             if self.command_line:
                 cmd_print = ''

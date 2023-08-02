@@ -200,17 +200,6 @@ def f(params):
     params['seed'] = hyperopt_data['seed']
     params['error_type'] = hyperopt_data['error_type']
 
-    # correct for a problem when loading arrays in json
-    if params['model'].upper() in ['NN','VR']:
-        layer_arrays = []
-        if not isinstance(params['hidden_layer_sizes'],int):
-            for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
-                if ele != '':
-                    layer_arrays = int(ele)
-        else:
-            layer_arrays = ele
-        params['hidden_layer_sizes'] = (layer_arrays)
-
     try:
         opt_target,data = load_n_predict(params, hyperopt_data, hyperopt=True)
         # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes

@@ -697,6 +697,28 @@ def load_model_reg(params):
             r2 = loaded_model
 
     if params['model'].upper() in ['NN','VR']:
+
+        # correct for a problem when loading arrays in json
+        layer_arrays = []
+
+        if not isinstance(params['hidden_layer_sizes'],int):
+            if params['hidden_layer_sizes'][0] == '[':
+                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
+            if params['hidden_layer_sizes'][-1] == ']':
+                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
+            if not isinstance(params['hidden_layer_sizes'],list):
+                for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
+                    if ele != '':
+                        layer_arrays.append(int(ele))
+            else:
+                for _,ele in enumerate(params['hidden_layer_sizes']):
+                    if ele != '':
+                        layer_arrays.append(int(ele))
+        else:
+            layer_arrays = ele
+
+        params['hidden_layer_sizes'] = (layer_arrays)
+
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
@@ -772,6 +794,28 @@ def load_model_clas(params):
                                 random_state=params['seed'])
 
     if params['model'].upper() in ['NN','VR']:
+
+        # correct for a problem when loading arrays in json
+        layer_arrays = []
+
+        if not isinstance(params['hidden_layer_sizes'],int):
+            if params['hidden_layer_sizes'][0] == '[':
+                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
+            if params['hidden_layer_sizes'][-1] == ']':
+                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
+            if not isinstance(params['hidden_layer_sizes'],list):
+                for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
+                    if ele != '':
+                        layer_arrays.append(int(ele))
+            else:
+                for _,ele in enumerate(params['hidden_layer_sizes']):
+                    if ele != '':
+                        layer_arrays.append(int(ele))
+        else:
+            layer_arrays = ele
+
+        params['hidden_layer_sizes'] = (layer_arrays)
+
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],

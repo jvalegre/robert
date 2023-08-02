@@ -2,7 +2,7 @@
 batch_size : [4,8,16,32,64]
 
 # the ith element represents the number of neurons in the ith hidden layer
-hidden_layer_sizes : ["16","32","64","16,16","32,32"]
+hidden_layer_sizes : ["32","16,16","32,32","16,16,16","32,32,32"]
 
 # initial learning rate used
 learning_rate_init : [0.001,0.01]

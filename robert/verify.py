@@ -86,7 +86,7 @@ class verify:
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
                 # this dictionary will keep the results of the tests
-                verify_results = {'error_type': params_df['error_type'][0]} 
+                verify_results = {'error_type': params_df['error_type'][0]}
 
                 # get original score
                 Xy_orig = Xy_data.copy()

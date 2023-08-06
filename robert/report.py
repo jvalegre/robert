@@ -66,8 +66,8 @@ class report:
         self.args = load_variables(kwargs, "report")
 
         # create report
-        report_html,csv_name,robert_version = self.get_header(self.args.report_modules)
-        report_html += self.get_data(self.args.report_modules)
+        report_html,csv_name,robert_version,params_df = self.get_header(self.args.report_modules)
+        report_html += self.get_data(self.args.report_modules,params_df)
 
         # create css
         with open("report.css", "w") as cssfile:
@@ -81,8 +81,9 @@ class report:
         graph_remove = [str(file_path) for file_path in graph_path.rglob('*_REPORT.png')]
         for file in graph_remove:
             os.remove(file)
-                
-    def get_data(self, modules):
+
+     
+    def get_data(self, modules, params_df):
         """
         Get information, times and images of the modules
         """
@@ -132,6 +133,22 @@ The complete output (GENERATE_data.dat) and heatmaps are stored in the GENERATE 
                 # include images
                 data_lines += get_images('GENERATE')
 
+        # VERIFY section
+        if 'VERIFY' in modules:
+            verify_file = f'{os.getcwd()}/VERIFY/VERIFY_data.dat'
+            if os.path.exists(verify_file):
+                # section header
+                verify_time = get_time(verify_file)
+                verify_data = f"""<i>Determination of predictive ability of models using four tests: 5-fold CV, y-mean (error against the mean y baseline), y-shuffle (predict with shuffled y values), and one-hot (predict using one-hot encoding instead of the X values).</i>
+The complete output (VERIFY_data.dat) and donut plot are stored in the VERIFY folder.
+{verify_time}
+"""
+
+                data_lines += self.module_lines('VERIFY',verify_data)
+
+                # include images
+                data_lines += get_images('VERIFY')
+
         # PREDICT section
         if 'PREDICT' in modules:
             predict_file = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
@@ -146,7 +163,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 data_lines += self.module_lines('PREDICT',predict_data)
 
                 # include images and summary for No PFI and PFI models
-                data_lines += get_images('PREDICT')
+                data_lines += get_images('PREDICT',pred_type=params_df['type'][0].lower())
 
         return data_lines
 
@@ -160,10 +177,10 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         citation_dat, repro_dat, dat_files, csv_name, csv_test, robert_version = self.get_repro(modules)
 
         # Transparency section
-        transpa_dat = self.get_transparency()
+        transpa_dat,params_df = self.get_transparency()
 
         # ROBERT score section
-        score_dat = self.get_score(dat_files,csv_test)
+        score_dat = self.get_score(dat_files,csv_test,params_df['type'][0].lower())
 
         # abbreviation section
         abbrev_dat = self.get_abbrev()
@@ -182,10 +199,10 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             </p>
             """
 
-        return header_lines,csv_name,robert_version
+        return header_lines,csv_name,robert_version,params_df
 
 
-    def get_score(self,dat_files,csv_test):
+    def get_score(self,dat_files,csv_test,pred_type):
         """
         Generates the ROBERT score section
         """
@@ -194,22 +211,28 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         score_dat = ''
         score_dat = self.module_lines('score',score_dat) 
 
-        # calculates the ROBERT scores
+        # calculates the ROBERT scores (R2 is analogous for accuracy in classification)
         outliers_warnings, r2_verify_warnings, descp_warning = 0,0,0
         robert_score_list,columns_score = [],[]
         
         for suffix in ['No PFI','PFI']:
-            data_score = get_predict_scores(dat_files['PREDICT'],suffix)
+            data_score = get_predict_scores(dat_files['PREDICT'],suffix,pred_type)
             if data_score['outliers_score'] < 2:
                 outliers_warnings += 1
             if data_score['descp_score'] < 2:
                 descp_warning += 1
 
-            data_score['verify_score'] = get_verify_scores(dat_files['VERIFY'],suffix)
-            if data_score['r2_score'] < 2 or data_score['verify_score'] < 2:
-                r2_verify_warnings += 1
+            data_score['verify_score'],data_score['verify_extra_score'] = get_verify_scores(dat_files['VERIFY'],suffix,pred_type)
+            if pred_type == 'reg':
+                if data_score['r2_score'] < 2 or data_score['verify_score'] < 4:
+                    r2_verify_warnings += 1
+                robert_score = data_score['r2_score'] + data_score['outliers_score'] + data_score['verify_score'] + data_score['descp_score']
+
+            elif pred_type == 'clas':
+                if data_score['r2_score'] < 2 or data_score['verify_score'] < 2 or data_score['verify_extra_score'] < 2:
+                    r2_verify_warnings += 1
+                robert_score = data_score['r2_score'] + data_score['verify_score'] + data_score['verify_extra_score'] + data_score['descp_score']
             
-            robert_score = data_score['r2_score'] + data_score['outliers_score'] + data_score['verify_score'] + data_score['descp_score']
             robert_score_list.append(robert_score)
 
             # add some spacing to the PFI column fo be aligned with the second half of the threshold section
@@ -224,9 +247,9 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
             # get amount of points or lines to add
             if suffix == 'No PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI))
+                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type))
             elif suffix == 'PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI))
+                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type))
 
         # Combine both columns
         score_dat += combine_cols(columns_score)
@@ -239,7 +262,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         module_file = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
         for suffix in ['No PFI','PFI']:
             # in the SCORE section, we only take the lines showing errors
-            columns_summary.append(get_summary('PREDICT',module_file,suffix,titles=False))
+            columns_summary.append(get_summary('PREDICT',module_file,suffix,titles=False,pred_type=pred_type))
         
         # Combine both columns
         score_dat += combine_cols(columns_summary)
@@ -249,10 +272,18 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 <br><p style="text-align: justify; margin-top: 0px; margin-bottom: -2px;"><u>Score thresholds</u></p>"""
         
         columns_thres = []
-        columns_thres.append(get_col_text('R<sup>2</sup>'))
-        columns_thres.append(get_col_text('outliers'))
-        columns_thres.append(get_col_text('descps'))
-        columns_thres.append(get_col_text('VERIFY'))
+        if pred_type == 'reg':
+            columns_thres.append(get_col_text('R<sup>2</sup>'))
+            columns_thres.append(get_col_text('outliers'))
+            columns_thres.append(get_col_text('descps'))
+            columns_thres.append(get_col_text('VERIFY'))
+
+        elif pred_type == 'clas':
+            columns_thres.append(get_col_text('accuracy'))
+            columns_thres.append(get_col_text('outliers_clas'))
+            columns_thres.append(get_col_text('descps'))
+            columns_thres.append(get_col_text('VERIFY_clas'))
+        
         score_dat += combine_cols(columns_thres)
         
         score_dat += f"""<p style="page-break-after: always;"></p>"""
@@ -275,7 +306,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 score_dat += f'{style_line}&#9888;&nbsp; The model uses only {datapoints} datapoints, adding meaningful datapoints might help to improve the model.</p>'
                 n_scoring += 1
                 style_line = reduced_line
-            if outliers_warnings > 0:
+            if outliers_warnings > 0 and pred_type == 'reg':
                 if outliers_warnings == 1:
                     outliers_warnings = 'One'
                 elif outliers_warnings == 2:
@@ -311,7 +342,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         version_n_date, citation, command_line, python_version, intelex_version, total_time, dat_files = repro_info(modules)
         robert_version = version_n_date.split()[2]
 
-        csv_name,csv_test = get_csv_names(command_line,dat_files)
+        csv_name,csv_test = get_csv_names(command_line)
 
         repro_dat,citation_dat = '',''
         
@@ -324,7 +355,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         space = ('&nbsp;')*4
 
         # just in case the command lines are so long
-        command_line = format_lines(command_line)
+        command_line = format_lines(command_line,cmd_line=True)
 
         # reproducibility section, starts with the icon of reproducibility        
         repro_dat += f"""{first_line}<br><strong>1. Download these files <i>(the authors should have uploaded the files as supporting information!)</i>:</strong></p>"""
@@ -380,20 +411,25 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         Generates the data printed in the Transparency section
         """
 
-        # add params of the models
         transpa_dat = ''
         titles_line = f'<p style="text-align: justify; margin-bottom: 6px">' # reduces line separation separation
 
+        # add params of the models
         transpa_dat += f"""{titles_line}<br><strong>1. Parameters of the scikit-learn models (same keywords as used in scikit-learn):</strong></p>"""
-        transpa_dat += self.transpa_model_misc('model_section')
+        
+        model_dat, params_df = self.transpa_model_misc('model_section')
+        transpa_dat += model_dat
 
         # add misc params
         transpa_dat += f"""<p style="text-align: justify; margin-top: -85px; margin-bottom: 6px;"><br><strong>2. ROBERT options for data split (KN or RND), predict type (REG or CLAS) and hyperopt error (RMSE, etc.):</strong></p>"""
-        transpa_dat += self.transpa_model_misc('misc_section')
+        
+        section_dat, params_df = self.transpa_model_misc('misc_section')
+        transpa_dat += section_dat
 
         transpa_dat = self.module_lines('transpa',transpa_dat) 
 
-        return transpa_dat
+
+        return transpa_dat,params_df
 
 
     def transpa_model_misc(self,section):
@@ -417,7 +453,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
         section_dat += '<p style="text-align: justify; margin-top: -70px;">'
 
-        return section_dat
+        return section_dat,params_df
 
 
     def get_abbrev(self):
@@ -527,7 +563,14 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print_fun=False)
 
         module_path = Path(f'{os.getcwd()}/PREDICT')
-        results_images = [str(file_path) for file_path in module_path.rglob('*_REPORT.png')]
+        if params_dict['type'].lower() == 'reg':
+            results_images = [str(file_path) for file_path in module_path.rglob('*_REPORT.png')]
+        elif params_dict['type'].lower() == 'clas':
+            results_images  = []
+            all_images = [str(file_path) for file_path in module_path.rglob('*.png')]
+            for img in all_images:
+                if 'Results' in img and '_test.png' in img:
+                    results_images.append(img)
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
         if 'No_PFI' in results_images[1]:

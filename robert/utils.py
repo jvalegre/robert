@@ -144,6 +144,7 @@ def command_line_args():
         't_value',
         'thres_x',
         'thres_y',
+        'test_set',
         'desc_thres',
     ]
 
@@ -315,12 +316,20 @@ def load_variables(kwargs, robert_module):
 
             if self.command_line:
                 cmd_print = ''
-                for i,elem in enumerate(sys.argv[1:]):
+                cmd_args = sys.argv[1:]
+                if self.extra_cmd != '':
+                    for arg in self.extra_cmd.split():
+                        cmd_args.append(arg)
+                for i,elem in enumerate(cmd_args):
+                    if elem[0] in ['"',"'"]:
+                        elem = elem[1:]
+                    if elem[-1] in ['"',"'"]:
+                        elem = elem[:-1]
                     if elem[:2] != '--' and elem != '-h':
                         cmd_print += f'"{elem}"'
                     else:
                         cmd_print += f'{elem}'
-                    if i != len(sys.argv[1:])-1:
+                    if i != len(cmd_args)-1:
                         cmd_print += ' '
                 self.log.write(f"Command line used in ROBERT: python -m robert {cmd_print}\n")
 
@@ -433,28 +442,42 @@ def destination_folder(self,dest_module):
     return self
 
 
-def missing_inputs(self,print_err=False):
+def missing_inputs(self,module,print_err=False):
     """
     Gives the option to input missing variables in the terminal
     """
 
-    if self.csv_name == '':
-        if print_err:
-            print('\nx  Specify the name of your CSV file with the csv_name option!')
-        else:
-            self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
-        self.csv_name = input('Enter the name of your CSV file: ')
-        if not print_err:
-            self.log.write(f"   -  csv_name option set to {self.csv_name} by the user")
+    if module.lower() not in ['predict','verify','report']:
+        if self.csv_name == '':
+            if print_err:
+                print('\nx  Specify the name of your CSV file with the csv_name option!')
+            else:
+                self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
+            self.csv_name = input('Enter the name of your CSV file: ')
+            self.extra_cmd += f' --csv_name {self.csv_name}'
+            if not print_err:
+                self.log.write(f"   -  csv_name option set to {self.csv_name} by the user")
 
-    if self.y == '':
-        if print_err:
-            print(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
-        else:
-            self.log.write(f"\nx  Specify a y value (column name) with the y option! (i.e. y='solubility')")
-        self.y = input('Enter the column with y values: ')
-        if not print_err:
-            self.log.write(f"   -  y option set to {self.y} by the user")
+        if self.y == '':
+            if print_err:
+                print(f'\nx  Specify a y value (column name) with the y option! (i.e. y="solubility")')
+            else:
+                self.log.write(f'\nx  Specify a y value (column name) with the y option! (i.e. y="solubility")')
+            self.y = input('Enter the column with y values: ')
+            self.extra_cmd += f' --y {self.y}'
+            if not print_err:
+                self.log.write(f"   -  y option set to {self.y} by the user")
+
+    if module.lower() in ['full_workflow','predict']:
+        if self.names == '':
+            if print_err:
+                print(f'\nx  Specify the column with the entry names! (i.e. names="code_name")')
+            else:
+                self.log.write(f'\nx  Specify the column with the entry names! (i.e. names="code_name")')
+            self.names = input('Enter the column with the entry names: ')
+            self.extra_cmd += f' --names {self.names}'
+            if not print_err:
+                self.log.write(f"   -  names option set to {self.names} by the user")
 
     return self
 
@@ -464,9 +487,10 @@ def sanity_checks(self, type_checks, module, columns_csv):
     """
 
     curate_valid = True
-    if type_checks == 'initial' and module.lower() not in ['verify','predict']:
+    # adds manual inputs missing from the command line
+    self = missing_inputs(self,module)
 
-        self = missing_inputs(self)
+    if type_checks == 'initial' and module.lower() not in ['verify','predict']:
 
         path_csv = ''
         if os.getcwd() in f"{self.csv_name}":

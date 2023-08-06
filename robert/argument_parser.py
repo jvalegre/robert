@@ -5,6 +5,7 @@
 var_dict = {
     "varfile": None,
     "command_line": False,
+    "extra_cmd": '',
     "curate": False,
     "generate": False,
     "predict": False,
@@ -24,6 +25,7 @@ var_dict = {
     "desc_thres" : 25,
     "thres_y" : 0.001,
     "thres_x" : 0.9,
+    "test_set" : 0.1,
     "train" : [60,70,80,90],
     "auto_kn" : True,
     "filter_train" : True,

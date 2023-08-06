@@ -251,33 +251,33 @@ class verify:
                 if verify_results[test_ver] <= verify_results['higher_thres']:
                     if test_ver != 'cv_score':
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than thres.'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
+                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than thres.'
                 else:
                     if test_ver != 'cv_score':
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than thres.'
                     else:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
+                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than thres.'
 
             else:
                 if verify_results[test_ver] >= verify_results['lower_thres']:
                     if test_ver != 'cv_score':
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than thres.'
                     else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than threshold'
+                        results_print[i] = f'\n         o {self.args.kfold}-fold CV: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} higher than thres.'
                 else:
                     if test_ver != 'cv_score':
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than thres.'
                     else:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than threshold'
+                        results_print[i] = f'\n         x {self.args.kfold}-fold CV: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2} lower than thres.'
         
         return colors,color_codes,results_print,verify_results
 
@@ -354,9 +354,9 @@ class verify:
         print_ver += f'\n      Results of the VERIFY tests:'
         # the printing order should be CV, y-mean, y-shuffle and one-hot
         if verify_results['error_type'].lower() in ['mae','rmse']:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (validation set) = {verify_results["original_score_valid"]:.2} + {int(self.args.thres_test*100)}%, threshold = {verify_results["higher_thres"]:.2}'
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} + {int(self.args.thres_test*100)}% thres. = {verify_results["higher_thres"]:.2}'
         else:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (validation set) = {verify_results["original_score_valid"]:.2} - {int(self.args.thres_test*100)}%, threshold = {verify_results["lower_thres"]:.2}'
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} - {int(self.args.thres_test*100)}% thres. = {verify_results["lower_thres"]:.2}'
         print_ver += results_print[1]
         print_ver += results_print[0]
         print_ver += results_print[3]

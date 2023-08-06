@@ -49,13 +49,16 @@ def main():
     if not args.curate and not args.generate and not args.predict:
         if not args.cheers and not args.verify and not args.report:
             full_workflow = True
+    
+    if args.aqme:
+        full_workflow = True
+
+    # save the csv_name, y and names values from full workflows
+    if full_workflow:
+        args = missing_inputs(args,'full_workflow',print_err=True)
 
     # AQME
     if args.aqme:
-        # save the csv_name and y values from AQME workflows
-        args = missing_inputs(args,print_err=True)
-
-        full_workflow = True
         aqme(**vars(args))
 
         # adjust argument names after running AQME

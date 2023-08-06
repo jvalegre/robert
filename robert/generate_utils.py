@@ -621,7 +621,10 @@ def detect_best(folder):
 
 
 def heatmap_workflow(self,folder_hm):
-    # create matrix of ML models, training sizes and errors/precision (no PFI filter)
+    """
+    Create matrix of ML models, training sizes and errors/precision (no PFI filter)
+    """
+
     path_raw = self.args.destination.joinpath(f"Raw_data")
     csv_data,model_list,size_list = {},[],[]
     for csv_file in glob.glob(path_raw.joinpath(f"{folder_hm}/*.csv").as_posix()):
@@ -636,9 +639,9 @@ def heatmap_workflow(self,folder_hm):
                 size_list.append(csv_size)
             csv_value = pd.read_csv(csv_file)
             csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0]
-    # pass dictionary into a dataframe
+    # pass dictionary into a dataframe, and sort the models alphabetically
     csv_df = pd.DataFrame()
-    for csv_model in csv_data:
+    for csv_model in sorted([key for key in csv_data]):
         csv_df[csv_model] = csv_data[csv_model]
     
     # plot heatmap
@@ -649,6 +652,10 @@ def heatmap_workflow(self,folder_hm):
     _ = create_heatmap(self,csv_df,suffix,path_raw)
 
 def create_heatmap(self,csv_df,suffix,path_raw):
+    """
+    Graph the heatmap
+    """
+    
     csv_df = csv_df.sort_index(ascending=False)
     sb.set(font_scale=1.2, style='ticks')
     _, ax = plt.subplots(figsize=(7.45,6))

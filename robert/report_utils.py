@@ -8,40 +8,30 @@ import textwrap
 from pathlib import Path
 
 
-def get_csv_names(command_line,dat_files):
+def get_csv_names(command_line):
     """
-    Detects the name used in the csv_name option from a command line or manual input
+    Detects the options from a command line or add them from manual inputs
     """
     
     csv_name = ''
-    if 'csv_name' in command_line:
-        csv_name = command_line.split('csv_name')[1].split()[0]
-        if csv_name[0] in ['"',"'"]:
-            csv_name = csv_name[1:]
-        if csv_name[-1] in ['"',"'"]:
-            csv_name = csv_name[:-1]
-    else:
-        for module in ['CURATE','GENERATE']:
-            if module in dat_files:
-                for line in dat_files[module]:
-                    if 'csv_name option set to ' in line:
-                        csv_name = line.split('csv_name option set to ')[1].split()[0]
-                        break
-                if csv_name != '':
-                    break
+    csv_name = command_line.split('--csv_name')[1].split()[0]
+    if csv_name[0] in ['"',"'"]:
+        csv_name = csv_name[1:]
+    if csv_name[-1] in ['"',"'"]:
+        csv_name = csv_name[:-1]
     
     csv_test = ''
-    if 'csv_test' in command_line:
-        csv_test = command_line.split('csv_test')[1].split()[0]
+    if '--csv_test' in command_line:
+        csv_test = command_line.split('--csv_test')[1].split()[0]
         if csv_test[0] in ['"',"'"]:
             csv_test = csv_test[1:]
         if csv_test[-1] in ['"',"'"]:
             csv_test = csv_test[:-1]
-    
+
     return csv_name,csv_test
 
 
-def get_images(module):
+def get_images(module,pred_type='reg'):
     """
     Generate the string that includes images
     """
@@ -56,7 +46,7 @@ def get_images(module):
         module_file = f'{os.getcwd()}/{module}/{module}_data.dat'
         columns_score = []
         for suffix in ['No PFI','PFI']:
-            columns_score.append(get_summary(module,module_file,suffix))
+            columns_score.append(get_summary(module,module_file,suffix,titles=True,pred_type=pred_type))
         
         # Combine both columns
         image_caption += combine_cols(columns_score)
@@ -68,6 +58,7 @@ def get_images(module):
 
     if module == 'PREDICT':
         results_images = []
+        results_train, results_valid, results_test = [],[],[]
         shap_images = []
         pfi_images = []
         outliers_images = []
@@ -75,18 +66,34 @@ def get_images(module):
         for image_path in module_images:
             filename = Path(image_path).stem
             if "_REPORT" not in filename:
-                if "Results" in filename:
+                if "Results_" in filename:
                     results_images.append(image_path)
-                elif "SHAP" in filename:
+                elif "SHAP_" in filename:
                     shap_images.append(image_path)
-                elif "Outliers" in filename:
+                elif "Outliers_" in filename:
                     outliers_images.append(image_path)
-                else:
+                elif "PFI_" in filename:
                     pfi_images.append(image_path)
+
+        if pred_type == 'clas':
+            for result_img in results_images:
+                if '_train.png' in result_img:
+                    results_train.append(result_img)
+                if '_valid.png' in result_img:
+                    results_valid.append(result_img)
+                if '_test.png' in result_img:
+                    results_test.append(result_img)
+
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
         if len(results_images) == 2 and 'No_PFI' in results_images[1]:
             results_images = revert_list(results_images)
+        if len(results_train) == 2 and 'No_PFI' in results_train[1]:
+            results_train = revert_list(results_train)
+        if len(results_valid) == 2 and 'No_PFI' in results_valid[1]:
+            results_valid = revert_list(results_valid)
+        if len(results_test) == 2 and 'No_PFI' in results_test[1]:
+            results_test = revert_list(results_test)
         if len(shap_images) == 2 and 'No_PFI' in shap_images[1]:
             shap_images = revert_list(shap_images)
         if len(pfi_images) == 2 and 'No_PFI' in pfi_images[1]:
@@ -94,13 +101,18 @@ def get_images(module):
         if len(outliers_images) == 2 and 'No_PFI' in outliers_images[1]:
             outliers_images = revert_list(outliers_images)
         
+        if pred_type == 'reg':
+            image_pair_list = [results_images, shap_images, pfi_images, outliers_images]
+        elif pred_type == 'clas':
+            image_pair_list = [results_train, results_valid, results_test, shap_images, pfi_images, outliers_images]
+
         html_png = ''
-        for _,image_pair in enumerate([results_images, shap_images, pfi_images, outliers_images]):
+        for _,image_pair in enumerate(image_pair_list):
             
             pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in image_pair])
             html_png += f'<pre style="text-align: center;">{pair_list}</pre>'
 
-    if module != 'PREDICT':
+    else:
         pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in module_images])
         html_png = f'<pre style="text-align: center;">{pair_list}</pre>'
 
@@ -114,54 +126,74 @@ def get_images(module):
     return imag_lines
 
 
-def get_summary(module,file,suffix,titles=True):
+def get_summary(module,file,suffix,titles=True,pred_type='reg'):
     """
     Retrieve the summary of results from the PREDICT and VERIFY dat files
     """
     
-    with open(file, 'r') as datfile:
-        lines = datfile.readlines()
-        start_results,stop_results = 0,0
-        train_outliers,valid_outliers,test_outliers = [],[],[]
-        for i,line in enumerate(lines):
-            if suffix == 'No PFI':
-                if module == 'PREDICT':
+    if module == 'PREDICT':
+        with open(file, 'r') as datfile:
+            lines = datfile.readlines()
+            start_results,stop_results = 0,0
+            train_outliers,valid_outliers,test_outliers = [],[],[]
+            for i,line in enumerate(lines):
+                if suffix == 'No PFI':
                     if 'o  Results saved in' in line and 'No_PFI.dat' in line:
                         start_results,stop_results = locate_results(i,lines)
                     elif 'o  Outlier values saved' in line and 'No_PFI.dat' in line:
                         train_outliers,valid_outliers,test_outliers = locate_outliers(i,lines)
-            if suffix == 'PFI':
-                if module == 'PREDICT':
+                if suffix == 'PFI':
                     if 'o  Results saved in' in line and 'No_PFI.dat' not in line:
                         start_results,stop_results = locate_results(i,lines)
                     elif 'o  Outlier values saved' in line and 'No_PFI.dat' not in line:
                         train_outliers,valid_outliers,test_outliers = locate_outliers(i,lines)
 
-        # add the summary of results of PREDICT
-        # for the SCORE section, only results
-        if not titles:
-            start_results += 4
-            summary = []
-        else:
-            summary = ['<i>Prediction metrics and descriptors</i>\n\n']
-        for line in lines[start_results:stop_results+1]:
-            if 'R2' in line:
-                line = line.replace('R2','R<sup>2</sup>')
-            if titles:
-                summary.append(line[6:])
+            # add the summary of results of PREDICT
+            # for the SCORE section, only results
+            if not titles:
+                start_results += 4
+                summary = []
+            else:
+                summary = ['<i>Prediction metrics and descriptors</i>\n\n']
+            for line in lines[start_results:stop_results+1]:
+                if 'R2' in line:
+                    line = line.replace('R2','R<sup>2</sup>')
+                if titles:
+                    summary.append(line[6:])
 
-            else: # for the SCORE section, only results
+                else: # for the SCORE section, only results
+                    if suffix == 'No PFI':
+                        summary.append(line[8:])
+                    elif suffix == 'PFI':
+                        summary.append(f'   {line[8:]}')
+
+            # add the outlier part
+            if titles and pred_type == 'reg': # only add this to the PREDICT section, not to the SCORE section
+                summary.append('\n<i>Outliers (max. 10 shown)</i>\n\n')
+                summary = summary + train_outliers + valid_outliers + test_outliers
+
+    elif module == 'VERIFY':
+        summary = []
+        with open(file, 'r') as datfile:
+            lines = datfile.readlines()
+            for i,line in enumerate(lines):
                 if suffix == 'No PFI':
-                    summary.append(line[8:])
-                elif suffix == 'PFI':
-                    summary.append(f'   {line[8:]}')
+                    if 'o  VERIFY test values saved' in line and 'No_PFI.dat' in line:
+                        start_results = i+2
+                        stop_results = i+6
+                if suffix == 'PFI':
+                    if 'o  VERIFY test values saved' in line and 'No_PFI.dat' not in line:
+                        start_results = i+2
+                        stop_results = i+6
+       
+        
+            for line in lines[start_results:stop_results+1]:
+                if 'R2' in line:
+                    line = line.replace('R2','R<sup>2</sup>')
+                if titles:
+                    summary.append(line[6:])
 
-        # add the outlier part
-        if titles: # only add this to the PREDICT section, not to the SCORE section
-            summary.append('\n<i>Outliers (max. 10 shown)</i>\n\n')
-            summary = summary + train_outliers + valid_outliers + test_outliers
-
-        summary = ''.join(summary)
+    summary = ''.join(summary)
 
     # Column 1: No PFI
     if titles:
@@ -278,7 +310,7 @@ def get_time(file):
     return module_time
 
 
-def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI):
+def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type):
     """
     Gather the information regarding the score of the No PFI and PFI models
     """
@@ -287,11 +319,13 @@ def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI):
     outliers_pts = get_pts(data_score['outliers_score'])
     descp_pts = get_pts(data_score['descp_score'])
     verify_pts = get_pts(data_score['verify_score'])
+    verify_extra_pts = get_pts(data_score['verify_extra_score'])
 
     spacing_r2 = get_spacing(data_score['r2_score'])
     spacing_outliers = get_spacing(data_score['outliers_score'])
     spacing_descp = get_spacing(data_score['descp_score'])
     spacing_verify = get_spacing(data_score['verify_score'])
+    spacing_extra_verify = get_spacing(data_score['verify_extra_score'])
 
     first_line = f'<p style="text-align: justify; margin-top: -8px;">{spacing_PFI}' # reduces line separation separation
     reduced_line = f'<p style="text-align: justify; margin-top: -10px;">{spacing_PFI}' # reduces line separation separation        
@@ -310,12 +344,19 @@ def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI):
     elif suffix == 'PFI':
         caption = f'{spacing_PFI}PFI (only important descriptors):'
 
-    score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an R<sup>2</sup> of {data_score['r2_valid']}</p>
+    if pred_type == 'reg':
+        score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an R<sup>2</sup> of {data_score['r2_valid']}</p>
 {reduced_line}{outliers_pts}{spacing_outliers} The {score_set} set has {data_score['outliers_prop']}% of outliers</p>
 {reduced_line}{descp_pts}{spacing_descp} The {score_set} set uses {data_score['proportion_ratio']} points:descriptors</p>
 {reduced_line}{verify_pts}{spacing_verify} The {score_set} set passes {data_score['verify_score']} VERIFY tests</p>
 """
 
+    elif pred_type == 'clas':
+        score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an accuracy of {data_score['acc_valid']}</p>
+{reduced_line}{descp_pts}{spacing_descp} The {score_set} set uses {data_score['proportion_ratio']} points:descriptors</p>
+{reduced_line}{verify_pts}{spacing_verify} The {score_set} set passes {data_score['verify_score']} VERIFY tests</p>
+{reduced_line}{verify_extra_pts}{spacing_extra_verify} The {score_set} set passes {data_score['verify_extra_score']} y-mean/y-shuffle</p>
+"""
     partitions_ratio = data_score['proportion_ratio_print'].split('-  ')[1]
     
     column = f"""<p style="margin-top:-12px;"><span style="font-weight:bold;">{caption}</span></p>
@@ -335,6 +376,7 @@ def get_col_text(type_thres):
 
     first_line = '<p style="text-align: justify; margin-top: -8px;">' # reduces line separation separation
     reduced_line = '<p style="text-align: justify; margin-top: -10px;">' # reduces line separation separation
+
     if type_thres == 'R<sup>2</sup>':
         column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">R<sup>2</sup>  <u>                           </u></span></pre>
 {first_line}{get_pts(2)}&nbsp;&nbsp;  R<sup>2</sup> > 0.85</p>
@@ -342,23 +384,42 @@ def get_col_text(type_thres):
 {reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     R<sup>2</sup> < 0.70</pre></p>
 """
 
+    elif type_thres == 'accuracy':
+        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Accuracy  <u>                     </u></span></pre>
+{first_line}{get_pts(2)}&nbsp;&nbsp;  Accuracy > 0.85</p>
+{reduced_line}{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    0.85 > accur. > 0.70</p>
+{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     accur. < 0.70</pre></p>
+"""
+
     elif type_thres == 'outliers':
         column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Outliers  <u>                          </u></span></pre>
 {first_line}{get_pts(2)}&nbsp;&nbsp;  < 7.5% of outliers</p>
 {reduced_line}{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    7.5% < outliers < 15%</p>
-{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     > 15% of outliers</p>
+{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     > 15% of outliers</pre></p>
+"""
+
+    elif type_thres == 'outliers_clas':
+        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Outliers  <u>                            </u></span></pre>
+{first_line}{get_pts(0)}&nbsp;&nbsp; Excluded in classification</pre></p>
 """
 
     elif type_thres == 'descps':
         column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">    Points:descriptors  <u>      </u></span></pre>
 {first_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(2)}&nbsp;&nbsp;  > 10:1 p:d ratio</p>
 {reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    10:1 > p:d ratio > 3:1</p>
-{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     p:d ratio < 3:1</p>
+{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     p:d ratio < 3:1</pre></p>
 """
 
     elif type_thres == 'VERIFY':
         column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">        VERIFY tests  <u>             </u></span></pre>
 {first_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Up to {get_pts(4)} (tests pass)</p>
+{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp; (all tests failed)</pre></p>
+"""
+
+    elif type_thres == 'VERIFY_clas':
+        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">        VERIFY tests  <u>             </u></span></pre>
+{first_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(2)}&nbsp;&nbsp; y-shuffle & y-mean</p>
+{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp; 5-fold CV & onehot</pre></p>
 {reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp; (all tests failed)</pre></p>
 """
 
@@ -489,13 +550,13 @@ def get_spacing(score):
     return spacing
 
 
-def get_verify_scores(dat_verify,suffix):
+def get_verify_scores(dat_verify,suffix,pred_type):
     """
     Calculates scores that come from the VERIFY module (VERIFY tests)
     """
 
     start_data = False
-    verify_score = 0
+    verify_score, verify_extra_score = 0,0
     for i,line in enumerate(dat_verify):
         # set starting points for No PFI and PFI models
         if suffix == 'No PFI':
@@ -508,17 +569,22 @@ def get_verify_scores(dat_verify,suffix):
                 start_data = True
         
         if start_data:
-            if 'Original ' in line and '(validation set) =' in line:
+            if 'Original ' in line and '(valid' in line:
                 for j in range(i+1,i+5):
                     if 'PASSED' in dat_verify[j]:
                         verify_score += 1
+                if pred_type == 'clas':
+                    if 'PASSED' in dat_verify[i+2]:
+                        verify_extra_score += 1
+                    if 'PASSED' in dat_verify[i+3]:
+                        verify_extra_score += 1
 
-    return verify_score
+    return verify_score,verify_extra_score
 
 
-def get_predict_scores(dat_predict,suffix):
+def get_predict_scores(dat_predict,suffix,pred_type):
     """
-    Calculates scores that come from the PREDICT module (R2, datapoints:descriptors ratio, outlier proportion)
+    Calculates scores that come from the PREDICT module (R2 or accuracy, datapoints:descriptors ratio, outlier proportion)
     """
 
     start_data, test_set = False, False
@@ -544,16 +610,30 @@ def get_predict_scores(dat_predict,suffix):
             if 'o  Results saved in PREDICT/' in line:
                 data_score['ML_model'] = line.split('_')[1]
                 data_score['proportion_ratio_print'] = dat_predict[i+2]
-                # R2 from test (if any) or validation
-                if '-  Test : R2' in dat_predict[i+7]:
-                    data_score['r2_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
-                    test_set = True
-                elif '-  Validation : R2' in dat_predict[i+6]:
-                    data_score['r2_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
-                if data_score['r2_valid'] > 0.85:
-                    data_score['r2_score'] += 2
-                elif data_score['r2_valid'] > 0.7:
-                    data_score['r2_score'] += 1
+                # R2/accuracy from test (if any) or validation
+                if pred_type == 'reg':
+                    if '-  Test : R2' in dat_predict[i+7]:
+                        data_score['r2_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
+                        test_set = True
+                    elif '-  Validation : R2' in dat_predict[i+6]:
+                        data_score['r2_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
+                   
+                    if data_score['r2_valid'] > 0.85:
+                        data_score['r2_score'] += 2
+                    elif data_score['r2_valid'] > 0.7:
+                        data_score['r2_score'] += 1
+
+                elif pred_type == 'clas':
+                    if '-  Test : Accuracy' in dat_predict[i+7]:
+                        data_score['acc_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
+                        test_set = True
+                    elif '-  Validation : Accuracy' in dat_predict[i+6]:
+                        data_score['acc_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
+
+                    if data_score['acc_valid'] > 0.85:
+                        data_score['r2_score'] += 2
+                    elif data_score['acc_valid'] > 0.7:
+                        data_score['r2_score'] += 1
 
                 # proportion
                 data_score['proportion_ratio'] = dat_predict[i+4].split()[-1]
@@ -564,22 +644,26 @@ def get_predict_scores(dat_predict,suffix):
                     data_score['descp_score'] += 1
 
             # outliers
-            if 'o  Outlier values saved in' in line:
-                for j in range(i,len(dat_predict)):
-                    if test_set and 'Test:' in dat_predict[j]:
-                        outliers_prop = dat_predict[j].split()[-1]
-                        outliers_prop = outliers_prop.split('%)')[0]
-                        data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
-                    elif not test_set and 'Validation:' in dat_predict[j]:
-                        outliers_prop = dat_predict[j].split()[-1]
-                        outliers_prop = outliers_prop.split('%)')[0]
-                        data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
-                    elif len(dat_predict[j].split()) == 0:
-                        break
-                if data_score['outliers_prop'] < 7.5:
-                    data_score['outliers_score'] += 2
-                elif data_score['outliers_prop'] < 15:
-                    data_score['outliers_score'] += 1
+            if pred_type == 'reg':
+                if 'o  Outlier values saved in' in line:
+                    for j in range(i,len(dat_predict)):
+                        if test_set and 'Test:' in dat_predict[j]:
+                            outliers_prop = dat_predict[j].split()[-1]
+                            outliers_prop = outliers_prop.split('%)')[0]
+                            data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
+                        elif not test_set and 'Validation:' in dat_predict[j]:
+                            outliers_prop = dat_predict[j].split()[-1]
+                            outliers_prop = outliers_prop.split('%)')[0]
+                            data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
+                        elif len(dat_predict[j].split()) == 0:
+                            break
+                    if data_score['outliers_prop'] < 7.5:
+                        data_score['outliers_score'] += 2
+                    elif data_score['outliers_prop'] < 15:
+                        data_score['outliers_score'] += 1
+
+            elif pred_type == 'clas':
+                data_score['outliers_prop'] = 0
 
     return data_score
 
@@ -785,7 +869,7 @@ def css_content(csv_name,robert_version):
     return css_content
 
 
-def format_lines(module_data, max_width=122):
+def format_lines(module_data, max_width=122, cmd_line=False):
     """
     Reads a file and returns a formatted string between two markers
     """
@@ -795,7 +879,10 @@ def format_lines(module_data, max_width=122):
     for i,line in enumerate(lines):
         if 'R2' in line:
             line = line.replace('R2','R<sup>2</sup>')
-        formatted_line = textwrap.fill(line, width=max_width, subsequent_indent='')
+        if cmd_line:
+            formatted_line = textwrap.fill(line, width=max_width-5, subsequent_indent='')
+        else:
+            formatted_line = textwrap.fill(line, width=max_width, subsequent_indent='')
         if i > 0:
             formatted_lines.append(f'<pre style="text-align: justify;">\n{formatted_line}</pre>')
         else:

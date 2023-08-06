@@ -13,7 +13,7 @@ Parameters
         the R2 (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
         original value). Test passes if:
         1. y-mean and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
-        classificators) or the error is greated than X% (from original MAE and RMSE for regressors)
+        classificators) or the error is greater than X% (from original MAE and RMSE for regressors)
         2. One-hot encoding test: decreases more than X%
         3. K-fold cross validation: decreases less than X%
     kfold : int, default=5,

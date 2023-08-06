@@ -26,6 +26,7 @@ from robert.utils import (
     standardize,
     load_dfs,
     load_database,
+    get_graph_style,
     )
 
 
@@ -72,13 +73,8 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     if 'y_test' in Xy_data:
         set_types.append('test')
     
-    graph_style = {'color_train' : 'b',
-            'color_valid' : 'orange',
-            'color_test' : 'r',
-            'dot_size' : 50,
-            'alpha' : 1 # from 0 (transparent) to 1 (opaque)
-            }
-
+    graph_style = get_graph_style()
+    
     self.args.log.write(f"\n   o  Saving graphs and CSV databases in:")
     if params_dict['type'].lower() == 'reg':
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
@@ -90,7 +86,7 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     return graph_style
 
 
-def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style):
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print_fun=True):
     '''
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     '''
@@ -109,8 +105,9 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style):
     title_graph = f'Predictions_train_valid'
     if 'test' in set_types:
         title_graph += '_test'
-    plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
-        fontsize=14, fontweight='bold', transform = ax.transAxes)
+    if print_fun:
+        plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
 
     # Plot the data
     _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
@@ -146,7 +143,8 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style):
     plt.savefig(f'{reg_plot_file}', dpi=300, bbox_inches='tight')
 
     path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
-    self.args.log.write(f"      -  Graph in: {path_reduced}")
+    if print_fun:
+        self.args.log.write(f"      -  Graph in: {path_reduced}")
     plt.clf()
 
 
@@ -175,13 +173,15 @@ def set_lim_reg(Xy_data,set_types):
     return min_value_graph, max_value_graph
 
 
-def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix):
+def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,print_fun=True):
     '''
     Plot a confusion matrix with the prediction vs actual values
     '''
     
     matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize="true", cmap='Blues') 
-    matrix.ax_.set_title(f'Confusion Matrix for the {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
+    if print_fun:
+        matrix.ax_.set_title(f'Confusion Matrix for the {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
+
     plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
     plt.gcf().axes[0].tick_params(size=14)
@@ -529,14 +529,13 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
         outliers_test = [abs(x-y) for x,y in zip(Xy_data['y_test'],Xy_data['y_pred_test'])]
 
     # the errors are scaled using standard deviation units. When the absolute
-    # error is larger than the t-value, the point is considered an outlier
+    # error is larger than the t-value, the point is considered an outlier. All the sets
+    # use the mean and SD of the train set
     outliers_mean = np.mean(outliers_train)
     outliers_sd = np.std(outliers_train)
 
     outliers_data = {}
     outliers_data['train_scaled'] = (outliers_train-outliers_mean)/outliers_sd
-    # for some reason, the predictions of the training set in gradient boosting give very small errors.
-    # To avoid invalid outlier detections, the code uses the validation deviations instead of the training deviations
     outliers_data['valid_scaled'] = (outliers_valid-outliers_mean)/outliers_sd
     if 'y_test' in Xy_data:
         outliers_data['test_scaled'] = (outliers_test-outliers_mean)/outliers_sd

@@ -84,7 +84,7 @@ class predict:
                 if self.args.csv_test != '':
                     Xy_data = load_test(self, Xy_data, params_df)
                     
-                # set the parameters for each ML model of the hyperopt optimization
+                # set the parameters for each ML model
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
                 # get results from training, validation and test (if any)

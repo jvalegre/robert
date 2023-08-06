@@ -403,7 +403,7 @@ def load_variables(kwargs, robert_module):
             if self.type.lower() == 'clas':
                 self.error_type = 'acc'
 
-        if robert_module.upper() in ['PREDICT','VERIFY']:
+        if robert_module.upper() in ['PREDICT','VERIFY','REPORT']:
             if self.params_dir == '':
                 self.params_dir = 'GENERATE/Best_model'
 
@@ -1005,3 +1005,18 @@ def print_pfi(self,params_dir):
         self.args.log.write('\n\n------- Starting model with all variables (No PFI) -------')
     else:
         self.args.log.write('\n\n------- Starting model with PFI filter (only important descriptors used) -------')
+
+
+def get_graph_style():
+    """
+    Retrieves the graph style for regression plots
+    """
+    
+    graph_style = {'color_train' : 'b',
+        'color_valid' : 'orange',
+        'color_test' : 'r',
+        'dot_size' : 50,
+        'alpha' : 1 # from 0 (transparent) to 1 (opaque)
+        }
+
+    return graph_style

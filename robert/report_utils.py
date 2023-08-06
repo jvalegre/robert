@@ -3,6 +3,7 @@
 #####################################################.
 
 import os
+import pandas as pd
 import textwrap
 from pathlib import Path
 
@@ -73,14 +74,15 @@ def get_images(module):
 
         for image_path in module_images:
             filename = Path(image_path).stem
-            if "Results" in filename:
-                results_images.append(image_path)
-            elif "SHAP" in filename:
-                shap_images.append(image_path)
-            elif "Outliers" in filename:
-                outliers_images.append(image_path)
-            else:
-                pfi_images.append(image_path)
+            if "_REPORT" not in filename:
+                if "Results" in filename:
+                    results_images.append(image_path)
+                elif "SHAP" in filename:
+                    shap_images.append(image_path)
+                elif "Outliers" in filename:
+                    outliers_images.append(image_path)
+                else:
+                    pfi_images.append(image_path)
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
         if len(results_images) == 2 and 'No_PFI' in results_images[1]:
@@ -111,58 +113,126 @@ def get_images(module):
     
     return imag_lines
 
-def get_summary(module,file,suffix):
+
+def get_summary(module,file,suffix,titles=True):
     """
     Retrieve the summary of results from the PREDICT and VERIFY dat files
     """
     
     with open(file, 'r') as datfile:
         lines = datfile.readlines()
-        start_summary,stop_summary = 0,0
+        start_results,stop_results = 0,0
+        train_outliers,valid_outliers,test_outliers = [],[],[]
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
                 if module == 'PREDICT':
                     if 'o  Results saved in' in line and 'No_PFI.dat' in line:
-                        start_summary,stop_summary = predict_summary(i,lines)
-                        break
+                        start_results,stop_results = locate_results(i,lines)
+                    elif 'o  Outlier values saved' in line and 'No_PFI.dat' in line:
+                        train_outliers,valid_outliers,test_outliers = locate_outliers(i,lines)
             if suffix == 'PFI':
                 if module == 'PREDICT':
                     if 'o  Results saved in' in line and 'No_PFI.dat' not in line:
-                        start_summary,stop_summary = predict_summary(i,lines)
-                        break
+                        start_results,stop_results = locate_results(i,lines)
+                    elif 'o  Outlier values saved' in line and 'No_PFI.dat' not in line:
+                        train_outliers,valid_outliers,test_outliers = locate_outliers(i,lines)
 
-        summary = ''.join(line[6:] for line in lines[start_summary:stop_summary+1])
+        # add the summary of results of PREDICT
+        # for the SCORE section, only results
+        if not titles:
+            start_results += 4
+            summary = []
+        else:
+            summary = ['<i>Prediction metrics and descriptors</i>\n\n']
+        for line in lines[start_results:stop_results+1]:
+            if 'R2' in line:
+                line = line.replace('R2','R<sup>2</sup>')
+            if titles:
+                summary.append(line[6:])
+
+            else: # for the SCORE section, only results
+                if suffix == 'No PFI':
+                    summary.append(line[8:])
+                elif suffix == 'PFI':
+                    summary.append(f'   {line[8:]}')
+
+        # add the outlier part
+        if titles: # only add this to the PREDICT section, not to the SCORE section
+            summary.append('\n<i>Outliers (max. 10 shown)</i>\n\n')
+            summary = summary + train_outliers + valid_outliers + test_outliers
+
+        summary = ''.join(summary)
 
     # Column 1: No PFI
-    if suffix == 'No PFI':
+    if titles:
+        if suffix == 'No PFI':
+            column = f"""
+            <p><span style="font-weight:bold;">No PFI (all descriptors):</span></p>
+            <pre style="text-align: justify;">{summary}</pre>
+            """
+
+        # Column 2: PFI
+        elif suffix == 'PFI':
+            if titles:
+                column = f"""
+                <p><span style="font-weight:bold;">PFI (only important descriptors):</span></p>
+                <pre style="text-align: justify;">{summary}</pre>
+                """
+    
+    else:
         column = f"""
-        <p><span style="font-weight:bold;">No PFI (all descriptors):</span></p>
-        <pre style="text-align: justify;">{summary}</pre>
-        """
-    # Column 2: PFI
-    elif suffix == 'PFI':
-        column = f"""
-        <p><span style="font-weight:bold;">PFI (only important descriptors):</span></p>
         <pre style="text-align: justify;">{summary}</pre>
         """
 
     return column
 
 
-def predict_summary(i,lines):
+def locate_outliers(i,lines):
     """
     Returns the start and end of the PREDICT summary in the dat file
     """
     
-    start_summary = i+1
-    stop_summary = i+6
+    train_outliers,valid_outliers,test_outliers = [],[],[]
+    for j in range(i+1,len(lines)):
+        if 'Train:' in lines[j]:
+            for k in range(j,len(lines)):
+                if 'Validation:' in lines[k]:
+                    break
+                elif len(train_outliers) <= 10: # 10 outliers and the line with the % of outliers
+                    train_outliers.append(lines[k][6:])
+        elif 'Validation:' in lines[j]:
+            for k in range(j,len(lines)):
+                if 'Test:' in lines[k] or len(lines[k].split()) == 0:
+                    break
+                elif len(valid_outliers) <= 10: # 10 outliers and the line with the % of outliers
+                    valid_outliers.append(lines[k][6:])
+        elif 'Test:' in lines[j]:
+            for k in range(j,len(lines)):
+                if len(lines[k].split()) == 0:
+                    break
+                elif len(test_outliers) <= 10: # 10 outliers and the line with the % of outliers
+                    test_outliers.append(lines[k][6:])
+
+        if len(lines[j].split()) == 0:
+            break
+
+    return train_outliers,valid_outliers,test_outliers
+
+
+def locate_results(i,lines):
+    """
+    Returns the start and end of the outliers section in the PREDICT dat file
+    """
+    
+    start_results = i+1
+    stop_results = i+6
     for j in range(i+1,i+10):
         if '-  Test : ' in lines[j]:
-            stop_summary = i+7
+            stop_results = i+7
     
-    return start_summary,stop_summary
+    return start_results,stop_results
 
-
+   
 def combine_cols(columns):
     """
     Makes a string with multi-column lines
@@ -208,7 +278,7 @@ def get_time(file):
     return module_time
 
 
-def get_col_score(score_info,data_score,suffix):
+def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI):
     """
     Gather the information regarding the score of the No PFI and PFI models
     """
@@ -223,58 +293,166 @@ def get_col_score(score_info,data_score,suffix):
     spacing_descp = get_spacing(data_score['descp_score'])
     spacing_verify = get_spacing(data_score['verify_score'])
 
-    score_info += f"""
-<pre style="text-align: justify;">{r2_pts}{spacing_r2}  Your model shows an R<sup>2</sup> of {data_score['r2_valid']}
-{outliers_pts}{spacing_outliers}  Your model has {data_score['outliers_prop']}% of outliers
-{descp_pts}{spacing_descp}  Your model uses {data_score['proportion_ratio']} points:descriptors
-{verify_pts}{spacing_verify}  Your model passes {data_score['verify_score']} VERIFY tests</pre>
+    first_line = f'<p style="text-align: justify; margin-top: -8px;">{spacing_PFI}' # reduces line separation separation
+    reduced_line = f'<p style="text-align: justify; margin-top: -10px;">{spacing_PFI}' # reduces line separation separation        
+
+    if csv_test != '':
+        score_set = 'test'
+    else:
+        score_set = 'valid.'
+        
+    ML_line_format = f'<p style="text-align: justify; margin-top: -2px; margin-bottom: 0px;">{spacing_PFI}'
+    part_line_format = f'<p style="text-align: justify; margin-top: 0px; margin-bottom: 4px;">{spacing_PFI}'
+
+    if suffix == 'No PFI':
+        caption = f'{spacing_PFI}No PFI (all descriptors):'
+
+    elif suffix == 'PFI':
+        caption = f'{spacing_PFI}PFI (only important descriptors):'
+
+    score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an R<sup>2</sup> of {data_score['r2_valid']}</p>
+{reduced_line}{outliers_pts}{spacing_outliers} The {score_set} set has {data_score['outliers_prop']}% of outliers</p>
+{reduced_line}{descp_pts}{spacing_descp} The {score_set} set uses {data_score['proportion_ratio']} points:descriptors</p>
+{reduced_line}{verify_pts}{spacing_verify} The {score_set} set passes {data_score['verify_score']} VERIFY tests</p>
 """
 
-    # Column 1: No PFI
-    if suffix == 'No PFI':
-        column = f"""<p style="margin-top:-15px;"><span style="font-weight:bold;">No PFI (all descriptors):</span></p>
-        {score_info}
-        """
-    # Column 2: PFI
-    elif suffix == 'PFI':
-        column = f"""<p style="margin-top:-15px;"><span style="font-weight:bold;">PFI (only important descriptors):</span></p>
-        {score_info}
-        """
+    partitions_ratio = data_score['proportion_ratio_print'].split('-  ')[1]
+    
+    column = f"""<p style="margin-top:-12px;"><span style="font-weight:bold;">{caption}</span></p>
+    {ML_line_format}ML model: {data_score['ML_model']}</p>
+    {part_line_format}{partitions_ratio}</p>
+    {score_info}
+    <p style="margin-bottom: 20px;"></p>
+    """
 
     return column
 
 
-def get_col_thres(type_thres):
+def get_col_text(type_thres):
     """
-    Gather the information regarding the thresholds used in the score
+    Gather the information regarding the thresholds used in the score and abbreviation sections
     """
 
+    first_line = '<p style="text-align: justify; margin-top: -8px;">' # reduces line separation separation
+    reduced_line = '<p style="text-align: justify; margin-top: -10px;">' # reduces line separation separation
     if type_thres == 'R<sup>2</sup>':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">R<sup>2</sup>  <u>                          </u></span>
-{get_pts(2)}  R<sup>2</sup> > 0.85
-{get_pts(1)}    0.85 > R<sup>2</sup> > 0.70
-{get_pts(0)}     R<sup>2</sup> < 0.70</pre>
+        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">R<sup>2</sup>  <u>                           </u></span></pre>
+{first_line}{get_pts(2)}&nbsp;&nbsp;  R<sup>2</sup> > 0.85</p>
+{reduced_line}{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    0.85 > R<sup>2</sup> > 0.70</p>
+{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     R<sup>2</sup> < 0.70</pre></p>
 """
 
     elif type_thres == 'outliers':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Outliers  <u>                      </u></span>
-{get_pts(2)}  < 5% of outliers
-{get_pts(1)}    5% < outliers < 10%
-{get_pts(0)}     > 10% of outliers</pre>
-"""
-
-    elif type_thres == 'VERIFY':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">VERIFY tests  <u>             </u></span>
-Up to {get_pts(4)} (tests pass)
-{get_pts(0)}  (all tests failed)</pre>
+        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Outliers  <u>                          </u></span></pre>
+{first_line}{get_pts(2)}&nbsp;&nbsp;  < 7.5% of outliers</p>
+{reduced_line}{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    7.5% < outliers < 15%</p>
+{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     > 15% of outliers</p>
 """
 
     elif type_thres == 'descps':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Points:descriptors  <u>     </u></span>
-{get_pts(2)}  > 10:1 p:d ratio
-{get_pts(1)}    10:1 > p:d ratio > 3:1
-{get_pts(0)}     p:d ratio < 3:1</pre>
+        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">    Points:descriptors  <u>      </u></span></pre>
+{first_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(2)}&nbsp;&nbsp;  > 10:1 p:d ratio</p>
+{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    10:1 > p:d ratio > 3:1</p>
+{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     p:d ratio < 3:1</p>
 """
+
+    elif type_thres == 'VERIFY':
+        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">        VERIFY tests  <u>             </u></span></pre>
+{first_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Up to {get_pts(4)} (tests pass)</p>
+{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp; (all tests failed)</pre></p>
+"""
+
+    elif type_thres in ['abbrev_1','abbrev_2']:
+        first_line = '<p style="text-align: justify; margin-top: -13px;">'
+        if type_thres == 'abbrev_1':
+            abbrev_list = ['<strong>ACC:</strong> accuracy',
+                           '<strong>ADAB:</strong> AdaBoost',
+                            '<strong>CSV:</strong> comma separated values',
+                            '<strong>CLAS:</strong> classification',
+                            '<strong>CV:</strong> cross-validation',
+                            '<strong>F1 score:</strong> balanced F-score',
+                            '<strong>GB:</strong> gradient boosting',
+                            '<strong>GP:</strong> gaussian process',
+                            '<strong>KN:</strong> k-nearest neighbors',
+                            '<strong>MAE:</strong> root-mean-square error', 
+                            "<strong>MCC:</strong> Matthew's correlation coefficient",
+            ]
+        elif type_thres == 'abbrev_2':
+            abbrev_list = ['<strong>ML:</strong> machine learning',                          
+                            '<strong>MVL:</strong> multivariate lineal models',
+                            '<strong>NN:</strong> neural network',
+                            '<strong>PFI:</strong> permutation feature importance',
+                            '<strong>R2:</strong> coefficient of determination',
+                            '<strong>REG:</strong> Regression',
+                            '<strong>RF:</strong> random forest',
+                            '<strong>RMSE:</strong> root mean square error',
+                            '<strong>RND:</strong> random',
+                            '<strong>SHAP:</strong> Shapley additive explanations',
+                            '<strong>VR:</strong> voting regressor',
+            ]
+
+        column = ''
+        for i,ele in enumerate(abbrev_list):
+            if i == 0:
+                column += f"""{first_line}{ele}</p>
+"""
+            else:
+                column += f"""{reduced_line}{ele}</p>
+"""
+
+    return column
+
+
+def get_col_transpa(params_dict,suffix,section):
+    """
+    Gather the information regarding the model parameters represented in the Reproducibility section
+    """
+
+    first_line = '<p style="text-align: justify; margin-top: -40px;">' # reduces line separation separation
+    reduced_line = '<p style="text-align: justify; margin-top: -8px;">' # reduces line separation separation
+
+    if suffix == 'No_PFI':
+        caption = f'No PFI (all descriptors):'
+
+    elif suffix == 'PFI':
+        caption = f'PFI (only important descriptors):'
+
+    excluded_params = [params_dict['error_type'],'train','y']
+    misc_params = ['split','type','error_type']
+    if params_dict['type'] == 'reg':
+        model_type = 'Regressor'
+    elif params_dict['type'] == 'clas':
+        model_type = 'Classifier'
+    models_dict = {'RF': f'RandomForest{model_type}',
+                    'MVL': 'LinearRegression',
+                    'GB': f'GradientBoosting{model_type}',
+                    'NN': f'MLP{model_type}',
+                    'GP': f'GaussianProcess{model_type}',
+                    'ADAB': f'AdaBoost{model_type}',
+                    'VR': f'Voting{model_type} (combining RF, GB and NN)'
+                    }
+
+    col_info,sklearn_model = '',''
+    for _,ele in enumerate(params_dict.keys()):
+        if ele not in excluded_params:
+            if ele == 'model' and section == 'model_section':
+                sklearn_model = models_dict[params_dict[ele].upper()]
+                sklearn_model = f"""{first_line}sklearn model: {sklearn_model}</p>"""
+            elif section == 'model_section' and ele.lower() not in misc_params:
+                if ele != 'X_descriptors':
+                    if ele == 'seed':
+                        col_info += f"""{reduced_line}random_state: {params_dict[ele]}</p>"""
+                    else:
+                        col_info += f"""{reduced_line}{ele}: {params_dict[ele]}</p>"""
+            elif section == 'misc_section' and ele.lower() in misc_params:
+                if col_info == '':
+                    col_info += f"""{first_line}{ele}: {params_dict[ele]}</p>"""
+                else:
+                    col_info += f"""{reduced_line}{ele}: {params_dict[ele]}</p>"""
+    
+    column = f"""<p style="margin-top: -30px;"><span style="font-weight:bold;">{caption}</span></p>
+    {sklearn_model}{col_info}
+    """
 
     return column
 
@@ -298,15 +476,15 @@ def get_spacing(score):
     """
 
     if score == 4:
-        spacing = f""
+        spacing = f"&nbsp;"
     if score == 3:
-        spacing = f"  "
+        spacing = f"&nbsp;&nbsp;&nbsp;"
     if score == 2:
-        spacing = f"    "
+        spacing = f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
     if score == 1:
-        spacing = f"      "
+        spacing = f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
     if score == 0:
-        spacing = f"       "
+        spacing = f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
 
     return spacing
 
@@ -344,7 +522,11 @@ def get_predict_scores(dat_predict,suffix):
     """
 
     start_data, test_set = False, False
-    r2_score, outliers_score, descp_score = 0,0,0
+    data_score = {}
+    data_score['r2_score'] = 0
+    data_score['descp_score'] = 0
+    data_score['outliers_score'] = 0
+
     for i,line in enumerate(dat_predict):
 
         # set starting points for No PFI and PFI models
@@ -360,24 +542,26 @@ def get_predict_scores(dat_predict,suffix):
         if start_data:
             # R2 and proportion
             if 'o  Results saved in PREDICT/' in line:
+                data_score['ML_model'] = line.split('_')[1]
+                data_score['proportion_ratio_print'] = dat_predict[i+2]
                 # R2 from test (if any) or validation
                 if '-  Test : R2' in dat_predict[i+7]:
-                    r2_valid = float(dat_predict[i+7].split()[5].split(',')[0])
+                    data_score['r2_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
                     test_set = True
                 elif '-  Validation : R2' in dat_predict[i+6]:
-                    r2_valid = float(dat_predict[i+6].split()[5].split(',')[0])
-                if r2_valid > 0.85:
-                    r2_score += 2
-                elif r2_valid > 0.7:
-                    r2_score += 1
+                    data_score['r2_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
+                if data_score['r2_valid'] > 0.85:
+                    data_score['r2_score'] += 2
+                elif data_score['r2_valid'] > 0.7:
+                    data_score['r2_score'] += 1
 
                 # proportion
-                proportion_ratio = dat_predict[i+4].split()[-1]
-                proportion = int(proportion_ratio.split(':')[0]) / int(proportion_ratio.split(':')[1])
+                data_score['proportion_ratio'] = dat_predict[i+4].split()[-1]
+                proportion = int(data_score['proportion_ratio'].split(':')[0]) / int(data_score['proportion_ratio'].split(':')[1])
                 if proportion > 10:
-                    descp_score += 2
+                    data_score['descp_score'] += 2
                 elif proportion > 3:
-                    descp_score += 1
+                    data_score['descp_score'] += 1
 
             # outliers
             if 'o  Outlier values saved in' in line:
@@ -385,19 +569,19 @@ def get_predict_scores(dat_predict,suffix):
                     if test_set and 'Test:' in dat_predict[j]:
                         outliers_prop = dat_predict[j].split()[-1]
                         outliers_prop = outliers_prop.split('%)')[0]
-                        outliers_prop = float(outliers_prop.split('(')[-1])
+                        data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
                     elif not test_set and 'Validation:' in dat_predict[j]:
                         outliers_prop = dat_predict[j].split()[-1]
                         outliers_prop = outliers_prop.split('%)')[0]
-                        outliers_prop = float(outliers_prop.split('(')[-1])
+                        data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
                     elif len(dat_predict[j].split()) == 0:
                         break
-                if outliers_prop < 5:
-                    outliers_score += 2
-                elif outliers_prop < 10:
-                    outliers_score += 1
+                if data_score['outliers_prop'] < 7.5:
+                    data_score['outliers_score'] += 2
+                elif data_score['outliers_prop'] < 15:
+                    data_score['outliers_score'] += 1
 
-    return r2_score, r2_valid, outliers_score, outliers_prop, descp_score, proportion_ratio
+    return data_score
 
 
 def repro_info(modules):
@@ -609,6 +793,8 @@ def format_lines(module_data, max_width=122):
     formatted_lines = []
     lines = module_data.split('\n')
     for i,line in enumerate(lines):
+        if 'R2' in line:
+            line = line.replace('R2','R<sup>2</sup>')
         formatted_line = textwrap.fill(line, width=max_width, subsequent_indent='')
         if i > 0:
             formatted_lines.append(f'<pre style="text-align: justify;">\n{formatted_line}</pre>')
@@ -616,3 +802,16 @@ def format_lines(module_data, max_width=122):
             formatted_lines.append(f'<pre style="text-align: justify;">{formatted_line}</pre>\n')
 
     return ''.join(formatted_lines)
+
+
+def get_y_values(file,y_param):
+    """
+    Gets y and y_pred values from the PREDICT folder
+    """
+
+    df = pd.read_csv(file)
+
+    y_val = df[y_param]
+    y_val_pred = df[f'{y_param}_pred']
+
+    return y_val,y_val_pred

@@ -17,20 +17,31 @@ Parameters
 
 import os
 import sys
-from robert.utils import load_variables
+import glob
+import pandas as pd
+from pathlib import Path
+from robert.utils import (load_variables,
+    pd_to_dict,
+    get_graph_style,
+)
+from robert.predict_utils import graph_reg
 from robert.report_utils import (
     get_csv_names,
     get_images,
     get_time,
     get_col_score,
-    get_col_thres,
+    get_col_text,
     get_verify_scores,
     get_predict_scores,
     repro_info,
     make_report,
     css_content,
     format_lines,
-    combine_cols
+    combine_cols,
+    get_y_values,
+    revert_list,
+    get_summary,
+    get_col_transpa,
 )
 
 class report:
@@ -64,8 +75,12 @@ class report:
 
         _ = make_report(report_html,HTML)
 
-        # Remove report.css file
+        # Remove report.css file and _REPORT graphs created
         os.remove("report.css")
+        graph_path = Path(f'{os.getcwd()}/PREDICT')
+        graph_remove = [str(file_path) for file_path in graph_path.rglob('*_REPORT.png')]
+        for file in graph_remove:
+            os.remove(file)
                 
     def get_data(self, modules):
         """
@@ -141,11 +156,17 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         Retrieves the header for the HTML string
         """
 
-        # Reproducibility and Transparency section
+        # Reproducibility section
         citation_dat, repro_dat, dat_files, csv_name, csv_test, robert_version = self.get_repro(modules)
+
+        # Transparency section
+        transpa_dat = self.get_transparency()
 
         # ROBERT score section
         score_dat = self.get_score(dat_files,csv_test)
+
+        # abbreviation section
+        abbrev_dat = self.get_abbrev()
 
         # combines the top image with the other sections of the header
         header_lines = f"""
@@ -153,10 +174,11 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 <img src="file:///{self.args.path_icons}/Robert_logo.jpg" alt="" style="display: block; margin-left: auto; margin-right: auto; width: 50%; margin-top: -12px;" />
                 <span style="font-weight:bold;"></span>
             </h1>
-            <p style="text-align: justify;">
             {citation_dat}
             {score_dat}
             {repro_dat}
+            {transpa_dat}
+            {abbrev_dat}
             </p>
             """
 
@@ -175,9 +197,9 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         # calculates the ROBERT scores
         outliers_warnings, r2_verify_warnings, descp_warning = 0,0,0
         robert_score_list,columns_score = [],[]
-        data_score = {}
+        
         for suffix in ['No PFI','PFI']:
-            data_score['r2_score'], data_score['r2_valid'], data_score['outliers_score'], data_score['outliers_prop'], data_score['descp_score'], data_score['proportion_ratio'] = get_predict_scores(dat_files['PREDICT'],suffix)
+            data_score = get_predict_scores(dat_files['PREDICT'],suffix)
             if data_score['outliers_score'] < 2:
                 outliers_warnings += 1
             if data_score['descp_score'] < 2:
@@ -190,77 +212,100 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             robert_score = data_score['r2_score'] + data_score['outliers_score'] + data_score['verify_score'] + data_score['descp_score']
             robert_score_list.append(robert_score)
 
+            # add some spacing to the PFI column fo be aligned with the second half of the threshold section
+            if suffix == 'No PFI':
+                spacing_PFI = ''
+            elif suffix == 'PFI':
+                spacing_PFI = '&nbsp;&nbsp;&nbsp;&nbsp;'
+
             # prints the two-column ROBERT score summary
-            score_info = f"""<img src="file:///{self.args.path_icons}/score_{robert_score}.jpg" alt="ROBERT Score" style="width: 100%; margin-top:5px;">
-<u>Your model has a score of <span style="font-weight:bold;">{robert_score}/10</span></u>"""
-            
+            score_info = f"""{spacing_PFI}<img src="file:///{self.args.path_icons}/score_{robert_score}.jpg" alt="ROBERT Score" style="width: 100%; margin-top:5px;">
+<p style="text-align: justify; margin-top: -2px; margin-bottom: -2px;"><strong>{spacing_PFI}The model has a score of {robert_score}/10</strong><p>"""
+
             # get amount of points or lines to add
             if suffix == 'No PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix))
+                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI))
             elif suffix == 'PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix))
+                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI))
 
         # Combine both columns
         score_dat += combine_cols(columns_score)
 
+        # gets the result images from PREDICT
+        score_dat += self.get_results_img()
+
+        # gets errors from PREDICT
+        columns_summary = []
+        module_file = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
+        for suffix in ['No PFI','PFI']:
+            # in the SCORE section, we only take the lines showing errors
+            columns_summary.append(get_summary('PREDICT',module_file,suffix,titles=False))
+        
+        # Combine both columns
+        score_dat += combine_cols(columns_summary)
+        
         # represents the thresholds
-        if csv_test != '':
-            score_set = f'(based on results from the external test set)'
-        else:
-            score_set = '(based on results from the validation set)'
         score_dat += f"""
-<br><u>Score thresholds {score_set}</u>"""
+<br><p style="text-align: justify; margin-top: 0px; margin-bottom: -2px;"><u>Score thresholds</u></p>"""
         
         columns_thres = []
-        columns_thres.append(get_col_thres('R<sup>2</sup>'))
-        columns_thres.append(get_col_thres('outliers'))
-        columns_thres.append(get_col_thres('descps'))
-        columns_thres.append(get_col_thres('VERIFY'))
+        columns_thres.append(get_col_text('R<sup>2</sup>'))
+        columns_thres.append(get_col_text('outliers'))
+        columns_thres.append(get_col_text('descps'))
+        columns_thres.append(get_col_text('VERIFY'))
         score_dat += combine_cols(columns_thres)
         
+        score_dat += f"""<p style="page-break-after: always;"></p>"""
+
         # get some tips
         score_dat += f"""
-<br><u>Some tips to improve the score</u>"""
+<br><p style="text-align: justify; margin-top: -5px; margin-bottom: -2px;"><u>Some tips to improve the score</u></p>"""
         
         n_scoring = 1
+        style_line = '<p style="text-align: justify;">'
+        reduced_line = '<p style="text-align: justify; margin-top: -5px;">' # reduces line separation separation
+        last_line = '<p style="text-align: justify; margin-top: -5px; margin-bottom: 30px;">'
         if min(robert_score_list) >= 9:
-            score_dat += f'<p style="text-align: justify;">&#10004;&nbsp;&nbsp; A ROBERT score of 9 or 10 suggests that the predictive ability of your model is strong, congratulations!</p>'
+            score_dat += f'{style_line}&#10004;&nbsp;&nbsp; A ROBERT score of 9 or 10 suggests that the predictive ability of your model is strong, congratulations!</p>'
             n_scoring += 1
+            style_line = reduced_line
         else:
             datapoints = int(data_score['proportion_ratio'].split(':')[0])
             if datapoints <= 50:
-                score_dat += f'<p style="text-align: justify;">&#9888;&nbsp; The model uses only {datapoints} datapoints, adding meaningful datapoints might help to improve the model.</p>'
+                score_dat += f'{style_line}&#9888;&nbsp; The model uses only {datapoints} datapoints, adding meaningful datapoints might help to improve the model.</p>'
                 n_scoring += 1
+                style_line = reduced_line
             if outliers_warnings > 0:
                 if outliers_warnings == 1:
                     outliers_warnings = 'One'
                 elif outliers_warnings == 2:
                     outliers_warnings = 'Two'
-                score_dat += f'<p style="text-align: justify;">&#9888;&nbsp; {outliers_warnings} of your models have more than 5% of outliers (expected for a t-value of 2), using a more homogeneous distribution of results might help. For example, avoid using many points with similar y values and only a few points with distant y values.</p>'
+                score_dat += f'{style_line}&#9888;&nbsp; {outliers_warnings} of your models have more than 7.5% of outliers (5% is expected for a normal distribution with the t-value of 2 that ROBERT uses), using a more homogeneous distribution of results might help. For example, avoid using many points with similar y values and only a few points with distant y values.</p>'
                 n_scoring += 1
+                style_line = reduced_line
             if descp_warning > 0:
-                score_dat += f'<p style="text-align: justify;">&#9888;&nbsp; Adding meaningful descriptors or replacing/deleting the least useful descriptors used might help. Feature importances are gathered in the SHAP and PFI sections of the /PREDICT/PREDICT_data.dat file.</p>'
+                score_dat += f'{style_line}&#9888;&nbsp; Adding meaningful descriptors or replacing/deleting the least useful descriptors used might help. Feature importances are gathered in the SHAP and PFI sections of the /PREDICT/PREDICT_data.dat file.</p>'
                 n_scoring += 1
+                style_line = reduced_line
             else:
-                score_dat += f'<p style="text-align: justify;">&#9888;&nbsp; Replacing or deleting the least useful descriptors used might help to improve the model. Feature importances are gathered in the SHAP and PFI sections of the /PREDICT/PREDICT_data.dat file.</p>'
+                score_dat += f'{style_line}&#9888;&nbsp; Replacing or deleting the least useful descriptors used might help to improve the model. Feature importances are gathered in the SHAP and PFI sections of the /PREDICT/PREDICT_data.dat file.</p>'
                 n_scoring += 1
+                style_line = reduced_line
 
         # how to predict new values
         score_dat += f"""
-        <p><br><u>How to predict new values?</u></p>
-<p style="text-align: justify;"><span style="font-weight:bold;">1.</span> Create a CSV database with the new points, including the necessary descriptors.</p>
-<p style="text-align: justify;"><span style="font-weight:bold;">2.</span> Place the CSV file in the parent folder (i.e., where the module folders were created)</p>
-<p style="text-align: justify;"><span style="font-weight:bold;">3.</span> Run the PREDICT module as 'python -m robert --predict --csv_test FILENAME.csv'.</p>
-<p style="text-align: justify;"><span style="font-weight:bold;">4.</span> The predictions will be stored in the last column of two CSV files called MODEL_SIZE_test(_No)_PFI.csv, which are stored in the PREDICT folder.</p>"""
-
-        score_dat += f"""<p style="page-break-after: always;"></p>"""
+        <br><p style="text-align: justify; margin-top: 5px; margin-bottom: -2px;"><u>How to predict new values with these models?</u></p>
+<p style="text-align: justify;">1. Create a CSV database with the new points, including the necessary descriptors.</p>
+{reduced_line}2. Place the CSV file in the parent folder (i.e., where the module folders were created)</p>
+{reduced_line}3. Run the PREDICT module as 'python -m robert --predict --csv_test FILENAME.csv'.</p>
+{last_line}4. The predictions will be stored in the last column of two CSV files called MODEL_SIZE_test(_No)_PFI.csv, which are stored in the PREDICT folder.</p>"""
 
         return score_dat
 
 
     def get_repro(self,modules):
         """
-        Generates the data printed in the Reproducibility and Transparency section
+        Generates the data printed in the Reproducibility section
         """
         
         version_n_date, citation, command_line, python_version, intelex_version, total_time, dat_files = repro_info(modules)
@@ -271,43 +316,128 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         repro_dat,citation_dat = '',''
         
         # version, date and citation
-        citation_dat += f"""<p><br>{version_n_date}<br><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
+        citation_dat += f"""<p style="text-align: justify;"><br>{version_n_date}</p>
+        <p style="text-align: justify;  margin-top: -8px;"><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
+
+        first_line = f'<p style="text-align: justify; margin-bottom: 10px">' # reduces line separation separation
+        reduced_line = f'<p style="text-align: justify; margin-top: -5px;">' # reduces line separation separation        
+        space = ('&nbsp;')*4
+
+        # just in case the command lines are so long
+        command_line = format_lines(command_line)
 
         # reproducibility section, starts with the icon of reproducibility        
-        repro_dat += f"""
-<u>1. Upload these files to the supporting information:</u>
-  - Report with results (ROBERT_report.pdf)
-  - CSV database ({csv_name})
-"""
+        repro_dat += f"""{first_line}<br><strong>1. Download these files <i>(the authors should have uploaded the files as supporting information!)</i>:</strong></p>"""
+        repro_dat += f"""{reduced_line}{space}- Report with results (ROBERT_report.pdf)</p>"""
+        repro_dat += f"""{reduced_line}{space}- CSV database ({csv_name})</p>"""
         
         if csv_test != '':
-            repro_dat += f"""  - External test set ({csv_test})
-"""
+            repro_dat += f"""{reduced_line}{space}- External test set ({csv_test})</p>"""
 
-        repro_dat += f"""
-<br><u>2. Install the following Python modules:</u>
-  - ROBERT: conda install -c conda-forge robert={robert_version} (or pip install robert=={robert_version})
-"""
+        repro_dat += f"""{first_line}<br><strong>2. Install the following Python modules:</strong></p>"""
+        repro_dat += f"""{reduced_line}{space}- ROBERT: conda install -c conda-forge robert={robert_version} (or pip install robert=={robert_version})</p>"""
+        
         if intelex_version != 'not installed':
-            repro_dat += f"""  - scikit-learn-intelex: (pip install scikit-learn-intelex=={intelex_version})
-"""
+            repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: pip install scikit-learn-intelex=={intelex_version}</p>"""
         else:
-            repro_dat += f"""  - scikit-learn-intelex: not installed (make sure you do not have it installed)
-"""
+            repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: not installed (make sure you do not have it installed)</p>"""
+        
+        # get_version(LIBRARY)
+        # if not installed, dont put version
+        repro_dat += f"""{reduced_line}{space}- To generate the ROBERT_report.pdf summary, the following libraries might be necessary:</p>"""
+        for library_repro in ['WeasyPrint','GLib','Pango','GTK3']:
+            try:
+                import pkg_resources
+                lib_version = pkg_resources.get_distribution(library_repro).version
+                if library_repro == 'WeasyPrint':
+                    repro_dat += f"""{reduced_line}{space}{space} {library_repro}: pip install {library_repro.lower()}=={lib_version}</p>"""
+                else:
+                    repro_dat += f"""{reduced_line}{space}{space} {library_repro}: conda install -c conda-forge {library_repro.lower()}={lib_version}</p>"""
+            except:
+                repro_dat += f"""{reduced_line}{space}{space} {library_repro}: conda install -c conda-forge {library_repro.lower()}</p>"""
+      
+        character_line = ''
+        if csv_test != '':
+            character_line += 's'
 
-        repro_dat += f"""
-<br><u>3. Run ROBERT with the following command line (originally run in Python {python_version}):</u>
-{command_line}
-"""
+        repro_dat += f"""{first_line}<br><strong>3. Run ROBERT with this command line in the folder with the CSV database{character_line} (originally run in Python {python_version}):</strong></p>{reduced_line}{command_line}</p>"""
 
+        # I use a very reduced line here because the formatted command_line comes with an extra blank line
+        repro_dat += f"""<p style="text-align: justify; margin-top: -28px;"><br><strong>4. Provide number and model of processors used to achieve:</strong></p>"""
+        
         # add total execution time
-        repro_dat += f"""
-    <span style="font-weight:bold;">\nTotal execution time:</span> {total_time} seconds
-        """
+        repro_dat += f"""{reduced_line}Total execution time: {total_time} seconds</p>"""
+
+        repro_dat += f"""<p style="page-break-after: always;"></p>"""
 
         repro_dat = self.module_lines('repro',repro_dat) 
 
         return citation_dat, repro_dat, dat_files, csv_name, csv_test, robert_version
+
+
+    def get_transparency(self):
+        """
+        Generates the data printed in the Transparency section
+        """
+
+        # add params of the models
+        transpa_dat = ''
+        titles_line = f'<p style="text-align: justify; margin-bottom: 6px">' # reduces line separation separation
+
+        transpa_dat += f"""{titles_line}<br><strong>1. Parameters of the scikit-learn models (same keywords as used in scikit-learn):</strong></p>"""
+        transpa_dat += self.transpa_model_misc('model_section')
+
+        # add misc params
+        transpa_dat += f"""<p style="text-align: justify; margin-top: -85px; margin-bottom: 6px;"><br><strong>2. ROBERT options for data split (KN or RND), predict type (REG or CLAS) and hyperopt error (RMSE, etc.):</strong></p>"""
+        transpa_dat += self.transpa_model_misc('misc_section')
+
+        transpa_dat = self.module_lines('transpa',transpa_dat) 
+
+        return transpa_dat
+
+
+    def transpa_model_misc(self,section):
+        """
+        Collects the data for model parameters and misc options in the Reproducibility section
+        """
+
+        columns_repro = []
+        for suffix in ['No_PFI','PFI']:
+            # set the parameters for each ML model
+            params_dir = f'{self.args.params_dir}/{suffix}'
+            files_param = glob.glob(f'{params_dir}/*.csv')
+            for file_param in files_param:
+                if '_db' not in file_param:
+                    params_df = pd.read_csv(file_param)
+            params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
+
+            columns_repro.append(get_col_transpa(params_dict,suffix,section))
+
+        section_dat = combine_cols(columns_repro)
+
+        section_dat += '<p style="text-align: justify; margin-top: -70px;">'
+
+        return section_dat
+
+
+    def get_abbrev(self):
+        """
+        Generates the Abbreviations section
+        """
+
+        # starts with the icon of abbreviation
+        abbrev_dat = ''
+        abbrev_dat = self.module_lines('abbrev',abbrev_dat) 
+
+        columns_abbrev = []
+        columns_abbrev.append(get_col_text('abbrev_1'))
+        columns_abbrev.append(get_col_text('abbrev_2'))
+
+        abbrev_dat += combine_cols(columns_abbrev)
+
+        abbrev_dat += f"""<p style="page-break-after: always;"></p>"""
+
+        return abbrev_dat
 
 
     def module_lines(self,module,module_data):
@@ -316,28 +446,99 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         """
         
         if module == 'repro':
-            module_name = 'REPRODUCIBILITY AND TRANSPARENCY'
+            module_name = 'REPRODUCIBILITY'
+            section_explain = f'<i style="text-align: justify;">This section provides all the instructions to reproduce the results presented.</i>'
+        elif module == 'transpa':
+            module_name = 'TRANSPARENCY'
+            section_explain = f'<i style="text-align: justify;">This section contains important parameters used in scikit-learn models and ROBERT.</i>'
         elif module == 'score':
             module_name = 'ROBERT SCORE'
+            section_explain = f'<i style="text-align: justify;">This score is designed to analyze the predictive ability of the models using different metrics.</i>'
+        elif module == 'abbrev':
+            module_name = 'ABBREVIATIONS'
+            section_explain = f'<i style="text-align: justify;">Reference section for the abbreviations used.</i>'
         else:
             module_name = module
-        module_data = format_lines(module_data)
+            section_explain = ''
+        if module not in ['repro','transpa']:
+            module_data = format_lines(module_data)
         module_data = '<div class="aqme-content"><pre>' + module_data + '</pre></div>'
         separator_section = ''
-        if module != 'repro':
-            if module == 'score':
-                separator_section = '<hr><p style="margin-top:30px;"></p>'
-            else:
-                separator_section = '<hr>'
+        if module not in ['CURATE','transpa']:
+            separator_section = '<hr><p style="margin-top:25px;"></p>'
 
         title_line = f"""
             {separator_section}
             <p><span style="font-weight:bold;">
                 <img src="file:///{self.args.path_icons}/{module}.png" alt="" style="width:20px; height:20px; margin-right:5px;">
                 {module_name}
-            </span></p>
+            </span></p>{section_explain}
             {module_data}
             </p>
             """
         
         return title_line
+
+
+    def get_results_img(self):
+        """
+        Generate the string that includes the results images from PREDICT
+        """
+        
+        # first, generates graphs with no titles
+
+        # get all the y and y_pred
+        module_path = Path(f'{os.getcwd()}/PREDICT')
+        csv_files = [str(file_path) for file_path in module_path.rglob('*.csv')]
+        graph_style = get_graph_style()
+
+        for suffix in ['No_PFI','PFI']:
+            # set the parameters for each ML model
+            params_dir = f'{self.args.params_dir}/{suffix}'
+            files_param = glob.glob(f'{params_dir}/*.csv')
+            for file_param in files_param:
+                if '_db' not in file_param:
+                    params_df = pd.read_csv(file_param)
+            params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
+
+            # get y and y_pred values
+            Xy_data = {}
+            for file in csv_files:
+                plot_graph = False
+                if suffix == 'No_PFI' and suffix in file:
+                    plot_graph = True
+                elif suffix == 'PFI' and 'No_PFI' not in file:
+                    plot_graph = True
+                if plot_graph:
+                    if f'_train_{suffix}.csv' in file:
+                        Xy_data["y_train"], Xy_data["y_pred_train"] = get_y_values(file,params_dict["y"])
+                    elif f'_valid_{suffix}.csv' in file:
+                        Xy_data["y_valid"], Xy_data["y_pred_valid"] = get_y_values(file,params_dict["y"])
+                    elif f'_test_{suffix}.csv' in file:
+                        Xy_data["y_test"], Xy_data["y_pred_test"] = get_y_values(file,params_dict["y"])
+
+            set_types = ['train','valid']
+            if 'y_test' in Xy_data:
+                set_types.append('test')
+            
+            path_n_suffix = f'{module_path}/Results_{suffix}_REPORT' # I add "_REPORT" to the file so I can delete these files later
+
+            if params_dict['type'].lower() == 'reg':
+                _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print_fun=False)
+
+        module_path = Path(f'{os.getcwd()}/PREDICT')
+        results_images = [str(file_path) for file_path in module_path.rglob('*_REPORT.png')]
+
+        # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
+        if 'No_PFI' in results_images[1]:
+            results_images = revert_list(results_images)
+        
+        # define widths the graphs
+        width = 91
+        pair_list = f'<p style="width: {width}%; margin-bottom: -2px;  margin-top: -5px"><img src="file:///{results_images[0]}" style="margin: 0"/>'
+        pair_list += f'{("&nbsp;")*15}'
+        pair_list += f'<img src="file:///{results_images[1]}" style="margin: 0"/></p>'
+
+        html_png = f'{pair_list}'
+
+        return html_png    

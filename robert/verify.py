@@ -80,7 +80,7 @@ class verify:
                 _ = print_pfi(self,params_dir)
 
                 # load and ML model parameters, and add standardized descriptors
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",True)
+                Xy_data, params_df, params_path, suffix_title, _ = load_db_n_params(self,params_dir,"verify",True)
                 
                 # set the parameters for each ML model of the hyperopt optimization
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
@@ -102,21 +102,21 @@ class verify:
 
                 # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
                 # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
+                Xy_data, params_df, params_path, suffix_title, _ = load_db_n_params(self,params_dir,"verify",False)
 
                 # calculate scores for the y-shuffle test
                 verify_results = self.yshuffle_test(verify_results,Xy_data,params_dict)
 
                 # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
                 # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
+                Xy_data, params_df, params_path, suffix_title, _ = load_db_n_params(self,params_dir,"verify",False)
 
                 # one-hot test (check that if a value isnt 0, the value assigned is 1)
                 verify_results = self.onehot_test(verify_results,Xy_data,params_dict)
 
                 # load and ML model parameters again (to avoid weird memory issues on Windows, for some 
                 # reason the Xy_data dataframe changes when changing X descriptors in copy() objects)
-                Xy_data, params_df, params_path, suffix_title = load_db_n_params(self,params_dir,"verify",False)
+                Xy_data, params_df, params_path, suffix_title, _ = load_db_n_params(self,params_dir,"verify",False)
 
                 # analysis of results
                 colors,color_codes,results_print,verify_results = self.analyze_tests(verify_results)

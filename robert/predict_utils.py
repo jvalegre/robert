@@ -30,21 +30,69 @@ from robert.utils import (
     )
 
 
-def load_test(self, Xy_data, params_df):
+def load_test(self, Xy_data, params_df, Xy_test_df):
     ''''
     Loads Xy data of the test set
     '''
 
-    Xy_test_df = load_database(self, self.args.csv_test, "predict")
     descs_model = ast.literal_eval(params_df['X_descriptors'][0])
+    Xy_test_csv, X_test_csv, y_test_csv = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
+    X_test_generate, y_test_generate = {},{}
+
+    # test points coming from the files specified in csv_test
+    if self.args.csv_test != '':
+        Xy_test_csv = load_database(self, self.args.csv_test, "predict", external_set=True)
+        X_test_csv, y_test_csv = test_csv(self,Xy_test_csv,descs_model,params_df)
+
+    # test points coming from the test_set option (from GENERATE)
+    if len(Xy_data['X_test']) > 0:
+        X_test_generate = Xy_data['X_test']
+        y_test_generate = Xy_data['y_test']
+
+    # update Xy_data database
+    # only external test csv
+    if len(Xy_data['X_test']) == 0 and self.args.csv_test != '':
+        Xy_data['X_test'] = X_test_csv
+        Xy_data['y_test'] = y_test_csv
+        Xy_test_df = Xy_test_csv
+
+    # only internal test set
+    elif len(Xy_data['X_test']) > 0 and self.args.csv_test == '':
+        Xy_data['X_test'] = X_test_generate
+        Xy_data['y_test'] = y_test_generate
+
+    # combine both test sets
+    elif len(Xy_data['X_test']) > 0 and self.args.csv_test != '':
+        X_combined, y_combined = {},{}
+        X_combined = pd.concat([X_test_generate, X_test_csv], axis=0).reset_index(drop=True)
+        y_combined = pd.concat([y_test_generate, y_test_csv], axis=0).reset_index(drop=True)
+
+        Xy_data['X_test'] = X_combined
+        Xy_data['y_test'] = y_combined
+
+        Xy_test_df = pd.concat([Xy_test_df, Xy_test_csv], axis=0).reset_index(drop=True)
+
+
+    if len(Xy_data['X_test']) > 0:
+        _, Xy_data['X_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_test'])
+
+    return Xy_data, Xy_test_df
+
+
+def test_csv(self,Xy_test_df,descs_model,params_df):
+    """
+    Separates the test databases into X and y. This allows to merge test external databases that 
+    contain different columns with internal test databases coming from GENERATE
+    """
+
     try:
-        Xy_data['X_test'] = Xy_test_df[descs_model]
+        X_test_df = Xy_test_df[descs_model]
     except KeyError:
         # this might fail if the initial categorical variables have not been transformed
         try:
             self.args.log.write(f"\n   x  There are missing descriptors in the test set! Looking for categorical variables converted from CURATE")
             Xy_test_df = curate.categorical_transform(self,Xy_test_df,'predict')
-            Xy_data['X_test'] = Xy_test_df[descs_model]
+            X_test_df = Xy_test_df[descs_model]
             self.args.log.write(f"   o  The missing descriptors were successfully created")
         except KeyError:
             self.args.log.write(f"   x  There are still missing descriptors in the test set! The following descriptors are needed: {descs_model}")
@@ -52,10 +100,9 @@ def load_test(self, Xy_data, params_df):
             sys.exit()
 
     if params_df['y'][0] in Xy_test_df:
-        Xy_data['y_test'] = Xy_test_df[params_df['y'][0]]
-    _, Xy_data['X_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_test'])
+        y_test_df = Xy_test_df[params_df['y'][0]]
 
-    return Xy_data
+    return X_test_df, y_test_df
 
 
 def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
@@ -115,7 +162,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print
 
     _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
                 c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-    if 'y_test' in Xy_data:
+    if 'y_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
         _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
                     c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
@@ -195,7 +242,7 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,prin
     plt.clf()
 
 
-def save_predictions(self,Xy_data,params_dir):
+def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     '''
     Saves CSV files with the different sets and their predicted results
     '''
@@ -214,12 +261,18 @@ def save_predictions(self,Xy_data,params_dir):
     valid_path = f'{base_csv_path}_valid_{suffix_title}.csv'
     _ = Xy_orig_valid.to_csv(valid_path, index = None, header=True)
     print_preds += f'\n      -  Validation set with predicted results: {os.path.basename(valid_path)}'
-    if self.args.csv_test != '':
-        Xy_orig_test = load_database(self, self.args.csv_test, "no_print")
-        Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
+    # saves test predictions
+    if 'X_test_scaled' in Xy_data:
+        if 'y_pred_test' in Xy_data:
+            Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
         test_path = f'{base_csv_path}_test_{suffix_title}.csv'
-        _ = Xy_orig_test.to_csv(test_path, index = None, header=True)
+        # drop columns with NaN (not useful)
+        for column in Xy_test_df.keys():
+            if Xy_test_df[column].isnull().values.any() and column != params_df["y"][0]:
+                del Xy_test_df[column]
+        _ = Xy_test_df.to_csv(test_path, index = None, header=True)
         print_preds += f'\n      -  Test set with predicted results: {os.path.basename(test_path)}'
+
     self.args.log.write(print_preds)
 
     path_n_suffix = f'{base_csv_path}_{suffix_title}'
@@ -234,9 +287,8 @@ def save_predictions(self,Xy_data,params_dir):
         if self.args.names in Xy_orig_train:
             name_points['train'] = Xy_orig_train[self.args.names]
             name_points['valid'] = Xy_orig_valid[self.args.names]
-            if self.args.csv_test != '':
-                if self.args.names in Xy_orig_test:
-                    name_points['test'] = Xy_orig_test[self.args.names]
+        if self.args.names in Xy_test_df:
+            name_points['test'] = Xy_test_df[self.args.names]
 
     return path_n_suffix, name_points
 
@@ -279,7 +331,7 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     if params_dict['type'].lower() == 'reg':
         print_results += f"\n      -  Train : R2 = {Xy_data['r2_train']:.2}, MAE = {Xy_data['mae_train']:.2}, RMSE = {Xy_data['rmse_train']:.2}"
         print_results += f"\n      -  Validation : R2 = {Xy_data['r2_valid']:.2}, MAE = {Xy_data['mae_valid']:.2}, RMSE = {Xy_data['rmse_valid']:.2}"
-        if 'y_test' in Xy_data:
+        if 'y_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
             print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
 
     elif params_dict['type'].lower() == 'clas':
@@ -526,7 +578,7 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
     # calculate absolute errors between predicted y and actual values
     outliers_train = [abs(x-y) for x,y in zip(Xy_data['y_train'],Xy_data['y_pred_train'])]
     outliers_valid = [abs(x-y) for x,y in zip(Xy_data['y_valid'],Xy_data['y_pred_valid'])]
-    if 'y_test' in Xy_data:
+    if 'y_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
         outliers_test = [abs(x-y) for x,y in zip(Xy_data['y_test'],Xy_data['y_pred_test'])]
 
     # the errors are scaled using standard deviation units. When the absolute
@@ -538,7 +590,7 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
     outliers_data = {}
     outliers_data['train_scaled'] = (outliers_train-outliers_mean)/outliers_sd
     outliers_data['valid_scaled'] = (outliers_valid-outliers_mean)/outliers_sd
-    if 'y_test' in Xy_data:
+    if 'y_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
         outliers_data['test_scaled'] = (outliers_test-outliers_mean)/outliers_sd
 
     print_outliers, naming, naming_test = '', False, False
@@ -549,7 +601,7 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
 
     outliers_data['outliers_train'], outliers_data['names_train'] = detect_outliers(self, outliers_data['train_scaled'], name_points, naming, 'train')
     outliers_data['outliers_valid'], outliers_data['names_valid'] = detect_outliers(self, outliers_data['valid_scaled'], name_points, naming, 'valid')
-    if 'y_test' in Xy_data:
+    if 'y_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
         outliers_data['outliers_test'], outliers_data['names_test'] = detect_outliers(self, outliers_data['test_scaled'], name_points, naming_test, 'test')
     
     return outliers_data, print_outliers

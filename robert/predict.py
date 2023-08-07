@@ -78,20 +78,19 @@ class predict:
                 _ = print_pfi(self,params_dir)
 
                 # load and ML model parameters, and add standardized descriptors
-                Xy_data, params_df, _, _ = load_db_n_params(self,params_dir,"verify",True) # module 'verify' since PREDICT follows similar protocols
+                Xy_data, params_df, _, _, Xy_test_df = load_db_n_params(self,params_dir,"verify",True) # module 'verify' since PREDICT follows similar protocols
 
-                # load test set and add standardized descriptors
-                if self.args.csv_test != '':
-                    Xy_data = load_test(self, Xy_data, params_df)
-                    
+                # load test set (if any) and add standardized descriptors
+                Xy_data, Xy_test_df = load_test(self, Xy_data, params_df, Xy_test_df)
+                
                 # set the parameters for each ML model
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
-
+                
                 # get results from training, validation and test (if any)
                 Xy_data = load_n_predict(params_dict, Xy_data)
 
                 # save predictions for all sets
-                path_n_suffix, name_points = save_predictions(self,Xy_data,params_dir)
+                path_n_suffix, name_points = save_predictions(self,Xy_data,params_dir,Xy_test_df)
 
                 # represent y vs predicted y
                 colors = plot_predictions(self, params_dict, Xy_data, path_n_suffix)

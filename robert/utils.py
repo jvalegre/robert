@@ -614,9 +614,10 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
-def load_database(self,csv_load,module):
+def load_database(self,csv_load,module,external_set=False):
     csv_df = pd.read_csv(csv_load)
-    csv_df = csv_df.fillna(0)
+    if not 'external_set':
+        csv_df = csv_df.fillna(0)
     if module.lower() not in ['verify','no_print']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
@@ -893,7 +894,7 @@ def load_n_predict(params, data, hyperopt=False):
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = data['r2_train'], data['mae_train'], data['rmse_train']
         else:
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
-        if 'X_test_scaled' in data and 'y_test' in data:
+        if 'X_test_scaled' in data and 'y_test' in data and not data['y_test'].isnull().values.any():
             data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']
@@ -948,25 +949,30 @@ def load_db_n_params(self,folder_model,module,print_load):
     # load only the descriptors used in the model and standardize X
     Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training'].reset_index(drop=True)
     Xy_valid_df = Xy_data_df[Xy_data_df.Set == 'Validation'].reset_index(drop=True)
+    Xy_test_df = Xy_data_df[Xy_data_df.Set == 'Test'].reset_index(drop=True)
 
-    Xy_data =  {} # (using a dict to keep the same format of load_model() )
+    Xy_data = {} # (using a dict to keep the same format of load_model() )
     descs_model = ast.literal_eval(params_df['X_descriptors'][0])
     Xy_data['X_train'] = Xy_train_df[descs_model]
     Xy_data['X_valid'] = Xy_valid_df[descs_model]
     Xy_data['y_train'] = Xy_train_df[params_df['y'][0]]
     Xy_data['y_valid'] = Xy_valid_df[params_df['y'][0]]
-
     Xy_data['X_train_scaled'], Xy_data['X_valid_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_valid'])
+    # test sets are scaled later in PREDICT
+
+    Xy_data['X_test'] = Xy_test_df[descs_model]
+    Xy_data['y_test'] = Xy_test_df[params_df['y'][0]]
 
     point_count = {}
     point_count['train'] = len(Xy_data['X_train_scaled'])
     point_count['valid'] = len(Xy_data['X_valid_scaled'])
+    point_count['test'] = len(Xy_data['X_test'])
 
     params_name = os.path.basename(params_path)
     if print_load:
         _ = load_print(self,params_name,suffix,params_df,point_count)
 
-    return Xy_data, params_df, params_path, suffix_title
+    return Xy_data, params_df, params_path, suffix_title, Xy_test_df
 
 
 def load_dfs(self,folder_model,module):

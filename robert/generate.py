@@ -79,7 +79,14 @@ Parameters
     pfi_max : int, default=0
         Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI
         filter are used.
-
+    test_set : float, default=0.1
+        Amount of datapoints to separate as external test set. These points will not be used during the
+        hyperoptimization, and PREDICT will be used the points as test set during ROBERT workflows. The separation
+        of test points occurs at random before any data splits are carried out inside the GENErATE screening.
+    auto_test : bool, default=True
+        Removes test sets in databases with less than 100 datapoints and raises % of test points to 10% if 
+        test_set is lower than that.
+        
 """
 #####################################################.
 #        This file stores the GENERATE class        #
@@ -87,6 +94,8 @@ Parameters
 #####################################################.
 
 import time
+import pandas as pd
+import random
 from robert.utils import (
     load_variables, 
     finish_print,
@@ -122,6 +131,9 @@ class generate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate")
 
+        # separates an external test set (if applicable)
+        csv_df, csv_X, csv_y, csv_df_test = self.separate_test(csv_df, csv_X, csv_y)
+  
         # changes from random to KN data splitting in databases with few points
         if self.args.auto_kn:
             if len(csv_df[self.args.y]) < 100 and self.args.split.lower() == 'rnd':
@@ -166,12 +178,12 @@ class generate:
                     csv_df_PFI = csv_df.copy()
 
                     # hyperopt process for ML models
-                    _ = hyperopt_workflow(self, csv_df_hyp, ML_model, size, Xy_data_hyp, seed)
+                    _ = hyperopt_workflow(self, csv_df_hyp, ML_model, size, Xy_data_hyp, seed, csv_df_test)
 
                     # apply the PFI descriptor filter if it is activated
                     if self.args.pfi_filter:
                         try:
-                            _ = PFI_workflow(self, csv_df_PFI, ML_model, size, Xy_data_hyp, seed)
+                            _ = PFI_workflow(self, csv_df_PFI, ML_model, size, Xy_data_hyp, seed, csv_df_test)
                         except (FileNotFoundError,ValueError): # in case the model/train/seed combination failed
                             pass
 
@@ -200,3 +212,40 @@ class generate:
             _ = heatmap_workflow(self,"PFI")
 
         _ = finish_print(self,start_time,'GENERATE')
+
+
+    def separate_test(self, csv_df, csv_X, csv_y):
+        """
+        Separates (if applies) a test set from the database before the model scan
+        """
+        
+        csv_df_test = pd.DataFrame()
+        test_points = []
+
+        if self.args.csv_test != '':
+            self.args.test_set = 0
+        
+        elif self.args.test_set != 0:
+            if self.args.auto_test:
+                if len(csv_df[self.args.y]) < 50:
+                    self.args.test_set = 0
+                    self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split in training and validation with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
+                    self.args.test_set
+                elif self.args.test_set < 0.1:
+                    self.args.test_set = 0.1
+                    self.args.log.write(f'\nx    WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
+
+        if self.args.test_set > 0:
+            n_of_points = int(len(csv_X)*(self.args.test_set))
+
+            random.seed(self.args.seed[0])
+            test_points = random.sample(range(len(csv_X)), n_of_points)
+
+            # separates the test set and reset_indexes
+            csv_df_test = csv_df.iloc[test_points].reset_index(drop=True)
+            csv_df = csv_df.drop(test_points, axis=0).reset_index(drop=True)
+            csv_X = csv_X.drop(test_points, axis=0).reset_index(drop=True)
+            csv_y = csv_y.drop(test_points, axis=0).reset_index(drop=True)
+
+        return csv_df, csv_X, csv_y, csv_df_test
+

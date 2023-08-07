@@ -216,7 +216,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         robert_score_list,columns_score = [],[]
         
         for suffix in ['No PFI','PFI']:
-            data_score = get_predict_scores(dat_files['PREDICT'],suffix,pred_type)
+            data_score,test_set = get_predict_scores(dat_files['PREDICT'],suffix,pred_type)
             if data_score['outliers_score'] < 2:
                 outliers_warnings += 1
             if data_score['descp_score'] < 2:
@@ -247,9 +247,9 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
             # get amount of points or lines to add
             if suffix == 'No PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type))
+                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type,test_set))
             elif suffix == 'PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type))
+                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type,test_set))
 
         # Combine both columns
         score_dat += combine_cols(columns_score)

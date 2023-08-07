@@ -310,7 +310,7 @@ def get_time(file):
     return module_time
 
 
-def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type):
+def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type,test_set):
     """
     Gather the information regarding the score of the No PFI and PFI models
     """
@@ -330,7 +330,7 @@ def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type):
     first_line = f'<p style="text-align: justify; margin-top: -8px;">{spacing_PFI}' # reduces line separation separation
     reduced_line = f'<p style="text-align: justify; margin-top: -10px;">{spacing_PFI}' # reduces line separation separation        
 
-    if csv_test != '':
+    if test_set:
         score_set = 'test'
     else:
         score_set = 'valid.'
@@ -346,9 +346,9 @@ def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type):
 
     if pred_type == 'reg':
         score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an R<sup>2</sup> of {data_score['r2_valid']}</p>
-{reduced_line}{outliers_pts}{spacing_outliers} The {score_set} set has {data_score['outliers_prop']}% of outliers</p>
-{reduced_line}{descp_pts}{spacing_descp} The {score_set} set uses {data_score['proportion_ratio']} points:descriptors</p>
-{reduced_line}{verify_pts}{spacing_verify} The {score_set} set passes {data_score['verify_score']} VERIFY tests</p>
+{reduced_line}{outliers_pts}{spacing_outliers} The valid. set has {data_score['outliers_prop']}% of outliers</p>
+{reduced_line}{descp_pts}{spacing_descp} Using {data_score['proportion_ratio']} points(train+valid.):descriptors</p>
+{reduced_line}{verify_pts}{spacing_verify} The valid. set passes {data_score['verify_score']} VERIFY tests</p>
 """
 
     elif pred_type == 'clas':
@@ -647,11 +647,7 @@ def get_predict_scores(dat_predict,suffix,pred_type):
             if pred_type == 'reg':
                 if 'o  Outlier values saved in' in line:
                     for j in range(i,len(dat_predict)):
-                        if test_set and 'Test:' in dat_predict[j]:
-                            outliers_prop = dat_predict[j].split()[-1]
-                            outliers_prop = outliers_prop.split('%)')[0]
-                            data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
-                        elif not test_set and 'Validation:' in dat_predict[j]:
+                        if 'Validation:' in dat_predict[j]:
                             outliers_prop = dat_predict[j].split()[-1]
                             outliers_prop = outliers_prop.split('%)')[0]
                             data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
@@ -665,7 +661,7 @@ def get_predict_scores(dat_predict,suffix,pred_type):
             elif pred_type == 'clas':
                 data_score['outliers_prop'] = 0
 
-    return data_score
+    return data_score,test_set
 
 
 def repro_info(modules):

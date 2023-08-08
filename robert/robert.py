@@ -63,6 +63,8 @@ def main():
     # AQME
     if args.aqme:
         aqme(**vars(args))
+        # set the path to the database created by AQME to continue in the full_workflow
+        args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
 
     # CURATE
     if args.curate or full_workflow:
@@ -98,17 +100,12 @@ def set_aqme_args(args):
     Changes arguments to couple AQME with ROBERT
     """
 
-    # set the path to the database created by AQME to continue in the full_workflow
-    args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
     aqme_df = pd.read_csv(args.csv_name)
 
     # ignore the names and SMILES of the molecules
     for column in aqme_df.columns:
         if column.lower() in ['smiles','code_name','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral'] and column not in args.ignore:
             args.ignore.append(column)
-
-    # set the names for the outlier analysis
-    for column in aqme_df.columns:
         if column.lower() == 'code_name' and args.names == '':
             args.names = column
 

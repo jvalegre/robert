@@ -13,6 +13,9 @@ Version 1.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.3>`__]
    -  Better print for command lines (more reproducible commands)
    -  Adding more information in the --help option
    -  Introducing SCORE and REPRODUBILITY to ROBERT_report.pdf
+   -  Added the auto_test option
+   -  Fixed empty spaces in heatmaps from GENERATE
+   -  Mantain the ordering of GENERATE heatmaps across No_PFI and PFI 
 
 Version 1.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.2>`__]
    -  Adding the REPORT module

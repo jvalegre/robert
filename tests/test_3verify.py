@@ -85,18 +85,18 @@ def test_VERIFY(test_job):
     for i,line in enumerate(outlines):
         if 'Results of the VERIFY tests:' in line:
             if test_job == "thres_test":
-                assert "o 5-kfold_cv: PASSED" in outlines[i+2]
+                assert "o 5-fold CV: PASSED" in outlines[i+2]
                 assert "x y_mean: FAILED" in outlines[i+3]
                 assert "x y_shuffle: FAILED" in outlines[i+4]
             elif test_job == "kfold":
-                assert "x 10-kfold_cv: FAILED" in outlines[i+2]
+                assert "x 10-fold CV: FAILED" in outlines[i+2]
             elif test_job == "clas":
-                assert "5-kfold_cv: " in outlines[i+2]
+                assert "5-fold CV: " in outlines[i+2]
                 assert "ACC =" in outlines[i+3]
                 assert "ACC =" in outlines[i+4]
                 assert "ACC =" in outlines[i+5]
             elif test_job == "standard":
-                assert "x 5-kfold_cv: FAILED" in outlines[i+2]
+                assert "x 5-fold CV: FAILED" in outlines[i+2]
                 assert "o y_mean: PASSED" in outlines[i+3]
                 assert "o y_shuffle: PASSED" in outlines[i+4]
                 assert "o onehot: PASSED" in outlines[i+5]

@@ -23,9 +23,6 @@ path_predict = path_main + "/PREDICT"
             "t_value"
         ),  # test for the t-value used
         (
-            "names"
-        ),  # test the names option
-        (
             "clas"
         ),  # test for clasification        
         (
@@ -70,12 +67,12 @@ def test_PREDICT(test_job):
         "-m",
         "robert",
         "--predict",
+        "--names",
+        "Name",
     ]
 
     if test_job == "t_value":
         cmd_robert = cmd_robert + ["--t_value", "4"]
-    if test_job == "names":
-        cmd_robert = cmd_robert + ["--names", "Name"]
     if test_job == "csv_test":
         cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_test.csv"]
 
@@ -97,21 +94,19 @@ def test_PREDICT(test_job):
         elif 'x  There are missing descriptors' in line:
             categor_test = True
         if 'Outlier values saved in' in line and 'No_PFI' in line:
-            if test_job == "names":
-                assert '-  21 (' in outlines[i+2]
-                break
-            elif test_job != "clas":
-                assert 'x  No names option' in outlines[i+1]             
+            if test_job != "clas":
+                train_outliers = int(outlines[i+1].split()[1])
                 if test_job == "t_value":
-                    assert 'Train: 0 outliers' in outlines[i+2]
+                    assert train_outliers == 0
                 else:
-                    assert 'Train: 2 outliers' in outlines[i+2]
+                    assert train_outliers > 0
+                    assert '-  21 (' in outlines[i+2]
                 if test_job == "t_value":
-                    assert 'Validation: 0 outliers' in outlines[i+3]
+                    assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
                 else:
-                    assert 'Validation: 0 outliers' in outlines[i+3]
+                    assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
                 if test_job == "csv_test":
-                    assert 'Test: 0 outliers' in outlines[i+4]
+                    assert 'Test: 0 outliers' in outlines[i+3+train_outliers]
                 break
     if test_job == "csv_test":
         assert categor_test

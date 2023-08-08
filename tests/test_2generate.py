@@ -114,10 +114,11 @@ def test_GENERATE(test_job):
         assert "- 9 accepted descriptors" in outlines[10]
     assert "- 1 ignored descriptors" in outlines[11]
     assert "- 0 discarded descriptors" in outlines[12]
-    if test_job != 'reduced_rnd':
-        assert f"- 1/{len(model_list) * len(train_list)}" in outlines[18]
-    else:
-        assert f"- 1/{len(model_list) * len(train_list)}" in outlines[16]
+    finding_line = False
+    for line in outlines:
+        if f"- 1/{len(model_list) * len(train_list)}" in line:
+            finding_line = True
+    assert finding_line
 
     # check that the right amount of CSV files were created
     expected_amount = len(model_list) * len(train_list) * 2

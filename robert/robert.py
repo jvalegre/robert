@@ -53,6 +53,9 @@ def main():
     if args.aqme:
         full_workflow = True
 
+        # adjust argument names after running AQME
+        args = set_aqme_args(args)
+
     # save the csv_name, y and names values from full workflows
     if full_workflow:
         args = missing_inputs(args,'full_workflow',print_err=True)
@@ -60,9 +63,6 @@ def main():
     # AQME
     if args.aqme:
         aqme(**vars(args))
-
-        # adjust argument names after running AQME
-        args = set_aqme_args(args)
 
     # CURATE
     if args.curate or full_workflow:
@@ -104,7 +104,7 @@ def set_aqme_args(args):
 
     # ignore the names and SMILES of the molecules
     for column in aqme_df.columns:
-        if column.lower() in ['smiles','code_name'] and column not in args.ignore:
+        if column.lower() in ['smiles','code_name','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral'] and column not in args.ignore:
             args.ignore.append(column)
 
     # set the names for the outlier analysis

@@ -29,19 +29,19 @@ All additional variables will be kept during the whole ROBERT workflow. By defau
 Automated protocols
 +++++++++++++++++++
 
-Initially, this module performs a CSEARCH-RDKit conformer sampling with the following options:
+When executing the command line `python -m robert --aqme [OPTIONS]`, ROBERT's AQME module connects to the AQME program to perform an initial CSEARCH-RDKit conformer sampling with the following options:
 
 .. code-block:: shell
 
-   python -m aqme --csearch --program rdkit --input CSV_NAME.csv --sample 100
+   python -m aqme --csearch --program rdkit --input CSV_NAME.csv --sample 50
 
-Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors with:
+Then, the AQME program is run again to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors with QDESCP, using the following options:
 
 .. code-block:: shell
 
    python -m aqme --qdescp --files "CSEARCH/*.sdf" --program xtb --csv_name CSV_NAME.csv
 
-A CSV file called **AQME-ROBERT_CSV_NAME.csv** is created in the folder where ROBERT was executed. Afterwards, ROBERT uses this new CSV file to start a full workflow.
+A CSV file called **AQME-ROBERT_CSV_NAME.csv** is created in the folder where the command line was executed. Afterwards, ROBERT uses this new CSV file to start a full workflow.
 
 Example
 +++++++

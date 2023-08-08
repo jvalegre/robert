@@ -39,14 +39,12 @@ def test_AQME(test_job):
     if test_job == 'full_workflow':
         y_var = 'Target_values'
         csv_var = "tests/Robert_example.csv"
-        ignore_var = "['Name']"
 
     elif test_job == 'aqme':
         y_var = 'solub'
         # for AQME-ROBERT workflows, the CSV file must be in the working dir
         shutil.copy(f"{path_main}/tests/solubility.csv", f"{path_main}/solubility.csv")
         csv_var = "solubility.csv"
-        ignore_var = "['smiles','code_name']"
 
     cmd_robert = [
         "python",
@@ -54,16 +52,15 @@ def test_AQME(test_job):
         "robert",
         "--csv_name", csv_var,
         '--y', y_var,
-        "--ignore", ignore_var,
         "--epochs", "5",
         "--seed", "[0]",
-        "--model", "['GB']",
+        "--model", "['RF']",
         "--train", "[60]",
         "--pfi_epochs", "1"
     ]
 
     if test_job == 'full_workflow':
-        cmd_robert = cmd_robert + ["--discard", "['xtest']"]
+        cmd_robert = cmd_robert + ["--ignore", "[Name]", "--discard", "['xtest']","--names","Name"]
 
     elif test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 

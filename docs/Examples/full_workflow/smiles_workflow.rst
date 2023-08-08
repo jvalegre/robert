@@ -19,13 +19,36 @@ Required inputs
    :header-rows: 1
    :widths: 25, 25, 25
 
+Required packages
++++++++++++++++++
+
+* **AQME:** Install AQME with conda-forge (or follow the instructions from `their ReadtheDocs <https://aqme.readthedocs.io>`__):
+
+.. code:: shell
+
+    conda install -c conda-forge aqme
+
+* **CREST:** Install AQME with conda-forge (or follow the instructions from `their documentation <https://crest-lab.github.io/crest-docs/>`__):
+
+.. code:: shell
+
+    conda install -c conda-forge crest
+
+* **xTB:** Install AQME with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
+
+.. code:: shell
+
+    conda install -c conda-forge xtb
+
 Executing the job
 +++++++++++++++++
 
 **Instructions:**
 
-1. First, go to the folder containing the CSV files in your terminal.
-2. Run the following command line:
+1. Install the programs specified in Required packages
+2. Download the **solubility_short.csv** file specified in Required inputs.
+3. Go to the folder containing the CSV file in your terminal.
+4. Run the following command line:
 
 .. code:: shell
 

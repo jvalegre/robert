@@ -85,22 +85,21 @@ def test_VERIFY(test_job):
     for i,line in enumerate(outlines):
         if 'Results of the VERIFY tests:' in line:
             if test_job == "thres_test":
-                assert "- 5-fold CV: NOT DETERMINED" in outlines[i+2]
-                assert "x y_mean: FAILED" in outlines[i+4]
-                assert "x y_shuffle: FAILED" in outlines[i+5]
-                assert "x onehot: FAILED" in outlines[i+6]
+                assert "o 5-fold CV: PASSED" in outlines[i+2]
+                assert "x y_mean: FAILED" in outlines[i+3]
+                assert "x y_shuffle: FAILED" in outlines[i+4]
             elif test_job == "kfold":
-                assert "- 10-fold CV: NOT DETERMINED" in outlines[i+2]
+                assert "x 10-fold CV: FAILED" in outlines[i+2]
             elif test_job == "clas":
-                assert "- 5-fold CV: NOT DETERMINED" in outlines[i+2]
+                assert "5-fold CV: " in outlines[i+2]
+                assert "ACC =" in outlines[i+3]
                 assert "ACC =" in outlines[i+4]
                 assert "ACC =" in outlines[i+5]
-                assert "ACC =" in outlines[i+6]
             elif test_job == "standard":
-                assert "- 5-fold CV: NOT DETERMINED" in outlines[i+2]
-                assert "o y_mean: PASSED" in outlines[i+4]
-                assert "o y_shuffle: PASSED" in outlines[i+5]
-                assert "o onehot: PASSED" in outlines[i+6]
+                assert "x 5-fold CV: FAILED" in outlines[i+2]
+                assert "o y_mean: PASSED" in outlines[i+3]
+                assert "o y_shuffle: PASSED" in outlines[i+4]
+                assert "o onehot: PASSED" in outlines[i+5]
             break
 
     #check that the donut plots and DAT files are created

@@ -5,6 +5,7 @@
 var_dict = {
     "varfile": None,
     "command_line": False,
+    "extra_cmd": '',
     "curate": False,
     "generate": False,
     "predict": False,
@@ -24,9 +25,12 @@ var_dict = {
     "desc_thres" : 25,
     "thres_y" : 0.001,
     "thres_x" : 0.9,
+    "test_set" : 0.1,
+    "auto_test" : True,
     "train" : [60,70,80,90],
+    "auto_kn" : True,
     "filter_train" : True,
-    "split" : "KN",
+    "split" : "RND",
     "model" : ['RF','GB','NN','MVL'],
     "custom_params" : None,
     "type" : "reg",
@@ -36,7 +40,7 @@ var_dict = {
     "pfi_threshold" : 0.04,
     "pfi_filter" : True,
     "pfi_max" : 0,
-    "thres_test" : 0.2,
+    "thres_test" : 0.25,
     "kfold" : 5,
     "params_dir" : '',
     "csv_test" : '',
@@ -45,7 +49,7 @@ var_dict = {
     "pfi_show" : 10,
     "names" : '',
     "qdescp_keywords" : '',
-    "csearch_keywords": '--sample 100',
+    "csearch_keywords": '--sample 50',
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT']
 }
 

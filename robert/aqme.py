@@ -11,8 +11,8 @@ Parameters
     y : str, default=''
         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
     qdescp_keywords : str, default=''    
-        Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['P']")
-    csearch_keywords : str, default:''
+        Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['Ir']")
+    csearch_keywords : str, default:'--sample 50'
         Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10')
 
 """

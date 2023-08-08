@@ -60,13 +60,13 @@ Introduction
 
 .. introduction-start
 
-The code is an ensemble of automated machine learning protocols that can be run through 
-sequentially from a single command line. The complete workflow has been designed to meet
+The code is an ensemble of automated machine learning protocols that can be run sequentially
+through a single command line. The complete workflow has been designed to meet
 state-of-the-art requirements from cheminformatics studies, including:
 
    *  RDKit-based conformer generation from SMILES databases in CSV files, 
       followed by the generation of 200+ molecular and atomic descriptors using RDKit, 
-      xTB and DBSTEP. Requires the AQME program.  
+      xTB and DBSTEP. Requires the `AQME program <https://aqme.readthedocs.io>`__.  
    *  Data curation, including filters for correlated descriptors, noise, and duplicates, 
       as well as conversion of categorical descriptors.  
    *  Model selection, including comparison of multiple hyperoptimized models from 
@@ -85,23 +85,23 @@ Don't miss out the latest hands-on tutorials from our
 Installation
 ++++++++++++
 
-**XXX working on the videos XXX** Check our `ROBERT installation in 2 mins <https://youtu.be/VeaBzqIZHbo>`_ video 
-for a quick installation guide. In a nutshell, ROBERT and its dependencies are 
-installed as follows:
+In a nutshell, ROBERT and its dependencies are installed as follows:
 
-1. Install ROBERT using conda-forge (preferred):  
+1. Install ROBERT using conda-forge and the intelex accelerator (only if your system is compatible with intelex) (preferred):  
 
 .. code-block:: shell 
    
    conda install -c conda-forge robert
+   pip install scikit-learn-intelex
 
-2. Install ROBERT using pip. Then, install the libraries required for report.py:  
+2. In some cases, conda-forge might be slow and users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
 
 .. code-block:: shell
 
    pip install robert
    pip install weasyprint
    conda install -c conda-forge glib gtk3 pango
+   pip install scikit-learn-intelex
 
 .. installation-end 
 

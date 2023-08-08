@@ -13,11 +13,11 @@ import seaborn as sb
 from matplotlib import pyplot as plt
 import matplotlib.colors as mcolor
 # for users with no intel architectures. This part has to be before the sklearn imports
-# try:
-#     from sklearnex import patch_sklearn
-#     patch_sklearn(verbose=False)
-# except (ModuleNotFoundError,ImportError):
-#     pass
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 from sklearn.cluster import KMeans
 import yaml
 import json
@@ -33,7 +33,7 @@ from robert.utils import (
 
 
 # hyperopt workflow
-def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed):
+def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed, csv_df_test):
 
     # edit this function to modify the hyperopt parameter optimization (i.e. the 
     # lists represent values to include in the grid search)
@@ -87,21 +87,14 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed):
     if os.path.exists('hyperopt.json'):
         os.remove('hyperopt.json')
 
-    # copy the database used
-    # set a new column for the set
-    set_column = []
-    n_points = len(csv_df[csv_df.columns[0]])
-    for i in range(0,n_points):
-        if i in Xy_data_hp['training_points']:
-            set_column.append('Training')
-        else:
-            set_column.append('Validation')
-    csv_df['Set'] = set_column
+    # create column for sets and add test set (if any)
+    csv_df = set_sets(csv_df,csv_df_test,Xy_data_hp)
 
     # save the csv file
     if os.path.exists(self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}_{seed}.csv")):
         db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}_{seed}_db")
         _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
+
 
 # generates initial parameters for the hyperopt optimization
 def hyperopt_params(self, model_type):
@@ -200,19 +193,16 @@ def f(params):
     params['seed'] = hyperopt_data['seed']
     params['error_type'] = hyperopt_data['error_type']
 
-    # correct for a problem when loading arrays in json
-    if params['model'].upper() in ['NN','VR']:
-        layer_arrays = []
-        if not isinstance(params['hidden_layer_sizes'],int):
-            for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
-                if ele != '':
-                    layer_arrays = int(ele)
-        else:
-            layer_arrays = ele
-        params['hidden_layer_sizes'] = (layer_arrays)
-
     try:
-        opt_target = load_n_predict(params, hyperopt_data, hyperopt=True)
+        opt_target,data = load_n_predict(params, hyperopt_data, hyperopt=True)
+        # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes
+        # because the errors of the validation sets are low
+        if params['type'].lower() == 'reg':
+            if data['r2_train'] > 0.99 and data['r2_valid'] < 0.99:
+                opt_target = float('inf')
+            if data['r2_train'] < 0.01 and data['r2_valid'] > 0.01:
+                opt_target = float('inf')
+
         # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
         # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
         if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
@@ -425,7 +415,6 @@ def k_neigh(self,X_scaled,csv_y,size,seed):
     except ValueError:
         self.args.log.write("\nx  The K-means clustering process failed! This might be due to having NaN or strings as descriptors (curate the data first with CURATE) or having too few datapoints!")
         sys.exit()
-    _ = kmeans.predict(X_scaled_array)
     centers = kmeans.cluster_centers_
     for i in range(number_of_clusters):
         results_cluster = 1000000
@@ -445,7 +434,7 @@ def k_neigh(self,X_scaled,csv_y,size,seed):
     return training_points
 
 
-def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
+def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
     # filter off parameters with low PFI (not relevant in the model)
     name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}_{seed}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
@@ -463,9 +452,9 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     #   2. Proportion of 1:3 of descriptors:total datapoints (training + validation)
     total_points = len(Xy_data['y_train'])+len(Xy_data['y_valid'])
     n_descp_PFI = desc_keep-len(PFI_discard_cols)
-    if n_descp_PFI > 0.33*total_points or n_descp_PFI == desc_keep or n_descp_PFI == 0:
+    if n_descp_PFI > 0.2*total_points or n_descp_PFI >= (0.75*desc_keep) or n_descp_PFI == 0:
         option_one = int(0.75*len(Xy_data['X_train'].columns))
-        option_two = int(0.33*total_points)
+        option_two = int(0.2*total_points)
         pfi_max = min(option_one,option_two)
     else:
         pfi_max = self.args.pfi_max
@@ -496,7 +485,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
+    opt_target,_ = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
     PFI_dict[PFI_dict['error_type']] = opt_target
 
     # save CSV file
@@ -506,16 +495,8 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed):
     csv_PFI_df = csv_PFI_df.transpose()
     _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
 
-    # copy the database used
-    # set a new column for the set
-    set_column = []
-    n_points = len(csv_df[csv_df.columns[0]])
-    for i in range(0,n_points):
-        if i in Xy_data['training_points']:
-            set_column.append('Training')
-        else:
-            set_column.append('Validation')
-    csv_df['Set'] = set_column
+    # create column for sets and add test set (if any)
+    csv_df = set_sets(csv_df,csv_df_test,Xy_data)
 
     # save the csv file
     if os.path.exists(self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI.csv")):
@@ -599,6 +580,31 @@ def filter_seed(self, name_csv):
                 os.remove(file_seed_db)
 
 
+def set_sets(csv_df,csv_df_test,Xy_data):
+    """
+    Set a new column for the sets, including test set (if any)
+    """
+
+    set_column = []
+    n_points = len(csv_df[csv_df.columns[0]])
+    for i in range(0,n_points):
+        if i in Xy_data['training_points']:
+            set_column.append('Training')
+        else:
+            set_column.append('Validation')
+
+    if len(csv_df_test.columns) > 0:
+        n_points_test = len(csv_df_test[csv_df_test.columns[0]])
+        if n_points_test > 0:
+            for i in range(0,n_points_test):
+                set_column.append('Test')
+            csv_df = pd.concat([csv_df, csv_df_test], axis=0)
+
+    csv_df['Set'] = set_column
+
+    return csv_df
+
+
 def detect_best(folder):
     '''
     Check which combination led to the best results
@@ -627,7 +633,10 @@ def detect_best(folder):
 
 
 def heatmap_workflow(self,folder_hm):
-    # create matrix of ML models, training sizes and errors/precision (no PFI filter)
+    """
+    Create matrix of ML models, training sizes and errors/precision (no PFI filter)
+    """
+
     path_raw = self.args.destination.joinpath(f"Raw_data")
     csv_data,model_list,size_list = {},[],[]
     for csv_file in glob.glob(path_raw.joinpath(f"{folder_hm}/*.csv").as_posix()):
@@ -642,11 +651,24 @@ def heatmap_workflow(self,folder_hm):
                 size_list.append(csv_size)
             csv_value = pd.read_csv(csv_file)
             csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0]
-    # pass dictionary into a dataframe
-    csv_df = pd.DataFrame()
-    for csv_model in csv_data:
-        csv_df[csv_model] = csv_data[csv_model]
     
+    # fill missing values with NaN
+    models, train_sizes = [],[]
+    for key in csv_data:
+        models.append(key)
+        for size in csv_data[key]:
+            if size not in train_sizes:
+                train_sizes.append(size)
+    for model in models:
+        for size in train_sizes:
+            if size not in csv_data[model]:
+                csv_data[model][size] = np.nan
+
+    # pass dictionary into a dataframe, and sort the models alphabetically
+    csv_df = pd.DataFrame()
+    for csv_model in sorted([key for key in csv_data]):
+        csv_df[csv_model] = csv_data[csv_model]
+
     # plot heatmap
     if folder_hm == "No_PFI":
         suffix = 'no PFI filter'
@@ -655,11 +677,15 @@ def heatmap_workflow(self,folder_hm):
     _ = create_heatmap(self,csv_df,suffix,path_raw)
 
 def create_heatmap(self,csv_df,suffix,path_raw):
+    """
+    Graph the heatmap
+    """
+    
     csv_df = csv_df.sort_index(ascending=False)
     sb.set(font_scale=1.2, style='ticks')
     _, ax = plt.subplots(figsize=(7.45,6))
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} validation set'})
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} validation set'},mask=csv_df.isnull())
     fontsize = 14
     ax.set_xlabel("ML Model",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)

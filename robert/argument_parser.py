@@ -50,7 +50,8 @@ var_dict = {
     "names" : '',
     "qdescp_keywords" : '',
     "csearch_keywords": '--sample 50',
-    "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT']
+    "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
+    "debug_report": False
 }
 
 # part for using the options in a script or jupyter notebook

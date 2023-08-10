@@ -23,6 +23,15 @@ path_aqme = path_main + "/AQME"
             "full_workflow"
         ),  # test for a full workflow
         (
+            "full_workflow_test"
+        ),  # test for a full workflow with test
+        (
+            "full_clas"
+        ),  # test for a full workflow in classification
+        (
+            "full_clas_test"
+        ),  # test for a full workflow in classification with test
+        (
             "aqme"
         ),  # test for a full workflow starting from AQME
     ],
@@ -34,11 +43,19 @@ def test_AQME(test_job):
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
+    files_remove = ['report_debug.txt','ROBERT_report.pdf']
+    for file in files_remove:
+        if os.path.exists(f"{path_main}/{file}"):
+            os.remove(f"{path_main}/{file}")
 
     # runs the program with the different tests
-    if test_job == 'full_workflow':
+    if test_job in ['full_workflow','full_workflow_test']:
         y_var = 'Target_values'
         csv_var = "tests/Robert_example.csv"
+
+    elif test_job in ['full_clas','full_clas_test']:
+        y_var = 'Target_values'
+        csv_var = "tests/Robert_example_clas.csv"
 
     elif test_job == 'aqme':
         y_var = 'solub'
@@ -56,13 +73,26 @@ def test_AQME(test_job):
         "--seed", "[0]",
         "--model", "['RF']",
         "--train", "[60]",
-        "--pfi_epochs", "1"
+        "--pfi_epochs", "1",
+        "--debug_report", "True"
     ]
 
-    if test_job == 'full_workflow':
-        cmd_robert = cmd_robert + ["--ignore", "[Name]", "--discard", "['xtest']","--names","Name"]
+    if test_job in ['full_workflow','full_workflow_test','full_clas','full_clas_test']:
+        cmd_robert = cmd_robert + ["--ignore", "[Name]", "--names","Name"]
+    
+    if test_job in ['full_workflow','full_workflow_test']:
+        cmd_robert = cmd_robert + ["--discard", "['xtest']"]
+    
+    if test_job == 'full_workflow_test':
+        cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_test.csv"]
+    
+    if test_job == 'full_clas_test':
+        cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_clas_test.csv"]
 
-    elif test_job == 'aqme':
+    if test_job in ['full_clas','full_clas_test']:
+        cmd_robert = cmd_robert + ["--type", "clas"]
+
+    if test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
                     "--qdescp_keywords", "--qdescp_atoms ['C']"]
 
@@ -90,9 +120,20 @@ def test_AQME(test_job):
     assert len(glob.glob(f'{path_main}/VERIFY/*.dat')) == 3
 
     # PREDICT folder
-    assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
-    assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 9
-    assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
+    if test_job in ['full_clas','full_clas_test']:
+        assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 7 # missing the 2 dat files from outliers
+        if test_job == 'full_clas':
+            assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
+        elif test_job == 'full_clas_test':
+            assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 10 # 2 extra PNG for test confusion matrices
+    else:
+        assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 9
+        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
+
+    if test_job in ['full_clas_test','full_workflow_test']:
+        assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 6 # 2 extra CSV files for the test set
+    else:
+        assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
 
     if test_job == 'aqme':
         assert os.path.exists(f'{path_main}/AQME-ROBERT_solubility.csv')
@@ -109,6 +150,71 @@ def test_AQME(test_job):
         assert os.path.exists(f'{path_aqme}/QDESCP')
         assert len(glob.glob(f'{path_aqme}/*.csv')) == 2
         assert len(glob.glob(f'{path_aqme}/*.dat')) == 3
+
+    # find important parts in ROBERT_report
+    outfile = open(f"{path_main}/report_debug.txt", "r")
+    outlines = outfile.readlines()
+    outfile.close()
+
+    find_report,find_pearson,find_heatmap,find_verify = 0,0,0,0
+    find_shap,find_pfi,find_outliers = 0,0,0
+    find_results_reg,find_results_train_clas,find_results_valid_clas = 0,0,0
+    find_results_test_clas,find_test = 0,0
+
+    for line in outlines:
+        if '_PFI_REPORT.png' in line:
+            find_report += 1
+        if 'Pearson_heatmap.png' in line:
+            find_pearson += 1
+        if 'Heatmap ML models no PFI filter.png' in line:
+            find_heatmap += 1
+        if 'VERIFY_tests_RF_60_PFI.png' in line:
+            find_verify += 1
+        if 'SHAP_RF_60_PFI.png' in line:
+            find_shap += 1
+        if 'PFI_RF_60_PFI.png' in line:
+            find_pfi += 1
+        if 'Outliers_RF_60_No_PFI.png' in line:
+            find_outliers += 1
+        if 'Results_RF_60_No_PFI.png' in line:
+            find_results_reg += 1
+        if 'Results_RF_60_No_PFI_train.png' in line:
+            find_results_train_clas += 1
+        if 'Results_RF_60_No_PFI_valid.png' in line:
+            find_results_valid_clas += 1
+        if 'Results_RF_60_No_PFI_test.png' in line:
+            find_results_test_clas += 1
+        if '-  Test :' in line:
+            find_test += 1
+
+    if test_job in ['full_workflow','full_workflow_test','aqme']:
+        assert find_report > 0 # images with no titles in the SCORE section for regression
+        assert find_outliers > 0
+        assert find_results_reg > 0
+        assert find_results_train_clas == 0
+        assert find_results_valid_clas == 0
+    else:
+        assert find_report == 0
+        assert find_outliers == 0
+        assert find_results_reg == 0
+        assert find_results_train_clas > 0
+        assert find_results_valid_clas > 0
+
+    if test_job in ['full_workflow_test','full_clas_test']:
+        assert find_test > 0
+        if test_job == 'full_clas_test':
+            assert find_results_test_clas > 0
+        else:
+            assert find_results_test_clas == 0
+    else:
+        assert find_test == 0
+
+    # common to all reports
+    assert find_pearson > 0
+    assert find_heatmap > 0
+    assert find_verify > 0
+    assert find_shap > 0
+    assert find_pfi > 0
 
     # reset the folder
     folders = ['CURATE','GENERATE','PREDICT','VERIFY','AQME']

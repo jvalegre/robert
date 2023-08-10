@@ -8,6 +8,8 @@ Parameters
         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
     report_modules : list of str, default=['CURATE','GENERATE','VERIFY','PREDICT']
         List of the modules to include in the report.
+    debug_report : bool, default=False
+        Debug mode using during the pytests of report.py
 
 """
 #####################################################.
@@ -69,6 +71,10 @@ class report:
         report_html,csv_name,robert_version,params_df = self.get_header(self.args.report_modules)
         report_html += self.get_data(self.args.report_modules,params_df)
 
+        if self.args.debug_report:
+            with open("report_debug.txt", "w") as debug_text:
+                debug_text.write(report_html)
+
         # create css
         with open("report.css", "w") as cssfile:
             cssfile.write(css_content(csv_name,robert_version))
@@ -95,7 +101,7 @@ class report:
             aqme_file = f'{os.getcwd()}/AQME/AQME_data.dat'
             if os.path.exists(aqme_file):
                 aqme_time = get_time(aqme_file)
-                aqme_data = f"""<i>This module performs RDKit-based conformer generation from SMILES databases in CSV files, followed by the generation of 200+ molecular and atomic descriptors using RDKit, xTB and DBSTEP (saved as AQME-ROBERT_FILENAME.csv).</i>
+                aqme_data = f"""<i>This module performs RDKit conformer generation from SMILES, followed by the creation of 200+ molecular and atomic descriptors using RDKit, xTB and DBSTEP (saved as AQME-ROBERT_FILENAME.csv).</i>
 The complete output (AQME_data.dat) and raw data are stored in the AQME folder.
 {aqme_time}
 """
@@ -269,7 +275,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         
         # represents the thresholds
         score_dat += f"""
-<br><p style="text-align: justify; margin-top: 0px; margin-bottom: -2px;"><u>Score thresholds</u></p>"""
+<br><p style="text-align: justify; margin-top: -5px; margin-bottom: -2px;"><u>Score thresholds</u></p>"""
         
         columns_thres = []
         if pred_type == 'reg':
@@ -296,7 +302,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         style_line = '<p style="text-align: justify;">'
         reduced_line = '<p style="text-align: justify; margin-top: -5px;">' # reduces line separation separation
         last_line = '<p style="text-align: justify; margin-top: -5px; margin-bottom: 30px;">'
-        if min(robert_score_list) >= 9:
+        if max(robert_score_list) >= 9:
             score_dat += f'{style_line}&#10004;&nbsp;&nbsp; A ROBERT score of 9 or 10 suggests that the predictive ability of your model is strong, congratulations!</p>'
             n_scoring += 1
             style_line = reduced_line
@@ -500,8 +506,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             module_data = format_lines(module_data)
         module_data = '<div class="aqme-content"><pre>' + module_data + '</pre></div>'
         separator_section = ''
-        if module not in ['CURATE','transpa']:
-            separator_section = '<hr><p style="margin-top:25px;"></p>'
+        separator_section = '<hr><p style="margin-top:25px;"></p>'
 
         title_line = f"""
             {separator_section}
@@ -569,8 +574,12 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             results_images  = []
             all_images = [str(file_path) for file_path in module_path.rglob('*.png')]
             for img in all_images:
-                if 'Results' in img and '_test.png' in img:
-                    results_images.append(img)
+                if 'test' in set_types:
+                    if 'Results' in img and '_test.png' in img:
+                        results_images.append(img)
+                else:
+                    if 'Results' in img and '_valid.png' in img:
+                        results_images.append(img)
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
         if 'No_PFI' in results_images[1]:

@@ -16,6 +16,10 @@ Version 1.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.3>`__]
    -  Added the auto_test option
    -  Fixed empty spaces in heatmaps from GENERATE
    -  Mantain the ordering of GENERATE heatmaps across No_PFI and PFI 
+   -  Added pytest to full workflows with classification and tests
+   -  Fixed " separators in command lines with options that had more than one word (i.e. 
+      --qdescp_keywords)
+   -  Fixed length of outlier names for long words
 
 Version 1.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.2>`__]
    -  Adding the REPORT module

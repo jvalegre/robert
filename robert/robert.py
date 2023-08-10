@@ -24,6 +24,7 @@
 
 
 import os
+import sys
 from pathlib import Path
 import pandas as pd
 from robert.curate import curate
@@ -100,7 +101,11 @@ def set_aqme_args(args):
     Changes arguments to couple AQME with ROBERT
     """
 
-    aqme_df = pd.read_csv(args.csv_name)
+    if os.path.exists(args.csv_name):
+        aqme_df = pd.read_csv(args.csv_name)
+    else:
+        print(f'\nx  The path of your CSV file doesn\'t exist! You specified: {args.csv_name}')
+        sys.exit()
 
     # ignore the names and SMILES of the molecules
     for column in aqme_df.columns:

@@ -325,8 +325,11 @@ def load_variables(kwargs, robert_module):
                         elem = elem[1:]
                     if elem[-1] in ['"',"'"]:
                         elem = elem[:-1]
-                    if elem[:2] != '--' and elem != '-h':
-                        cmd_print += f'"{elem}"'
+                    if elem != '-h' and elem.split('--')[-1] not in var_dict:
+                        if cmd_args[i-1].split('--')[-1] in var_dict: # check if the previous word is an arg
+                            cmd_print += f'"{elem}'
+                        if i == len(cmd_args)-1 or cmd_args[i+1].split('--')[-1] in var_dict: # check if the next word is an arg, or last word in command
+                            cmd_print += f'"'
                     else:
                         cmd_print += f'{elem}'
                     if i != len(cmd_args)-1:

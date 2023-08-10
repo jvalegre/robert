@@ -154,7 +154,7 @@ def get_summary(module,file,suffix,titles=True,pred_type='reg'):
                 start_results += 4
                 summary = []
             else:
-                summary = ['<i>Prediction metrics and descriptors</i>\n\n']
+                summary = ['<u>Prediction metrics and descriptors</u>\n']
             for line in lines[start_results:stop_results+1]:
                 if 'R2' in line:
                     line = line.replace('R2','R<sup>2</sup>')
@@ -169,7 +169,7 @@ def get_summary(module,file,suffix,titles=True,pred_type='reg'):
 
             # add the outlier part
             if titles and pred_type == 'reg': # only add this to the PREDICT section, not to the SCORE section
-                summary.append('\n<i>Outliers (max. 10 shown)</i>\n\n')
+                summary.append('\n<u>Outliers (max. 10 shown)</u>\n')
                 summary = summary + train_outliers + valid_outliers + test_outliers
 
     elif module == 'VERIFY':
@@ -225,25 +225,38 @@ def locate_outliers(i,lines):
     """
     
     train_outliers,valid_outliers,test_outliers = [],[],[]
+    len_line = 54
     for j in range(i+1,len(lines)):
         if 'Train:' in lines[j]:
             for k in range(j,len(lines)):
                 if 'Validation:' in lines[k]:
                     break
                 elif len(train_outliers) <= 10: # 10 outliers and the line with the % of outliers
-                    train_outliers.append(lines[k][6:])
+                    if len(lines[k][6:]) > len_line:
+                        outlier_line = f'{lines[k][6:len_line+6]}\n{lines[k][len_line+6:]}'
+                    else:
+                        outlier_line = lines[k][6:]
+                    train_outliers.append(outlier_line)
         elif 'Validation:' in lines[j]:
             for k in range(j,len(lines)):
                 if 'Test:' in lines[k] or len(lines[k].split()) == 0:
                     break
                 elif len(valid_outliers) <= 10: # 10 outliers and the line with the % of outliers
-                    valid_outliers.append(lines[k][6:])
+                    if len(lines[k][6:]) > len_line:
+                        outlier_line = f'{lines[k][6:len_line+6]}\n{lines[k][len_line+6:]}'
+                    else:
+                        outlier_line = lines[k][6:]
+                    valid_outliers.append(outlier_line)
         elif 'Test:' in lines[j]:
             for k in range(j,len(lines)):
                 if len(lines[k].split()) == 0:
                     break
                 elif len(test_outliers) <= 10: # 10 outliers and the line with the % of outliers
-                    test_outliers.append(lines[k][6:])
+                    if len(lines[k][6:]) > len_line:
+                        outlier_line = f'{lines[k][6:len_line+6]}\n{lines[k][len_line+6:]}'
+                    else:
+                        outlier_line = lines[k][6:]
+                    test_outliers.append(outlier_line)
 
         if len(lines[j].split()) == 0:
             break
@@ -615,7 +628,7 @@ def get_predict_scores(dat_predict,suffix,pred_type):
                     if '-  Test : R2' in dat_predict[i+7]:
                         data_score['r2_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
                         test_set = True
-                    elif '-  Validation : R2' in dat_predict[i+6]:
+                    elif '-  Valid. : R2' in dat_predict[i+6]:
                         data_score['r2_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
                    
                     if data_score['r2_valid'] > 0.85:
@@ -627,7 +640,7 @@ def get_predict_scores(dat_predict,suffix,pred_type):
                     if '-  Test : Accuracy' in dat_predict[i+7]:
                         data_score['acc_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
                         test_set = True
-                    elif '-  Validation : Accuracy' in dat_predict[i+6]:
+                    elif '-  Valid. : Accuracy' in dat_predict[i+6]:
                         data_score['acc_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
 
                     if data_score['acc_valid'] > 0.85:

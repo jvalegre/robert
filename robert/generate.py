@@ -225,8 +225,8 @@ class generate:
         if self.args.csv_test != '':
             self.args.test_set = 0
         
-        elif self.args.test_set != 0:
-            if self.args.auto_test:
+        if self.args.auto_test:
+            if self.args.test_set != 0:
                 if len(csv_df[self.args.y]) < 50:
                     self.args.test_set = 0
                     self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split in training and validation with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
@@ -235,17 +235,20 @@ class generate:
                     self.args.test_set = 0.1
                     self.args.log.write(f'\nx    WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
-        if self.args.test_set > 0:
-            n_of_points = int(len(csv_X)*(self.args.test_set))
+                if self.args.test_set > 0:
+                    n_of_points = int(len(csv_X)*(self.args.test_set))
 
-            random.seed(self.args.seed[0])
-            test_points = random.sample(range(len(csv_X)), n_of_points)
+                    random.seed(self.args.seed[0])
+                    test_points = random.sample(range(len(csv_X)), n_of_points)
 
-            # separates the test set and reset_indexes
-            csv_df_test = csv_df.iloc[test_points].reset_index(drop=True)
-            csv_df = csv_df.drop(test_points, axis=0).reset_index(drop=True)
-            csv_X = csv_X.drop(test_points, axis=0).reset_index(drop=True)
-            csv_y = csv_y.drop(test_points, axis=0).reset_index(drop=True)
+                    # separates the test set and reset_indexes
+                    csv_df_test = csv_df.iloc[test_points].reset_index(drop=True)
+                    csv_df = csv_df.drop(test_points, axis=0).reset_index(drop=True)
+                    csv_X = csv_X.drop(test_points, axis=0).reset_index(drop=True)
+                    csv_y = csv_y.drop(test_points, axis=0).reset_index(drop=True)
+        
+        else:
+            self.args.test_set = 0
 
         return csv_df, csv_X, csv_y, csv_df_test
 

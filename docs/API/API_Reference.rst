@@ -3,7 +3,7 @@
    :undoc-members:
    :show-inheritance:
 
-Main Modules
+Main modules
 ============
 
 .. toctree::
@@ -16,7 +16,7 @@ Main Modules
    robert.verify
    robert.report
 
-Other Modules
+Other modules
 =============
 
 .. toctree::

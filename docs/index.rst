@@ -45,6 +45,12 @@ Special acknowledgments
    Install/note
    Modules/modules
 
+.. toctree:: 
+   :maxdepth: 1
+   :caption: ROBERT Score
+
+   Score/score
+
 .. toctree::
    :maxdepth: 2
    :caption: Examples

@@ -275,7 +275,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         
         # represents the thresholds
         score_dat += f"""
-<br><p style="text-align: justify; margin-top: -5px; margin-bottom: -2px;"><u>Score thresholds</u></p>"""
+<br><p style="text-align: justify; margin-top: -5px; margin-bottom: -2px;"><u>Score thresholds</u> <i>(detailed in https://robert.readthedocs.io/en/latest/Score/score.html)</i></p>"""
         
         columns_thres = []
         if pred_type == 'reg':
@@ -418,7 +418,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         """
 
         transpa_dat = ''
-        titles_line = f'<p style="text-align: justify; margin-bottom: 6px">' # reduces line separation separation
+        titles_line = f'<p style="text-align: justify; margin-top: -10px; margin-bottom: 3px">' # reduces line separation separation
 
         # add params of the models
         transpa_dat += f"""{titles_line}<br><strong>1. Parameters of the scikit-learn models (same keywords as used in scikit-learn):</strong></p>"""
@@ -427,7 +427,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         transpa_dat += model_dat
 
         # add misc params
-        transpa_dat += f"""<p style="text-align: justify; margin-top: -85px; margin-bottom: 6px;"><br><strong>2. ROBERT options for data split (KN or RND), predict type (REG or CLAS) and hyperopt error (RMSE, etc.):</strong></p>"""
+        transpa_dat += f"""<p style="text-align: justify; margin-top: -95px; margin-bottom: 3px;"><br><strong>2. ROBERT options for data split (KN or RND), predict type (REG or CLAS) and hyperopt error (RMSE, etc.):</strong></p>"""
         
         section_dat, params_df = self.transpa_model_misc('misc_section')
         transpa_dat += section_dat

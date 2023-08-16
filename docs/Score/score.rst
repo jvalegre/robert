@@ -20,7 +20,7 @@ The ROBERT score is a rating out of 10 designed to provide users with insight in
 How is the score calculated?
 ++++++++++++++++++++++++++++
 
-**Predictive ability towards an external test set:**
+**Predictive ability towards an external test set (2 points):**
 
 The R\ :sup:`2` (for regression) or accuracy (for classification) of an external test set is employed to assess the predictive capabilities of the models found with ROBERT. These models undergo hyperoptimization using both a training set and a validation set. In cases where a test set is absent, metrics from the validation set are used instead. ROBERT, by default, allocates a sufficient number of data points in test/validation sets to ensure the generation of meaningful R\ :sup:`2`/accuracy scores. Furthermore, comparable outcomes were achieved when alternative metrics like RMSE or MAE were employed.
 
@@ -32,19 +32,19 @@ Points Condition
 0      R\ :sup:`2` < 0.70 (low correlation)
 ====== =============================================================================
 
-**Proportion of datapoints vs descriptors:**
+**Proportion of datapoints vs descriptors (2 points):**
 
-The ratio of datapoints:descriptors used during model hyperoptimization (in the train and validation sets) stands as another crucial parameter. Lower ratios result in simpler models that are more human-interpretable. The extensive literature on ML modeling offers numerous suggested ratios, and we endeavored to select reasonable parameters in accordance with previous recommendations.
+The ratio of datapoints to descriptors used during model hyperoptimization (in the train and validation sets) stands as another crucial parameter. Lower ratios result in simpler models that are more human-interpretable. The extensive literature on ML modeling offers numerous suggested ratios, and we endeavored to select reasonable parameters in accordance with previous recommendations.
 
-====== =================================================================
+====== ==========================================================================
 Points Condition
-====== =================================================================
-•• 2   Ratio > 10:1 (reasonably low amount of descriptors per datapoint)
+====== ==========================================================================
+•• 2   Datapoints:descriptors ratio > 10:1 (reasonably low amount of descriptors)
 •\ 1   10:1 > ratio > 3:1 (moderate amount)
 0      Ratio < 3:1 (too many descriptors)
-====== =================================================================
+====== ==========================================================================
 
-**Passing VERIFY tests:**
+**Passing VERIFY tests (4 points):**
 
 The tests conducted within the VERIFY module are also regarded as score indicators. The 5-fold cross-validation test guarantees the meaningfulness of the chosen data partition and guards against data overfitting. The y-mean and y-shuffle tests are valuable in identifying overfitted and underfitted models. Finally, the one-hot test identifies models that are insensitive to specific values but instead focus on the presence of such values (i.e., reaction datasets filled with 0s where compounds are not used).
 
@@ -54,7 +54,7 @@ Points Condition
 •\ 1   Each of the VERIFY tests passed (up to •••• 4 points)
 ====== =====================================================
 
-**Number of outliers in the validation set (only for regression):**
+**Number of outliers in the validation set (only for regression, 2 points):**
 
 The count of outliers in the validation set is determined by analyzing the prediction errors against the mean and standard deviation of errors in the training set. The formula employed to compute the errors of the validation set in terms of standard deviation (SD) units compared to the training set errors is as follows:
 
@@ -72,7 +72,7 @@ Points Condition
 0      Outliers > 15% (far from a normal distribution of errors)
 ====== ============================================================================
 
-**Extra points for VERIFY tests (only for classification):**
+**Extra points for VERIFY tests (only for classification, 2 points):**
 
 As outliers are not calculated for classification models, additional points are awarded for passing the y-mean and y-shuffle VERIFY tests. These specific tests were selected due to their significance in identifying potential shortcomings in the predictive capacity of the models.
 

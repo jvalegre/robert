@@ -19,4 +19,4 @@ conda activate cheminf
 ###############    MAIN SCRIPT     ###############
 ##################################################
 
-python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv
+python -m robert --predict --csv_test Robert_example_test.csv

@@ -437,7 +437,7 @@ def get_col_text(type_thres):
 """
 
     elif type_thres in ['abbrev_1','abbrev_2']:
-        first_line = '<p style="text-align: justify; margin-top: -13px;">'
+        first_line = '<p style="text-align: justify; margin-top: -20px;">'
         if type_thres == 'abbrev_1':
             abbrev_list = ['<strong>ACC:</strong> accuracy',
                            '<strong>ADAB:</strong> AdaBoost',

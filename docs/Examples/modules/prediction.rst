@@ -29,11 +29,13 @@ Executing the job
 
 .. code:: shell
 
-    python -m robert --csv_test Robert_example_test.csv --predict
+    python -m robert --csv_test Robert_example_test.csv --names Name --predict
 
 **Options used:**
 
 * :code:`--csv_test Robert_example_test.csv`: CSV with the external test set.  
+
+* :code:`--names Name`: Name of the column containing the names of the datapoints. This feature allows to print the names of the outlier points (if any).  
 
 * :code:`--predict`: Use only the PREDICT module.  
 

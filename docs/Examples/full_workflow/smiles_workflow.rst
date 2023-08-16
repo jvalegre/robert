@@ -89,7 +89,7 @@ Results
 * Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors:
 
 A CSV file called **AQME-ROBERT_solubility_short.csv** should be created in the folder where ROBERT was executed. The CSV 
-file can be visualized here: |csv_report_test|
+file can be downloaded here: |csv_report_test|
 
 **Following ROBERT workflow**
 

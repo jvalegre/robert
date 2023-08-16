@@ -60,20 +60,29 @@ Introduction
 
 .. introduction-start
 
-The code is an ensemble of automated machine learning protocols that can be run sequentially
+ROBERT is an ensemble of automated machine learning protocols that can be run sequentially
 through a single command line. The complete workflow has been designed to meet
 state-of-the-art requirements from cheminformatics studies, including:
 
-   *  RDKit-based conformer generation from SMILES databases in CSV files, 
-      followed by the generation of 200+ molecular and atomic descriptors using RDKit, 
-      xTB and DBSTEP. Requires the `AQME program <https://aqme.readthedocs.io>`__.  
-   *  Data curation, including filters for correlated descriptors, noise, and duplicates, 
+   *  **Atomic and molecular descriptor generation from SMILES**, including an RDKit conformer sampling and 
+      the generation of 200+ steric, electronic and structural descriptors using RDKit, xTB and DBSTEP. 
+      Requires the `AQME program <https://aqme.readthedocs.io>`__.  
+   *  **Data curation**, including filters for correlated descriptors, noise, and duplicates, 
       as well as conversion of categorical descriptors.  
-   *  Model selection, including comparison of multiple hyperoptimized models from 
+   *  **Model selection**, including comparison of multiple hyperoptimized models from 
       scikit-learn and training sizes.  
-   *  Prediction of external test sets, as well as SHAP and PFI feature analysis.  
-   *  Statistical tests to asses the predictive ability of the models, including y-shuffle
+   *  **Prediction** of external test sets, as well as SHAP and PFI feature analysis.  
+   *  **VERIFY tests** to asses the predictive ability of the models, including y-shuffle
       and y-mean tests, k-fold cross-validation, and predictions with one-hot features.  
+
+The code has been designed for:
+
+   *  **Inexperienced researchers** in the field of ML. ROBERT workflows are fully automated, and provide 
+      users with comprehensive explanations of the resulting models and their prediction reliability. 
+      Moreover, ready-to-use examples and tutorials can be accessed on ReadtheDocs and YouTube. 
+   *  **ML experts** aiming to automate workflows, enhance reproducibility, or save time. Entire workflows 
+      can be executed using a single command line while following modern standards of reproducibility and 
+      transparency. Additionally, individual ROBERT modules can be integrated into customized ML workflows. 
 
 Don't miss out the latest hands-on tutorials from our 
 `YouTube channel <https://www.youtube.com/channel/UCHRqI8N61bYxWV9BjbUI4Xw>`_.  
@@ -87,14 +96,17 @@ Installation
 
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
-1. Install ROBERT using conda-forge and the intelex accelerator (only if your system is compatible with intelex) (preferred):  
+1. Create and activate the conda environment where you want to install the program. If you are not sure of what 
+this point means, check out the "Quick note for users with no Python experience" section.
+
+2. Install ROBERT using conda-forge and the intelex accelerator (only if your system is compatible with intelex) (preferred):  
 
 .. code-block:: shell 
    
    conda install -c conda-forge robert
    pip install scikit-learn-intelex
 
-2. In some cases, conda-forge might be slow and users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+3. In some cases, conda-forge might be slow and users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
 
 .. code-block:: shell
 
@@ -110,13 +122,15 @@ In a nutshell, ROBERT and its dependencies are installed as follows:
 Update to the latest version
 ++++++++++++++++++++++++++++
 
-1. Update to the latest version with pip (preferred):  
+1. Activate the conda environment where you installed the program. 
+
+2. Update to the latest version with pip (preferred):  
 
 .. code-block:: shell
 
    pip install robert --upgrade
 
-2. Download the code from GitHub, go to the main robert folder in your terminal (contains the setup.py file), and:  
+3. Download the code from GitHub, go to the main robert folder in your terminal (contains the setup.py file), and:  
 
 .. code-block:: shell
 
@@ -137,21 +151,31 @@ You need a terminal with Python to install and run ROBERT. These are some sugges
 
 2. Open an Anaconda prompt.
 
-3. Install ROBERT as defined above (:code:`conda install -c conda-forge robert`).
+3. Create a conda environment called "robert" with Python (:code:`conda create -n robert python=3.10`). 
+   *You only need to do this once.*
 
-4. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+4. Activate the conda environment called "robert" (:code:`conda activate robert`).
 
-5. Run ROBERT as explained in the Examples section.
+5. Install ROBERT as defined in the "Installation" section (:code:`conda install -c conda-forge robert`).
 
-**For macOS and Linux users:**
+6. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
 
-1. Open a terminal with Python.
+7. Run ROBERT as explained in the Examples section.
 
-2. Install ROBERT as defined above (:code:`conda install -c conda-forge robert`).
+**For macOS and Linux users with conda installed:**
 
-3. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+1. Open a terminal with conda.
 
-4. Run ROBERT as explained in the Examples section.
+2. Create a conda environment called "robert" with Python (:code:`conda create -n robert python=3.10`). 
+   *You only need to do this once.*
+
+3. Activate the conda environment called "robert" (:code:`conda activate robert`).
+
+4. Install ROBERT as defined in the "Installation" section (:code:`conda install -c conda-forge robert`).
+
+5. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd /root/Users/test_robert`).
+
+6. Run ROBERT as explained in the Examples section.
 
 .. note-end 
 
@@ -249,8 +273,15 @@ Acknowledgment
 
 .. acknowledgment-start
 
-J.V.A.R. - The acronym ROBERT is dedicated to Prof. ROBERT Paton, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!
+J.V.A.R. - The acronym ROBERT is dedicated to **ROBERT Paton**, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!
 
-D.D.G. - The style of the ROBERT_report.pdf file was created with the help of Oliver Lee (University of St Andrews, 2023).
+D.D.G. - The style of the ROBERT_report.pdf file was created with the help of **Oliver Lee** (2023, Zysman-Colman group at University of St Andrews).
+
+We really THANK all the testers for their feedback and for participating in the reproducibility tests, including:
+
+* **David Valiente** (2022-2023, Universidad Miguel Hernández)
+* **Heidi Klem** (2023, Paton group at Colorado State University)
+* **Iñigo Iribarren** (2023, Trujillo group at Trinity College Dublin)
+* **Guilian Luchini** (2023, Paton group at Colorado State University)
 
 .. acknowledgment-end

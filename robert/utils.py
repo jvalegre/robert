@@ -897,7 +897,7 @@ def load_n_predict(params, data, hyperopt=False):
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = data['r2_train'], data['mae_train'], data['rmse_train']
         else:
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
-        if 'y_pred_test' in data and not data['y_test'].isnull().values.any():
+        if 'y_pred_test' in data and not data['y_test'].isnull().values.any() and len(data['y_test']) > 0:
             data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']
@@ -917,7 +917,7 @@ def load_n_predict(params, data, hyperopt=False):
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = data['acc_train'], data['f1_train'], data['mcc_train']
         else:
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
-        if 'y_pred_test' in data and not data['y_test'].isnull().values.any():
+        if 'y_pred_test' in data and not data['y_test'].isnull().values.any() and len(data['y_test']) > 0:
             data['acc_test'], data['f1_test'], data['mcc_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']

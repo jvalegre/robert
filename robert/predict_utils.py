@@ -85,6 +85,8 @@ def test_csv(self,Xy_test_df,descs_model,params_df):
     contain different columns with internal test databases coming from GENERATE
     """
 
+    y_test_df = pd.DataFrame()
+    
     try:
         X_test_df = Xy_test_df[descs_model]
     except KeyError:
@@ -117,7 +119,7 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
         loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])  
 
     set_types = ['train','valid']
-    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
         set_types.append('test')
     
     graph_style = get_graph_style()
@@ -162,7 +164,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print
 
     _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
                 c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
         _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
                     c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
@@ -331,13 +333,13 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     if params_dict['type'].lower() == 'reg':
         print_results += f"\n      -  Train : R2 = {Xy_data['r2_train']:.2}, MAE = {Xy_data['mae_train']:.2}, RMSE = {Xy_data['rmse_train']:.2}"
         print_results += f"\n      -  Valid. : R2 = {Xy_data['r2_valid']:.2}, MAE = {Xy_data['mae_valid']:.2}, RMSE = {Xy_data['rmse_valid']:.2}"
-        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
+        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
 
     elif params_dict['type'].lower() == 'clas':
         print_results += f"\n      -  Train : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         print_results += f"\n      -  Valid. : Accuracy = {Xy_data['acc_valid']:.2}, F1 score = {Xy_data['f1_valid']:.2}, MCC = {Xy_data['mcc_valid']:.2}"
-        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
+        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : Accuracy = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
 
     self.args.log.write(print_results)
@@ -578,7 +580,7 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
     # calculate absolute errors between predicted y and actual values
     outliers_train = [abs(x-y) for x,y in zip(Xy_data['y_train'],Xy_data['y_pred_train'])]
     outliers_valid = [abs(x-y) for x,y in zip(Xy_data['y_valid'],Xy_data['y_pred_valid'])]
-    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
         outliers_test = [abs(x-y) for x,y in zip(Xy_data['y_test'],Xy_data['y_pred_test'])]
 
     # the errors are scaled using standard deviation units. When the absolute
@@ -590,7 +592,7 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
     outliers_data = {}
     outliers_data['train_scaled'] = (outliers_train-outliers_mean)/outliers_sd
     outliers_data['valid_scaled'] = (outliers_valid-outliers_mean)/outliers_sd
-    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
         outliers_data['test_scaled'] = (outliers_test-outliers_mean)/outliers_sd
 
     print_outliers, naming, naming_test = '', False, False
@@ -601,7 +603,7 @@ def outlier_filter(self, Xy_data, name_points, path_n_suffix):
 
     outliers_data['outliers_train'], outliers_data['names_train'] = detect_outliers(self, outliers_data['train_scaled'], name_points, naming, 'train')
     outliers_data['outliers_valid'], outliers_data['names_valid'] = detect_outliers(self, outliers_data['valid_scaled'], name_points, naming, 'valid')
-    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any():
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
         outliers_data['outliers_test'], outliers_data['names_test'] = detect_outliers(self, outliers_data['test_scaled'], name_points, naming_test, 'test')
     
     return outliers_data, print_outliers

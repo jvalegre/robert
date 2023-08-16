@@ -37,13 +37,25 @@ Special acknowledgments
    :end-before: acknowledgment-end
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Installation and Modules
+   :maxdepth: 1
+   :caption: Installation
 
    Install/installation
    Install/update
    Install/note
+
+.. toctree:: 
+   :maxdepth: 1
+   :caption: ROBERT Score
+
+   Score/score
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Modules and abbreviations
+
    Modules/modules
+   Abbreviations/abbreviations
 
 .. toctree::
    :maxdepth: 2

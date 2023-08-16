@@ -1,5 +1,5 @@
 ==================
-Default Parameters
+Default parameters
 ==================
 
 This documents details the default parameters used in the ROBERT program.

@@ -39,6 +39,7 @@ jobs:
           # update conda and create env
           conda update -y conda
           conda create -n cheminf python=3.10
+          source activate base 
           conda activate cheminf
           # install AQME, ROBERT and their dependencies
           python -m pip install --upgrade pip          

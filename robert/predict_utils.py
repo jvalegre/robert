@@ -72,7 +72,6 @@ def load_test(self, Xy_data, params_df, Xy_test_df):
 
         Xy_test_df = pd.concat([Xy_test_df, Xy_test_csv], axis=0).reset_index(drop=True)
 
-
     if len(Xy_data['X_test']) > 0:
         _, Xy_data['X_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_test'])
 
@@ -203,20 +202,15 @@ def set_lim_reg(Xy_data,set_types):
     '''
     
     size_space = 0.1*abs(min(Xy_data["y_train"])-max(Xy_data["y_train"]))
-    min_value_graph = min(Xy_data["y_train"])
-    if min(Xy_data["y_valid"]) < min_value_graph:
-        min_value_graph = min(Xy_data["y_valid"])
+
+    min_value_graph = min(min(Xy_data["y_train"]),min(Xy_data["y_pred_train"]),min(Xy_data["y_valid"]),min(Xy_data["y_pred_valid"]))
     if 'test' in set_types:
-        if min(Xy_data["y_test"]) < min_value_graph:
-            min_value_graph = min(Xy_data["y_test"])
+        min_value_graph = min(min_value_graph,min(Xy_data["y_test"]),min(Xy_data["y_pred_test"]))
     min_value_graph = min_value_graph-size_space
         
-    max_value_graph = max(Xy_data["y_train"])
-    if max(Xy_data["y_valid"]) > max_value_graph:
-        max_value_graph = max(Xy_data["y_valid"])
+    max_value_graph = max(max(Xy_data["y_train"]),max(Xy_data["y_pred_train"]),max(Xy_data["y_valid"]),max(Xy_data["y_pred_valid"]))
     if 'test' in set_types:
-        if max(Xy_data["y_test"]) > max_value_graph:
-            max_value_graph = max(Xy_data["y_test"])
+        max_value_graph = max(max_value_graph,max(Xy_data["y_test"]),max(Xy_data["y_pred_test"]))
     max_value_graph = max_value_graph+size_space
     
     return min_value_graph, max_value_graph

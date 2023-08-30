@@ -372,6 +372,11 @@ def data_split(self,csv_X,csv_y,size,seed):
             Xstds = csv_X.std(axis=0)
             X_scaled = (csv_X - Xmeans) / Xstds
 
+            # removes NaN missing values after standardization
+            for column in X_scaled.columns:
+                if X_scaled[column].isnull().values.any():
+                    X_scaled = X_scaled.drop(column, axis=1)
+
             training_points = k_neigh(self,X_scaled,csv_y,size,seed)
 
         elif self.args.split.upper() == 'RND':
@@ -385,18 +390,25 @@ def data_split(self,csv_X,csv_y,size,seed):
     return Xy_data
 
 
-# returns a dictionary with the database divided into train and validation
 def Xy_split(csv_X,csv_y,training_points):
+    '''
+    Returns a dictionary with the database divided into train and validation
+    '''
+    
     Xy_data =  {}
     Xy_data['X_train'] = csv_X.iloc[training_points]
     Xy_data['y_train'] = csv_y.iloc[training_points]
     Xy_data['X_valid'] = csv_X.drop(training_points)
     Xy_data['y_valid'] = csv_y.drop(training_points)
     Xy_data['training_points'] = training_points
+
     return Xy_data
 
 
 def k_neigh(self,X_scaled,csv_y,size,seed):
+    '''
+    Returns the data points that will be used as training set based on the k-neighbour clustering
+    '''
     
     # number of clusters in the training set from the k-neighbours clustering (based on the
     # training set size specified above)
@@ -435,7 +447,10 @@ def k_neigh(self,X_scaled,csv_y,size,seed):
 
 
 def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
-    # filter off parameters with low PFI (not relevant in the model)
+    '''
+    Filters off parameters with low PFI (not relevant in the model)
+    '''
+
     name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}_{seed}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
     PFI_df = pd.read_csv(path_csv)
@@ -505,6 +520,9 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
 
 
 def PFI_filter(self,Xy_data,PFI_dict,seed):
+    '''
+    Performs the PFI calculation and returns a list of the descriptors that are not important
+    '''
 
     # load and fit model
     loaded_model = load_model(PFI_dict)

@@ -898,7 +898,7 @@ def load_n_predict(params, data, hyperopt=False):
         else:
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
         if 'y_pred_test' in data and not data['y_test'].isnull().values.any() and len(data['y_test']) > 0:
-            data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
+            data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']
             if params['error_type'].lower() == 'r2':

@@ -44,6 +44,7 @@ from robert.report_utils import (
     revert_list,
     get_summary,
     get_col_transpa,
+    get_pts
 )
 
 class report:
@@ -87,6 +88,8 @@ class report:
         graph_remove = [str(file_path) for file_path in graph_path.rglob('*_REPORT.png')]
         for file in graph_remove:
             os.remove(file)
+        
+        print('\no  ROBERT_report.pdf was created successfully in the working directory!')
 
      
     def get_data(self, modules, params_df):
@@ -275,22 +278,71 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         
         # represents the thresholds
         score_dat += f"""
-<br><p style="text-align: justify; margin-top: -5px; margin-bottom: -2px;"><u>Score thresholds</u> <i>(detailed in https://robert.readthedocs.io/en/latest/Score/score.html)</i></p>"""
+<br><p style="text-align: justify; margin-top: -6px; margin-bottom: -2px;"></p>"""
         
-        columns_thres = []
+        space_title = '&nbsp;'*21
+        threshold_cols = ''
         if pred_type == 'reg':
-            columns_thres.append(get_col_text('R<sup>2</sup>'))
-            columns_thres.append(get_col_text('outliers'))
-            columns_thres.append(get_col_text('descps'))
-            columns_thres.append(get_col_text('VERIFY'))
+            lines_R2 = [f'{"&nbsp;"*1}<strong>R<sup>2</sup></strong>&nbsp;&nbsp;<u>{"&nbsp;"*27}</u>',
+                        f'<br>{"&nbsp;"*1}{get_pts(2)}{"&nbsp;"*2}  R<sup>2</sup> > 0.85{"&nbsp;"*11}',
+                        f'<br>{"&nbsp;"*1}{get_pts(1)}{"&nbsp;"*4}    0.85 > R<sup>2</sup> > 0.70',
+                        f'<br>{"&nbsp;"*1}{get_pts(0)}{"&nbsp;"*5}     R<sup>2</sup> < 0.70{"&nbsp;"*12}']
+            lines_outliers = [f'<strong>Outliers</strong>&nbsp;&nbsp;<u>{"&nbsp;"*27}</u>',
+                        f'{get_pts(2)}{"&nbsp;"*2}  < 7.5% of outliers{"&nbsp;"*7}',
+                        f'{get_pts(1)}{"&nbsp;"*4}    7.5% < outliers < 15%',
+                        f'{get_pts(0)}{"&nbsp;"*5}     > 15% of outliers{"&nbsp;"*8}']
+            lines_descp = [f'<strong>Points:descriptors</strong>&nbsp;&nbsp;<u>{"&nbsp;"*6}</u>',
+                        f'{get_pts(2)}{"&nbsp;"*2}  > 10:1 p:d ratio',
+                        f'{get_pts(1)}{"&nbsp;"*4}    10:1 > p:d ratio > 3:1',
+                        f'{get_pts(0)}{"&nbsp;"*5}     p:d ratio < 3:1']
+            lines_verify = [f'<strong>VERIFY tests</strong>&nbsp;&nbsp;<u>{"&nbsp;"*13}</u>',
+                        f'{"&nbsp;"*7}  Up to {get_pts(4)} (tests pass)',
+                        f'{get_pts(0)}&nbsp; (all tests failed)',
+                        f'']
+            for i,_ in enumerate(lines_R2):
+                threshold_cols += f'{lines_R2[i]}{"&nbsp;"*10}{lines_outliers[i]}{"&nbsp;"*10}{lines_descp[i]}{"&nbsp;"*9}{lines_verify[i]}'
+
 
         elif pred_type == 'clas':
-            columns_thres.append(get_col_text('accuracy'))
-            columns_thres.append(get_col_text('outliers_clas'))
-            columns_thres.append(get_col_text('descps'))
-            columns_thres.append(get_col_text('VERIFY_clas'))
-        
-        score_dat += combine_cols(columns_thres)
+            lines_R2 = [f'{"&nbsp;"*1}<strong>Accuracy</strong>&nbsp;&nbsp;<u>{"&nbsp;"*21}</u>',
+                        f'<br>{"&nbsp;"*1}{get_pts(2)}{"&nbsp;"*2}  Accuracy > 0.85{"&nbsp;"*7}',
+                        f'<br>{"&nbsp;"*1}{get_pts(1)}{"&nbsp;"*4}    0.85 > Accur. > 0.70',
+                        f'<br>{"&nbsp;"*2}{get_pts(0)}{"&nbsp;"*5}    Accur. < 0.70{"&nbsp;"*4}']
+            lines_outliers = [f'<strong>Outliers</strong>&nbsp;&nbsp;<u>{"&nbsp;"*19}</u>',
+                        f'{get_pts(0)}{"&nbsp;"*2}Excluded in classif.',
+                        f'{"&nbsp;"*35}',
+                        f'{"&nbsp;"*42}']
+            lines_descp = [f'<strong>Points:descriptors</strong>&nbsp;&nbsp;<u>{"&nbsp;"*7}</u>',
+                        f'{get_pts(2)}{"&nbsp;"*2}  > 10:1 p:d ratio{"&nbsp;"*1}',
+                        f'{get_pts(1)}{"&nbsp;"*4}    10:1 > p:d ratio > 3:1',
+                        f'{get_pts(0)}{"&nbsp;"*5}     p:d ratio < 3:1']
+            lines_verify = [f'<strong>VERIFY tests</strong>&nbsp;&nbsp;<u>{"&nbsp;"*13}</u>',
+                        f'{"&nbsp;"*8}{get_pts(2)}{"&nbsp;"*2}y-shuffle & y-mean',
+                        f'{get_pts(1)}{"&nbsp;"*4}5-fold CV & onehot',
+                        f'{"&nbsp;"*11}{get_pts(0)}{"&nbsp;"*5}(all tests failed)']
+
+            for i,_ in enumerate(lines_R2):
+                threshold_cols += f'{lines_R2[i]}{"&nbsp;"*10}{lines_outliers[i]}{"&nbsp;"*10}{lines_descp[i]}{"&nbsp;"*10}{lines_verify[i]}'
+
+        score_dat += '''<style>
+        th, td {
+        border:0.75px solid black;
+        border-collapse: collapse;
+        padding: 5px;
+        text-align: justify;
+        }
+        '''
+        score_dat += f'''
+        </style>
+        <table style="width:100%">
+            <tr>
+                <td colspan="3">{space_title}<strong>Score thresholds</strong> <i>(detailed in https://robert.readthedocs.io/en/latest/Score/score.html)</i></td>
+            </tr>
+            <tr>
+                <td colspan="3">{threshold_cols}</td>
+            </tr>
+            <tr>
+        </table>'''
         
         score_dat += f"""<p style="page-break-after: always;"></p>"""
 

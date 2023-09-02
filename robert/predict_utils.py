@@ -43,38 +43,15 @@ def load_test(self, Xy_data, params_df, Xy_test_df):
     if self.args.csv_test != '':
         Xy_test_csv = load_database(self, self.args.csv_test, "predict", external_set=True)
         X_test_csv, y_test_csv = test_csv(self,Xy_test_csv,descs_model,params_df)
+        Xy_data['X_csv_test'] = X_test_csv
+        Xy_data['y_csv_test'] = y_test_csv
+        _, Xy_data['X_csv_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_csv_test'])
+        Xy_test_df = Xy_test_csv
 
     # test points coming from the test_set option (from GENERATE)
     if len(Xy_data['X_test']) > 0:
-        X_test_generate = Xy_data['X_test']
-        y_test_generate = Xy_data['y_test']
-
-    # update Xy_data database
-    # only external test csv
-    if len(Xy_data['X_test']) == 0 and self.args.csv_test != '':
-        Xy_data['X_test'] = X_test_csv
-        Xy_data['y_test'] = y_test_csv
-        Xy_test_df = Xy_test_csv
-
-    # only internal test set
-    elif len(Xy_data['X_test']) > 0 and self.args.csv_test == '':
-        Xy_data['X_test'] = X_test_generate
-        Xy_data['y_test'] = y_test_generate
-
-    # combine both test sets
-    elif len(Xy_data['X_test']) > 0 and self.args.csv_test != '':
-        X_combined, y_combined = {},{}
-        X_combined = pd.concat([X_test_generate, X_test_csv], axis=0).reset_index(drop=True)
-        y_combined = pd.concat([y_test_generate, y_test_csv], axis=0).reset_index(drop=True)
-
-        Xy_data['X_test'] = X_combined
-        Xy_data['y_test'] = y_combined
-
-        Xy_test_df = pd.concat([Xy_test_df, Xy_test_csv], axis=0).reset_index(drop=True)
-
-    if len(Xy_data['X_test']) > 0:
         _, Xy_data['X_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_test'])
-
+        
     return Xy_data, Xy_test_df
 
 
@@ -258,16 +235,21 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     _ = Xy_orig_valid.to_csv(valid_path, index = None, header=True)
     print_preds += f'\n      -  Validation set with predicted results: {os.path.basename(valid_path)}'
     # saves test predictions
+    Xy_orig_test = None
     if 'X_test_scaled' in Xy_data:
-        if 'y_pred_test' in Xy_data:
-            Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
+        Xy_orig_test = Xy_orig_df[Xy_orig_df.Set == 'Test']
+        Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
         test_path = f'{base_csv_path}_test_{suffix_title}.csv'
-        # drop columns with NaN (not useful)
-        for column in Xy_test_df.keys():
-            if Xy_test_df[column].isnull().values.any() and column != params_df["y"][0]:
-                del Xy_test_df[column]
-        _ = Xy_test_df.to_csv(test_path, index = None, header=True)
+        _ = Xy_orig_test.to_csv(test_path, index = None, header=True)
         print_preds += f'\n      -  Test set with predicted results: {os.path.basename(test_path)}'
+
+    # saves prediction for external test in --csv_test
+    if self.args.csv_test != '':
+        Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
+        csv_test_path = f'{self.args.csv_test}'.split(".csv")[0]
+        csv_test_path += f'_predicted_{suffix_title}.csv'
+        _ = Xy_test_df.to_csv(csv_test_path, index = None, header=True)
+        print_preds += f'\n      -  {self.args.csv_test} external set with predicted results: {os.path.basename(csv_test_path)}'
 
     self.args.log.write(print_preds)
 
@@ -283,8 +265,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
         if self.args.names in Xy_orig_train:
             name_points['train'] = Xy_orig_train[self.args.names]
             name_points['valid'] = Xy_orig_valid[self.args.names]
-        if self.args.names in Xy_test_df:
-            name_points['test'] = Xy_test_df[self.args.names]
+        if Xy_orig_test is not None:
+            name_points['test'] = Xy_orig_test[self.args.names]
 
     return path_n_suffix, name_points
 
@@ -613,7 +595,7 @@ def detect_outliers(self, outliers_scaled, name_points, naming_detect, set_type)
     if naming_detect:
         name_points_list = name_points[set_type].to_list()
     for i,val in enumerate(outliers_scaled):
-        if val > self.args.t_value:
+        if val > self.args.t_value or val < -self.args.t_value:
             val_outliers.append(val)
             if naming_detect:
                 name_outliers.append(name_points_list[i])

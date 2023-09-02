@@ -40,7 +40,7 @@ from sklearn.linear_model import LinearRegression
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.0.3"
+robert_version = "1.0.4"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = f"ROBERT v {robert_version}, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert"
 
@@ -880,6 +880,7 @@ def load_n_predict(params, data, hyperopt=False):
 
     # Fit the model with the training set
     loaded_model.fit(np.asarray(data['X_train_scaled']).tolist(), np.asarray(data['y_train']).tolist())
+
     # store the predicted values for training
     data['y_pred_train'] = loaded_model.predict(np.asarray(data['X_train_scaled']).tolist()).tolist()
 
@@ -888,9 +889,10 @@ def load_n_predict(params, data, hyperopt=False):
         data['y_pred_valid'] = loaded_model.predict(np.asarray(data['X_valid_scaled']).tolist()).tolist()
         if 'X_test_scaled' in data:
             data['y_pred_test'] = loaded_model.predict(np.asarray(data['X_test_scaled']).tolist()).tolist()
+        if 'X_csv_test_scaled' in data:
+            data['y_pred_csv_test'] = loaded_model.predict(np.asarray(data['X_csv_test_scaled']).tolist()).tolist()
 
-    # for the hyperoptimizer
-    # oob set results
+    # get metrics for the different sets
     if params['type'].lower() == 'reg':
         data['r2_train'], data['mae_train'], data['rmse_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
@@ -930,8 +932,11 @@ def get_prediction_results(params,y,y_pred):
     if params['type'].lower() == 'reg':
         mae = mean_absolute_error(y, y_pred)
         rmse = np.sqrt(mean_squared_error(y, y_pred))
-        res = stats.linregress(y, y_pred)
-        r2 = res.rvalue**2
+        if len(np.unique(y)) > 1 and len(np.unique(y_pred)) > 1:
+            res = stats.linregress(y, y_pred)
+            r2 = res.rvalue**2
+        else:
+            r2 = 0.0
         return r2, mae, rmse
 
     elif params['type'].lower() == 'clas':

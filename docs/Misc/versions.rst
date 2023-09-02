@@ -4,6 +4,12 @@
 Versions
 ========
 
+Version 1.0.4 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.4>`__]
+   -  Fixing outlier bug for negative t-values
+   -  csv_test is treated separately from the test set from GENERATE
+   -  Table of score thresholds in ROBERT_report.pdf
+   -  Showing predictions at the end of the PREDICT section of ROBERT_report.pdf
+
 Version 1.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.3>`__]
    -  Changing default split to RND
    -  Adding the scikit-learn-intelex accelerator (now it's compatible for scikit-learn 1.3)

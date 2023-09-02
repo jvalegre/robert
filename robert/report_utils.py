@@ -3,6 +3,7 @@
 #####################################################.
 
 import os
+import sys
 import pandas as pd
 import textwrap
 from pathlib import Path
@@ -390,53 +391,7 @@ def get_col_text(type_thres):
     first_line = '<p style="text-align: justify; margin-top: -8px;">' # reduces line separation separation
     reduced_line = '<p style="text-align: justify; margin-top: -10px;">' # reduces line separation separation
 
-    if type_thres == 'R<sup>2</sup>':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">R<sup>2</sup>  <u>                           </u></span></pre>
-{first_line}{get_pts(2)}&nbsp;&nbsp;  R<sup>2</sup> > 0.85</p>
-{reduced_line}{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    0.85 > R<sup>2</sup> > 0.70</p>
-{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     R<sup>2</sup> < 0.70</pre></p>
-"""
-
-    elif type_thres == 'accuracy':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Accuracy  <u>                     </u></span></pre>
-{first_line}{get_pts(2)}&nbsp;&nbsp;  Accuracy > 0.85</p>
-{reduced_line}{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    0.85 > accur. > 0.70</p>
-{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     accur. < 0.70</pre></p>
-"""
-
-    elif type_thres == 'outliers':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Outliers  <u>                          </u></span></pre>
-{first_line}{get_pts(2)}&nbsp;&nbsp;  < 7.5% of outliers</p>
-{reduced_line}{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    7.5% < outliers < 15%</p>
-{reduced_line}{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     > 15% of outliers</pre></p>
-"""
-
-    elif type_thres == 'outliers_clas':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">Outliers  <u>                            </u></span></pre>
-{first_line}{get_pts(0)}&nbsp;&nbsp; Excluded in classification</pre></p>
-"""
-
-    elif type_thres == 'descps':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">    Points:descriptors  <u>      </u></span></pre>
-{first_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(2)}&nbsp;&nbsp;  > 10:1 p:d ratio</p>
-{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp;    10:1 > p:d ratio > 3:1</p>
-{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     p:d ratio < 3:1</pre></p>
-"""
-
-    elif type_thres == 'VERIFY':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">        VERIFY tests  <u>             </u></span></pre>
-{first_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Up to {get_pts(4)} (tests pass)</p>
-{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp; (all tests failed)</pre></p>
-"""
-
-    elif type_thres == 'VERIFY_clas':
-        column = f"""<pre style="text-align: justify;"><span style="font-weight:bold;">        VERIFY tests  <u>             </u></span></pre>
-{first_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(2)}&nbsp;&nbsp; y-shuffle & y-mean</p>
-{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(1)}&nbsp;&nbsp;&nbsp;&nbsp; 5-fold CV & onehot</pre></p>
-{reduced_line}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{get_pts(0)}&nbsp; (all tests failed)</pre></p>
-"""
-
-    elif type_thres in ['abbrev_1','abbrev_2']:
+    if type_thres in ['abbrev_1','abbrev_2']:
         first_line = '<p style="text-align: justify; margin-top: -20px;">'
         if type_thres == 'abbrev_1':
             abbrev_list = ['<strong>ACC:</strong> accuracy',
@@ -733,7 +688,11 @@ def make_report(report_html, HTML):
     css_files = ["report.css"]
     outfile = f"{os.getcwd()}/ROBERT_report.pdf"
     if os.path.exists(outfile):
-        os.remove(outfile)
+        try:
+            os.remove(outfile)
+        except PermissionError:
+            print('\nx  ROBERT_report.pdf is open! Please, close the PDF file and run ROBERT again with --report (i.e., "python -m robert --report").')
+            sys.exit()
     pdf = make_pdf(report_html, HTML, css_files)
     _ = Path(outfile).write_bytes(pdf)
 

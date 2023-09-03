@@ -202,7 +202,6 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
         # PATH of the graph
         folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
-        Path(folder_graph).mkdir(exist_ok=True, parents=True)
         reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
         path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-3:])
 
@@ -262,7 +261,6 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_
 
     else:
         folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
-        Path(folder_graph).mkdir(exist_ok=True, parents=True)
         clas_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
         path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-3:])
 
@@ -280,7 +278,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     '''
     
     Xy_orig_df, Xy_path, params_df, _, _, suffix_title = load_dfs(self,params_dir,'no_print')
-    base_csv_name = '_'.join(os.path.basename(Xy_path).replace('.csv','_').split('_')[0:2])
+    base_csv_name = '_'.join(os.path.basename(Path(Xy_path)).replace('.csv','_').split('_')[0:2])
     base_csv_name = f'PREDICT/{base_csv_name}'
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     Xy_orig_train = Xy_orig_df[Xy_orig_df.Set == 'Training']

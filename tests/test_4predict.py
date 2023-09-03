@@ -87,10 +87,7 @@ def test_PREDICT(test_job):
     categor_test = False
     for i,line in enumerate(outlines):
         if 'Results saved in' in line and 'No_PFI.dat' in line:
-            if test_job not in ["csv_test"]:
-                assert 'Points Train:Validation = ' in outlines[i+1]
-            else:
-                assert 'Points Train:Validation:Test = ' in outlines[i+1]
+            assert 'Points Train:Validation = ' in outlines[i+1]
         elif 'x  There are missing descriptors' in line:
             categor_test = True
         if 'Outlier values saved in' in line and 'No_PFI' in line:
@@ -105,22 +102,21 @@ def test_PREDICT(test_job):
                     assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
                 else:
                     assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
-                if test_job == "csv_test":
-                    assert 'Test: 0 outliers' in outlines[i+3+train_outliers]
                 break
     if test_job == "csv_test":
         assert categor_test
 
     # check that all the plots, CSV and DAT files are created
     assert len(glob.glob(f'{path_predict}/*.png')) == 8
+    if test_job == "csv_test":
+        assert len(glob.glob(f'{path_predict}/csv_test/*.png')) == 2
     if test_job == "clas":
         assert len(glob.glob(f'{path_predict}/*.dat')) == 7
     else:
         assert len(glob.glob(f'{path_predict}/*.dat')) == 9
     if test_job == "csv_test":
-        assert len(glob.glob(f'{path_predict}/*.csv')) == 6
-    else:
-        assert len(glob.glob(f'{path_predict}/*.csv')) == 4
+        assert len(glob.glob(f'{path_predict}/csv_test/*.csv')) == 2
+    assert len(glob.glob(f'{path_predict}/*.csv')) == 4
 
     if test_job == 'clas': # rename folders back to their original names
         # rename the classification GENERATE folder

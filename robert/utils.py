@@ -347,6 +347,15 @@ def load_variables(kwargs, robert_module):
             except (ModuleNotFoundError,ImportError):
                 self.log.write(f"\nWARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
+        if robert_module.upper() in ['GENERATE', 'VERIFY']:
+            # adjust the default value of error_type for classification
+            if self.type.lower() == 'clas':
+                self.error_type = 'acc'
+
+        if robert_module.upper() in ['PREDICT','VERIFY','REPORT']:
+            if self.params_dir == '':
+                self.params_dir = 'GENERATE/Best_model'
+
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
 
@@ -398,6 +407,7 @@ def load_variables(kwargs, robert_module):
                             curate_df = pd.read_csv(csv_file)
                             self.y = curate_df['y'][0]
                             self.ignore = curate_df['ignore'][0]
+                            self.names = curate_df['names'][0]
                             self.ignore  = format_lists(self.ignore)
                             self.csv_name = curate_df['csv_name'][0]
 
@@ -406,18 +416,17 @@ def load_variables(kwargs, robert_module):
 
         elif robert_module.upper() == 'PREDICT':
             self.log.write(f"\no  Representation of predictions and analysis of ML models with the PREDICT module")
+            if self.names == '':
+                # tries to get names from GENERATE
+                if 'GENERATE/Best_model' in self.params_dir:
+                    params_dirs = [f'{self.params_dir}/No_PFI',f'{self.params_dir}/PFI']
+                else:
+                    params_dirs = [self.params_dir]
+                _, params_df, _, _, _ = load_db_n_params(self,params_dirs[0],"verify",False)
+                self.names = params_df["names"][0]
 
         elif robert_module.upper() == 'AQME':
             self.log.write(f"\no  Starting the generation of AQME descriptors with the AQME module")
-    
-        if robert_module.upper() in ['GENERATE', 'VERIFY']:
-            # adjust the default value of error_type for classification
-            if self.type.lower() == 'clas':
-                self.error_type = 'acc'
-
-        if robert_module.upper() in ['PREDICT','VERIFY','REPORT']:
-            if self.params_dir == '':
-                self.params_dir = 'GENERATE/Best_model'
 
         # initial sanity checks
         if robert_module.upper() != 'REPORT':
@@ -901,6 +910,9 @@ def load_n_predict(params, data, hyperopt=False):
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
         if 'y_pred_test' in data and not data['y_test'].isnull().values.any() and len(data['y_test']) > 0:
             data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
+        if 'y_pred_csv_test' in data and not data['y_csv_test'].isnull().values.any() and len(data['y_csv_test']) > 0:
+            data['r2_csv_test'], data['mae_csv_test'], data['rmse_csv_test'] = get_prediction_results(params,data['y_csv_test'],data['y_pred_csv_test'])
+            
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']
             if params['error_type'].lower() == 'r2':
@@ -921,6 +933,8 @@ def load_n_predict(params, data, hyperopt=False):
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
         if 'y_pred_test' in data and not data['y_test'].isnull().values.any() and len(data['y_test']) > 0:
             data['acc_test'], data['f1_test'], data['mcc_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
+        if 'y_pred_csv_test' in data and not data['y_csv_test'].isnull().values.any() and len(data['y_csv_test']) > 0:
+            data['acc_csv_test'], data['f1_csv_test'], data['mcc_csv_test'] = get_prediction_results(params,data['y_csv_test'],data['y_pred_csv_test'])
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']
             return opt_target,data
@@ -1022,6 +1036,7 @@ def load_print(self,params_name,suffix,params_df,point_count):
         params_name = params_name.split('.csv')[0]
     txt_load = f'\no  ML model {params_name} {suffix} and Xy database were loaded, including:'
     txt_load += f'\n   - Target value: {params_df["y"][0]}'
+    txt_load += f'\n   - Names: {params_df["names"][0]}'
     txt_load += f'\n   - Model: {params_df["model"][0]}'
     txt_load += f'\n   - Descriptors: {params_df["X_descriptors"][0]}'
     txt_load += f'\n   - Training points: {point_count["train"]}'

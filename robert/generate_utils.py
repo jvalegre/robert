@@ -53,6 +53,7 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed, csv_df_tes
                 'seed': seed,
                 'error_type': self.args.error_type.lower(),
                 'y': self.args.y,
+                'names': self.args.names,
                 'X_descriptors': Xy_data_hp['X_descriptors'],
                 'destination': self.args.destination.as_posix()}
 
@@ -231,6 +232,7 @@ def f(params):
                         'type': hyperopt_data['type'],
                         'seed': hyperopt_data['seed'],
                         'y': hyperopt_data['y'],
+                        'names': hyperopt_data['names'],
                         'error_type': hyperopt_data['error_type'],
                         'X_descriptors': hyperopt_data['X_descriptors']}
 

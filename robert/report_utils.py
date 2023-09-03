@@ -4,22 +4,24 @@
 
 import os
 import sys
+import glob
 import pandas as pd
 import textwrap
 from pathlib import Path
 
 
-def get_csv_names(command_line):
+def get_csv_names(self,command_line):
     """
     Detects the options from a command line or add them from manual inputs
     """
     
     csv_name = ''
-    csv_name = command_line.split('--csv_name')[1].split()[0]
-    if csv_name[0] in ['"',"'"]:
-        csv_name = csv_name[1:]
-    if csv_name[-1] in ['"',"'"]:
-        csv_name = csv_name[:-1]
+    if '--csv_name' in command_line:
+        csv_name = command_line.split('--csv_name')[1].split()[0]
+        if csv_name[0] in ['"',"'"]:
+            csv_name = csv_name[1:]
+        if csv_name[-1] in ['"',"'"]:
+            csv_name = csv_name[:-1]
     
     csv_test = ''
     if '--csv_test' in command_line:
@@ -29,14 +31,21 @@ def get_csv_names(command_line):
         if csv_test[-1] in ['"',"'"]:
             csv_test = csv_test[:-1]
 
-    return csv_name,csv_test
+    if self.args.csv_name == '':
+        self.args.csv_name = csv_name
+
+    if self.args.csv_test == '':
+        self.args.csv_test = csv_test
+
+    return self
 
 
-def get_images(module,pred_type='reg'):
+def get_images(module,file=None,pred_type='reg'):
     """
     Generate the string that includes images
     """
     
+    csv_test_exists = False
     module_path = Path(f'{os.getcwd()}/{module}')
     module_images = [str(file_path) for file_path in module_path.rglob('*.png')]
 
@@ -52,7 +61,6 @@ def get_images(module,pred_type='reg'):
         # Combine both columns
         image_caption += combine_cols(columns_score)
 
-
     if module == 'VERIFY':
         if len(module_images) == 2 and 'No_PFI' in module_images[1]:
             module_images = revert_list(module_images)
@@ -63,28 +71,34 @@ def get_images(module,pred_type='reg'):
         shap_images = []
         pfi_images = []
         outliers_images = []
+        csv_test_images = []
 
         for image_path in module_images:
-            filename = Path(image_path).stem
-            if "_REPORT" not in filename:
-                if "Results_" in filename:
-                    results_images.append(image_path)
-                elif "SHAP_" in filename:
-                    shap_images.append(image_path)
-                elif "Outliers_" in filename:
-                    outliers_images.append(image_path)
-                elif "PFI_" in filename:
-                    pfi_images.append(image_path)
+            if 'csv_test' not in image_path:
+                filename = Path(image_path).stem
+                if "_REPORT" not in filename:
+                    if "Results_" in filename:
+                        results_images.append(image_path)
+                    elif "SHAP_" in filename:
+                        shap_images.append(image_path)
+                    elif "Outliers_" in filename:
+                        outliers_images.append(image_path)
+                    elif "PFI_" in filename:
+                        pfi_images.append(image_path)
+            else:
+                csv_test_images.append(image_path)
 
         if pred_type == 'clas':
-            for result_img in results_images:
-                if '_train.png' in result_img:
-                    results_train.append(result_img)
-                if '_valid.png' in result_img:
-                    results_valid.append(result_img)
-                if '_test.png' in result_img:
-                    results_test.append(result_img)
-
+            for image_path in module_images:
+                if 'csv_test' not in image_path:
+                    if '_train.png' in image_path:
+                        results_train.append(image_path)
+                    if '_valid.png' in image_path:
+                        results_valid.append(image_path)
+                    if '_test.png' in image_path:
+                        results_test.append(image_path)
+                else:
+                    csv_test_images.append(image_path)
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
         if len(results_images) == 2 and 'No_PFI' in results_images[1]:
@@ -101,6 +115,8 @@ def get_images(module,pred_type='reg'):
             pfi_images = revert_list(pfi_images)
         if len(outliers_images) == 2 and 'No_PFI' in outliers_images[1]:
             outliers_images = revert_list(outliers_images)
+        if len(csv_test_images) == 2 and 'No_PFI' in csv_test_images[1]:
+            csv_test_images = revert_list(csv_test_images)
         
         if pred_type == 'reg':
             image_pair_list = [results_images, shap_images, pfi_images, outliers_images]
@@ -109,9 +125,50 @@ def get_images(module,pred_type='reg'):
 
         html_png = ''
         for _,image_pair in enumerate(image_pair_list):
-            
             pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in image_pair])
             html_png += f'<pre style="text-align: center;">{pair_list}</pre>'
+        
+        # summary of the external CSV test set (if any)
+        path_csv_test = ''
+        with open(file, 'r') as datfile:
+            lines = datfile.readlines()
+            for i,line in enumerate(lines):
+                if '- Target value:' in line:
+                    y_value = line.split()[-1]
+                elif '- Names:' in line:
+                    names = line.split()[-1]
+                elif 'External set with predicted results:' in line:
+                    path_csv_test = line.split()[-1]
+                    csv_test_exists = True
+        
+        if csv_test_exists:
+            html_predictions = ''
+            # add metrics
+            columns_metrics = []
+            for suffix in ['No PFI','PFI']:
+                metrics_dat = get_csv_metrics(module_file,suffix)
+                if metrics_dat != f'<u>csv_test metrics</u>\n':
+                    columns_metrics.append(metrics_dat)
+            
+            # combine both metrics columns and add them if they exist
+            if len(columns_metrics) == 2:
+                metrics = combine_cols(columns_metrics)
+                html_predictions += f'<pre style="text-align: justify;">{metrics}</pre>'
+
+            # add csv_test images if they exist
+            if len(csv_test_images) == 2:
+                pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in csv_test_images])
+                html_predictions += f'<pre style="text-align: center;">{pair_list}</pre>'
+
+            # add predictions table
+            columns_predictions = []
+            for suffix in ['No PFI','PFI']:
+                pred_dat = get_csv_pred(suffix,path_csv_test,y_value,names)
+                columns_predictions.append(pred_dat)
+            
+            # Combine both prediction columns
+            predictions = combine_cols(columns_predictions)
+            html_predictions += f'<pre style="text-align: justify;">{predictions}</pre>'
 
     else:
         pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in module_images])
@@ -121,9 +178,12 @@ def get_images(module,pred_type='reg'):
 <p style="text-align: center; margin: 0;"><span style="font-weight:bold;">
 {image_caption}
 </span></p>
-{html_png} 
+{html_png}
 """
-    
+
+    if csv_test_exists:
+        imag_lines += html_predictions
+
     return imag_lines
 
 
@@ -187,7 +247,6 @@ def get_summary(module,file,suffix,titles=True,pred_type='reg'):
                         start_results = i+2
                         stop_results = i+6
        
-        
             for line in lines[start_results:stop_results+1]:
                 if 'R2' in line:
                     line = line.replace('R2','R<sup>2</sup>')
@@ -218,6 +277,156 @@ def get_summary(module,file,suffix,titles=True,pred_type='reg'):
         """
 
     return column
+
+
+def get_csv_metrics(file,suffix):
+    """
+    Retrieve the csv_test results from the PREDICT dat file
+    """
+    
+    results_line = ''
+    with open(file, 'r') as datfile:
+        lines = datfile.readlines()
+        for i,line in enumerate(lines):
+            if suffix == 'No PFI':
+                if 'o  Results saved in' in line and 'No_PFI.dat' in line:
+                    for j in range(i,i+15):
+                        if 'o  SHAP' in lines[j]:
+                            break
+                        elif '-  csv_test : ' in lines[j]:
+                            results_line = lines[j][6:]
+            if suffix == 'PFI':
+                if 'o  Results saved in' in line and 'No_PFI.dat' not in line:
+                    for j in range(i,i+15):
+                        if 'o  SHAP' in lines[j]:
+                            break
+                        elif '-  csv_test : ' in lines[j]:
+                            results_line = lines[j][6:]
+
+    # start the csv_test section
+    metrics_dat = f'<u>csv_test metrics</u>\n'
+
+    # add line with model metrics (if any)
+    if results_line != '':
+        metrics_dat += f'<pre style="text-align: justify;">{results_line}</pre>'
+
+    return metrics_dat
+
+
+def get_csv_pred(suffix,path_csv_test,y_value,names):
+    """
+    Retrieve the csv_test results from the PREDICT dat file
+    """
+    
+    pred_line = ''
+    csv_test_folder = f'{os.getcwd()}/{os.path.dirname(path_csv_test)}'
+    csv_test_list = glob.glob(f'{csv_test_folder}/*.csv')
+    for file in csv_test_list:
+        if suffix == 'No PFI':
+            if '_predicted_No_PFI' in file:
+                csv_test_file = file
+        if suffix == 'PFI':
+            if '_predicted_PFI' in file:
+                csv_test_file = file
+
+    csv_test_df = pd.read_csv(csv_test_file)
+
+    # start the csv_test section
+    pred_line = f'<u>csv_test predictions (sorted, max. 20 shown)</u>\n\n'
+
+    if suffix == 'No PFI':
+        pred_line += f'From /PREDICT/csv_test/...No_PFI.csv'
+    elif suffix == 'PFI':
+        pred_line += f'From /PREDICT/csv_test/..._PFI.csv'
+
+    pred_line += '''<style>
+    th, td {
+    border:0.75px solid black;
+    border-collapse: collapse;
+    padding: 2px;
+    text-align: justify;
+    }
+    '''
+
+    y_val_exist = False
+    if f'{y_value}' in csv_test_df.columns:
+        y_val_exist = True
+
+    # adjust format of headers
+    names_head = names
+    if len(names_head) > 12:
+        names_head = f'{names_head[:9]}...'
+    y_value_head = y_value
+    if len(y_value_head) > 12:
+        y_value_head = f'{y_value_head[:9]}...'
+
+    pred_line += f'''
+    </style>
+    <table style="width:80%">
+        <tr>
+            <td><strong>{names_head}</strong></td>'''
+    if y_val_exist:
+        pred_line += f'''
+            <td><strong>{y_value_head}</strong></td>'''
+    pred_line += f'''
+            <td><strong>{y_value_head}_pred</strong></td>
+        </tr>'''
+    
+    # retrieve and sort the values
+    if not y_val_exist:
+        csv_test_df[y_value] = csv_test_df[f'{y_value}_pred']
+    y_pred_sorted, y_sorted, names_sorted = (list(t) for t in zip(*sorted(zip(csv_test_df[f'{y_value}_pred'], csv_test_df[y_value], csv_test_df[names]), reverse=True)))
+
+    max_table = False
+    if len(y_pred_sorted) > 20:
+        max_table = True
+
+    count_entries = 0
+    for y_val_pred,y_val,name in zip(y_pred_sorted, y_sorted, names_sorted):
+        # adjust format of entries
+        if len(name) > 12:
+            name = f'{name[:9]}...'
+        y_val_pred = round(y_val_pred,2)
+        y_val = round(y_val,2)
+        add_entry = True
+        # if there are more than 20 predictions, only 20 values will be shown
+        if max_table and count_entries >= 10:
+            add_entry = False
+            if count_entries == 10:
+                pred_line += f'''
+                <tr>
+                    <td>...</td>'''
+                if y_val_exist:
+                    pred_line += f'''
+                    <td>...</td>'''
+                pred_line += f'''
+                    <td>...</td>
+                </tr>'''
+            elif count_entries >= (len(y_pred_sorted)-10):
+                add_entry = True
+        if add_entry:
+            pred_line += f'''
+            <tr>
+                <td>{name}</td>'''
+            if y_val_exist:
+                pred_line += f'''
+                <td>{y_val}</td>'''
+            pred_line += f'''
+                <td>{y_val_pred}</td>
+            </tr>'''
+        count_entries += 1
+
+    pred_line += f'''
+    </table>'''
+
+    if pred_line != '':
+        if suffix == 'No PFI':
+            margin_size = -10
+        elif suffix == 'PFI':
+            margin_size = 0
+        prediction_dat = f'<pre style="text-align: justify; margin-left: {margin_size}px;">{pred_line}</pre>'
+
+    return prediction_dat
 
 
 def locate_outliers(i,lines):

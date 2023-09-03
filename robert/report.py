@@ -172,7 +172,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 data_lines += self.module_lines('PREDICT',predict_data)
 
                 # include images and summary for No PFI and PFI models
-                data_lines += get_images('PREDICT',pred_type=params_df['type'][0].lower())
+                data_lines += get_images('PREDICT',file=predict_file,pred_type=params_df['type'][0].lower())
 
         return data_lines
 
@@ -400,7 +400,8 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         version_n_date, citation, command_line, python_version, intelex_version, total_time, dat_files = repro_info(modules)
         robert_version = version_n_date.split()[2]
 
-        csv_name,csv_test = get_csv_names(command_line)
+        if self.args.csv_name == '' or self.args.csv_test == '':
+            self = get_csv_names(self,command_line)
 
         repro_dat,citation_dat = '',''
         
@@ -418,18 +419,20 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         # reproducibility section, starts with the icon of reproducibility        
         repro_dat += f"""{first_line}<br><strong>1. Download these files <i>(the authors should have uploaded the files as supporting information!)</i>:</strong></p>"""
         repro_dat += f"""{reduced_line}{space}- Report with results (ROBERT_report.pdf)</p>"""
-        repro_dat += f"""{reduced_line}{space}- CSV database ({csv_name})</p>"""
+        repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
         
-        if csv_test != '':
-            repro_dat += f"""{reduced_line}{space}- External test set ({csv_test})</p>"""
+        if self.args.csv_test != '':
+            repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
 
         repro_dat += f"""{first_line}<br><strong>2. Install the following Python modules:</strong></p>"""
         repro_dat += f"""{reduced_line}{space}- ROBERT: conda install -c conda-forge robert={robert_version} (or pip install robert=={robert_version})</p>"""
         
         if intelex_version != 'not installed':
             repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: pip install scikit-learn-intelex=={intelex_version}</p>"""
+            repro_dat += f"""{reduced_line}{space}<i>(if scikit-learn-intelex is not installed, slightly different results might be obtained)</i></p>"""
         else:
-            repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: not installed (make sure you do not have it installed)</p>"""
+            repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: not installed</p>"""
+            repro_dat += f"""{reduced_line}{space}<i>(if scikit-learn-intelex is installed, slightly different results might be obtained)</i></p>"""
         
         # get_version(LIBRARY)
         # if not installed, dont put version
@@ -446,7 +449,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 repro_dat += f"""{reduced_line}{space}{space} {library_repro}: conda install -c conda-forge {library_repro.lower()}</p>"""
       
         character_line = ''
-        if csv_test != '':
+        if self.args.csv_test != '':
             character_line += 's'
 
         repro_dat += f"""{first_line}<br><strong>3. Run ROBERT with this command line in the folder with the CSV database{character_line} (originally run in Python {python_version}):</strong></p>{reduced_line}{command_line}</p>"""
@@ -461,7 +464,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
         repro_dat = self.module_lines('repro',repro_dat) 
 
-        return citation_dat, repro_dat, dat_files, csv_name, csv_test, robert_version
+        return citation_dat, repro_dat, dat_files, self.args.csv_name, self.args.csv_test, robert_version
 
 
     def get_transparency(self):

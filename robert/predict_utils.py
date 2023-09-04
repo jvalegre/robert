@@ -305,8 +305,9 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
         Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
         folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
         Path(folder_csv).mkdir(exist_ok=True, parents=True)
-        csv_test_path = f'{folder_csv}/{self.args.csv_test}'.split(".csv")[0]
-        csv_test_path += f'_predicted_{suffix_title}.csv'
+        csv_name = f'{os.path.basename(self.args.csv_test)}'.split(".csv")[0]
+        csv_name += f'_predicted_{suffix_title}.csv'
+        csv_test_path = f'{folder_csv}/{csv_name}'
         _ = Xy_test_df.to_csv(csv_test_path, index = None, header=True)
         print_preds += f'\n      -  External set with predicted results: PREDICT/csv_test/{os.path.basename(csv_test_path)}'
 
@@ -379,7 +380,7 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
         if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : Accuracy = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
-            print_results += f"\n      -  csv_test : Accuracy = {Xy_data['acc_csv_test']:.2}, F1 score = {Xy_data['f1_csv_test']:.2}, MCC = {Xy_data['mcc_csv_test']:.2}"
+            print_results += f"\n      -  csv_test : Accur. = {Xy_data['acc_csv_test']:.2}, F1 score = {Xy_data['f1_csv_test']:.2}, MCC = {Xy_data['mcc_csv_test']:.2}"
 
     self.args.log.write(print_results)
     dat_results = open(dat_file, "w")

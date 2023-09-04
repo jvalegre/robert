@@ -128,7 +128,7 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
 
     if test_job in ['full_clas_test','full_workflow_test']:
-        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 6 # 2 extra CSV files for the test set
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 2 # 2 extra PNG for test confusion matrices
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
@@ -182,7 +182,7 @@ def test_AQME(test_job):
             find_results_valid_clas += 1
         if 'Results_RF_60_No_PFI_csv_test.png' in line:
             find_results_test_clas += 1
-        if 'External set with predicted results:' in line:
+        if 'csv_test :' in line:
             find_test += 1
 
     if test_job in ['full_workflow','full_workflow_test','aqme']:

@@ -28,13 +28,13 @@ Required packages
 
     conda install -c conda-forge aqme
 
-* **CREST:** Install AQME with conda-forge (or follow the instructions from `their documentation <https://crest-lab.github.io/crest-docs/>`__):
+* **CREST:** Install CREST with conda-forge (or follow the instructions from `their documentation <https://crest-lab.github.io/crest-docs/>`__):
 
 .. code:: shell
 
     conda install -c conda-forge crest
 
-* **xTB:** Install AQME with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
+* **xTB:** Install xTB with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
 
 .. code:: shell
 

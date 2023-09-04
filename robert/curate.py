@@ -249,6 +249,7 @@ class curate:
         options_df = pd.DataFrame()
         options_df['y'] = [self.args.y]
         options_df['ignore'] = [self.args.ignore]
+        options_df['names'] = [self.args.names]
         options_df['csv_name'] = [csv_curate_name]
         _ = options_df.to_csv(f'{options_name}', index = None, header=True)
 

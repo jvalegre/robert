@@ -40,7 +40,7 @@ from sklearn.linear_model import LinearRegression
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.0.3"
+robert_version = "1.0.4"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = f"ROBERT v {robert_version}, Dalmau, D.; Alegre-Requena, J. V., 2023. https://github.com/jvalegre/robert"
 
@@ -347,6 +347,15 @@ def load_variables(kwargs, robert_module):
             except (ModuleNotFoundError,ImportError):
                 self.log.write(f"\nWARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
+        if robert_module.upper() in ['GENERATE', 'VERIFY']:
+            # adjust the default value of error_type for classification
+            if self.type.lower() == 'clas':
+                self.error_type = 'acc'
+
+        if robert_module.upper() in ['PREDICT','VERIFY','REPORT']:
+            if self.params_dir == '':
+                self.params_dir = 'GENERATE/Best_model'
+
         if robert_module.upper() == 'CURATE':
             self.log.write(f"\no  Starting data curation with the CURATE module")
 
@@ -398,6 +407,7 @@ def load_variables(kwargs, robert_module):
                             curate_df = pd.read_csv(csv_file)
                             self.y = curate_df['y'][0]
                             self.ignore = curate_df['ignore'][0]
+                            self.names = curate_df['names'][0]
                             self.ignore  = format_lists(self.ignore)
                             self.csv_name = curate_df['csv_name'][0]
 
@@ -406,18 +416,17 @@ def load_variables(kwargs, robert_module):
 
         elif robert_module.upper() == 'PREDICT':
             self.log.write(f"\no  Representation of predictions and analysis of ML models with the PREDICT module")
+            if self.names == '':
+                # tries to get names from GENERATE
+                if 'GENERATE/Best_model' in self.params_dir:
+                    params_dirs = [f'{self.params_dir}/No_PFI',f'{self.params_dir}/PFI']
+                else:
+                    params_dirs = [self.params_dir]
+                _, params_df, _, _, _ = load_db_n_params(self,params_dirs[0],"verify",False)
+                self.names = params_df["names"][0]
 
         elif robert_module.upper() == 'AQME':
             self.log.write(f"\no  Starting the generation of AQME descriptors with the AQME module")
-    
-        if robert_module.upper() in ['GENERATE', 'VERIFY']:
-            # adjust the default value of error_type for classification
-            if self.type.lower() == 'clas':
-                self.error_type = 'acc'
-
-        if robert_module.upper() in ['PREDICT','VERIFY','REPORT']:
-            if self.params_dir == '':
-                self.params_dir = 'GENERATE/Best_model'
 
         # initial sanity checks
         if robert_module.upper() != 'REPORT':
@@ -880,6 +889,7 @@ def load_n_predict(params, data, hyperopt=False):
 
     # Fit the model with the training set
     loaded_model.fit(np.asarray(data['X_train_scaled']).tolist(), np.asarray(data['y_train']).tolist())
+
     # store the predicted values for training
     data['y_pred_train'] = loaded_model.predict(np.asarray(data['X_train_scaled']).tolist()).tolist()
 
@@ -888,9 +898,10 @@ def load_n_predict(params, data, hyperopt=False):
         data['y_pred_valid'] = loaded_model.predict(np.asarray(data['X_valid_scaled']).tolist()).tolist()
         if 'X_test_scaled' in data:
             data['y_pred_test'] = loaded_model.predict(np.asarray(data['X_test_scaled']).tolist()).tolist()
+        if 'X_csv_test_scaled' in data:
+            data['y_pred_csv_test'] = loaded_model.predict(np.asarray(data['X_csv_test_scaled']).tolist()).tolist()
 
-    # for the hyperoptimizer
-    # oob set results
+    # get metrics for the different sets
     if params['type'].lower() == 'reg':
         data['r2_train'], data['mae_train'], data['rmse_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
@@ -898,7 +909,10 @@ def load_n_predict(params, data, hyperopt=False):
         else:
             data['r2_valid'], data['mae_valid'], data['rmse_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
         if 'y_pred_test' in data and not data['y_test'].isnull().values.any() and len(data['y_test']) > 0:
-            data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])  
+            data['r2_test'], data['mae_test'], data['rmse_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
+        if 'y_pred_csv_test' in data and not data['y_csv_test'].isnull().values.any() and len(data['y_csv_test']) > 0:
+            data['r2_csv_test'], data['mae_csv_test'], data['rmse_csv_test'] = get_prediction_results(params,data['y_csv_test'],data['y_pred_csv_test'])
+            
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']
             if params['error_type'].lower() == 'r2':
@@ -919,6 +933,8 @@ def load_n_predict(params, data, hyperopt=False):
             data['acc_valid'], data['f1_valid'], data['mcc_valid'] = get_prediction_results(params,data['y_valid'],data['y_pred_valid'])
         if 'y_pred_test' in data and not data['y_test'].isnull().values.any() and len(data['y_test']) > 0:
             data['acc_test'], data['f1_test'], data['mcc_test'] = get_prediction_results(params,data['y_test'],data['y_pred_test'])
+        if 'y_pred_csv_test' in data and not data['y_csv_test'].isnull().values.any() and len(data['y_csv_test']) > 0:
+            data['acc_csv_test'], data['f1_csv_test'], data['mcc_csv_test'] = get_prediction_results(params,data['y_csv_test'],data['y_pred_csv_test'])
         if hyperopt:
             opt_target = data[f'{params["error_type"].lower()}_valid']
             return opt_target,data
@@ -930,8 +946,11 @@ def get_prediction_results(params,y,y_pred):
     if params['type'].lower() == 'reg':
         mae = mean_absolute_error(y, y_pred)
         rmse = np.sqrt(mean_squared_error(y, y_pred))
-        res = stats.linregress(y, y_pred)
-        r2 = res.rvalue**2
+        if len(np.unique(y)) > 1 and len(np.unique(y_pred)) > 1:
+            res = stats.linregress(y, y_pred)
+            r2 = res.rvalue**2
+        else:
+            r2 = 0.0
         return r2, mae, rmse
 
     elif params['type'].lower() == 'clas':
@@ -1017,6 +1036,7 @@ def load_print(self,params_name,suffix,params_df,point_count):
         params_name = params_name.split('.csv')[0]
     txt_load = f'\no  ML model {params_name} {suffix} and Xy database were loaded, including:'
     txt_load += f'\n   - Target value: {params_df["y"][0]}'
+    txt_load += f'\n   - Names: {params_df["names"][0]}'
     txt_load += f'\n   - Model: {params_df["model"][0]}'
     txt_load += f'\n   - Descriptors: {params_df["X_descriptors"][0]}'
     txt_load += f'\n   - Training points: {point_count["train"]}'

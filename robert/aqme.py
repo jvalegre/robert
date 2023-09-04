@@ -68,6 +68,7 @@ class aqme:
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
         aqme_db = f'AQME-ROBERT_{self.args.csv_name}'
+
         # ensure that the AQME database was successfully created
         if not os.path.exists(aqme_db):
             self.args.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")
@@ -81,7 +82,6 @@ class aqme:
 
         # finish the printing of the AQME info file
         _ = finish_print(self,start_time,'AQME')
-
 
     def run_aqme(self,command,extra_keywords):
         '''
@@ -116,7 +116,8 @@ def filter_atom_prop(aqme_db):
     for column in aqme_df.columns:
         if column == 'DBSTEP_Vbur':
             aqme_df = aqme_df.drop(column, axis=1)
-        elif aqme_df[column].dtype == object:
+        # remove lists of atomic properties (skip columns from AQME arguments)
+        elif aqme_df[column].dtype == object and column.lower() not in ['smiles','code_name','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']:
             if '[' in aqme_df[column][0]:
                 aqme_df = aqme_df.drop(column, axis=1)
     os.remove(aqme_db)

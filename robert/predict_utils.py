@@ -37,45 +37,20 @@ def load_test(self, Xy_data, params_df, Xy_test_df):
 
     descs_model = ast.literal_eval(params_df['X_descriptors'][0])
     Xy_test_csv, X_test_csv, y_test_csv = pd.DataFrame(),pd.DataFrame(),pd.DataFrame()
-    X_test_generate, y_test_generate = {},{}
 
     # test points coming from the files specified in csv_test
     if self.args.csv_test != '':
         Xy_test_csv = load_database(self, self.args.csv_test, "predict", external_set=True)
         X_test_csv, y_test_csv = test_csv(self,Xy_test_csv,descs_model,params_df)
+        Xy_data['X_csv_test'] = X_test_csv
+        Xy_data['y_csv_test'] = y_test_csv
+        _, Xy_data['X_csv_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_csv_test'])
+        Xy_test_df = Xy_test_csv
 
     # test points coming from the test_set option (from GENERATE)
     if len(Xy_data['X_test']) > 0:
-        X_test_generate = Xy_data['X_test']
-        y_test_generate = Xy_data['y_test']
-
-    # update Xy_data database
-    # only external test csv
-    if len(Xy_data['X_test']) == 0 and self.args.csv_test != '':
-        Xy_data['X_test'] = X_test_csv
-        Xy_data['y_test'] = y_test_csv
-        Xy_test_df = Xy_test_csv
-
-    # only internal test set
-    elif len(Xy_data['X_test']) > 0 and self.args.csv_test == '':
-        Xy_data['X_test'] = X_test_generate
-        Xy_data['y_test'] = y_test_generate
-
-    # combine both test sets
-    elif len(Xy_data['X_test']) > 0 and self.args.csv_test != '':
-        X_combined, y_combined = {},{}
-        X_combined = pd.concat([X_test_generate, X_test_csv], axis=0).reset_index(drop=True)
-        y_combined = pd.concat([y_test_generate, y_test_csv], axis=0).reset_index(drop=True)
-
-        Xy_data['X_test'] = X_combined
-        Xy_data['y_test'] = y_combined
-
-        Xy_test_df = pd.concat([Xy_test_df, Xy_test_csv], axis=0).reset_index(drop=True)
-
-
-    if len(Xy_data['X_test']) > 0:
         _, Xy_data['X_test_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_test'])
-
+        
     return Xy_data, Xy_test_df
 
 
@@ -127,15 +102,20 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     self.args.log.write(f"\n   o  Saving graphs and CSV databases in:")
     if params_dict['type'].lower() == 'reg':
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
+        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
+            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True)
 
     elif params_dict['type'].lower() == 'clas':
         for set_type in set_types:
             _ = graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix)
-    
+        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
+            set_type = 'csv_test'
+            _ = graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_test=True)
+
     return graph_style
 
 
-def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print_fun=True):
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True):
     '''
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     '''
@@ -147,51 +127,93 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print
     # Set styling preferences
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    # Title of the axis
+
+    # Title and labels of the axis
     plt.ylabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.xlabel(f'{params_dict["y"]}', fontsize=14)
     
-    title_graph = f'Predictions_train_valid'
-    if 'test' in set_types:
-        title_graph += '_test'
+    if not csv_test:
+        title_graph = f'Predictions_train_valid'
+        if 'test' in set_types:
+            title_graph += '_test'
+    else:
+        title_graph = f'{os.path.basename(self.args.csv_test)}'
+        if len(title_graph) > 30:
+            title_graph = f'{title_graph[:27]}...'
+
     if print_fun:
         plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
             fontsize=14, fontweight='bold', transform = ax.transAxes)
 
     # Plot the data
-    _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
-                c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    if not csv_test:
+        _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
+                    c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
-    _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
-                c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
-        _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
-                    c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+        _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
+                    c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+            _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
+                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+        # Put a legend below current axis
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
+                fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
-    # Put a legend below current axis
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
-            fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
+        # Add the regression line with a confidence interval based on the training sets
+        Xy_data_df = pd.DataFrame()
+        Xy_data_df["y_train"] = Xy_data["y_train"]
+        Xy_data_df["y_pred_train"] = Xy_data["y_pred_train"]
+        _ = sb.regplot(x="y_train", y="y_pred_train", data=Xy_data_df, scatter=False, color=".1", 
+                        truncate = True, ax=ax, seed=params_dict['seed'])
 
-    # Add the regression line with a confidence interval based on the training sets
-    Xy_data_df = pd.DataFrame()
-    Xy_data_df["y_train"] = Xy_data["y_train"]
-    Xy_data_df["y_pred_train"] = Xy_data["y_pred_train"]
-    _ = sb.regplot(x="y_train", y="y_pred_train", data=Xy_data_df, scatter=False, color=".1", 
-                    truncate = True, ax=ax, seed=params_dict['seed'])
+        # set axis limits
+        min_value_graph, max_value_graph = set_lim_reg(Xy_data,set_types)
+
+        # PATH of the graph
+        reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+        path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
+
+    else:
+        _ = ax.scatter(Xy_data["y_csv_test"], Xy_data["y_pred_csv_test"],
+                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+
+        # Put a legend below current axis
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
+                fancybox=True, shadow=True, ncol=5, labels=[f'Predictions external set'], fontsize=14)
+
+        Xy_data_df = pd.DataFrame()
+        Xy_data_df["y_csv_test"] = Xy_data["y_csv_test"]
+        Xy_data_df["y_pred_csv_test"] = Xy_data["y_pred_csv_test"]
+        _ = sb.regplot(x="y_csv_test", y="y_pred_csv_test", data=Xy_data_df, scatter=False, color=".1", 
+                        truncate = True, ax=ax, seed=params_dict['seed'], ci=None)
+
+        # set axis limits
+        size_space = 0.1*abs(min(Xy_data["y_csv_test"])-max(Xy_data["y_csv_test"]))
+        if size_space == 0:
+            size_space = 0.1*abs(min(Xy_data["y_pred_csv_test"])-max(Xy_data["y_pred_csv_test"]))
+        if size_space == 0:
+            abs_val = max([abs(ele) for ele in Xy_data["y_csv_test"]])
+            abs_pred_val = max([abs(ele) for ele in Xy_data["y_pred_csv_test"]])
+            size_space = 0.1*max([abs_val,abs_pred_val])
+        min_value_graph = min(min(Xy_data["y_csv_test"]),min(Xy_data["y_pred_csv_test"]))
+        min_value_graph = min_value_graph-size_space
+        max_value_graph = max(max(Xy_data["y_csv_test"]),max(Xy_data["y_pred_csv_test"]))
+        max_value_graph = max_value_graph+size_space
+
+        # PATH of the graph
+        folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
+        reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
+        path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-3:])
 
     # Add gridlines
     ax.grid(linestyle='--', linewidth=1)
 
-    # set limits
-    min_value_graph, max_value_graph = set_lim_reg(Xy_data,set_types)
-
+    # set axis limits
     plt.xlim(min_value_graph, max_value_graph)
     plt.ylim(min_value_graph, max_value_graph)
 
-    reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+    # save graph
     plt.savefig(f'{reg_plot_file}', dpi=300, bbox_inches='tight')
-
-    path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
     plt.clf()
@@ -203,26 +225,21 @@ def set_lim_reg(Xy_data,set_types):
     '''
     
     size_space = 0.1*abs(min(Xy_data["y_train"])-max(Xy_data["y_train"]))
-    min_value_graph = min(Xy_data["y_train"])
-    if min(Xy_data["y_valid"]) < min_value_graph:
-        min_value_graph = min(Xy_data["y_valid"])
+
+    min_value_graph = min(min(Xy_data["y_train"]),min(Xy_data["y_pred_train"]),min(Xy_data["y_valid"]),min(Xy_data["y_pred_valid"]))
     if 'test' in set_types:
-        if min(Xy_data["y_test"]) < min_value_graph:
-            min_value_graph = min(Xy_data["y_test"])
+        min_value_graph = min(min_value_graph,min(Xy_data["y_test"]),min(Xy_data["y_pred_test"]))
     min_value_graph = min_value_graph-size_space
         
-    max_value_graph = max(Xy_data["y_train"])
-    if max(Xy_data["y_valid"]) > max_value_graph:
-        max_value_graph = max(Xy_data["y_valid"])
+    max_value_graph = max(max(Xy_data["y_train"]),max(Xy_data["y_pred_train"]),max(Xy_data["y_valid"]),max(Xy_data["y_pred_valid"]))
     if 'test' in set_types:
-        if max(Xy_data["y_test"]) > max_value_graph:
-            max_value_graph = max(Xy_data["y_test"])
+        max_value_graph = max(max_value_graph,max(Xy_data["y_test"]),max(Xy_data["y_pred_test"]))
     max_value_graph = max_value_graph+size_space
     
     return min_value_graph, max_value_graph
 
 
-def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,print_fun=True):
+def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,print_fun=True):
     '''
     Plot a confusion matrix with the prediction vs actual values
     '''
@@ -236,11 +253,22 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,prin
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
     plt.gcf().axes[0].tick_params(size=14)
     plt.gcf().axes[1].tick_params(size=14)
-    clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
+
+    # save fig
+    if not csv_test:
+        clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
+        path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-2:])
+
+    else:
+        folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
+        clas_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
+        path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-3:])
+
     plt.savefig(f'{clas_plot_file}', dpi=300, bbox_inches='tight')
 
-    path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-2:])
-    self.args.log.write(f"      -  Graph in: {path_reduced}")
+    if print_fun:
+        self.args.log.write(f"      -  Graph in: {path_reduced}")
+
     plt.clf()
 
 
@@ -250,30 +278,38 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     '''
     
     Xy_orig_df, Xy_path, params_df, _, _, suffix_title = load_dfs(self,params_dir,'no_print')
-    base_csv_name = '_'.join(os.path.basename(Xy_path).replace('.csv','_').split('_')[0:2])
+    base_csv_name = '_'.join(os.path.basename(Path(Xy_path)).replace('.csv','_').split('_')[0:2])
     base_csv_name = f'PREDICT/{base_csv_name}'
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     Xy_orig_train = Xy_orig_df[Xy_orig_df.Set == 'Training']
     Xy_orig_train[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_train']
     train_path = f'{base_csv_path}_train_{suffix_title}.csv'
     _ = Xy_orig_train.to_csv(train_path, index = None, header=True)
-    print_preds = f'      -  Train set with predicted results: {os.path.basename(train_path)}'
+    print_preds = f'      -  Train set with predicted results: PREDICT/{os.path.basename(train_path)}'
     Xy_orig_valid = Xy_orig_df[Xy_orig_df.Set == 'Validation']
     Xy_orig_valid[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_valid']
     valid_path = f'{base_csv_path}_valid_{suffix_title}.csv'
     _ = Xy_orig_valid.to_csv(valid_path, index = None, header=True)
-    print_preds += f'\n      -  Validation set with predicted results: {os.path.basename(valid_path)}'
+    print_preds += f'\n      -  Validation set with predicted results: PREDICT/{os.path.basename(valid_path)}'
     # saves test predictions
+    Xy_orig_test = None
     if 'X_test_scaled' in Xy_data:
-        if 'y_pred_test' in Xy_data:
-            Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
+        Xy_orig_test = Xy_orig_df[Xy_orig_df.Set == 'Test']
+        Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
         test_path = f'{base_csv_path}_test_{suffix_title}.csv'
-        # drop columns with NaN (not useful)
-        for column in Xy_test_df.keys():
-            if Xy_test_df[column].isnull().values.any() and column != params_df["y"][0]:
-                del Xy_test_df[column]
-        _ = Xy_test_df.to_csv(test_path, index = None, header=True)
-        print_preds += f'\n      -  Test set with predicted results: {os.path.basename(test_path)}'
+        _ = Xy_orig_test.to_csv(test_path, index = None, header=True)
+        print_preds += f'\n      -  Test set with predicted results: PREDICT/{os.path.basename(test_path)}'
+
+    # saves prediction for external test in --csv_test
+    if self.args.csv_test != '':
+        Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
+        folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
+        Path(folder_csv).mkdir(exist_ok=True, parents=True)
+        csv_name = f'{os.path.basename(self.args.csv_test)}'.split(".csv")[0]
+        csv_name += f'_predicted_{suffix_title}.csv'
+        csv_test_path = f'{folder_csv}/{csv_name}'
+        _ = Xy_test_df.to_csv(csv_test_path, index = None, header=True)
+        print_preds += f'\n      -  External set with predicted results: PREDICT/csv_test/{os.path.basename(csv_test_path)}'
 
     self.args.log.write(print_preds)
 
@@ -289,8 +325,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
         if self.args.names in Xy_orig_train:
             name_points['train'] = Xy_orig_train[self.args.names]
             name_points['valid'] = Xy_orig_valid[self.args.names]
-        if self.args.names in Xy_test_df:
-            name_points['test'] = Xy_test_df[self.args.names]
+        if Xy_orig_test is not None:
+            name_points['test'] = Xy_orig_test[self.args.names]
 
     return path_n_suffix, name_points
 
@@ -335,12 +371,16 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
         print_results += f"\n      -  Valid. : R2 = {Xy_data['r2_valid']:.2}, MAE = {Xy_data['mae_valid']:.2}, RMSE = {Xy_data['rmse_valid']:.2}"
         if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
+        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
+            print_results += f"\n      -  csv_test : R2 = {Xy_data['r2_csv_test']:.2}, MAE = {Xy_data['mae_csv_test']:.2}, RMSE = {Xy_data['rmse_csv_test']:.2}"
 
     elif params_dict['type'].lower() == 'clas':
         print_results += f"\n      -  Train : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         print_results += f"\n      -  Valid. : Accuracy = {Xy_data['acc_valid']:.2}, F1 score = {Xy_data['f1_valid']:.2}, MCC = {Xy_data['mcc_valid']:.2}"
         if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : Accuracy = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
+        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
+            print_results += f"\n      -  csv_test : Accur. = {Xy_data['acc_csv_test']:.2}, F1 score = {Xy_data['f1_csv_test']:.2}, MCC = {Xy_data['mcc_csv_test']:.2}"
 
     self.args.log.write(print_results)
     dat_results = open(dat_file, "w")
@@ -619,7 +659,7 @@ def detect_outliers(self, outliers_scaled, name_points, naming_detect, set_type)
     if naming_detect:
         name_points_list = name_points[set_type].to_list()
     for i,val in enumerate(outliers_scaled):
-        if val > self.args.t_value:
+        if val > self.args.t_value or val < -self.args.t_value:
             val_outliers.append(val)
             if naming_detect:
                 name_outliers.append(name_points_list[i])

@@ -122,16 +122,14 @@ def test_AQME(test_job):
     # PREDICT folder
     if test_job in ['full_clas','full_clas_test']:
         assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 7 # missing the 2 dat files from outliers
-        if test_job == 'full_clas':
-            assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
-        elif test_job == 'full_clas_test':
-            assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 10 # 2 extra PNG for test confusion matrices
+        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 9
         assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
 
     if test_job in ['full_clas_test','full_workflow_test']:
-        assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 6 # 2 extra CSV files for the test set
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 2 # 2 extra PNG for test confusion matrices
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
 
@@ -182,9 +180,9 @@ def test_AQME(test_job):
             find_results_train_clas += 1
         if 'Results_RF_60_No_PFI_valid.png' in line:
             find_results_valid_clas += 1
-        if 'Results_RF_60_No_PFI_test.png' in line:
+        if 'Results_RF_60_No_PFI_csv_test.png' in line:
             find_results_test_clas += 1
-        if '-  Test :' in line:
+        if 'csv_test :' in line:
             find_test += 1
 
     if test_job in ['full_workflow','full_workflow_test','aqme']:

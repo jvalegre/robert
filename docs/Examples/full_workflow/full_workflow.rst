@@ -37,6 +37,14 @@ Executing the job
 
    python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv
 
+.. |br| raw:: html
+
+   <br />
+
+.. warning::
+
+   Make sure that the conda environment where ROBERT was installed is activated! |br| (i.e., :code:`conda activate robert`)
+
 **Options used:**
 
 * :code:`--ignore "[Name]"`: Variables ignored in the model. In this case, the column 'Name' that contains the names of the datapoints, which is not included in the model. Quotation marks are included in "[Name]" to avoid problems when using lists in the command line. More variables can be incuded as "[VAR1,VAR2,VAR3...]". 
@@ -62,6 +70,11 @@ Results
    :width: 30
 
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
+
+.. warning::
+
+   In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
+   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`)
 
 The PDF report contains all the results of the workflow. In this case, a Neural Network (NN) model with 80% training size was the optimal model found from: 
 

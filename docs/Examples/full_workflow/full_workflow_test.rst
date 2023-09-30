@@ -30,6 +30,14 @@ Executing the job
 
     python -m robert --predict --names Name --csv_test Robert_example_test.csv
 
+.. |br| raw:: html
+
+   <br />
+
+.. warning::
+
+   Make sure that the conda environment where ROBERT was installed is activated! |br| (i.e., :code:`conda activate robert`)
+
 **Options used:**
 
 * :code:`--predict`: only runs the PREDICT module.  
@@ -61,4 +69,23 @@ contain the predictions from the two different Neural Network (NN) models, with 
 obtained in the Full workflow example.
 
 The CSV files can be visualized here: |csv_no_pfi| (No PFI), |csv_pfi| (PFI)
+
+If you want to tabulate your results inside a report PDF, run this command line:
+
+.. code:: shell
+
+    python -m robert --report
+
+.. |pdf_report_test| image:: ../images/pdf_icon.jpg
+   :target: ../../_static/predictions_report.pdf
+   :width: 30
+
+The PDF file can be visualized here: |pdf_report_test|
+
+The predictions are sorted at the end of the PDF report (including both the No_PFI and the PFI models):
+
+.. |predictions_fig| image:: ../images/FW_test/Predictions.jpg
+   :width: 600
+
+.. centered:: |predictions_fig|
 

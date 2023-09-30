@@ -22,23 +22,22 @@ Required inputs
 Required packages
 +++++++++++++++++
 
-* **AQME:** Install AQME with conda-forge (or follow the instructions from `their ReadtheDocs <https://aqme.readthedocs.io>`__):
+* **AQME:** Install (or update) AQME with conda-forge (or follow the instructions from `their ReadtheDocs <https://aqme.readthedocs.io>`__):
 
 .. code:: shell
 
     conda install -c conda-forge aqme
-
-* **CREST:** Install CREST with conda-forge (or follow the instructions from `their documentation <https://crest-lab.github.io/crest-docs/>`__):
-
-.. code:: shell
-
-    conda install -c conda-forge crest
+    pip install aqme --upgrade      (if AQME was previously installed)
 
 * **xTB:** Install xTB with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
 
 .. code:: shell
 
     conda install -c conda-forge xtb
+
+.. warning::
+
+   This workflow is not available in Windows since xTB is only compatible with macOS and Linux!
 
 Executing the job
 +++++++++++++++++
@@ -53,6 +52,14 @@ Executing the job
 .. code:: shell
 
     python -m robert --aqme --y solubility --csv_name solubility_short.csv
+
+.. |br| raw:: html
+
+   <br />
+
+.. warning::
+
+   Make sure that the conda environment where ROBERT was installed is activated! |br| (i.e., :code:`conda activate robert`)
 
 **Options used:**
 
@@ -99,6 +106,11 @@ file can be downloaded here: |csv_report_test|
 
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF 
 file can be visualized here: |pdf_report_test|
+
+.. warning::
+
+   In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
+   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`)
 
 The PDF report contains all the results of the workflow. In this case, Gradient Boosting (GB) models with 80% and 90% training sizes were the optimal models found from: 
 

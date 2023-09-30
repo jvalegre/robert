@@ -20,6 +20,8 @@ Parameters
 import os
 import sys
 import glob
+import json
+import platform
 import pandas as pd
 from pathlib import Path
 from robert.utils import (load_variables,
@@ -413,6 +415,13 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         reduced_line = f'<p style="text-align: justify; margin-top: -5px;">' # reduces line separation separation        
         space = ('&nbsp;')*4
 
+        aqme_workflow = False
+        crest_workflow = False
+        if '--aqme' in command_line:
+            aqme_workflow = True
+        if '--crest' in command_line:
+            crest_workflow = True
+
         # just in case the command lines are so long
         command_line = format_lines(command_line,cmd_line=True)
 
@@ -424,41 +433,74 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         if self.args.csv_test != '':
             repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
 
-        repro_dat += f"""{first_line}<br><strong>2. Install the following Python modules:</strong></p>"""
-        repro_dat += f"""{reduced_line}{space}- ROBERT: conda install -c conda-forge robert={robert_version} (or pip install robert=={robert_version})</p>"""
-        
+        repro_dat += f"""{first_line}<br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
+        repro_dat += f"""{reduced_line}{space}- Install ROBERT and its dependencies: conda install -c conda-forge robert</p>"""
+        repro_dat += f"""{reduced_line}{space}- Adjust ROBERT version: pip install robert=={robert_version}</p>"""
+
         if intelex_version != 'not installed':
-            repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: pip install scikit-learn-intelex=={intelex_version}</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install scikit-learn-intelex: pip install scikit-learn-intelex=={intelex_version}</p>"""
             repro_dat += f"""{reduced_line}{space}<i>(if scikit-learn-intelex is not installed, slightly different results might be obtained)</i></p>"""
         else:
             repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: not installed</p>"""
             repro_dat += f"""{reduced_line}{space}<i>(if scikit-learn-intelex is installed, slightly different results might be obtained)</i></p>"""
-        
-        # get_version(LIBRARY)
-        # if not installed, dont put version
-        repro_dat += f"""{reduced_line}{space}- To generate the ROBERT_report.pdf summary, the following libraries might be necessary:</p>"""
-        for library_repro in ['WeasyPrint','GLib','Pango','GTK3']:
+
+        if aqme_workflow:
+            try:
+                path_aqme = Path(f'{os.getcwd()}/AQME/CSEARCH_data.dat')
+                datfile = open(path_aqme, 'r', errors="replace")
+                outlines = datfile.readlines()
+                aqme_version = outlines[0].split()[2]
+                datfile.close()
+                find_aqme = True
+            except:
+                find_aqme = False
+            if not find_aqme:
+                repro_dat += f"""{reduced_line}{space}- AQME is required, but no version was found:</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -c conda-forge aqme</p>"""
+            if find_aqme:
+                repro_dat += f"""{reduced_line}{space}- Adjust AQME version: pip install aqme=={aqme_version}</p>"""
+
+            try:
+                path_xtb = Path(f'{os.getcwd()}/AQME/QDESCP')
+                xtb_json = glob.glob(f'{path_xtb}/*.json')[0]
+                f = open(xtb_json, "r")  # Opening JSON file
+                data = json.loads(f.read())  # read file
+                f.close()
+                xtb_version = data['xtb version'].split()[0]
+                find_xtb = True
+            except:
+                find_xtb = False
+            if not find_xtb:
+                repro_dat += f"""{reduced_line}{space}- xTB is required, but no version was found:</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install xTB: conda install -c conda-forge xtb</p>"""
+            if find_xtb:
+                repro_dat += f"""{reduced_line}{space}- Adjust xTB version (if possible): conda install -c conda-forge xtb={xtb_version}</p>"""
+
+        if crest_workflow:
             try:
                 import pkg_resources
-                lib_version = pkg_resources.get_distribution(library_repro).version
-                if library_repro == 'WeasyPrint':
-                    repro_dat += f"""{reduced_line}{space}{space} {library_repro}: pip install {library_repro.lower()}=={lib_version}</p>"""
-                else:
-                    repro_dat += f"""{reduced_line}{space}{space} {library_repro}: conda install -c conda-forge {library_repro.lower()}={lib_version}</p>"""
+                crest_version = pkg_resources.get_distribution('crest').version
+                find_crest = True
             except:
-                repro_dat += f"""{reduced_line}{space}{space} {library_repro}: conda install -c conda-forge {library_repro.lower()}</p>"""
-      
+                find_crest = False
+            if not find_crest:
+                repro_dat += f"""{reduced_line}{space}- CREST is required, but no version was found:</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install CREST: conda install -c conda-forge crest</p>"""
+            if find_crest:
+                repro_dat += f"""{reduced_line}{space}- Adjust CREST version: conda install -c conda-forge crest={crest_version})</p>"""
+
         character_line = ''
         if self.args.csv_test != '':
             character_line += 's'
 
-        repro_dat += f"""{first_line}<br><strong>3. Run ROBERT with this command line in the folder with the CSV database{character_line} (originally run in Python {python_version}):</strong></p>{reduced_line}{command_line}</p>"""
+        repro_dat += f"""{first_line}<br><strong>3. Run ROBERT using this command line in the folder with the CSV database{character_line}:</strong></p>{reduced_line}{command_line}</p>"""
 
         # I use a very reduced line here because the formatted command_line comes with an extra blank line
-        repro_dat += f"""<p style="text-align: justify; margin-top: -28px;"><br><strong>4. Provide number and model of processors used to achieve:</strong></p>"""
+        repro_dat += f"""<p style="text-align: justify; margin-top: -28px;"><br><strong>4. Execution time, Python version and OS:</strong></p>"""
         
         # add total execution time
-        repro_dat += f"""{reduced_line}Total execution time: {total_time} seconds</p>"""
+        repro_dat += f"""{reduced_line}Originally run in Python {python_version} using {platform.system()} {platform.version()}</p>"""
+        repro_dat += f"""{reduced_line}Total execution time: {total_time} seconds (the number of processors should be specified by the user)</p>"""
 
         repro_dat += f"""<p style="page-break-after: always;"></p>"""
 
@@ -473,7 +515,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         """
 
         transpa_dat = ''
-        titles_line = f'<p style="text-align: justify; margin-top: -10px; margin-bottom: 3px">' # reduces line separation separation
+        titles_line = f'<p style="text-align: justify; margin-top: -12px; margin-bottom: 3px">' # reduces line separation separation
 
         # add params of the models
         transpa_dat += f"""{titles_line}<br><strong>1. Parameters of the scikit-learn models (same keywords as used in scikit-learn):</strong></p>"""
@@ -529,6 +571,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         columns_abbrev = []
         columns_abbrev.append(get_col_text('abbrev_1'))
         columns_abbrev.append(get_col_text('abbrev_2'))
+        columns_abbrev.append(get_col_text('abbrev_3'))
 
         abbrev_dat += combine_cols(columns_abbrev)
 

@@ -125,7 +125,7 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
 .. warning::
 
    In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
-   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`)
+   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
 
 .. installation-end 
 

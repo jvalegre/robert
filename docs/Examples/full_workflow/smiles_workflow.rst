@@ -21,6 +21,7 @@ Required inputs
 .. csv-table:: 
    :file: CSV/solubility_short.csv
    :header-rows: 1
+   :widths: 25, 25, 25
 
 Required packages
 +++++++++++++++++
@@ -67,9 +68,9 @@ Executing the job
 
 By default, the workflow sets:
 
-  - :code:`--ignore "[code_name,smiles]"` (variables ignored in the model)
+* :code:`--ignore "[code_name,smiles]"` (variables ignored in the model)
 
-  - :code:`--names code_name` (name of the column containing the names of the datapoints)  
+* :code:`--names code_name` (name of the column containing the names of the datapoints)  
 
 Execution time
 ++++++++++++++
@@ -89,7 +90,7 @@ Results
 
 * The workflow starts with a CSEARCH-RDKit conformer sampling (using RDKit by default, although CREST is also available if :code:`--csearch_keywords "--program crest"` is added).
 
-* Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors (using xTB geometry optimizations and different single-point calculations):
+* Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors (using xTB geometry optimizations and different single-point calculations).
 
 A CSV file called **AQME-ROBERT_solubility_short.csv** should be created in the folder where ROBERT was executed. The CSV 
 file can be downloaded here: |csv_report_smi|
@@ -106,23 +107,14 @@ file can be visualized here: |pdf_report_smiles|
 .. warning::
 
    In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
-   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`)
+   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
 
-The PDF report contains all the results of the workflow. In this case, Gradient Boosting (GB) models with 80% and 90% training sizes were the optimal models found from: 
+The PDF report contains all the results of the workflow. In this case, a Neural Network (NN) model with 60% training size and a Random Forest (RF) model with 70% training size were the optimal models found from: 
 
   * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
-  * Four different partition sizes (60%, 70%, 80%, 90%) 
+  * Two different partition sizes (60%, 70%) 
 
 All the results are summarized below:
-
-.. |AQME_data| image:: ../images/FW_smiles/AQME_data.jpg
-   :width: 600
-
-.. |CURATE_data| image:: ../images/FW_smiles/CURATE_data.jpg
-   :width: 600
-
-.. |GENERATE_data| image:: ../images/FW_smiles/GENERATE_data.jpg
-   :width: 600
 
 .. |heatmap_no_pfi| image:: ../images/FW_smiles/heatmap_no_pfi.png
    :width: 400
@@ -130,16 +122,10 @@ All the results are summarized below:
 .. |heatmap_pfi| image:: ../images/FW_smiles/heatmap_pfi.png
    :width: 400
 
-.. |VERIFY_dat_no_pfi| image:: ../images/FW_smiles/VERIFY_dat_no_pfi.jpg
-   :width: 600
-
 .. |VERIFY_no_pfi| image:: ../images/FW_smiles/VERIFY_no_pfi.png
    :width: 600
 
 .. |VERIFY_pfi| image:: ../images/FW_smiles/VERIFY_pfi.png
-   :width: 600
-
-.. |PREDICT_res_no_pfi| image:: ../images/FW_smiles/PREDICT_res_no_pfi.jpg
    :width: 600
 
 .. |PREDICT_graph_no_pfi| image:: ../images/FW_smiles/PREDICT_graph_no_pfi.png
@@ -163,68 +149,60 @@ All the results are summarized below:
 .. |header| image:: ../images/FW_smiles/header_smiles.jpg
    :width: 600
 
+.. |score| image:: ../images/FW_smiles/score_smiles.jpg
+   :width: 600
+
+.. |summary| image:: ../images/FW_smiles/summary_smiles.jpg
+   :width: 600
+
 +---------------------------------------------------------------------------------------------------+
 |                         .. centered:: **RESULTS**                                                 |
 +---------------------------------------------------------------------------------------------------+
 |  |                                                                                                |
-|  .. centered:: Header of the PDF report                                                           |
+|  .. centered:: Header and ROBERT score from the PDF report                                        |
 +-------------------------------------------------------------+-------------------------------------+
 |  .. centered:: Header                                       |    |header|                         |
 +-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /AQME folder                                                                       |
+|  .. centered:: ROBERT score                                 |    |score|                          |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: AQME_data.dat                                |    |AQME_data|                      |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /CURATE folder                                                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: CURATE_data.dat                              |    |CURATE_data|                    |
+|  .. centered:: Prediction summary                           |    |summary|                        |
 +-------------------------------------------------------------+-------------------------------------+
 |  |                                                                                                |
 |  .. centered:: /GENERATE folder                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: GENERATE_data.dat                            |    |GENERATE_data|                  |
+|  .. centered:: Heatmap_ML_models_no                         |    |heatmap_no_pfi|                 |
+|  .. centered:: _PFI_filter.png                              |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap ML models no                         |    |heatmap_no_pfi|                 |
-|  .. centered:: PFI filter.png                               |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap ML models with                       |    |heatmap_pfi|                    |
-|  .. centered:: PFI filter.png                               |                                     |
+|  .. centered:: Heatmap_ML_models_with                       |    |heatmap_pfi|                    |
+|  .. centered:: _PFI_filter.png                              |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |  |                                                                                                |
 |  .. centered:: /VERIFY folder                                                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_NN_80_No_PFI.dat                |    |VERIFY_dat_no_pfi|              |
-|  .. centered:: *(using 131 descriptors)*                    |                                     |
+|  .. centered:: VERIFY_tests_NN_60_No_PFI.png                |    |VERIFY_no_pfi|                  |
+|  .. centered:: *(using 91 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_NN_80_No_PFI.png                |    |VERIFY_no_pfi|                  |
-|  .. centered:: *(using 131 descriptors)*                    |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_NN_80_PFI.png                   |    |VERIFY_pfi|                     |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
+|  .. centered:: VERIFY_tests_RF_70_PFI.png                   |    |VERIFY_pfi|                     |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |  |                                                                                                |
 |  .. centered:: /PREDICT folder                                                                    |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_NN_80_No_PFI.dat                     |    |PREDICT_res_no_pfi|             |
-|  .. centered:: *(using 131 descriptors)*                    |                                     |
+|  .. centered:: Results_NN_60_No_PFI.png                     |    |PREDICT_graph_no_pfi|           |
+|  .. centered:: *(using 91 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_NN_80_No_PFI.png                     |    |PREDICT_graph_no_pfi|           |
-|  .. centered:: *(using 131 descriptors)*                    |                                     |
+|  .. centered:: SHAP_NN_60_No_PFI.png                        |    |PREDICT_shap_no_pfi|            |
+|  .. centered:: *(using 91 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_NN_80_No_PFI.png                        |    |PREDICT_shap_no_pfi|            |
-|  .. centered:: *(using 131 descriptors)*                    |                                     |
+|  .. centered:: Outliers_NN_60_No_PFI.png                    |    |PREDICT_out_no_pfi|             |
+|  .. centered:: *(using 91 descriptors)*                     |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_NN_80_No_PFI.png                    |    |PREDICT_out_no_pfi|             |
-|  .. centered:: *(using 131 descriptors)*                    |                                     |
+|  .. centered:: Results_RF_70_PFI.png                        |    |PREDICT_graph_pfi|              |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_NN_80_PFI.png                        |    |PREDICT_graph_pfi|              |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
+|  .. centered:: SHAP_RF_70_PFI.png                           |    |PREDICT_shap_pfi|               |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_NN_80_PFI.png                           |    |PREDICT_shap_pfi|               |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_NN_80_PFI.png                       |    |PREDICT_out_pfi|                |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
+|  .. centered:: Outliers_RF_70_PFI.png                       |    |PREDICT_out_pfi|                |
+|  .. centered:: *(PFI filter applied, using 4 descriptors)*  |                                     |
 +-------------------------------------------------------------+-------------------------------------+

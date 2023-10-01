@@ -31,6 +31,13 @@ Executing the job
 
     python -m robert --predict --names Name --csv_test Robert_example_test.csv
 
+.. note:: 
+
+   The --csv_test option can be used as part of end-to-end workflows. For example, this option can be added
+   to the "Full workflow from CSV" example:
+   
+   :code:`python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv`
+
 **Options used:**
 
 * :code:`--predict`: only runs the PREDICT module.  

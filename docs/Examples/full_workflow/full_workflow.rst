@@ -67,7 +67,7 @@ A PDF file called **ROBERT_report.pdf** should be created in the folder where RO
 .. warning::
 
    In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
-   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`)
+   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
 
 The PDF report contains all the results of the workflow. In this case, a Neural Network (NN) model with 80% training size was the optimal model found from: 
 
@@ -141,11 +141,11 @@ All the results are summarized below:
 |  |                                                                                                |
 |  .. centered:: /GENERATE folder                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap ML models no                         |    |heatmap_no_pfi|                 |
-|  .. centered:: PFI filter.png                               |                                     |
+|  .. centered:: Heatmap_ML_models_no                         |    |heatmap_no_pfi|                 |
+|  .. centered:: _PFI_filter.png                              |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap ML models with                       |    |heatmap_pfi|                    |
-|  .. centered:: PFI filter.png                               |                                     |
+|  .. centered:: Heatmap_ML_models_with                       |    |heatmap_pfi|                    |
+|  .. centered:: _PFI_filter.png                              |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |  |                                                                                                |
 |  .. centered:: /VERIFY folder                                                                     |

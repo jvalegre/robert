@@ -389,7 +389,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 <p style="text-align: justify;">1. Create a CSV database with the new points, including the necessary descriptors.</p>
 {reduced_line}2. Place the CSV file in the parent folder (i.e., where the module folders were created)</p>
 {reduced_line}3. Run the PREDICT module as 'python -m robert --predict --csv_test FILENAME.csv'.</p>
-{last_line}4. The predictions will be stored in the last column of two CSV files called MODEL_SIZE_test(_No)_PFI.csv, which are stored in the PREDICT folder.</p>"""
+{last_line}4. The predictions will be shown at the end of the resulting PDF report and will be stored in the last column of two CSV files called MODEL_SIZE_test(_No)_PFI.csv, which are in the PREDICT folder.</p>"""
 
         return score_dat
 
@@ -411,7 +411,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         citation_dat += f"""<p style="text-align: justify;"><br>{version_n_date}</p>
         <p style="text-align: justify;  margin-top: -8px;"><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
 
-        first_line = f'<p style="text-align: justify; margin-bottom: 10px">' # reduces line separation separation
+        first_line = f'<p style="text-align: justify; margin-bottom: 10px; margin-top: -8px;">' # reduces line separation separation
         reduced_line = f'<p style="text-align: justify; margin-top: -5px;">' # reduces line separation separation        
         space = ('&nbsp;')*4
 
@@ -419,7 +419,12 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         crest_workflow = False
         if '--aqme' in command_line:
             aqme_workflow = True
-        if '--crest' in command_line:
+            command_line = command_line.replace('AQME-ROBERT_','')
+            self.args.csv_name = f'{self.args.csv_name}'.replace('AQME-ROBERT_','')
+            if self.args.csv_test != '':
+                self.args.csv_test = f'{self.args.csv_test}'.replace('AQME-ROBERT_','')
+
+        if '--program crest' in command_line.lower():
             crest_workflow = True
 
         # just in case the command lines are so long
@@ -496,11 +501,11 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         repro_dat += f"""{first_line}<br><strong>3. Run ROBERT using this command line in the folder with the CSV database{character_line}:</strong></p>{reduced_line}{command_line}</p>"""
 
         # I use a very reduced line here because the formatted command_line comes with an extra blank line
-        repro_dat += f"""<p style="text-align: justify; margin-top: -28px;"><br><strong>4. Execution time, Python version and OS:</strong></p>"""
+        repro_dat += f"""<p style="text-align: justify; margin-top: -37px;"><br><strong>4. Execution time, Python version and OS:</strong></p>"""
         
         # add total execution time
         repro_dat += f"""{reduced_line}Originally run in Python {python_version} using {platform.system()} {platform.version()}</p>"""
-        repro_dat += f"""{reduced_line}Total execution time: {total_time} seconds (the number of processors should be specified by the user)</p>"""
+        repro_dat += f"""{reduced_line}Total execution time: {total_time} seconds <i>(the number of processors should be specified by the user)</i></p>"""
 
         repro_dat += f"""<p style="page-break-after: always;"></p>"""
 

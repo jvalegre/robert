@@ -12,8 +12,9 @@ Parameters
         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
     qdescp_keywords : str, default=''    
         Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['Ir']")
-    csearch_keywords : str, default:'--sample 50'
-        Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10')
+    csearch_keywords : str, default='--sample 50'
+        Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10'). CREST can be
+        used instead of RDKit by adding "--program crest".
 
 """
 #####################################################.
@@ -54,20 +55,43 @@ class aqme:
         # check if AQME is installed (required for this module)
         _ = self.init_aqme()
 
+        # run an AQME workflow, which includes CSEARCH and QDESCP jobs
+        _ = self.run_csearch_qdescp(self.args.csv_name)
+
+        # run an AQME workflow for the test set (if any)
+        if self.args.csv_test != '':
+            _ = self.run_csearch_qdescp(self.args.csv_test)
+
+        # move AQME output files (remove previous runs as well)
+        _ = move_aqme()
+
+        # finish the printing of the AQME info file
+        _ = finish_print(self,start_time,'AQME')
+
+
+    def run_csearch_qdescp(self,csv_target):
+        '''
+        Runs CSEARCH and QDESCP jobs in AQME
+        '''
+        
         # load database just to perform data checks (i.e. no need to run AQME if the specified y is not
         # in the database, since the program would crush in the subsequent CURATE job)
-        _ = load_database(self,self.args.csv_name,"aqme")
+        _ = load_database(self,csv_target,"aqme")
 
-        # run the initial AQME-CSEARCH conformational search with RDKit
-        cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--program', 'rdkit', '--input', f'{self.args.csv_name}']
+        # run the initial AQME-CSEARCH conformational search with RDKit (default) or CREST
+        if '--program crest' not in self.args.csearch_keywords.lower():
+            cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--program', 'rdkit', '--input', f'{csv_target}']
+        else:
+            self.args.log.write(f"\no  CREST detected in the csearch_keywords option, it will be used for conformer sampling")
+            cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--input', f'{csv_target}']
         _ = self.run_aqme(cmd_csearch,self.args.csearch_keywords)
 
         # run QDESCP to generate descriptors
-        cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb', '--csv_name', f'{self.args.csv_name}']
+        cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb', '--csv_name', f'{csv_target}']
         _ = self.run_aqme(cmd_qdescp,self.args.qdescp_keywords)
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
-        aqme_db = f'AQME-ROBERT_{self.args.csv_name}'
+        aqme_db = f'AQME-ROBERT_{csv_target}'
 
         # ensure that the AQME database was successfully created
         if not os.path.exists(aqme_db):
@@ -77,11 +101,6 @@ class aqme:
         if 'qdescp_atoms' not in self.args.qdescp_keywords:
             _ = filter_atom_prop(aqme_db)
 
-        # move AQME output files (remove previous runs as well)
-        _ = move_aqme()
-
-        # finish the printing of the AQME info file
-        _ = finish_print(self,start_time,'AQME')
 
     def run_aqme(self,command,extra_keywords):
         '''

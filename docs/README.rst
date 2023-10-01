@@ -134,25 +134,24 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
 Update to the latest version
 ++++++++++++++++++++++++++++
 
-1. Update to the latest version with pip (preferred):  
+1. Activate the conda environment where ROBERT was installed:
+
+.. code-block:: shell
+
+   conda activate robert
+
+
+2. Update to the latest version with pip:  
 
 .. code-block:: shell
 
    pip install robert --upgrade
 
-2. Alternatively, download the code from GitHub, go to the main robert folder in your terminal (contains the setup.py file), and run this command line:  
+* Alternatively, download the code from GitHub, go to the main robert folder in your terminal (contains the setup.py file), and run this command line:  
 
 .. code-block:: shell
 
    pip install .
-
-.. |br| raw:: html
-
-   <br />
-
-.. warning::
-
-   Make sure that the conda environment where ROBERT was installed is activated! |br| (i.e., :code:`conda activate robert`)
 
 .. update-end 
 

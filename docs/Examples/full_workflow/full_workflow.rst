@@ -17,7 +17,7 @@ Required inputs
    :width: 30
 
 * **Robert_example.csv:** CSV file with data to use as the training and validation sets. The full CSV file can be 
-  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__ 
+  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__ 
   or downloaded here: |csv_FW|
 
 .. csv-table:: 
@@ -31,19 +31,12 @@ Executing the job
 
 1. Download the **Robert_example.csv** file specified in Required inputs.
 2. Go to the folder containing the CSV file in your terminal.
-3. Run the following command line:
+3. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`)
+4. Run the following command line:
 
 .. code:: shell
 
    python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv
-
-.. |br| raw:: html
-
-   <br />
-
-.. warning::
-
-   Make sure that the conda environment where ROBERT was installed is activated! |br| (i.e., :code:`conda activate robert`)
 
 **Options used:**
 
@@ -58,7 +51,7 @@ Executing the job
 Execution time
 ++++++++++++++
 
-Time: ~2 min
+Time: ~3 min
 
 System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
 

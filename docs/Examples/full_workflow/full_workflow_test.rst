@@ -9,7 +9,7 @@ Required inputs
    :width: 30
 
 * **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be 
-  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__ 
+  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__ 
   or downloaded here: |csv_FW_test|
 
 .. csv-table:: 
@@ -24,19 +24,12 @@ Executing the job
 1. Run the **Full workflow from CSV** workflow from the Examples
 2. Download the **Robert_example_test.csv** file specified in Required inputs and paste it in the same working folder.
 3. Go to the working folder in your terminal.
-4. Run the following command line:
+4. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`)
+5. Run the following command line:
 
 .. code:: shell
 
     python -m robert --predict --names Name --csv_test Robert_example_test.csv
-
-.. |br| raw:: html
-
-   <br />
-
-.. warning::
-
-   Make sure that the conda environment where ROBERT was installed is activated! |br| (i.e., :code:`conda activate robert`)
 
 **Options used:**
 

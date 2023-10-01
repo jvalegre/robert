@@ -12,12 +12,15 @@ Overview
 Required inputs
 +++++++++++++++
 
-* **solubility_short.csv:** CSV file with SMILES to generate descriptors that will be used as the training and validation sets. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/SMILES_workflow>`__.
+* **solubility_short.csv:** CSV file with SMILES to generate descriptors that will be used as the training and validation sets. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/SMILES_workflow>`__ or downloaded here: |csv_smi|
+
+.. |csv_smi| image:: ../images/csv_icon.jpg
+   :target: ../../_static/solubility_short.csv
+   :width: 30  
 
 .. csv-table:: 
    :file: CSV/solubility_short.csv
    :header-rows: 1
-   :widths: 25, 25, 25
 
 Required packages
 +++++++++++++++++
@@ -37,7 +40,7 @@ Required packages
 
 .. warning::
 
-   This workflow is not available in Windows since xTB is only compatible with macOS and Linux!
+   This workflow is not available in Windows because xTB is **only compatible with macOS and Linux!**
 
 Executing the job
 +++++++++++++++++
@@ -47,23 +50,16 @@ Executing the job
 1. Install the programs specified in Required packages
 2. Download the **solubility_short.csv** file specified in Required inputs.
 3. Go to the folder containing the CSV file in your terminal.
-4. Run the following command line:
+4. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`)
+5. Run the following command line:
 
 .. code:: shell
 
     python -m robert --aqme --y solubility --csv_name solubility_short.csv
 
-.. |br| raw:: html
-
-   <br />
-
-.. warning::
-
-   Make sure that the conda environment where ROBERT was installed is activated! |br| (i.e., :code:`conda activate robert`)
-
 **Options used:**
 
-* :code:`--aqme"`: Calls the AQME module to convert SMILES into RDKit and xTB descriptors, retrieving a new CSV database. 
+* :code:`--aqme`: Calls the AQME module to convert SMILES into RDKit and xTB descriptors, retrieving a new CSV database. 
 
 * :code:`--y solubility`: Name of the column containing the response y values.  
 
@@ -78,7 +74,7 @@ By default, the workflow sets:
 Execution time
 ++++++++++++++
 
-Time: 20 min
+Time: ~1.5 min
 
 System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
 
@@ -87,25 +83,25 @@ Results
 
 **Initial AQME workflow**
 
-.. |csv_report_test| image:: ../images/csv_icon.jpg
+.. |csv_report_smi| image:: ../images/csv_icon.jpg
    :target: ../../_static/AQME-ROBERT_solubility_short.csv
    :width: 30
 
-* The workflow starts with a CSEARCH-RDKit conformer sampling:
+* The workflow starts with a CSEARCH-RDKit conformer sampling (using RDKit by default, although CREST is also available if :code:`--csearch_keywords "--program crest"` is added).
 
-* Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors:
+* Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors (using xTB geometry optimizations and different single-point calculations):
 
 A CSV file called **AQME-ROBERT_solubility_short.csv** should be created in the folder where ROBERT was executed. The CSV 
-file can be downloaded here: |csv_report_test|
+file can be downloaded here: |csv_report_smi|
 
 **Following ROBERT workflow**
 
-.. |pdf_report_test| image:: ../images/pdf_icon.jpg
+.. |pdf_report_smiles| image:: ../images/pdf_icon.jpg
    :target: ../../_static/ROBERT_report_smiles.pdf
    :width: 30
 
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF 
-file can be visualized here: |pdf_report_test|
+file can be visualized here: |pdf_report_smiles|
 
 .. warning::
 

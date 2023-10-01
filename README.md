@@ -49,7 +49,10 @@ D.D.G. - The style of the ROBERT_report.pdf file was created with the help of Ol
 ## How to cite ROBERT
 If you use any of the ROBERT modules, please include this citation:  
 * ROBERT v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert.  
-  
-Additionally, please include the corresponding reference for Scikit-learn and SHAP:
+
+If you use the AQME module, please include this citation:  
+* Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.
+
+Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
 * Pedregosa et al., Scikit-learn: Machine Learning in Python, J. Mach. Learn. Res. 2011, 12, 2825-2830.  
 * Lundberg et al., From local explanations to global understanding with explainable AI for trees, Nat. Mach. Intell. 2020, 2, 56–67.  

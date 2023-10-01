@@ -208,14 +208,14 @@ Python and Python libraries
 *These libraries are installed during the initial conda-forge installation.*  
 
 *  Python >= 3.6
-*  matplotlib-base >=3.7.1
-*  pandas >=2.0
-*  numpy >=1.23,<1.24
+*  matplotlib-base
+*  pandas
+*  numpy
 *  progress
 *  pyyaml
 *  seaborn
 *  scipy
-*  scikit-learn >=1.2,<1.3
+*  scikit-learn
 *  hyperopt
 *  numba
 *  shap
@@ -278,7 +278,11 @@ Reference
 If you use any of the ROBERT modules, please include this citation:  
 
 * `ROBERT v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert <https://github.com/jvalegre/robert>`__  
-  
+
+If you use the AQME module, please include this citation:  
+
+* Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.
+
 Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
 
 * Pedregosa et al., Scikit-learn: Machine Learning in Python, J. Mach. Learn. Res. 2011, 12, 2825-2830.  

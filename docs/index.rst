@@ -46,9 +46,10 @@ Special acknowledgments
 
 .. toctree:: 
    :maxdepth: 1
-   :caption: ROBERT Score
+   :caption: ROBERT PDF report
 
-   Score/score
+   Report/score
+   Report/repro
 
 .. toctree::
    :maxdepth: 2

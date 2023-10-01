@@ -16,6 +16,8 @@ The generated ROBERT_report.pdf files include a **reproducibility section** that
 Reproducibility section
 +++++++++++++++++++++++
 
+This is a screenshot of the reproducibility section shown in the PDF report.
+
 .. |repro_fig| image:: images/repro.jpg
    :width: 600
 
@@ -23,6 +25,8 @@ Reproducibility section
 
 Transparency section
 ++++++++++++++++++++
+
+This is a screenshot of the transparency section shown in the PDF report.
 
 .. |trans_fig| image:: images/trans.jpg
    :width: 600

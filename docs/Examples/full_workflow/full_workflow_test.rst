@@ -9,7 +9,7 @@ Required inputs
    :width: 30
 
 * **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be 
-  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__ 
+  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__ 
   or downloaded here: |csv_FW_test|
 
 .. csv-table:: 
@@ -24,11 +24,19 @@ Executing the job
 1. Run the **Full workflow from CSV** workflow from the Examples
 2. Download the **Robert_example_test.csv** file specified in Required inputs and paste it in the same working folder.
 3. Go to the working folder in your terminal.
-4. Run the following command line:
+4. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`)
+5. Run the following command line:
 
 .. code:: shell
 
     python -m robert --predict --names Name --csv_test Robert_example_test.csv
+
+.. note:: 
+
+   The --csv_test option can be used as part of end-to-end workflows. For example, this option can be added
+   to the "Full workflow from CSV" example:
+   
+   :code:`python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv`
 
 **Options used:**
 
@@ -61,4 +69,23 @@ contain the predictions from the two different Neural Network (NN) models, with 
 obtained in the Full workflow example.
 
 The CSV files can be visualized here: |csv_no_pfi| (No PFI), |csv_pfi| (PFI)
+
+If you want to tabulate your results inside a report PDF, run this command line:
+
+.. code:: shell
+
+    python -m robert --report
+
+.. |pdf_report_test| image:: ../images/pdf_icon.jpg
+   :target: ../../_static/predictions_report.pdf
+   :width: 30
+
+The PDF file can be visualized here: |pdf_report_test|
+
+The predictions are sorted at the end of the PDF report (including both the No_PFI and the PFI models):
+
+.. |predictions_fig| image:: ../images/FW_test/Predictions.jpg
+   :width: 600
+
+.. centered:: |predictions_fig|
 

@@ -12,8 +12,12 @@ Overview
 Required inputs
 +++++++++++++++
 
+.. |csv_FW_test| image:: ../images/csv_icon.jpg
+   :target: ../../_static/Robert_example_test.csv
+   :width: 30
+
 * Previous folder from a GENERATE job.
-* **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__.
+* **Robert_example_test.csv:** CSV file with data to use as the external test set. The full CSV file can be found in the `Examples folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__ or downloaded here: |csv_FW_test|
 
 .. csv-table:: 
    :file: ../full_workflow/CSV/Robert_example_test.csv

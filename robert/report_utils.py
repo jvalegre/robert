@@ -602,45 +602,46 @@ def get_col_text(type_thres):
     Gather the information regarding the thresholds used in the score and abbreviation sections
     """
 
-    first_line = '<p style="text-align: justify; margin-top: -8px;">' # reduces line separation separation
-    reduced_line = '<p style="text-align: justify; margin-top: -10px;">' # reduces line separation separation
+    reduced_line = '<p style="text-align: justify; margin-top: -8px;">' # reduces line separation separation
 
-    if type_thres in ['abbrev_1','abbrev_2']:
-        first_line = '<p style="text-align: justify; margin-top: -20px;">'
-        if type_thres == 'abbrev_1':
-            abbrev_list = ['<strong>ACC:</strong> accuracy',
-                           '<strong>ADAB:</strong> AdaBoost',
-                            '<strong>CSV:</strong> comma separated values',
-                            '<strong>CLAS:</strong> classification',
-                            '<strong>CV:</strong> cross-validation',
-                            '<strong>F1 score:</strong> balanced F-score',
-                            '<strong>GB:</strong> gradient boosting',
-                            '<strong>GP:</strong> gaussian process',
-                            '<strong>KN:</strong> k-nearest neighbors',
-                            '<strong>MAE:</strong> root-mean-square error', 
-                            "<strong>MCC:</strong> Matthew's correlation coefficient",
-            ]
-        elif type_thres == 'abbrev_2':
-            abbrev_list = ['<strong>ML:</strong> machine learning',                          
-                            '<strong>MVL:</strong> multivariate lineal models',
-                            '<strong>NN:</strong> neural network',
-                            '<strong>PFI:</strong> permutation feature importance',
-                            '<strong>R2:</strong> coefficient of determination',
-                            '<strong>REG:</strong> Regression',
-                            '<strong>RF:</strong> random forest',
-                            '<strong>RMSE:</strong> root mean square error',
-                            '<strong>RND:</strong> random',
-                            '<strong>SHAP:</strong> Shapley additive explanations',
-                            '<strong>VR:</strong> voting regressor',
-            ]
+    first_line = '<p style="text-align: justify; margin-top: -25px;">'
+    if type_thres == 'abbrev_1':
+        abbrev_list = ['<strong>ACC:</strong> accuracy',
+                        '<strong>ADAB:</strong> AdaBoost',
+                        '<strong>CSV:</strong> comma separated values',
+                        '<strong>CLAS:</strong> classification',
+                        '<strong>CV:</strong> cross-validation',
+                        '<strong>F1 score:</strong> balanced F-score',
+                        '<strong>GB:</strong> gradient boosting',
+                        '<strong>GP:</strong> gaussian process'
+        ]
 
-        column = ''
-        for i,ele in enumerate(abbrev_list):
-            if i == 0:
-                column += f"""{first_line}{ele}</p>
+    elif type_thres == 'abbrev_2':
+        abbrev_list = ['<strong>KN:</strong> k-nearest neighbors',
+                        '<strong>MAE:</strong> root-mean-square error', 
+                        "<strong>MCC:</strong> Matthew's correl. coefficient",
+                        '<strong>ML:</strong> machine learning',                          
+                        '<strong>MVL:</strong> multivariate lineal models',
+                        '<strong>NN:</strong> neural network',
+                        '<strong>PFI:</strong> permutation feature importance',
+                        '<strong>R2:</strong> coefficient of determination'
+        ]
+    elif type_thres == 'abbrev_3':
+        abbrev_list = ['<strong>REG:</strong> Regression',
+                        '<strong>RF:</strong> random forest',
+                        '<strong>RMSE:</strong> root mean square error',
+                        '<strong>RND:</strong> random',
+                        '<strong>SHAP:</strong> Shapley additive explanations',
+                        '<strong>VR:</strong> voting regressor',
+        ]
+
+    column = ''
+    for i,ele in enumerate(abbrev_list):
+        if i == 0:
+            column += f"""{first_line}{ele}</p>
 """
-            else:
-                column += f"""{reduced_line}{ele}</p>
+        else:
+            column += f"""{reduced_line}{ele}</p>
 """
 
     return column

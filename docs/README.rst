@@ -98,16 +98,22 @@ Installation
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
 1. Create and activate the conda environment where you want to install the program. If you are not sure of what 
-this point means, check out the "Quick note for users with no Python experience" section.
+this point means, check out the "Quick note for users with no Python experience" section. This is an example for Python 3.10, but 
+it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
 
-2. Install ROBERT using conda-forge and the intelex accelerator (only if your system is compatible with intelex) (preferred):  
+.. code-block:: shell 
+   
+   conda create -n robert python=3.10
+   conda activate robert
+
+2. Install ROBERT using conda-forge and the intelex accelerator with pip (only if your system is compatible with intelex) (preferred):  
 
 .. code-block:: shell 
    
    conda install -c conda-forge robert
    pip install scikit-learn-intelex
 
-3. In some cases, conda-forge might be slow and users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+3. If conda-forge is too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
 
 .. code-block:: shell
 
@@ -116,6 +122,11 @@ this point means, check out the "Quick note for users with no Python experience"
    conda install -c conda-forge glib gtk3 pango
    pip install scikit-learn-intelex
 
+.. warning::
+
+   In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
+   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
+
 .. installation-end 
 
 .. update-start 
@@ -123,15 +134,20 @@ this point means, check out the "Quick note for users with no Python experience"
 Update to the latest version
 ++++++++++++++++++++++++++++
 
-1. Activate the conda environment where you installed the program. 
+1. Activate the conda environment where ROBERT was installed:
 
-2. Update to the latest version with pip (preferred):  
+.. code-block:: shell
+
+   conda activate robert
+
+
+2. Update to the latest version with pip:  
 
 .. code-block:: shell
 
    pip install robert --upgrade
 
-3. Download the code from GitHub, go to the main robert folder in your terminal (contains the setup.py file), and:  
+* Alternatively, download the code from GitHub, go to the main robert folder in your terminal (contains the setup.py file), and run this command line:  
 
 .. code-block:: shell
 
@@ -191,14 +207,14 @@ Python and Python libraries
 *These libraries are installed during the initial conda-forge installation.*  
 
 *  Python >= 3.6
-*  matplotlib-base >=3.7.1
-*  pandas >=2.0
-*  numpy >=1.23,<1.24
+*  matplotlib-base
+*  pandas
+*  numpy
 *  progress
 *  pyyaml
 *  seaborn
 *  scipy
-*  scikit-learn >=1.2,<1.3
+*  scikit-learn
 *  hyperopt
 *  numba
 *  shap
@@ -261,7 +277,11 @@ Reference
 If you use any of the ROBERT modules, please include this citation:  
 
 * `ROBERT v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert <https://github.com/jvalegre/robert>`__  
-  
+
+If you use the AQME module, please include this citation:  
+
+* Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.
+
 Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
 
 * Pedregosa et al., Scikit-learn: Machine Learning in Python, J. Mach. Learn. Res. 2011, 12, 2825-2830.  

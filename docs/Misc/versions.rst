@@ -9,6 +9,8 @@ Version 1.0.4 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.4>`__]
    -  csv_test is treated separately from the test set from GENERATE
    -  Table of score thresholds in ROBERT_report.pdf
    -  Showing predictions at the end of the PREDICT section of ROBERT_report.pdf
+   -  Adding --csv_test to AQME workflows
+   -  Adding the --crest option to AQME workflows
 
 Version 1.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.3>`__]
    -  Changing default split to RND

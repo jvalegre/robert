@@ -17,7 +17,7 @@ Required inputs
    :width: 30
 
 * **Robert_example.csv:** CSV file with data to use as the training and validation sets. The full CSV file can be 
-  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflows>`__ 
+  found in the `"Examples" folder of the ROBERT repository <https://github.com/jvalegre/robert/tree/master/Examples/CSV_workflow>`__ 
   or downloaded here: |csv_FW|
 
 .. csv-table:: 
@@ -31,7 +31,8 @@ Executing the job
 
 1. Download the **Robert_example.csv** file specified in Required inputs.
 2. Go to the folder containing the CSV file in your terminal.
-3. Run the following command line:
+3. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`)
+4. Run the following command line:
 
 .. code:: shell
 
@@ -50,7 +51,7 @@ Executing the job
 Execution time
 ++++++++++++++
 
-Time: ~2 min
+Time: ~3 min
 
 System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
 
@@ -62,6 +63,11 @@ Results
    :width: 30
 
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
+
+.. warning::
+
+   In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
+   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
 
 The PDF report contains all the results of the workflow. In this case, a Neural Network (NN) model with 80% training size was the optimal model found from: 
 
@@ -135,11 +141,11 @@ All the results are summarized below:
 |  |                                                                                                |
 |  .. centered:: /GENERATE folder                                                                   |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap ML models no                         |    |heatmap_no_pfi|                 |
-|  .. centered:: PFI filter.png                               |                                     |
+|  .. centered:: Heatmap_ML_models_no                         |    |heatmap_no_pfi|                 |
+|  .. centered:: _PFI_filter.png                              |                                     |
 +-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap ML models with                       |    |heatmap_pfi|                    |
-|  .. centered:: PFI filter.png                               |                                     |
+|  .. centered:: Heatmap_ML_models_with                       |    |heatmap_pfi|                    |
+|  .. centered:: _PFI_filter.png                              |                                     |
 +-------------------------------------------------------------+-------------------------------------+
 |  |                                                                                                |
 |  .. centered:: /VERIFY folder                                                                     |

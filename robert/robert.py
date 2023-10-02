@@ -66,6 +66,8 @@ def main():
         aqme(**vars(args))
         # set the path to the database created by AQME to continue in the full_workflow
         args.csv_name = Path(os.path.dirname(args.csv_name)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_name)}')
+        if args.csv_test != '':
+            args.csv_test = Path(os.path.dirname(args.csv_test)).joinpath(f'AQME-ROBERT_{os.path.basename(args.csv_test)}')
 
     # CURATE
     if args.curate or full_workflow:

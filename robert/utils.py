@@ -294,7 +294,7 @@ def load_variables(kwargs, robert_module):
         self.initial_dir = Path(os.getcwd())
 
         # adds --names to --ignore
-        if self.names not in self.ignore:
+        if self.names not in self.ignore and self.names != '':
             self.ignore.append(self.names)
 
         # creates destination folder

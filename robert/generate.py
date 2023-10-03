@@ -134,11 +134,22 @@ class generate:
         # separates an external test set (if applicable)
         csv_df, csv_X, csv_y, csv_df_test = self.separate_test(csv_df, csv_X, csv_y)
   
-        # changes from random to KN data splitting in databases with few points
+        # changes from random to KN data splitting in some cases
         if self.args.auto_kn:
+            # when using databases with a small number of points
             if len(csv_df[self.args.y]) < 100 and self.args.split.lower() == 'rnd':
                 self.args.split = 'KN'
                 self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, KN data splitting will replace the default random splitting (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
+            # when using unbalanced databases (using an arbitrary cut-off of 80% in one of the halves of the data)
+            mid_value = max(csv_df[self.args.y])-((max(csv_df[self.args.y])-min(csv_df[self.args.y]))/2)
+            high_vals = len([i for i in csv_df[self.args.y] if i >= mid_value])
+            if high_vals > 0.80*(len(csv_df[self.args.y])) or high_vals < 0.20*(len(csv_df[self.args.y])):
+                self.args.split = 'KN'
+                if high_vals > 0.80*(len(csv_df[self.args.y])):
+                    range_type = 'high'
+                elif high_vals < 0.20*(len(csv_df[self.args.y])):
+                    range_type = 'low'
+                self.args.log.write(f'\nx    WARNING! The database is imbalanced, it contains more than 80% of {self.args.y} values in the {range_type} half of values, KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')      
 
         # if there are less than 50 datapoints, the 90% training size is disabled by default
         if self.args.filter_train:

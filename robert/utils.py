@@ -293,6 +293,10 @@ def load_variables(kwargs, robert_module):
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 
+        # adds --names to --ignore
+        if self.names not in self.ignore and self.names != '':
+            self.ignore.append(self.names)
+
         # creates destination folder
         if robert_module.upper() != 'REPORT':
             self = destination_folder(self,robert_module)

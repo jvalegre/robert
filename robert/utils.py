@@ -293,7 +293,7 @@ def load_variables(kwargs, robert_module):
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 
-        # adds --names to --discard
+        # adds --names to --ignore
         if self.names not in self.ignore:
             self.ignore.append(self.names)
 

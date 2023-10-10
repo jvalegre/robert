@@ -140,16 +140,19 @@ class generate:
             if len(csv_df[self.args.y]) < 100 and self.args.split.lower() == 'rnd':
                 self.args.split = 'KN'
                 self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, KN data splitting will replace the default random splitting (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
-            # when using unbalanced databases (using an arbitrary cut-off of 80% in one of the halves of the data)
+            # when using unbalanced databases (using an arbitrary imbalance ratio of 10 with the two halves of the data)
             mid_value = max(csv_df[self.args.y])-((max(csv_df[self.args.y])-min(csv_df[self.args.y]))/2)
             high_vals = len([i for i in csv_df[self.args.y] if i >= mid_value])
-            if high_vals > 0.80*(len(csv_df[self.args.y])) or high_vals < 0.20*(len(csv_df[self.args.y])):
+            low_vals = len([i for i in csv_df[self.args.y] if i < mid_value])
+            imb_ratio_high = high_vals/low_vals
+            imb_ratio_low = low_vals/high_vals
+            if max(imb_ratio_high,imb_ratio_low) > 10:
                 self.args.split = 'KN'
-                if high_vals > 0.80*(len(csv_df[self.args.y])):
+                if imb_ratio_high > 10:
                     range_type = 'high'
-                elif high_vals < 0.20*(len(csv_df[self.args.y])):
+                elif imb_ratio_low > 10:
                     range_type = 'low'
-                self.args.log.write(f'\nx    WARNING! The database is imbalanced, it contains more than 80% of {self.args.y} values in the {range_type} half of values, KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')      
+                self.args.log.write(f'\nx    WARNING! The database is imbalanced (imbalance ratio > 10, more values in the {range_type} half of values), KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')      
 
         # if there are less than 50 datapoints, the 90% training size is disabled by default
         if self.args.filter_train:

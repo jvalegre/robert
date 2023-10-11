@@ -60,7 +60,7 @@ class aqme:
 
         # run an AQME workflow for the test set (if any)
         if self.args.csv_test != '':
-            _ = self.run_csearch_qdescp(self.args.csv_test)
+            _ = self.run_csearch_qdescp(self.args.csv_test,aqme_test=False)
 
         # move AQME output files (remove previous runs as well)
         _ = move_aqme()
@@ -69,14 +69,15 @@ class aqme:
         _ = finish_print(self,start_time,'AQME')
 
 
-    def run_csearch_qdescp(self,csv_target):
+    def run_csearch_qdescp(self,csv_target,aqme_test=True):
         '''
         Runs CSEARCH and QDESCP jobs in AQME
         '''
         
         # load database just to perform data checks (i.e. no need to run AQME if the specified y is not
         # in the database, since the program would crush in the subsequent CURATE job)
-        _ = load_database(self,csv_target,"aqme")
+        if aqme_test:
+            _ = load_database(self,csv_target,"aqme")
 
         # run the initial AQME-CSEARCH conformational search with RDKit (default) or CREST
         if '--program crest' not in self.args.csearch_keywords.lower():

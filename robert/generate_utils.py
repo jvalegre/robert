@@ -201,7 +201,7 @@ def f(params):
         if params['type'].lower() == 'reg':
             if data['r2_train'] > 0.99 and data['r2_valid'] < 0.99:
                 opt_target = float('inf')
-            if data['r2_train'] < 0.01 and data['r2_valid'] > 0.01:
+            if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
                 opt_target = float('inf')
 
         # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
@@ -502,23 +502,31 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target,_ = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
-    PFI_dict[PFI_dict['error_type']] = opt_target
+    opt_target,data = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
+    valid_PFI_model = True
+    if PFI_dict['type'].lower() == 'reg':
+        if data['r2_train'] > 0.99 and data['r2_valid'] < 0.99:
+            valid_PFI_model = False
+        if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
+            valid_PFI_model = False
 
-    # save CSV file
-    name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
-    path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
-    csv_PFI_df = pd.DataFrame.from_dict(PFI_dict, orient='index')
-    csv_PFI_df = csv_PFI_df.transpose()
-    _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
+    if valid_PFI_model:
+        PFI_dict[PFI_dict['error_type']] = opt_target
 
-    # create column for sets and add test set (if any)
-    csv_df = set_sets(csv_df,csv_df_test,Xy_data)
+        # save CSV file
+        name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
+        path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
+        csv_PFI_df = pd.DataFrame.from_dict(PFI_dict, orient='index')
+        csv_PFI_df = csv_PFI_df.transpose()
+        _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
 
-    # save the csv file
-    if os.path.exists(self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI.csv")):
-        db_name = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI_db")
-        _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
+        # create column for sets and add test set (if any)
+        csv_df = set_sets(csv_df,csv_df_test,Xy_data)
+
+        # save the csv file
+        if os.path.exists(self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI.csv")):
+            db_name = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI_db")
+            _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
 
 
 def PFI_filter(self,Xy_data,PFI_dict,seed):

@@ -330,6 +330,21 @@ def load_variables(kwargs, robert_module):
                     if elem[-1] in ['"',"'"]:
                         elem = elem[:-1]
                     if elem != '-h' and elem.split('--')[-1] not in var_dict:
+                        # parse single elements of the list as strings (otherwise the commands cannot be reproduced)
+                        if '--qdescp_atoms' in elem:
+                            new_arg = []
+                            list_qdescp = elem.replace(', ',',').replace(' ,',',').split()
+                            for j,qdescp_elem in enumerate(list_qdescp):
+                                if list_qdescp[j-1] == '--qdescp_atoms':
+                                    qdescp_elem = qdescp_elem[1:-1]
+                                    new_elem = []
+                                    for smarts_strings in qdescp_elem.split(','):
+                                        new_elem.append(f'{smarts_strings}'.replace("'",''))
+                                    new_arg.append(f'{new_elem}'.replace(" ",""))
+                                else:
+                                    new_arg.append(qdescp_elem)
+                            new_arg = ' '.join(new_arg)
+                            elem = new_arg
                         if cmd_args[i-1].split('--')[-1] in var_dict: # check if the previous word is an arg
                             cmd_print += f'"{elem}'
                         if i == len(cmd_args)-1 or cmd_args[i+1].split('--')[-1] in var_dict: # check if the next word is an arg, or last word in command
@@ -338,6 +353,7 @@ def load_variables(kwargs, robert_module):
                         cmd_print += f'{elem}'
                     if i != len(cmd_args)-1:
                         cmd_print += ' '
+
                 self.log.write(f"Command line used in ROBERT: python -m robert {cmd_print}\n")
 
         elif robert_module.upper() == 'REPORT':

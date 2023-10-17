@@ -9,6 +9,24 @@ Overview
 
 .. centered:: |aqme_fig|
 
+Reproducibility warning
++++++++++++++++++++++++
+
+.. |br| raw:: html
+
+   <br />
+
+.. warning::
+
+   When repeating end-to-end workflows starting from SMILES strings, **it may not be possible to exactly 
+   reproduce the results due to subtle differences in the generated xTB descriptors (&plusmn;0.1% in the 
+   vast majority of cases)**. However, the resulting ROBERT scores and model accuracies are very similar 
+   (see the ESI of the ROBERT paper for a complete explanation and examples). In such cases, the PDF 
+   report recommends that authors upload the descriptor database created (i.e., AQME-ROBERT_FILENAME.csv) 
+   to facilitate the reproduction of results by other researchers. |br| |br|
+   **Be careful when using SMILES worflows with less than 50 datapoints!** The results might change 
+   significantly between different ROBERT runs.
+
 Required inputs
 +++++++++++++++
 

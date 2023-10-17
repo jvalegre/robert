@@ -109,10 +109,19 @@ def set_aqme_args(args):
         print(f'\nx  The path of your CSV file doesn\'t exist! You specified: {args.csv_name}')
         sys.exit()
 
+    # list of potential arguments from CSV inputs in AQME
+    aqme_args = ['smiles','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']
+
     # ignore the names and SMILES of the molecules
+    remove = []
+    for column in args.ignore:
+        if column.lower() in aqme_args:
+            remove.append(column)
+    for column in remove:
+        args.ignore.remove(column)
+    if 'code_name' in args.ignore:
+        args.ignore.remove('code_name')
     for column in aqme_df.columns:
-        if column.lower() in ['smiles','code_name','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral'] and column not in args.ignore:
-            args.ignore.append(column)
         if column.lower() == 'code_name' and args.names == '':
             args.names = column
 

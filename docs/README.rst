@@ -98,7 +98,7 @@ Installation
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
 1. Create and activate the conda environment where you want to install the program. If you are not sure of what 
-this point means, check out the "Quick note for users with no Python experience" section. This is an example for Python 3.10, but 
+this point means, check out the "Users with no Python experience" section. This is an example for Python 3.10, but 
 it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
 
 .. code-block:: shell 
@@ -157,8 +157,8 @@ Update to the latest version
 
 .. note-start 
 
-Quick note for users with no Python experience
-++++++++++++++++++++++++++++++++++++++++++++++
+Users with no Python experience
++++++++++++++++++++++++++++++++
 
 You need a terminal with Python to install and run ROBERT. These are some suggested first steps:  
 

@@ -91,9 +91,6 @@ All the results are summarized below:
 .. |VERIFY_pfi| image:: ../images/FW/VERIFY_pfi.png
    :width: 600
 
-.. |PREDICT_res_no_pfi| image:: ../images/FW/PREDICT_res_no_pfi.jpg
-   :width: 600
-
 .. |PREDICT_graph_no_pfi| image:: ../images/FW/PREDICT_graph_no_pfi.png
    :width: 600
 

@@ -1,10 +1,10 @@
 .. aqme-modules-start
 
-AQME
-----
+From SMILES to predictors
+-------------------------
 
-Overview
-++++++++
+Overview of the AQME module
++++++++++++++++++++++++++++
 
 .. |aqme_fig| image:: images/AQME.jpg
    :width: 600

@@ -10,12 +10,10 @@ Parameters
         Folder containing the database and parameters of the ML model to analyze.
     thres_test : float, default=0.25,
         Threshold used to determine if a test pasess. It is determined in % units of diference between
-        the R2 (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
+        the RMSE (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
         original value). Test passes if:
-        1. y-mean and y-shuffle tests: decreases more than X% (from original R2, regressors, or MCC, 
-        classificators) or the error is greater than X% (from original MAE and RMSE for regressors)
-        2. One-hot encoding test: decreases more than X%
-        3. K-fold cross validation: decreases less than X%
+        1. y-mean, y-shuffle and one-hot encoding tests: the error is greater than 25% (from original MAE and RMSE for regressors)
+        2. K-fold cross validation: the error is lower than 25%
     kfold : int, default=5,
         The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV).
 

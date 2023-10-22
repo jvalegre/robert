@@ -86,7 +86,19 @@ class aqme:
 
             # adjust xTB accuracy based on the number of data points
             if self.args.auto_xtb:
-                if len(csv_df[self.args.y]) > 200: # 10 conformers, xTB acc = 1, xTB opt threshold = normal
+                if len(csv_df[self.args.y]) > 1000: # 5 conformers, xTB acc = 5, xTB opt threshold = normal
+                    self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 5')
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_acc 5'
+                    else:
+                        self.args.qdescp_keywords += ' --qdescp_acc 5'
+                elif len(csv_df[self.args.y]) > 500: # 5 conformers, xTB acc = 1, xTB opt threshold = normal
+                    self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 5')
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_acc 1'
+                    else:
+                        self.args.qdescp_keywords += ' --qdescp_acc 1'
+                elif len(csv_df[self.args.y]) > 200: # 10 conformers, xTB acc = 1, xTB opt threshold = normal
                     self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 10')
                     if self.args.qdescp_keywords == '':
                         self.args.qdescp_keywords = '--qdescp_acc 1'

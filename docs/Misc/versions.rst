@@ -11,6 +11,8 @@ Version 1.0.4 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.4>`__]
    -  Showing predictions at the end of the PREDICT section of ROBERT_report.pdf
    -  Adding --csv_test to AQME workflows
    -  Adding the --crest option to AQME workflows
+   -  Auto adjusting the convergence criteria and xTB accuracy of QDESCP based on number 
+      of datapoints
 
 Version 1.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.3>`__]
    -  Changing default split to RND

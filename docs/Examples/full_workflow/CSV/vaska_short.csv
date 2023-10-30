@@ -1,0 +1,6 @@
+code_name,smiles,barrier,charge,mult,complex_type,geom
+ir_tbp_1_dft-pet3_1_dft-sime_1_dft-co_1_dft-icn_1_smi1_1_s_1,[Ir]([P+](CC)(CC)CC)([C-]1N(C)CCN(C)1)(C#[O+])(N=C=O),14.8,0,1,squareplanar,"[""Ir_squareplanar""]"
+ir_tbp_1_dft-nme3_1_dft-sime_1_dft-hicn_1_dft-itcn_1_smi1_1_s_1,[Ir]([N+](C)(C)C)([C-]1N(C)CCN(C)1)(C#[N+][H])(N=C=S),12.4,0,1,squareplanar,"[""Ir_squareplanar""]"
+..., , ,,,,
+ir_tbp_1_dft-ime_1_dft-nme3_1_dft-hicn_1_dft-icn_1_smi1_1_s_1,[Ir]([C-]1N(C)C=CN(C)1)([N+](C)(C)C)(C#[N+][H])(N=C=O),18.1,0,1,squareplanar,"[""Ir_squareplanar""]"
+ir_tbp_1_dft-pyz_1_dft-pyz_1_dft-co_1_dft-icn_1_smi1_1_s_1,[Ir]([n+]1ccncc1)([n+]1ccncc1)(C#[O+])(N=C=O),22,0,1,squareplanar,"[""Ir_squareplanar""]"

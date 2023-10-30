@@ -120,8 +120,7 @@ def command_line_args():
         "predict",
         "aqme",
         "report",
-        "cheers",
-        "corr_filter"
+        "cheers"
     ]
     list_args = [
         "discard",
@@ -201,7 +200,7 @@ o Other common options:
 
 * Affecting data curation in CURATE:
   --categorical "onehot" or "numbers" (default="onehot") : type of conversion for categorical variables
-  --corr_filter BOOL (default=False) : activate the correlation filter
+  --corr_filter BOOL (default=True) : disable the correlation filter
 
 * Affecting model screening in GENERATE:
   --train "[SIZE1,SIZE2,etc]" (default=[60,70,80,90]) : training set % sizes to use in the ML scan (i.e., "[60,70]")

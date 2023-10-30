@@ -24,7 +24,7 @@ Parameters
         1. 'onehot' (for one-hot encoding, ROBERT will create a descriptor for each type of
         C atom using 0s and 1s to indicate whether the C type is present)
         2. 'numbers' (to describe the C atoms with numbers: 1, 2, 3, 4).
-    corr_filter : bool, default=True
+    corr_filter : bool, default=False
         Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
         of the descriptors with other descriptors (x filter) and the y values (y filter).
     desc_thres : float, default=25

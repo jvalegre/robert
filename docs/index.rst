@@ -44,6 +44,16 @@ Special acknowledgments
    Install/update
    Install/note
 
+.. toctree::
+   :maxdepth: 1
+   :caption: How does ROBERT work?
+
+   Modules/curate
+   Modules/generate
+   Modules/predict
+   Modules/verify
+   Modules/aqme
+
 .. toctree:: 
    :maxdepth: 1
    :caption: ROBERT PDF report
@@ -53,18 +63,12 @@ Special acknowledgments
 
 .. toctree::
    :maxdepth: 2
-   :caption: Modules and abbreviations
-
-   Modules/modules
-   Abbreviations/abbreviations
-
-.. toctree::
-   :maxdepth: 2
    :caption: Examples
 
    Examples/full_workflow/full_workflow
    Examples/full_workflow/full_workflow_test
    Examples/full_workflow/smiles_workflow
+   Examples/full_workflow/smiles_vaskas
    Examples/modules/modules
 
 .. toctree:: 
@@ -92,6 +96,7 @@ Special acknowledgments
    :maxdepth: 2
    :caption: Misc
 
+   Misc/abbreviations
    Misc/versions
    Misc/license
    Misc/help

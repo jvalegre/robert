@@ -98,7 +98,7 @@ Installation
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
 1. Create and activate the conda environment where you want to install the program. If you are not sure of what 
-this point means, check out the "Quick note for users with no Python experience" section. This is an example for Python 3.10, but 
+this point means, check out the "Users with no Python experience" section. This is an example for Python 3.10, but 
 it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
 
 .. code-block:: shell 
@@ -157,16 +157,14 @@ Update to the latest version
 
 .. note-start 
 
-Quick note for users with no Python experience
-++++++++++++++++++++++++++++++++++++++++++++++
+Users with no Python experience
++++++++++++++++++++++++++++++++
 
 You need a terminal with Python to install and run ROBERT. These are some suggested first steps:  
 
-**For Windows users:**
+1. Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>`__ for your operating system (Windows, macOS or Linux).  
 
-1. Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install/windows/>`__.  
-
-2. Open an Anaconda prompt.
+2. Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
 
 3. Create a conda environment called "robert" with Python (:code:`conda create -n robert python=3.10`). 
    *You only need to do this once.*
@@ -178,21 +176,6 @@ You need a terminal with Python to install and run ROBERT. These are some sugges
 6. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
 
 7. Run ROBERT as explained in the Examples section.
-
-**For macOS and Linux users with conda installed:**
-
-1. Open a terminal with conda.
-
-2. Create a conda environment called "robert" with Python (:code:`conda create -n robert python=3.10`). 
-   *You only need to do this once.*
-
-3. Activate the conda environment called "robert" (:code:`conda activate robert`).
-
-4. Install ROBERT as defined in the "Installation" section (:code:`conda install -c conda-forge robert`).
-
-5. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd /root/Users/test_robert`).
-
-6. Run ROBERT as explained in the Examples section.
 
 .. note-end 
 

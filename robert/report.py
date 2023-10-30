@@ -350,7 +350,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
         # get some tips
         score_dat += f"""
-<br><p style="text-align: justify; margin-top: -5px; margin-bottom: -2px;"><u>Some tips to improve the score</u></p>"""
+<br><p style="text-align: justify; margin-top: -8px; margin-bottom: -2px;"><u>Some tips to improve the score</u></p>"""
         
         n_scoring = 1
         style_line = '<p style="text-align: justify;">'
@@ -371,7 +371,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                     outliers_warnings = 'One'
                 elif outliers_warnings == 2:
                     outliers_warnings = 'Two'
-                score_dat += f'{style_line}&#9888;&nbsp; {outliers_warnings} of your models have more than 7.5% of outliers (5% is expected for a normal distribution with the t-value of 2 that ROBERT uses), using a more homogeneous distribution of results might help. For example, avoid using many points with similar y values and only a few points with distant y values.</p>'
+                score_dat += f'{style_line}&#9888;&nbsp; {outliers_warnings} of your models have more than 7.5% of outliers (5% is expected for a normal distribution with the t-value of 2 that ROBERT uses), using a more homogeneous distribution of results might help.</p>'
                 n_scoring += 1
                 style_line = reduced_line
             if descp_warning > 0:
@@ -385,7 +385,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
         # how to predict new values
         score_dat += f"""
-        <br><p style="text-align: justify; margin-top: 5px; margin-bottom: -2px;"><u>How to predict new values with these models?</u></p>
+        <br><p style="text-align: justify; margin-top: -3px; margin-bottom: -3px;"><u>How to predict new values with these models?</u></p>
 <p style="text-align: justify;">1. Create a CSV database with the new points, including the necessary descriptors.</p>
 {reduced_line}2. Place the CSV file in the parent folder (i.e., where the module folders were created)</p>
 {reduced_line}3. Run the PREDICT module as 'python -m robert --predict --csv_test FILENAME.csv'.</p>
@@ -411,13 +411,10 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         citation_dat += f"""<p style="text-align: justify;"><br>{version_n_date}</p>
         <p style="text-align: justify;  margin-top: -8px;"><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
 
-        first_line = f'<p style="text-align: justify; margin-bottom: 10px; margin-top: -8px;">' # reduces line separation separation
-        reduced_line = f'<p style="text-align: justify; margin-top: -5px;">' # reduces line separation separation        
-        space = ('&nbsp;')*4
-
         aqme_workflow = False
         crest_workflow = False
         if '--aqme' in command_line:
+            original_command = command_line
             aqme_workflow = True
             command_line = command_line.replace('AQME-ROBERT_','')
             self.args.csv_name = f'{self.args.csv_name}'.replace('AQME-ROBERT_','')
@@ -427,18 +424,51 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         if '--program crest' in command_line.lower():
             crest_workflow = True
 
+        # make the text more compact if --aqme is used (more lines are included)
+        if aqme_workflow:
+            first_line = f'<p style="text-align: justify; margin-bottom: 10px; margin-top: -16px;">' # reduces line separation separation
+        else:
+            first_line = f'<p style="text-align: justify; margin-bottom: 10px; margin-top: -8px;">' # reduces line separation separation
+        reduced_line = f'<p style="text-align: justify; margin-top: -5px;">' # reduces line separation separation        
+        space = ('&nbsp;')*4
+
         # just in case the command lines are so long
         command_line = format_lines(command_line,cmd_line=True)
 
-        # reproducibility section, starts with the icon of reproducibility        
+        # reproducibility section, starts with the icon of reproducibility  
         repro_dat += f"""{first_line}<br><strong>1. Download these files <i>(the authors should have uploaded the files as supporting information!)</i>:</strong></p>"""
-        repro_dat += f"""{reduced_line}{space}- Report with results (ROBERT_report.pdf)</p>"""
         repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
-        
         if self.args.csv_test != '':
             repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
 
-        repro_dat += f"""{first_line}<br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
+        if aqme_workflow:
+            repro_dat += f"""{reduced_line}{space}<i>Warning! SMILES workflows might not be reproduced exactly due to subtle changes in xTB descriptors (&plusmn;0.1%):</i></p>"""
+            repro_dat += f"""{reduced_line}{space}To obtain the same results, download the descriptor database (AQME-ROBERT_{self.args.csv_name}) and run:</p>"""
+            repro_line = []
+            original_command = original_command.replace(self.args.csv_name,f'AQME-ROBERT_{self.args.csv_name}')
+            for i,keyword in enumerate(original_command.split('"')):
+                if i == 0:
+                    if '--aqme' not in keyword and '--qdescp_keywords' not in keyword and '--csearch_keywords' not in keyword:
+                            repro_line.append(keyword)
+                    else:
+                        repro_line.append('python -m robert ')
+                if i > 0:
+                    if '--qdescp_keywords' not in original_command.split('"')[i-1] and '--csearch_keywords' not in original_command.split('"')[i-1]:
+                        if '--aqme' not in keyword and '--qdescp_keywords' not in keyword and '--csearch_keywords' not in keyword and keyword != '\n':
+                            repro_line.append(keyword) 
+            repro_line = '"'.join(repro_line)
+            repro_line += '"'
+            if '--names ' not in repro_line:
+                repro_line += ' --names "code_name"'
+            repro_line = f'{reduced_line}{space}- Run: {repro_line}'
+            repro_line = format_lines(repro_line,cmd_line=True)
+            repro_dat += f"""{reduced_line}{repro_line}</p>"""
+
+        if aqme_workflow:
+            # I use a very reduced line in this title because the formatted command_line comes with an extra blank line
+            repro_dat += f"""<p style="text-align: justify; margin-top: -44px;"><br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
+        else:
+            repro_dat += f"""{first_line}<br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
         repro_dat += f"""{reduced_line}{space}- Install ROBERT and its dependencies: conda install -c conda-forge robert</p>"""
         repro_dat += f"""{reduced_line}{space}- Adjust ROBERT version: pip install robert=={robert_version}</p>"""
 
@@ -500,9 +530,12 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
         repro_dat += f"""{first_line}<br><strong>3. Run ROBERT using this command line in the folder with the CSV database{character_line}:</strong></p>{reduced_line}{command_line}</p>"""
 
-        # I use a very reduced line here because the formatted command_line comes with an extra blank line
-        repro_dat += f"""<p style="text-align: justify; margin-top: -37px;"><br><strong>4. Execution time, Python version and OS:</strong></p>"""
-        
+        # I use a very reduced line in this title because the formatted command_line comes with an extra blank line
+        if aqme_workflow:
+            repro_dat += f"""<p style="text-align: justify; margin-top: -44px;"><br><strong>4. Execution time, Python version and OS:</strong></p>"""
+        else:
+            repro_dat += f"""<p style="text-align: justify; margin-top: -37px;"><br><strong>4. Execution time, Python version and OS:</strong></p>"""
+            
         # add total execution time
         repro_dat += f"""{reduced_line}Originally run in Python {python_version} using {platform.system()} {platform.version()}</p>"""
         repro_dat += f"""{reduced_line}Total execution time: {total_time} seconds <i>(the number of processors should be specified by the user)</i></p>"""

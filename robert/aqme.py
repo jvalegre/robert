@@ -15,6 +15,8 @@ Parameters
     csearch_keywords : str, default='--sample 50'
         Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10'). CREST can be
         used instead of RDKit by adding "--program crest".
+    auto_xtb : bool, default=True
+        Adjust the xTB options automatically based on number of data points during descriptor generation.
 
 """
 #####################################################.
@@ -34,6 +36,9 @@ from robert.utils import (load_variables,
     finish_print,
     load_database
     )
+
+# list of potential arguments from CSV inputs in AQME
+aqme_args = ['smiles','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']
 
 class aqme:
     """
@@ -56,11 +61,11 @@ class aqme:
         _ = self.init_aqme()
 
         # run an AQME workflow, which includes CSEARCH and QDESCP jobs
-        _ = self.run_csearch_qdescp(self.args.csv_name)
+        self = self.run_csearch_qdescp(self.args.csv_name)
 
         # run an AQME workflow for the test set (if any)
         if self.args.csv_test != '':
-            _ = self.run_csearch_qdescp(self.args.csv_test)
+            _ = self.run_csearch_qdescp(self.args.csv_test,aqme_test=False)
 
         # move AQME output files (remove previous runs as well)
         _ = move_aqme()
@@ -69,14 +74,65 @@ class aqme:
         _ = finish_print(self,start_time,'AQME')
 
 
-    def run_csearch_qdescp(self,csv_target):
+    def run_csearch_qdescp(self,csv_target,aqme_test=True):
         '''
         Runs CSEARCH and QDESCP jobs in AQME
         '''
         
         # load database just to perform data checks (i.e. no need to run AQME if the specified y is not
         # in the database, since the program would crush in the subsequent CURATE job)
-        _ = load_database(self,csv_target,"aqme")
+        if aqme_test:
+            csv_df = load_database(self,csv_target,"aqme")
+
+            # adjust xTB accuracy based on the number of data points
+            if self.args.auto_xtb:
+                if len(csv_df[self.args.y]) > 1000: # 5 conformers, xTB acc = 5, xTB opt threshold = normal
+                    self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 5')
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_acc 5'
+                    else:
+                        self.args.qdescp_keywords += ' --qdescp_acc 5'
+                elif len(csv_df[self.args.y]) > 500: # 5 conformers, xTB acc = 1, xTB opt threshold = normal
+                    self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 5')
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_acc 1'
+                    else:
+                        self.args.qdescp_keywords += ' --qdescp_acc 1'
+                elif len(csv_df[self.args.y]) > 200: # 10 conformers, xTB acc = 1, xTB opt threshold = normal
+                    self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 10')
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_acc 1'
+                    else:
+                        self.args.qdescp_keywords += ' --qdescp_acc 1'
+                elif len(csv_df[self.args.y]) > 100: # 10 conformers, xTB acc = 1, xTB opt theshold = extreme
+                    self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 10')
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_acc 1 --qdescp_opt extreme'
+                    else:
+                        self.args.qdescp_keywords += ' --qdescp_acc 1 --qdescp_opt extreme'
+                elif len(csv_df[self.args.y]) > 50: # 25 conformers, xTB acc = 0.2, xTB opt theshold = extreme
+                    self.args.csearch_keywords = self.args.csearch_keywords.replace('--sample 50','--sample 25')
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_opt extreme'
+                    else:
+                        self.args.qdescp_keywords += '--qdescp_opt extreme'
+                else: # 50 conformers, xTB acc = 0.2, xTB opt theshold = extreme
+                    if self.args.qdescp_keywords == '':
+                        self.args.qdescp_keywords = '--qdescp_opt extreme'
+                    else:
+                        self.args.qdescp_keywords += ' --qdescp_opt extreme'
+
+        # move the SDF files from the csv_name run (otherwise, the xTB calcs are repeated in csv_test)
+        else:
+            path_sdf = Path(f'{os.getcwd()}/CSEARCH/sdf_temp')
+            if os.path.exists(path_sdf):
+                shutil.rmtree(path_sdf)
+            path_sdf.mkdir(exist_ok=True, parents=True)
+            for sdf_file in glob.glob(f'{os.getcwd()}/CSEARCH/*.sdf'):
+                new_sdf = path_sdf.joinpath(os.path.basename(sdf_file))
+                if os.path.exists(new_sdf):
+                    os.remove(new_sdf)
+                shutil.move(sdf_file, new_sdf)
 
         # run the initial AQME-CSEARCH conformational search with RDKit (default) or CREST
         if '--program crest' not in self.args.csearch_keywords.lower():
@@ -90,6 +146,13 @@ class aqme:
         cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb', '--csv_name', f'{csv_target}']
         _ = self.run_aqme(cmd_qdescp,self.args.qdescp_keywords)
 
+        # return SDF files after csv_test
+        if not aqme_test:
+            for sdf_file in glob.glob(f'{path_sdf}/*.sdf'):
+                new_sdf = Path(f'{os.getcwd()}/CSEARCH').joinpath(os.path.basename(sdf_file))
+                shutil.move(sdf_file, new_sdf)
+            shutil.rmtree(path_sdf)
+
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
         aqme_db = f'AQME-ROBERT_{csv_target}'
 
@@ -98,8 +161,15 @@ class aqme:
             self.args.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")
             sys.exit()
 
+        # remove atomic properties if no SMARTS patterns were selected in qdescp
         if 'qdescp_atoms' not in self.args.qdescp_keywords:
             _ = filter_atom_prop(aqme_db)
+
+        # remove arguments from CSV inputs in AQME
+        _ = filter_aqme_args(aqme_db)
+
+        # this returns stores options just in case csv_test is included
+        return self
 
 
     def run_aqme(self,command,extra_keywords):
@@ -136,9 +206,22 @@ def filter_atom_prop(aqme_db):
         if column == 'DBSTEP_Vbur':
             aqme_df = aqme_df.drop(column, axis=1)
         # remove lists of atomic properties (skip columns from AQME arguments)
-        elif aqme_df[column].dtype == object and column.lower() not in ['smiles','code_name','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']:
+        elif aqme_df[column].dtype == object and column.lower() not in aqme_args:
             if '[' in aqme_df[column][0]:
                 aqme_df = aqme_df.drop(column, axis=1)
+    os.remove(aqme_db)
+    _ = aqme_df.to_csv(f'{aqme_db}', index = None, header=True)
+
+
+def filter_aqme_args(aqme_db):
+    '''
+    Function that filters off AQME arguments in CSV inputs
+    '''
+    
+    aqme_df = pd.read_csv(aqme_db)
+    for column in aqme_df.columns:
+        if column.lower() in aqme_args:
+            aqme_df = aqme_df.drop(column, axis=1)
     os.remove(aqme_db)
     _ = aqme_df.to_csv(f'{aqme_db}', index = None, header=True)
 

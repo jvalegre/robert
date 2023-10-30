@@ -50,6 +50,7 @@ var_dict = {
     "names" : '',
     "qdescp_keywords" : '',
     "csearch_keywords": '--sample 50',
+    "auto_xtb": True,
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
     "debug_report": False
 }

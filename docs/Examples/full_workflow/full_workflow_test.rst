@@ -21,10 +21,10 @@ Executing the job
 
 **Instructions:**
 
-1. Run the **Full workflow from CSV** workflow from the Examples
+1. Run the **Full workflow from CSV** workflow from the Examples.
 2. Download the **Robert_example_test.csv** file specified in Required inputs and paste it in the same working folder.
 3. Go to the working folder in your terminal.
-4. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`)
+4. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`).
 5. Run the following command line:
 
 .. code:: shell

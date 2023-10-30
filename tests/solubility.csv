@@ -4,9 +4,10 @@ mol_16,-1.41,CF
 mol_23,-4.11,CN
 mol_34,-1.64,CS
 mol_41,-2.93,CO
-mol_42,-2,F
-mol_43,-3,P
-mol_44,-4,Cl
-mol_45,-1.5,N
-mol_46,-2.5,S
-mol_60,-4,O
+mol_42,-2,CCl
+mol_43,-3,CP
+mol_44,-4,OCO
+mol_45,-1.5,FCF
+mol_46,-2.5,SCS
+mol_60,-4,NCN
+mol_61,-4,PCP

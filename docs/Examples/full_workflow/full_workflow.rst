@@ -31,7 +31,7 @@ Executing the job
 
 1. Download the **Robert_example.csv** file specified in Required inputs.
 2. Go to the folder containing the CSV file in your terminal.
-3. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`)
+3. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`).
 4. Run the following command line:
 
 .. code:: shell
@@ -89,9 +89,6 @@ All the results are summarized below:
    :width: 600
 
 .. |VERIFY_pfi| image:: ../images/FW/VERIFY_pfi.png
-   :width: 600
-
-.. |PREDICT_res_no_pfi| image:: ../images/FW/PREDICT_res_no_pfi.jpg
    :width: 600
 
 .. |PREDICT_graph_no_pfi| image:: ../images/FW/PREDICT_graph_no_pfi.png

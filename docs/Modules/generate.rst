@@ -1,10 +1,10 @@
 .. generate-modules-start
 
-GENERATE
---------
+Screening of ML models
+----------------------
 
-Overview
-++++++++
+Overview of the GENERATE module
++++++++++++++++++++++++++++++++
 
 .. |generate_fig| image:: images/GENERATE.jpg
    :width: 600

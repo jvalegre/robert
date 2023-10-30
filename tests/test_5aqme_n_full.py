@@ -94,7 +94,7 @@ def test_AQME(test_job):
 
     if test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
-                    "--qdescp_keywords", "--qdescp_atoms ['C']"]
+                    "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal", "--auto_xtb", "False"]
 
     subprocess.run(cmd_robert)
 
@@ -103,7 +103,8 @@ def test_AQME(test_job):
     assert os.path.exists(f'{path_main}/ROBERT_report.pdf')
     
     # CURATE folder
-    assert len(glob.glob(f'{path_main}/CURATE/*.png')) == 1
+    if test_job != 'aqme': # in AQME, there are too many descriptors so the Pearson heatmap doesn't show
+        assert len(glob.glob(f'{path_main}/CURATE/*.png')) == 1
     assert len(glob.glob(f'{path_main}/CURATE/*.dat')) == 1
     assert len(glob.glob(f'{path_main}/CURATE/*.csv')) == 2
 
@@ -136,9 +137,11 @@ def test_AQME(test_job):
     if test_job == 'aqme':
         assert os.path.exists(f'{path_main}/AQME-ROBERT_solubility.csv')
         db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_solubility.csv')
-        descps = ['code_name','solub','smiles','C_FUKUI+','C_DBSTEP_Vbur','MolLogP']
+        descps = ['code_name','solub','C_FUKUI+','MolLogP']
         for descp in descps:
             assert descp in db_aqme.columns
+        assert 'smiles' not in db_aqme.columns
+        assert 'C_DBSTEP_Vbur' not in db_aqme.columns
 
         outfile = open(f"{path_aqme}/AQME_data.dat", "r")
         outlines = outfile.readlines()
@@ -208,7 +211,8 @@ def test_AQME(test_job):
         assert find_test == 0
 
     # common to all reports
-    assert find_pearson > 0
+    if test_job != 'aqme': # too many descriptors so no Pearon heatmap
+        assert find_pearson > 0
     assert find_heatmap > 0
     assert find_verify > 0
     assert find_shap > 0
@@ -219,6 +223,7 @@ def test_AQME(test_job):
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
-    if os.path.exists(f'{path_main}/AQME-ROBERT_solubility.csv'):
-        os.remove(f'{path_main}/AQME-ROBERT_solubility.csv')
+    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','solubility.csv']:
+        if os.path.exists(f'{path_main}/{file_discard}'):
+            os.remove(f'{path_main}/{file_discard}')
     

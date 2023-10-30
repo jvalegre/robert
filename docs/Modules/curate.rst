@@ -1,10 +1,10 @@
 .. curate-modules-start
 
-CURATE
-------
+Data curation
+-------------
 
-Overview
-++++++++
+Overview of the CURATE module
++++++++++++++++++++++++++++++
 
 .. |curate_fig| image:: images/CURATE.jpg
    :width: 600

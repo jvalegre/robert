@@ -173,9 +173,11 @@ You need a terminal with Python to install and run ROBERT. These are some sugges
 
 5. Install ROBERT as defined in the "Installation" section (:code:`conda install -c conda-forge robert`).
 
-6. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+6. Install the intelex code accelerator with pip (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
 
-7. Run ROBERT as explained in the Examples section.
+7. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+
+8. Run ROBERT as explained in the Examples section.
 
 .. note-end 
 

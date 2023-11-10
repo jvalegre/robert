@@ -28,14 +28,14 @@ Parameters
         Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
         of the descriptors with other descriptors (x filter) and the y values (y filter).
     desc_thres : float, default=25
-        Threshold for the descriptor-to-datapoints ratio to deactivate the correlation filter. By default,
-        the correlation filter is disabled if there are 25 times more datapoints than descriptors.
+        Threshold for the descriptor-to-datapoints ratio to loose the correlation filter. By default,
+        the correlation filter is loosen if there are 25 times more datapoints than descriptors.
     thres_x : float, default=0.9
         Thresolhold to discard descriptors based on high R**2 correlation with other descriptors (i.e. 
         if thres_x=0.9, variables that show R**2 > 0.9 will be discarded).
     thres_y : float, default=0.001
         Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
-        if thres_y=0.001, variables that show R**2 < 0.01 will be discarded).
+        if thres_y=0.001, variables that show R**2 < 0.001 will be discarded).
 
 """
 #####################################################.

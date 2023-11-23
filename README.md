@@ -48,7 +48,7 @@ D.D.G. - The style of the ROBERT_report.pdf file was created with the help of Ol
 
 ## How to cite ROBERT
 If you use any of the ROBERT modules, please include this citation:  
-* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry; preprint; Chemistry, 2023. https://doi.org/10.26434/chemrxiv-2023-k994h.  
+* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. ChemRxiv, 2023, DOI: https://doi.org/10.26434/chemrxiv-2023-k994h.  
 
 If you use the AQME module, please include this citation:  
 * Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.

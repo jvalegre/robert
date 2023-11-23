@@ -261,7 +261,7 @@ Reference
 
 If you use any of the ROBERT modules, please include this citation:  
 
-* `Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry; preprint; Chemistry, 2023. https://doi.org/10.26434/chemrxiv-2023-k994h. <https://chemrxiv.org/engage/chemrxiv/article-details/65492430c573f893f1ef468d>`__  
+* `Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. ChemRxiv, 2023, DOI: https://doi.org/10.26434/chemrxiv-2023-k994h. <https://chemrxiv.org/engage/chemrxiv/article-details/65492430c573f893f1ef468d>`__  
 
 If you use the AQME module, please include this citation:  
 

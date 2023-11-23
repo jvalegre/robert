@@ -25,7 +25,7 @@ Automated protocols
 *  Converts categorical descriptors into one-hot descriptors.
 
 Technical information
-+++++++
++++++++++++++++++++++
 
 The CURATE module offers features to improve data quality. These include the removal of correlated variables, noise, and duplicated entries. These options are activated by default to reduce the complexity of the resulting predictors, 
 and users can set specific thresholds for the correlation and noise filters using the "thres_x" and "thres_y" parameters. Additionally, the module facilitates the conversion of categorical data, transforming columns containing categorical variables into 

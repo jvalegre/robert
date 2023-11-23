@@ -25,7 +25,7 @@ Automated protocols
 *  Selects and stores the best No PFI and PFI models.  
 
 Technical information
-+++++++
++++++++++++++++++++++
 
 The GENERATE module performs an exploration of various combinations ML algorithms and partition sizes. It uses built-in ML models from scikit-learn [1] or its code accelerator, scikit-learn-intelex. These models are hyperoptimized using the hyperopt Python module to find their optimal parameters. The determination of the number of epochs for hyperoptimization and random seeds of the models was achieved through exhaustive benchmarking.
 The software automatically generates a heatmap displaying RMSE values obtained from hyperoptimized algorithms. Furthermore, it performs permutation feature importance (PFI) analysis to identify the most influential descriptors and generate new models with only those descriptors. Users have the flexibility to fine-tune the PFI filter threshold using the "PFI_threshold" parameter. By default, this threshold removes features that contribute less than 4% to the model's R2. While this filter is activated by default, users can deactivate it by setting the "pfi_filter" option to False.

@@ -261,7 +261,7 @@ Reference
 
 If you use any of the ROBERT modules, please include this citation:  
 
-* `ROBERT v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert <https://github.com/jvalegre/robert>`__  
+* `D. Dalmau, J. V. Alegre Requena, “ROBERT: Bridging the Gap between Machine Learning and Chemistry” (preprint, Chemistry, 2023); https://doi.org/10.26434/chemrxiv-2023-k994h. <https://chemrxiv.org/engage/chemrxiv/article-details/65492430c573f893f1ef468d>`__  
 
 If you use the AQME module, please include this citation:  
 

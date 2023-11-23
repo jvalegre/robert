@@ -47,7 +47,8 @@ Special acknowledgments
 .. toctree::
    :maxdepth: 1
    :caption: How does ROBERT work?
-
+   
+   Modules/database
    Modules/curate
    Modules/generate
    Modules/predict

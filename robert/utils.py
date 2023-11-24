@@ -42,7 +42,7 @@ warnings.filterwarnings("ignore")
 
 robert_version = "1.0.4"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, https://doi.org/10.26434/chemrxiv-2023-k994h"
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
 
 # load paramters from yaml file

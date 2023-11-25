@@ -48,7 +48,7 @@ D.D.G. - The style of the ROBERT_report.pdf file was created with the help of Ol
 
 ## How to cite ROBERT
 If you use any of the ROBERT modules, please include this citation:  
-* ROBERT v1.0, Alegre-Requena, J. V.; Dalmau, D. 2023. https://github.com/jvalegre/robert.  
+* Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h.  
 
 If you use the AQME module, please include this citation:  
 * Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.

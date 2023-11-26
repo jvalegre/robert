@@ -97,7 +97,7 @@ Installation
 
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
-1. Create and activate the conda environment where you want to install the program. If you are not sure of what 
+**1.** Create and activate the conda environment where you want to install the program. If you are not sure of what 
 this point means, check out the "Users with no Python experience" section. This is an example for Python 3.10, but 
 it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
 
@@ -106,14 +106,14 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
    conda create -n robert python=3.10
    conda activate robert
 
-2. Install ROBERT using conda-forge and the intelex accelerator with pip (only if your system is compatible with intelex) (preferred):  
+**2.** Install ROBERT using conda-forge and the intelex accelerator with pip (only if your system is compatible with intelex) (preferred):  
 
 .. code-block:: shell 
    
    conda install -c conda-forge robert
    pip install scikit-learn-intelex
 
-3. If conda-forge is too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+**3.** If conda-forge is too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
 
 .. code-block:: shell
 
@@ -134,14 +134,14 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
 Update to the latest version
 ++++++++++++++++++++++++++++
 
-1. Activate the conda environment where ROBERT was installed:
+**1.** Activate the conda environment where ROBERT was installed:
 
 .. code-block:: shell
 
    conda activate robert
 
 
-2. Update to the latest version with pip:  
+**2.** Update to the latest version with pip:  
 
 .. code-block:: shell
 
@@ -162,22 +162,39 @@ Users with no Python experience
 
 You need a terminal with Python to install and run ROBERT. These are some suggested first steps:  
 
-1. Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>`__ for your operating system (Windows, macOS or Linux).  
+.. |br| raw:: html
 
-2. Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
+   <br />
 
-3. Create a conda environment called "robert" with Python (:code:`conda create -n robert python=3.10`). 
-   *You only need to do this once.*
+**1.** Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>`__ for your 
+operating system (Windows, macOS or Linux). Alternatively, if you're familiar with conda installers, 
+you can install `Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
+(requires less space than Anaconda).  
 
-4. Activate the conda environment called "robert" (:code:`conda activate robert`).
 
-5. Install ROBERT as defined in the "Installation" section (:code:`conda install -c conda-forge robert`).
+**2.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
 
-6. Install the intelex code accelerator with pip (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
 
-7. Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+**3.** Create a conda environment called "robert" with Python (:code:`conda create -n robert python=3.10`). 
+|br|
+*You only need to do this once.*
+|br|
+*This is an example for Python 3.10, but it also works for other Python versions (i.e., 3.7, 3.9 and 3.11).*
 
-8. Run ROBERT as explained in the Examples section.
+
+**4.** Activate the conda environment called "robert" (:code:`conda activate robert`).
+
+
+**5.** Install ROBERT as defined in the "Installation" section (:code:`conda install -c conda-forge robert`).
+
+
+**6.** Install the intelex code accelerator with pip (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
+
+
+**7.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+
+
+**8.** Run ROBERT as explained in the Examples section.
 
 .. note-end 
 
@@ -261,7 +278,7 @@ Reference
 
 If you use any of the ROBERT modules, please include this citation:  
 
-* `Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h. 
+* Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h. 
 
 If you use the AQME module, please include this citation:  
 

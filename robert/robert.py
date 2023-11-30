@@ -36,13 +36,13 @@ from robert.aqme import aqme
 from robert.utils import (command_line_args,missing_inputs)
 
 
-def main():
+def main(exe_type='command',sys_args=None):
     """
     Main function of ROBERT, acts as the starting point when the program is run through a terminal
     """
 
     # load user-defined arguments from command line
-    args = command_line_args()
+    args = command_line_args(exe_type,sys_args)
     args.command_line = True
 
     # if no modules are called, the full workflow is activated

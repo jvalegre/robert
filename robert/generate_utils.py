@@ -199,10 +199,7 @@ def f(params):
         # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes
         # because the errors of the validation sets are low
         if params['type'].lower() == 'reg':
-            if data['r2_train'] > 0.99 and data['r2_valid'] < 0.99:
-                opt_target = float('inf')
-            if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
-                opt_target = float('inf')
+            opt_target = avoid_overfit(data,opt_target)
 
         # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
         # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
@@ -288,6 +285,22 @@ def f(params):
         _ = csv_hyperopt_df.to_csv(name_csv_hyperopt, index = None, header=True)
  
     return {'loss': best, 'status': STATUS_OK}
+
+
+def avoid_overfit(data,opt_target):
+    '''
+    Removes models with clear overfitting
+    '''
+
+    if data['r2_train'] > 0.99:
+        if data['r2_valid'] < 0.99:
+            opt_target = float('inf')
+        elif data['rmse_valid'] > 1000*data['rmse_train']:
+            opt_target = float('inf')
+    if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
+        opt_target = float('inf')
+
+    return opt_target
 
 
 def load_params(self,model_type):
@@ -505,10 +518,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
     opt_target,data = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
     valid_PFI_model = True
     if PFI_dict['type'].lower() == 'reg':
-        if data['r2_train'] > 0.99 and data['r2_valid'] < 0.99:
-            valid_PFI_model = False
-        if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
-            valid_PFI_model = False
+        opt_target = avoid_overfit(data,opt_target)
 
     if valid_PFI_model:
         PFI_dict[PFI_dict['error_type']] = opt_target

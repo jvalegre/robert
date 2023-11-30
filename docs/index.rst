@@ -38,11 +38,12 @@ Special acknowledgments
 
 .. toctree::
    :maxdepth: 1
-   :caption: Installation
+   :caption: Installation and interface
 
    Install/installation
    Install/update
    Install/note
+   Install/gui
 
 .. toctree::
    :maxdepth: 1

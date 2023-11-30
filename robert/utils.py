@@ -105,11 +105,14 @@ class Logger:
         self.log.close()
 
 
-def command_line_args():
+def command_line_args(exe_type,sys_args):
     """
     Load default and user-defined arguments specified through command lines. Arrguments are loaded as a dictionary
     """
 
+    if exe_type == 'exe':
+        sys.argv = sys_args
+    
     # First, create dictionary with user-defined arguments
     kwargs = {}
     available_args = ["help"]
@@ -168,11 +171,11 @@ def command_line_args():
 
         if arg_name in ("h", "help"):
             print(f"""\n
-################################################################################
-#                                                                              #
+###########################################################################################
+#                                                                                         #
 #     ROBERT v {robert_version} is installed correctly, thanks for using the program!     #
-#                                                                              #
-################################################################################
+#                                                                                         #
+###########################################################################################
 
 
 o How to run a full workflow with ROBERT in the command line?

@@ -4,6 +4,10 @@
 Versions
 ========
 
+Version 1.0.5 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.5>`__]
+   -  Fixing some overfitted models with train and validation R2 0.99-1
+   -  Including the easyROB graphical user interface (GUI)
+
 Version 1.0.4 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.4>`__]
    -  Fixing outlier bug for negative t-values
    -  csv_test is treated separately from the test set from GENERATE

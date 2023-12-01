@@ -9,6 +9,25 @@ import threading
 import glob
 from PIL import ImageTk,Image
 
+class ScrollableFrame(tk.Frame):
+    def __init__(self, master, **kwargs):
+        tk.Frame.__init__(self, master, **kwargs)
+        self.canvas = tk.Canvas(self)
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas)
+
+        self.scrollable_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+    
+    def center_elements(self):
+        for child in self.scrollable_frame.winfo_children():
+            child.pack_configure(anchor="center")
+
 class easyROB(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -30,61 +49,65 @@ class easyROB(tk.Tk):
                                             
         #Add tittle
         self.title("easyROB")
-        self.geometry("500x800")
+        self.geometry("400x800")
         
+        # Create a scrollable frame
+        self.scrollable_frame = ScrollableFrame(self)
+        self.scrollable_frame.pack(fill="both", expand=True)
+
         # Label and button for CSV file
-        self.label = tk.Label(self, text="Select a CSV file:")
+        self.label = tk.Label(self.scrollable_frame.scrollable_frame, text="Select a CSV file:")
         self.label.pack(pady=10)
-        self.file_button = tk.Button(self, text="Select file", command=self.select_file)
+        self.file_button = tk.Button(self.scrollable_frame.scrollable_frame, text="Select file", command=self.select_file)
         self.file_button.pack(pady=10)
 
         # Label for the --y dropdown menu
-        self.y_label = tk.Label(self, text="Select a column for --y (target value to predict):")
+        self.y_label = tk.Label(self.scrollable_frame.scrollable_frame, text="Select a column for --y (target value to predict):")
         self.y_label.pack(pady=5)
 
         # Dropdown menu for --y
-        self.y_options = tk.StringVar(self)
-        self.y_dropdown = tk.OptionMenu(self, self.y_options, "")
+        self.y_options = tk.StringVar(self.scrollable_frame.scrollable_frame)
+        self.y_dropdown = tk.OptionMenu(self.scrollable_frame.scrollable_frame, self.y_options, "")
         self.y_dropdown.pack(pady=5)
 
         # Dropdown menu for --type
-        self.type_label = tk.Label(self, text="Type of predictions:")
+        self.type_label = tk.Label(self.scrollable_frame.scrollable_frame, text="Type of predictions:")
         self.type_label.pack(pady=5)
-        self.type_options = tk.StringVar(self)
+        self.type_options = tk.StringVar(self.scrollable_frame.scrollable_frame)
         self.type_options.set("Regression")  # Default selection
-        self.type_dropdown = tk.OptionMenu(self, self.type_options, "Regression", "Classification")
+        self.type_dropdown = tk.OptionMenu(self.scrollable_frame.scrollable_frame, self.type_options, "Regression", "Classification")
         self.type_dropdown.pack(pady=5)
 
         # Label for the --names dropdown menu
-        self.names_label = tk.Label(self, text="Select a column for --names (names of the data points):")
+        self.names_label = tk.Label(self.scrollable_frame.scrollable_frame, text="Select a column for --names (names of the data points):")
         self.names_label.pack(pady=5)
 
         # Dropdown menu for --names
-        self.names_options = tk.StringVar(self)
-        self.names_dropdown = tk.OptionMenu(self, self.names_options, "")
+        self.names_options = tk.StringVar(self.scrollable_frame.scrollable_frame)
+        self.names_dropdown = tk.OptionMenu(self.scrollable_frame.scrollable_frame, self.names_options, "")
         self.names_dropdown.pack(pady=5)
 
         # Label for the --csv_test entry field
-        self.csv_test_label = tk.Label(self, text="Select a file for --csv_test (new predictions, optional):")
+        self.csv_test_label = tk.Label(self.scrollable_frame.scrollable_frame, text="Select a file for --csv_test (new predictions, optional):")
         self.csv_test_label.pack(pady=5)
 
-        self.csv_test_file_button = tk.Button(self, text="Select file", command=self.select_csv_test_file)
+        self.csv_test_file_button = tk.Button(self.scrollable_frame.scrollable_frame, text="Select file", command=self.select_csv_test_file)
         self.csv_test_file_button.pack(pady=5)
 
         # Label for the --start_from_smiles dropdown menu
-        self.start_from_smiles_label = tk.Label(self, text="Start from SMILES (requires AQME and xTB):")
+        self.start_from_smiles_label = tk.Label(self.scrollable_frame.scrollable_frame, text="Start from SMILES (requires AQME and xTB):")
         self.start_from_smiles_label.pack(pady=5)
 
         # Dropdown menu for --start_from_smiles
-        self.start_from_smiles_options = tk.StringVar(self)
+        self.start_from_smiles_options = tk.StringVar(self.scrollable_frame.scrollable_frame)
         self.start_from_smiles_options.set("No")  # Default selection
-        self.start_from_smiles_dropdown = tk.OptionMenu(self, self.start_from_smiles_options, "No", "Yes")
+        self.start_from_smiles_dropdown = tk.OptionMenu(self.scrollable_frame.scrollable_frame, self.start_from_smiles_options, "No", "Yes")
         self.start_from_smiles_dropdown.pack(pady=5)
 
         # Label and Listbox for the --ignore entry field
-        self.ignore_label = tk.Label(self, text="Select columns to ignore:")
+        self.ignore_label = tk.Label(self.scrollable_frame.scrollable_frame, text="Select columns to ignore:")
         self.ignore_label.pack(pady=5)
-        self.ignore_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE, height=5,width=40)
+        self.ignore_listbox = tk.Listbox(self.scrollable_frame.scrollable_frame, selectmode=tk.MULTIPLE, height=5, width=40)
         self.ignore_listbox.pack(pady=5)
 
         # Variable to store the path of the selected file
@@ -92,11 +115,12 @@ class easyROB(tk.Tk):
         self.csv_test_path = ""
 
         # Make the "Run ROBERT" button larger
-        self.run_button = tk.Button(self, text="Run ROBERT", command=self.run_robert, height=2, width=20)
+        self.run_button = tk.Button(self.scrollable_frame.scrollable_frame, text="Run ROBERT", command=self.run_robert, height=2, width=20)
         self.run_button.pack(pady=10)
 
         # Progress bar
-        self.progress = ttk.Progressbar(self, orient="horizontal", length=400, mode="indeterminate")
+        self.progress = ttk.Progressbar(self.scrollable_frame.scrollable_frame, orient="horizontal", length=350, mode="indeterminate")
+        
         # Load the CSV file to get all column names
         if self.file_path:
             df = pd.read_csv(self.file_path)
@@ -106,6 +130,10 @@ class easyROB(tk.Tk):
         self.y_options.trace('w', self.update_y_options)
         self.names_options.trace('w', self.update_names_options)
         self.start_from_smiles_options.trace('w', self.update_start_from_smiles_option)
+
+        # Update the geometry of the scrollable_frame after all elements are added
+        self.scrollable_frame.update_idletasks()
+        self.scrollable_frame.center_elements()
 
     def update_y_options(self, *args):
         self.update_ignore_listbox()
@@ -171,7 +199,7 @@ class easyROB(tk.Tk):
         if not self.file_path or not self.y_options.get() or not self.names_options.get():
             messagebox.showwarning("Warning", "Please select a main CSV file, --y, and --names before running ROBERT.")
             return
-
+        
         # Get values for --y, --names, --csv_test, --start_from_smiles, and --ignore from the GUI entries
         y_value = self.y_options.get()
 
@@ -289,4 +317,5 @@ class easyROB(tk.Tk):
 if __name__ == "__main__":
     app = easyROB()
     app.mainloop()
+
 

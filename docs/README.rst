@@ -234,7 +234,7 @@ these steps:
 
 **6.** Run easyROB with the following command line (:code:`python easyrob.py`).
 
-.. |easyrob_interface| image:: /Modules/images/easyrob.png
+.. |easyrob_interface| image:: /Modules/images/easyROB.png
    :width: 500
   
 .. centered:: |easyrob_interface|

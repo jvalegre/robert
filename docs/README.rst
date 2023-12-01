@@ -220,13 +220,13 @@ these steps:
 
 
 .. |easyrob| image:: /Modules/images/Robert_icon.png
-   :target: https://github.com/jvalegre/robert/tree/master/docs/_static/easyROB.py
+   :target: https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyROB.py
    :width: 50
 
 .. |download| image:: /Modules/images/download.png
    :width: 200  
 
-**4.** Download easyrob.py: |easyrob| tapping to this button on github: |download|
+**4.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyROB.py>`__ |easyrob|, tapping on this button on GitHub |download|
 
 
 **5.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
@@ -237,7 +237,7 @@ these steps:
 .. |easyrob_interface| image:: /Modules/images/easyrob.png
    :width: 500
   
-|easyrob_interface|
+.. centered:: |easyrob_interface|
 
 .. gui-end 
 

@@ -198,6 +198,49 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 
 .. note-end 
 
+.. gui-start 
+
+Graphical User Interface (GUI): easyROB
++++++++++++++++++++++++++++++++++++++++
+
+You need a terminal with Python to run easyROB, the GUI of ROBERT. This GUI simplifies the setup 
+of ROBERT workflows, enabling users to select files and configure options easily. To run easyROB follow
+these steps: 
+
+**1.** Install ROBERT as defined in the "Installation" section.
+
+.. warning::
+
+   The GUI only works with ROBERT version 1.0.5 or later (check your version!). 
+
+**2.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
+
+
+**3.** Activate the conda environment called "robert" (:code:`conda activate robert`).
+
+
+.. |easyrob| image:: /Modules/images/Robert_icon.png
+   :target: https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyROB.py
+   :width: 50
+
+.. |download| image:: /Modules/images/download.png
+   :width: 200  
+
+**4.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyROB.py>`__ |easyrob|, tapping on this button on GitHub |download|
+
+
+**5.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+
+
+**6.** Run easyROB with the following command line (:code:`python easyrob.py`).
+
+.. |easyrob_interface| image:: /Modules/images/easyrob.png
+   :width: 500
+  
+.. centered:: |easyrob_interface|
+
+.. gui-end 
+
 .. requirements-start
 
 Requirements

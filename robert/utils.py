@@ -40,7 +40,7 @@ from sklearn.linear_model import LinearRegression
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.0.4"
+robert_version = "1.0.5"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
@@ -105,11 +105,14 @@ class Logger:
         self.log.close()
 
 
-def command_line_args():
+def command_line_args(exe_type,sys_args):
     """
     Load default and user-defined arguments specified through command lines. Arrguments are loaded as a dictionary
     """
 
+    if exe_type == 'exe':
+        sys.argv = sys_args
+    
     # First, create dictionary with user-defined arguments
     kwargs = {}
     available_args = ["help"]
@@ -168,11 +171,11 @@ def command_line_args():
 
         if arg_name in ("h", "help"):
             print(f"""\n
-################################################################################
-#                                                                              #
+###########################################################################################
+#                                                                                         #
 #     ROBERT v {robert_version} is installed correctly, thanks for using the program!     #
-#                                                                              #
-################################################################################
+#                                                                                         #
+###########################################################################################
 
 
 o How to run a full workflow with ROBERT in the command line?

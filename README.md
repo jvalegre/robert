@@ -29,9 +29,19 @@ For suggestions and improvements of the code (greatly appreciated!), please reac
 ROBERT is freely available under an [MIT](https://opensource.org/licenses/MIT) License  
 
 ## Special acknowledgements
-J.V.A.R. - The acronym ROBERT is dedicated to Prof. ROBERT Paton, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!
+J.V.A.R. - The acronym ROBERT is dedicated to **ROBERT Paton**, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!
 
-D.D.G. - The style of the ROBERT_report.pdf file was created with the help of Oliver Lee (University of St Andrews, 2023).
+D.D.G. - The style of the ROBERT_report.pdf file was created with the help of **Oliver Lee** (2023, Zysman-Colman group at University of St Andrews).
+
+We really THANK all the testers for their feedback and for participating in the reproducibility tests, including:
+
+* **David Valiente** (2022-2023, Universidad Miguel Hernández)
+* **Heidi Klem** (2023, Paton group at Colorado State University)
+* **Iñigo Iribarren** (2023, Trujillo group at Trinity College Dublin)
+* **Guilian Luchini** (2023, Paton group at Colorado State University)
+* **Alex Platt** (2023, Paton group at Colorado State University)
+* **Oliver Lee** (2023, Zysman-Colman group at University of St Andrews)
+* **Xinchun Ran** (2023, Yang group at Vanderbilt University)
 
 ## How to cite ROBERT
 If you use any of the ROBERT modules, please include this citation:  

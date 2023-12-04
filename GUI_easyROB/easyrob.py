@@ -35,7 +35,10 @@ class easyROB(tk.Tk):
         # Add icon
         path_icon = Path(resource_filename("robert", "report"))
         path_icon = path_icon.joinpath('Robert_icon.ico')
-        self.iconbitmap(f'{path_icon}')
+        try: # the icon folder isn't found in some systems
+            self.iconbitmap(f'{path_icon}')
+        except:
+            pass
 
         # Add logo
         path_logo = Path(resource_filename("robert", "report"))

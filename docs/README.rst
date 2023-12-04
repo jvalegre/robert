@@ -226,7 +226,7 @@ these steps:
 .. |download| image:: /Modules/images/download.png
    :width: 200  
 
-**4.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyROB.py>`__ |easyrob|, tapping on this button on GitHub |download|
+**4.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob|, tapping on this button on GitHub |download|
 
 
 **5.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).

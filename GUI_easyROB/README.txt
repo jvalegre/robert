@@ -11,7 +11,7 @@ Warning! The GUI only works with ROBERT version 1.0.5 or later (check your versi
 
 3. Activate the conda environment called "robert" (`conda activate robert`).
 
-4. Download easyrob.py (included in a compressed ZIP file within this folder).
+4. Download easyrob.py (included within this folder).
 
 5. Go to the folder with the easyrob.py file (using the "cd" command, i.e. `cd C:/Users/test_robert`).
 

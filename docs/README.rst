@@ -220,7 +220,7 @@ these steps:
 
 
 .. |easyrob| image:: /Modules/images/Robert_icon.png
-   :target: https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyROB.py
+   :target: https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py
    :width: 50
 
 .. |download| image:: /Modules/images/download.png

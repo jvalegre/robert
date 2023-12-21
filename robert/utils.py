@@ -663,6 +663,7 @@ def load_database(self,csv_load,module,external_set=False):
         shutil.move(csv_load, Path(os.path.dirname(csv_load)).joinpath(new_csv_name))
         new_csv_file = open(csv_load, "w")
         for line in lines:
+            line = line.replace(',','.')
             line = line.replace(';',',')
             line = line.replace(':',',')
             new_csv_file.write(line)

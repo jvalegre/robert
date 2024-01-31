@@ -84,7 +84,7 @@ Parameters
         hyperoptimization, and PREDICT will be used the points as test set during ROBERT workflows. The separation
         of test points occurs at random before any data splits are carried out inside the GENErATE screening.
     auto_test : bool, default=True
-        Removes test sets in databases with less than 100 datapoints and raises % of test points to 10% if 
+        Removes test sets in databases with less than 50 datapoints and raises % of test points to 10% if 
         test_set is lower than that.
         
 """

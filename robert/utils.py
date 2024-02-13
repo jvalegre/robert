@@ -658,14 +658,14 @@ def load_database(self,csv_load,module,external_set=False):
     # this part fixes CSV files that use ";" as separator
     with open(csv_load, 'r', encoding='utf-8') as file:
         lines = file.readlines()
-    if lines[0].count(';') > 1 or lines[0].count(':') > 1:
+    if lines[1].count(';') > 1:
         new_csv_name = os.path.basename(csv_load).split('.csv')[0].split('.CSV')[0]+'_original.csv'
         shutil.move(csv_load, Path(os.path.dirname(csv_load)).joinpath(new_csv_name))
         new_csv_file = open(csv_load, "w")
         for line in lines:
             line = line.replace(',','.')
             line = line.replace(';',',')
-            line = line.replace(':',',')
+            # line = line.replace(':',',')
             new_csv_file.write(line)
         new_csv_file.close()
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}.\n\n'

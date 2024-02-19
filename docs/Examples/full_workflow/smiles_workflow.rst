@@ -70,7 +70,7 @@ Executing the job
 
 1. Install the programs specified in Required packages.
 2. Download the **solubility_short.csv** file specified in Required inputs.
-3. Go to the folder containing the CSV file in your terminal.
+3. Go to the folder containing the CSV file in your terminal (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
 4. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`).
 5. Run the following command line:
 

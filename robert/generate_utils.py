@@ -82,8 +82,8 @@ def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed, csv_df_tes
         best = fmin(f, space4rf, algo=tpe.suggest, max_evals=max_evals, trials=trials, rstate=np.random.default_rng(hyperopt_data['seed']))
         if os.path.exists('hyperopt.json'):
             os.remove('hyperopt.json')
-    except ValueError:
-        self.args.log.write('\nx  There is an error in the hyperopt module, 1) are you using type ="clas" for regression y values instead of type="reg"? or 2) are you using very small partition sizes for validation sets (fix with train="[60,70]" for example)?')
+    except (ValueError, MemoryError):
+        self.args.log.write('\nx  There is an error in the hyperopt module, 1) are you using type ="clas" for regression y values instead of type="reg"? or 2) are you using very small partition sizes for validation sets (fix with train="[60,70]" for example)? or 3) bad allocation memory issue')
 
     if os.path.exists('hyperopt.json'):
         os.remove('hyperopt.json')

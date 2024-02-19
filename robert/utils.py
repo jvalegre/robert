@@ -40,7 +40,7 @@ from sklearn.linear_model import LinearRegression
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.0.5"
+robert_version = "1.0.6"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
@@ -650,6 +650,26 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
 
 def load_database(self,csv_load,module,external_set=False):
+    '''
+    Loads a database in CSV format
+    '''
+    
+    txt_load = ''
+    # this part fixes CSV files that use ";" as separator
+    with open(csv_load, 'r', encoding='utf-8') as file:
+        lines = file.readlines()
+    if lines[1].count(';') > 1:
+        new_csv_name = os.path.basename(csv_load).split('.csv')[0].split('.CSV')[0]+'_original.csv'
+        shutil.move(csv_load, Path(os.path.dirname(csv_load)).joinpath(new_csv_name))
+        new_csv_file = open(csv_load, "w")
+        for line in lines:
+            line = line.replace(',','.')
+            line = line.replace(';',',')
+            # line = line.replace(':',',')
+            new_csv_file.write(line)
+        new_csv_file.close()
+        txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}.\n\n'
+
     csv_df = pd.read_csv(csv_load)
     if not external_set:
         csv_df = csv_df.fillna(0)
@@ -662,13 +682,13 @@ def load_database(self,csv_load,module,external_set=False):
         if module.lower() not in ['aqme']:
             csv_name = os.path.basename(csv_load)
             if module.lower() not in ['predict']:
-                txt_load = f'\no  Database {csv_name} loaded successfully, including:'
+                txt_load += f'\no  Database {csv_name} loaded successfully, including:'
                 txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
                 txt_load += f'\n   - {accepted_descs} accepted descriptors'
                 txt_load += f'\n   - {ignored_descs} ignored descriptors'
                 txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
             else:
-                txt_load = f'\n   o  Test set {csv_name} loaded successfully, including:'
+                txt_load += f'\n   o  Test set {csv_name} loaded successfully, including:'
                 txt_load += f'\n      - {len(csv_df[csv_df.columns[0]])} datapoints'
             self.args.log.write(txt_load)
 

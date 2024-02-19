@@ -30,7 +30,7 @@ Executing the job
 **Instructions:**
 
 1. Download the **Robert_example.csv** file specified in Required inputs.
-2. Go to the folder containing the CSV file in your terminal.
+2. Go to the folder containing the CSV file in your terminal (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
 3. Activate the conda environment where ROBERT was installed (:code:`conda activate robert`).
 4. Run the following command line:
 

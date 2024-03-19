@@ -4,6 +4,10 @@
 Versions
 ========
 
+Version 1.0.6 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.6>`__]
+   -  Fixing a bad allocation memory issue in generate
+   -  Allows CSV inputs that use ; as separator
+
 Version 1.0.5 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.5>`__]
    -  Fixing some overfitted models with train and validation R2 0.99-1
    -  Including the easyROB graphical user interface (GUI)

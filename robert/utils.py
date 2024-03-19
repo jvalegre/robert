@@ -37,10 +37,11 @@ from sklearn.ensemble import (
 from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
+from mapie.regression import MapieRegressor
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.0.5"
+robert_version = "1.1.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
@@ -149,6 +150,7 @@ def command_line_args(exe_type,sys_args):
         'thres_y',
         'test_set',
         'desc_thres',
+        'alpha',
     ]
 
     for arg in var_dict:
@@ -449,6 +451,28 @@ def load_variables(kwargs, robert_module):
                 self.names = params_df["names"][0]
 
         elif robert_module.upper() == 'AQME':
+            # Check if the csv has 2 columns named smiles or smiles_Suffix. The file is read as text because pandas assigns automatically
+            # .1 to duplicate columns. (i.e. SMILES and SMILES.1 if there are two columns named SMILES)
+            unique_columns=[]
+            with open(self.csv_name, 'r') as datfile:
+                lines = datfile.readlines()
+                for column in lines[0].split(','):
+                    if column in unique_columns:
+                        print(f"\nWARNING! The CSV file contains duplicate columns ({column}). Please, rename or remove these columns. If you want to use more than one SMILES column, use _Suffix (i.e. SMILES_1, SMILES_2, ...)")
+                        sys.exit()
+                    else:
+                        unique_columns.append(column)
+
+            # Check if there are duplicate names in code_names in the csv file.
+            df = pd.read_csv(self.csv_name)
+            unique_entries=[]
+            for entry in df['code_name']:
+                if entry in unique_entries:
+                    print(f"\nWARNING! The code_name column in the CSV file contains duplicate entries ({entry}). Please, rename or remove these entries.")
+                    sys.exit()
+                else:
+                    unique_entries.append(entry)
+
             self.log.write(f"\no  Starting the generation of AQME descriptors with the AQME module")
 
         # initial sanity checks
@@ -456,7 +480,6 @@ def load_variables(kwargs, robert_module):
             _ = sanity_checks(self, 'initial', robert_module, None)
 
     return self
-
 
 def destination_folder(self,dest_module):
     if self.destination is None:
@@ -925,7 +948,7 @@ def load_model_clas(params):
 
 
 # calculates errors/precision and predicted values of the ML models
-def load_n_predict(params, data, hyperopt=False):
+def load_n_predict(self, params, data, hyperopt=False):
 
     # set the parameters for each ML model of the hyperopt optimization
     loaded_model = load_model(params)
@@ -966,6 +989,19 @@ def load_n_predict(params, data, hyperopt=False):
                     opt_target = 0
             return opt_target,data
         else:
+            if 'X_test_scaled' in data:
+                # mapie for obtaining prediction intervals
+                mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median")
+                mapie.fit(data['X_train_scaled'], data['y_train'])
+            
+                # Predict test set and obtain prediction intervals
+                y_test_pred, y_test_pis = mapie.predict(data['X_test_scaled'], alpha=[self.args.alpha])
+            
+                # Calculate prediction interval variability for each prediction in the test set
+                y_test_error = np.abs(y_test_pis[:, :, 0].T - y_test_pred)
+            
+                # Add 'y_pred_test_error' entry to data dictionary
+                data['y_pred_test_error'] = y_test_error
             return data
     
     elif params['type'].lower() == 'clas':
@@ -982,7 +1018,7 @@ def load_n_predict(params, data, hyperopt=False):
             opt_target = data[f'{params["error_type"].lower()}_valid']
             return opt_target,data
         else:
-            return data    
+            return data
 
 
 def get_prediction_results(params,y,y_pred):

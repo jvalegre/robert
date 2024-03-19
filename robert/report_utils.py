@@ -77,12 +77,15 @@ def get_images(module,file=None,pred_type='reg'):
         shap_images = []
         pfi_images = []
         outliers_images = []
+        variability_images = []
 
         for image_path in module_images:
             filename = Path(image_path).stem
             if "_REPORT" not in filename:
                 if "Results_" in filename:
                     results_images.append(image_path)
+                elif "Variability_" in filename:
+                    variability_images.append(image_path)
                 elif "SHAP_" in filename:
                     shap_images.append(image_path)
                 elif "Outliers_" in filename:
@@ -108,6 +111,8 @@ def get_images(module,file=None,pred_type='reg'):
             results_valid = revert_list(results_valid)
         if len(results_test) == 2 and 'No_PFI' in results_test[1]:
             results_test = revert_list(results_test)
+        if len(variability_images) == 2 and 'No_PFI' in variability_images[1]:
+            variability_images = revert_list(variability_images)
         if len(shap_images) == 2 and 'No_PFI' in shap_images[1]:
             shap_images = revert_list(shap_images)
         if len(pfi_images) == 2 and 'No_PFI' in pfi_images[1]:
@@ -118,7 +123,7 @@ def get_images(module,file=None,pred_type='reg'):
             csv_test_images = revert_list(csv_test_images)
 
         if pred_type == 'reg':
-            image_pair_list = [results_images, shap_images, pfi_images, outliers_images]
+            image_pair_list = [results_images, variability_images, shap_images, pfi_images, outliers_images]
         elif pred_type == 'clas':
             image_pair_list = [results_train, results_valid, results_test, shap_images, pfi_images, outliers_images]
 

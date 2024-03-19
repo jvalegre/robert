@@ -38,7 +38,7 @@ from robert.utils import (load_variables,
     )
 
 # list of potential arguments from CSV inputs in AQME
-aqme_args = ['smiles','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']
+aqme_args = ['charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']
 
 class aqme:
     """
@@ -133,25 +133,92 @@ class aqme:
                 if os.path.exists(new_sdf):
                     os.remove(new_sdf)
                 shutil.move(sdf_file, new_sdf)
+                
+        # find if there is more than one SMILES column in the CSV file
+        for column in csv_df.columns:
+            if "SMILES" == column.upper() or "SMILES_" in column.upper():
+                
+                self.args.ignore.append(column)
 
-        # run the initial AQME-CSEARCH conformational search with RDKit (default) or CREST
-        if '--program crest' not in self.args.csearch_keywords.lower():
-            cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--program', 'rdkit', '--input', f'{csv_target}']
-        else:
-            self.args.log.write(f"\no  CREST detected in the csearch_keywords option, it will be used for conformer sampling")
-            cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--input', f'{csv_target}']
-        _ = self.run_aqme(cmd_csearch,self.args.csearch_keywords)
+                # create individual csv file for each SMILES column
+                csv_temp = csv_df[['code_name', column] + [col for col in csv_df.columns if col.lower() in aqme_args]]
+                csv_temp.columns = ['code_name', 'SMILES'] + [col for col in csv_temp.columns if col.lower() in aqme_args]
+                
+                if column.upper() == "SMILES":
+                    smi_suffix = None
+                    csv_temp.to_csv('AQME_indiv.csv', index=False)
+                    aqme_indv_name = 'AQME_indiv'
+                else:
+                    smi_suffix = column.split("_")[1]
+                    csv_temp['code_name'] = csv_temp['code_name'] + '_' + smi_suffix
+                    csv_temp.to_csv(f'AQME_indiv_{smi_suffix}.csv', index=False)
+                    aqme_indv_name = f'AQME_indiv_{smi_suffix}'
 
-        # run QDESCP to generate descriptors
-        cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', 'CSEARCH/*.sdf', '--program', 'xtb', '--csv_name', f'{csv_target}']
-        _ = self.run_aqme(cmd_qdescp,self.args.qdescp_keywords)
+                # run the initial AQME-CSEARCH conformational search with RDKit (default) or CREST
+                if '--program crest' not in self.args.csearch_keywords.lower():
+                    cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--program', 'rdkit','--input', f'{aqme_indv_name}.csv']
+                else:
+                    self.args.log.write(f"\no  CREST detected in the csearch_keywords option, it will be used for conformer sampling")
+                    cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--input', f'{aqme_indv_name}.csv']
+                _ = self.run_aqme(cmd_csearch, self.args.csearch_keywords)
 
-        # return SDF files after csv_test
-        if not aqme_test:
-            for sdf_file in glob.glob(f'{path_sdf}/*.sdf'):
-                new_sdf = Path(f'{os.getcwd()}/CSEARCH').joinpath(os.path.basename(sdf_file))
-                shutil.move(sdf_file, new_sdf)
-            shutil.rmtree(path_sdf)
+                sdf_files = 'CSEARCH/*.sdf'
+                if smi_suffix is not None:
+                    sdf_files = f'CSEARCH/*_{smi_suffix}_*.sdf'
+
+                # run QDESCP to generate descriptors
+                cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', sdf_files, '--program', 'xtb', '--csv_name', f'{aqme_indv_name}.csv']
+                _ = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
+
+                if smi_suffix is not None:
+                    # Change column names by adding suffix
+                    try:
+                        df_temp = pd.read_csv(f'AQME-ROBERT_{aqme_indv_name}.csv')
+                    except FileNotFoundError:
+                        self.args.log.write("x  WARNING! ROBERT stopped due to a problem with the AQME job. Please, check the previous AQME warnings.")
+                        sys.exit()
+                    df_temp.columns = [f'{col}_{smi_suffix}' if col not in ['code_name','SMILES'] and col not in aqme_args else col for col in df_temp.columns]
+                    df_temp.to_csv(f'AQME-ROBERT_{aqme_indv_name}.csv', index=False)
+
+                    # Check if there are missing rows in the AQME-ROBERT_{aqme_indv_name}.csv
+                    if len(df_temp) < len(csv_temp):
+                        missing_rows = csv_temp.loc[~csv_temp['code_name'].isin(df_temp['code_name'])]
+                        missing_rows[['code_name', 'SMILES']].to_csv(f'AQME-ROBERT_{aqme_indv_name}.csv', mode='a', header=False, index=False)
+
+                    # Get the order of code_name in aqme_indv_name
+                    order = csv_temp['code_name'].tolist()
+
+                    # Sort the rows in 'AQME-ROBERT_{aqme_indv_name}.csv' based on the order
+                    df_temp = pd.read_csv(f'AQME-ROBERT_{aqme_indv_name}.csv')
+                    df_temp = df_temp.sort_values(by='code_name', key=lambda x: x.map({v: i for i, v in enumerate(order)}))
+
+                    # Fill missing values with corresponding SMILES row
+                    df_temp = df_temp.fillna(df_temp.groupby('SMILES').transform('first'))
+
+                    df_temp.to_csv(f'AQME-ROBERT_{aqme_indv_name}.csv', index=False)
+
+                # return SDF files after csv_test
+                if not aqme_test:
+                    for sdf_file in glob.glob(f'{path_sdf}/*.sdf'):
+                        new_sdf = Path(f'{os.getcwd()}/CSEARCH').joinpath(os.path.basename(sdf_file))
+                        shutil.move(sdf_file, new_sdf)
+                        shutil.rmtree(path_sdf)
+
+        # if AQME-ROBERT_AQME_indiv_n.csv >0 in folder:
+        if len(glob.glob('AQME-ROBERT_AQME_indiv*.csv')) > 0:
+
+            df_concat = pd.DataFrame()
+
+            # Read and concatenate CSV files 
+            for file in sorted(glob.glob('AQME-ROBERT_AQME_indiv*.csv'), key=os.path.getmtime,reverse=True):
+                columns_to_drop = ['code_name', 'SMILES'] + aqme_args
+                df_temp = pd.read_csv(file)
+                columns_to_drop = [col for col in columns_to_drop if col in df_temp.columns]
+                df_temp = df_temp.drop(columns=columns_to_drop)
+                df_concat = pd.concat([df_temp, df_concat], axis=1)
+            df_concat = pd.concat([csv_df, df_concat], axis=1)
+            df_concat.to_csv(f'AQME-ROBERT_{csv_target}', index=False)
+
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
         aqme_db = f'AQME-ROBERT_{csv_target}'
@@ -160,17 +227,20 @@ class aqme:
         if not os.path.exists(aqme_db):
             self.args.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")
             sys.exit()
-
+        
         # remove atomic properties if no SMARTS patterns were selected in qdescp
         if 'qdescp_atoms' not in self.args.qdescp_keywords:
-            _ = filter_atom_prop(aqme_db)
+            _ = filter_atom_prop(aqme_db,csv_df)
 
         # remove arguments from CSV inputs in AQME
         _ = filter_aqme_args(aqme_db)
-
+        
+        # delete AQME_indiv*.csv files
+        for file in glob.glob('*QME_indiv*.csv'):
+            os.remove(file)
+        
         # this returns stores options just in case csv_test is included
         return self
-
 
     def run_aqme(self,command,extra_keywords):
         '''
@@ -196,7 +266,7 @@ class aqme:
             sys.exit()
 
 
-def filter_atom_prop(aqme_db):
+def filter_atom_prop(aqme_db, csv_df):
     '''
     Function that filters off atomic properties if no atom was selected in the --qdescp_atoms option
     '''
@@ -207,10 +277,10 @@ def filter_atom_prop(aqme_db):
             aqme_df = aqme_df.drop(column, axis=1)
         # remove lists of atomic properties (skip columns from AQME arguments)
         elif aqme_df[column].dtype == object and column.lower() not in aqme_args:
-            if '[' in aqme_df[column][0]:
+            if '[' in aqme_df[column][0] and column not in csv_df.columns:
                 aqme_df = aqme_df.drop(column, axis=1)
     os.remove(aqme_db)
-    _ = aqme_df.to_csv(f'{aqme_db}', index = None, header=True)
+    _ = aqme_df.to_csv(f'{aqme_db}', index=None, header=True)
 
 
 def filter_aqme_args(aqme_db):

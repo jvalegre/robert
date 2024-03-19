@@ -195,7 +195,7 @@ def f(params):
     params['error_type'] = hyperopt_data['error_type']
 
     try:
-        opt_target,data = load_n_predict(params, hyperopt_data, hyperopt=True)
+        opt_target,data = load_n_predict(None, params, hyperopt_data, hyperopt=True)
         # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes
         # because the errors of the validation sets are low
         if params['type'].lower() == 'reg':
@@ -515,7 +515,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target,data = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
+    opt_target,data = load_n_predict(None, PFI_dict, Xy_data_PFI, hyperopt=True)
     valid_PFI_model = True
     if PFI_dict['type'].lower() == 'reg':
         opt_target = avoid_overfit(data,opt_target)

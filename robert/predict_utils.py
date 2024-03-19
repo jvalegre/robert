@@ -101,9 +101,15 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     
     self.args.log.write(f"\n   o  Saving graphs and CSV databases in:")
     if params_dict['type'].lower() == 'reg':
+        # Plot graph with all sets
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
+        # Plot variability graph of validation or test set
+        _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,plot_errors=True)
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
+            # Plot graph with all sets
             _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True)
+            # Plot variability graph of validation or test set
+            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True,plot_errors=True)
 
     elif params_dict['type'].lower() == 'clas':
         for set_type in set_types:
@@ -115,7 +121,7 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     return graph_style
 
 
-def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True):
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,plot_errors=False):
     '''
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     '''
@@ -132,14 +138,24 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     plt.ylabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.xlabel(f'{params_dict["y"]}', fontsize=14)
     
+    error_bars = "valid"
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        error_bars = "test"
+    
     if not csv_test:
-        title_graph = f'Predictions_train_valid'
-        if 'test' in set_types:
-            title_graph += '_test'
+        if not plot_errors:
+            title_graph = f'Predictions_train_valid'
+            if 'test' in set_types:
+                title_graph += '_test'
+        else:
+            title_graph = f'Variability of {error_bars} set'  
     else:
-        title_graph = f'{os.path.basename(self.args.csv_test)}'
-        if len(title_graph) > 30:
-            title_graph = f'{title_graph[:27]}...'
+        if not plot_errors:
+            title_graph = f'{os.path.basename(self.args.csv_test)}'
+            if len(title_graph) > 30:
+                title_graph = f'{title_graph[:27]}...'
+        else:
+            title_graph = f'Variability of external test'
 
     if print_fun:
         plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
@@ -147,17 +163,27 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
     # Plot the data
     if not csv_test:
-        _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
-                    c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-
-        _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
-                    c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        if not plot_errors:
+            _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
+                        c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)   
+                    
+        if not plot_errors or error_bars == 'valid':
+            _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
+                        c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+            
+        if error_bars == 'test':
             _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
-                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
+                
+        if plot_errors:
+            # Plot the data with the error bars
+            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_error"], fmt='none', ecolor="gray", capsize=3, zorder=1)
+            # Adjust labels from legend
+            set_types=[error_bars,f'{int((1-self.args.alpha)*100)}% CI']
+            
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
-                fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
+            fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
         # Add the regression line with a confidence interval based on the training sets
         Xy_data_df = pd.DataFrame()
@@ -170,12 +196,20 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
         min_value_graph, max_value_graph = set_lim_reg(Xy_data,set_types)
 
         # PATH of the graph
-        reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+        if not plot_errors:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+        else:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Variability_{os.path.basename(path_n_suffix)}.png'
         path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
 
     else:
+        error_bars = "test"
+        # Plot the points
         _ = ax.scatter(Xy_data["y_csv_test"], Xy_data["y_pred_csv_test"],
                         c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+        # Plot the data with the error bars
+        if plot_errors:
+            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_error"], fmt='none', ecolor="gray", capsize=3, zorder=1)
 
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
@@ -202,7 +236,11 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
         # PATH of the graph
         folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
-        reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
+        if not plot_errors:
+            reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
+        else:
+            reg_plot_file = f'{folder_graph}/Variability_{os.path.basename(path_n_suffix)}.png'
+
         path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-3:])
 
     # Add gridlines

@@ -140,7 +140,7 @@ class verify:
         
         cv_score = []
         data_cv = {}
-        kf = ShuffleSplit(n_splits=self.args.kfold,test_size=100-params_dict['train'],random_state=params_dict['seed'])
+        kf = ShuffleSplit(n_splits=self.args.kfold,test_size=((100-params_dict['train'])/100),random_state=params_dict['seed'])
         
         # combine training and validation for CV
         X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)

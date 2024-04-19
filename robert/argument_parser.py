@@ -35,6 +35,7 @@ var_dict = {
     "custom_params" : None,
     "type" : "reg",
     "epochs" : 0,
+    "nprocs": 8,
     "error_type" : "rmse",
     "pfi_epochs" : 5,
     "pfi_threshold" : 0.04,
@@ -50,8 +51,7 @@ var_dict = {
     "pfi_show" : 10,
     "names" : '',
     "qdescp_keywords" : '',
-    "csearch_keywords": '--sample 50',
-    "auto_xtb": True,
+    "csearch_keywords": '--sample 10',
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
     "debug_report": False
 }

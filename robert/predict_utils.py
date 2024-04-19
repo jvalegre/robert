@@ -40,7 +40,7 @@ def load_test(self, Xy_data, params_df, Xy_test_df):
 
     # test points coming from the files specified in csv_test
     if self.args.csv_test != '':
-        Xy_test_csv = load_database(self, self.args.csv_test, "predict", external_set=True)
+        Xy_test_csv = load_database(self, self.args.csv_test, "predict")
         X_test_csv, y_test_csv = test_csv(self,Xy_test_csv,descs_model,params_df)
         Xy_data['X_csv_test'] = X_test_csv
         Xy_data['y_csv_test'] = y_test_csv
@@ -209,7 +209,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
                         c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
         # Plot the data with the error bars
         if plot_errors:
-            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_error"], fmt='none', ecolor="gray", capsize=3, zorder=1)
+            _ = ax.errorbar(Xy_data[f"y_csv_{error_bars}"], Xy_data[f"y_pred_csv_{error_bars}"], yerr=Xy_data[f"y_pred_csv_{error_bars}_error"], fmt='none', ecolor="gray", capsize=3, zorder=1)
 
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
@@ -341,6 +341,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     # saves prediction for external test in --csv_test
     if self.args.csv_test != '':
         Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
+        Xy_test_df[f'{params_df["y"][0]}_error'] = np.mean(Xy_data['y_pred_csv_test_error'], axis=0)
         folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
         Path(folder_csv).mkdir(exist_ok=True, parents=True)
         csv_name = f'{os.path.basename(self.args.csv_test)}'.split(".csv")[0]
@@ -439,7 +440,10 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
 
     # run the SHAP analysis and save the plot
     explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=params_dict['seed'])
-    shap_values = explainer(Xy_data['X_valid_scaled'])
+    try:
+        shap_values = explainer(Xy_data['X_valid_scaled'])
+    except ValueError:
+        shap_values = explainer(Xy_data['X_valid_scaled'],max_evals=(2*len(Xy_data['X_valid_scaled'].columns))+1)
 
     shap_show = [self.args.shap_show,len(Xy_data['X_valid_scaled'].columns)]
     aspect_shap = 25+((min(shap_show)-2)*5)

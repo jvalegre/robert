@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="1.0.6"
+version="1.1.0"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
@@ -43,6 +43,7 @@ setup(
         "hyperopt",
         "numba>=0.57,<0.58",
         "shap>=0.42,<0.43",
+        "mapie==0.8.3"
         # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
         # optionally, the intelex accelerator might be installed "pip install scikit-learn-intelex"
     ],

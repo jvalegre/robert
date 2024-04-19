@@ -94,7 +94,7 @@ def test_AQME(test_job):
 
     if test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
-                    "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal", "--auto_xtb", "False"]
+                    "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal"]
 
     subprocess.run(cmd_robert)
 
@@ -227,3 +227,8 @@ def test_AQME(test_job):
         if os.path.exists(f'{path_main}/{file_discard}'):
             os.remove(f'{path_main}/{file_discard}')
     
+CSV con 2 SMILES, SMILES_XX y SMILES_YY
+cada column, tiene 2 moleculas, H2O y CH4 (repetido en las dos files)
+assert que se generen descriptors atomicos (usa [C,H,O]) con _XX y _YY
+assert que se generen descriptors moleculares con _XX y _YY
+assert que se copien los mismos numeros de arriba y abajo, y en el dat de qdescp que solo te haya calculado H2O y CH4 una vez (no dos)

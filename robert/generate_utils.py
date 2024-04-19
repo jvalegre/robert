@@ -24,6 +24,7 @@ import json
 import glob
 from pkg_resources import resource_filename
 from sklearn.inspection import permutation_importance
+from sklearn.model_selection import train_test_split
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from robert.utils import (
     load_model,
@@ -299,6 +300,8 @@ def avoid_overfit(data,opt_target):
             opt_target = float('inf')
     if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
         opt_target = float('inf')
+    if data['r2_valid'] - data['r2_train'] > 0.2:
+        opt_target = float('inf')
 
     return opt_target
 
@@ -395,10 +398,8 @@ def data_split(self,csv_X,csv_y,size,seed):
             training_points = k_neigh(self,X_scaled,csv_y,size,seed)
 
         elif self.args.split.upper() == 'RND':
-            n_of_points = int(len(csv_X)*(size/100))
-
-            random.seed(seed)
-            training_points = random.sample(range(len(csv_X)), n_of_points)
+            X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
+            training_points = X_train.index.tolist()
 
     Xy_data = Xy_split(csv_X,csv_y,training_points)
 
@@ -461,7 +462,7 @@ def k_neigh(self,X_scaled,csv_y,size,seed):
     return training_points
 
 
-def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
+def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #variable init_curate =False
     '''
     Filters off parameters with low PFI (not relevant in the model)
     '''
@@ -482,12 +483,14 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
     #   2. Proportion of 1:3 of descriptors:total datapoints (training + validation)
     total_points = len(Xy_data['y_train'])+len(Xy_data['y_valid'])
     n_descp_PFI = desc_keep-len(PFI_discard_cols)
-    if n_descp_PFI > 0.2*total_points or n_descp_PFI >= (0.75*desc_keep) or n_descp_PFI == 0:
+    if self.args.pfi_max > 0:
+        pfi_max = self.args.pfi_max
+    elif n_descp_PFI > 0.2*total_points or n_descp_PFI >= (0.75*desc_keep) or n_descp_PFI == 0:
         option_one = int(0.75*len(Xy_data['X_train'].columns))
         option_two = int(0.2*total_points)
         pfi_max = min(option_one,option_two)
     else:
-        pfi_max = self.args.pfi_max
+        pfi_max = 0
     
     discard_idx, descriptors_PFI = [],[]
     # just in case none of the descriptors passed the PFI filter
@@ -562,7 +565,7 @@ def PFI_filter(self,Xy_data,PFI_dict,seed):
         PFI_sd.append(perm_importance.importances_std[i])
   
     PFI_values, PFI_sd, descp_cols = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, descp_cols), reverse=True)))
-
+    #Esto hay que hacerlo cuando init_curate =False, sino hay que hacer PFI_discard_cols=descp_cols.
     # PFI filter
     PFI_discard_cols = []
     PFI_thres = abs(self.args.pfi_threshold*score_model)

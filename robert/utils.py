@@ -38,6 +38,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessCl
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
 from mapie.regression import MapieRegressor
+from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
@@ -137,10 +138,11 @@ def command_line_args(exe_type,sys_args):
     int_args = [
         'pfi_epochs',
         'epochs',
+        'nprocs',
         'pfi_max',
         'kfold',
         'shap_show',
-        'pfi_show'
+        'pfi_show',
     ]
     float_args = [
         'pfi_threshold',
@@ -293,6 +295,8 @@ def load_variables(kwargs, robert_module):
 
     # this part loads variables from yaml files (if varfile is used)
     txt_yaml = ""
+    if not os.path.exists(f"{self.csv_name}") and os.path.exists(f'{self.csv_name}.csv'):
+        self.csv_name = f'{self.csv_name}.csv'
     if self.varfile is not None:
         self, txt_yaml = load_from_yaml(self)
     if robert_module != "command":
@@ -450,7 +454,7 @@ def load_variables(kwargs, robert_module):
                 _, params_df, _, _, _ = load_db_n_params(self,params_dirs[0],"verify",False)
                 self.names = params_df["names"][0]
 
-        elif robert_module.upper() == 'AQME':
+        elif robert_module.upper() in ['AQME', 'AQME_TEST']: #PONER TAMBIEN CHECK DE SI NO HAY COLUMNA QUE TENGA SMILES
             # Check if the csv has 2 columns named smiles or smiles_Suffix. The file is read as text because pandas assigns automatically
             # .1 to duplicate columns. (i.e. SMILES and SMILES.1 if there are two columns named SMILES)
             unique_columns=[]
@@ -505,7 +509,7 @@ def missing_inputs(self,module,print_err=False):
     Gives the option to input missing variables in the terminal
     """
 
-    if module.lower() not in ['predict','verify','report']:
+    if module.lower() not in ['predict','verify','report','aqme_test']:
         if self.csv_name == '':
             if print_err:
                 print('\nx  Specify the name of your CSV file with the csv_name option!')
@@ -549,11 +553,11 @@ def sanity_checks(self, type_checks, module, columns_csv):
     self = missing_inputs(self,module)
 
     if type_checks == 'initial' and module.lower() not in ['verify','predict']:
-
+        
         path_csv = ''
-        if os.getcwd() in f"{self.csv_name}":
+        if os.path.exists(f"{self.csv_name}"):
             path_csv = self.csv_name
-        elif self.csv_name != '':
+        elif os.path.exists(f"{Path(os.getcwd()).joinpath(self.csv_name)}"):
             path_csv = f"{Path(os.getcwd()).joinpath(self.csv_name)}"
         if not os.path.exists(path_csv) or self.csv_name == '':
             self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
@@ -672,7 +676,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
-def load_database(self,csv_load,module,external_set=False):
+def load_database(self,csv_load,module):
     '''
     Loads a database in CSV format
     '''
@@ -694,8 +698,9 @@ def load_database(self,csv_load,module,external_set=False):
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
     csv_df = pd.read_csv(csv_load)
-    if not external_set:
-        csv_df = csv_df.fillna(0)
+    # Fill missing values with zeros
+    csv_df = csv_df.fillna(0)
+
     if module.lower() not in ['verify','no_print']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
@@ -990,18 +995,58 @@ def load_n_predict(self, params, data, hyperopt=False):
             return opt_target,data
         else:
             if 'X_test_scaled' in data:
-                # mapie for obtaining prediction intervals
-                mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median")
+            # mapie for obtaining prediction intervals
+
+                my_conformity_score = AbsoluteConformityScore()
+                my_conformity_score.consistency_check = False
+
+                mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
                 mapie.fit(data['X_train_scaled'], data['y_train'])
-            
+                
                 # Predict test set and obtain prediction intervals
                 y_test_pred, y_test_pis = mapie.predict(data['X_test_scaled'], alpha=[self.args.alpha])
-            
+                
                 # Calculate prediction interval variability for each prediction in the test set
                 y_test_error = np.abs(y_test_pis[:, :, 0].T - y_test_pred)
-            
+                
                 # Add 'y_pred_test_error' entry to data dictionary
                 data['y_pred_test_error'] = y_test_error
+            
+            elif 'X_valid_scaled' in data:
+                # mapie for obtaining prediction intervals
+
+                my_conformity_score = AbsoluteConformityScore()
+                my_conformity_score.consistency_check = False
+
+                mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
+                mapie.fit(data['X_train_scaled'], data['y_train'])
+                
+                # Predict validation set and obtain prediction intervals
+                y_valid_pred, y_valid_pis = mapie.predict(data['X_valid_scaled'], alpha=[self.args.alpha])
+                
+                # Calculate prediction interval variability for each prediction in the validation set
+                y_valid_error = np.abs(y_valid_pis[:, :, 0].T - y_valid_pred)
+                
+                # Add 'y_pred_valid_error' entry to data dictionary
+                data['y_pred_valid_error'] = y_valid_error
+            
+            if 'X_csv_test_scaled' in data:
+                # mapie for obtaining prediction intervals
+
+                my_conformity_score = AbsoluteConformityScore()
+                my_conformity_score.consistency_check = False
+
+                mapie_csv = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
+                mapie_csv.fit(data['X_train_scaled'], data['y_train'])
+                
+                # Predict csv test set and obtain prediction intervals
+                y_csv_test_pred, y_csv_test_pis = mapie_csv.predict(data['X_csv_test_scaled'], alpha=[self.args.alpha])
+                
+                # Calculate prediction interval variability for each prediction in the csv test set
+                y_csv_test_error = np.abs(y_csv_test_pis[:, :, 0].T - y_csv_test_pred)
+                
+                # Add 'y_pred_csv_test_error' entry to data dictionary
+                data['y_pred_csv_test_error'] = y_csv_test_error
             return data
     
     elif params['type'].lower() == 'clas':

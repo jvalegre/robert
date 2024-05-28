@@ -104,7 +104,7 @@ def set_aqme_args(args):
     """
 
     if os.path.exists(args.csv_name):
-        aqme_df = pd.read_csv(args.csv_name)
+        aqme_df = pd.read_csv(args.csv_name, encoding='utf-8')
     else:
         print(f'\nx  The path of your CSV file doesn\'t exist! You specified: {args.csv_name}')
         sys.exit()

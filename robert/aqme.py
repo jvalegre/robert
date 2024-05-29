@@ -137,7 +137,7 @@ class aqme:
                 if smi_suffix is not None:
                     # Change column names by adding suffix
                     try:
-                        df_temp = pd.read_csv(f'AQME-ROBERT_{aqme_indv_name}.csv')
+                        df_temp = pd.read_csv(f'AQME-ROBERT_{aqme_indv_name}.csv', encoding='utf-8')
                     except FileNotFoundError:
                         self.args.log.write("x  WARNING! ROBERT stopped due to a problem with the AQME job. Please, check the previous AQME warnings.")
                         sys.exit()
@@ -153,7 +153,7 @@ class aqme:
                     order = csv_temp['code_name'].tolist()
 
                     # Sort the rows in 'AQME-ROBERT_{aqme_indv_name}.csv' based on the order
-                    df_temp = pd.read_csv(f'AQME-ROBERT_{aqme_indv_name}.csv')
+                    df_temp = pd.read_csv(f'AQME-ROBERT_{aqme_indv_name}.csv', encoding='utf-8')
                     df_temp = df_temp.sort_values(by='code_name', key=lambda x: x.map({v: i for i, v in enumerate(order)}))
 
                     # Fill missing values with corresponding SMILES row
@@ -176,7 +176,7 @@ class aqme:
             # Read and concatenate CSV files 
             for file in sorted(glob.glob('AQME-ROBERT_AQME_indiv*.csv'), key=os.path.getmtime,reverse=True):
                 columns_to_drop = ['code_name', 'SMILES'] + aqme_args
-                df_temp = pd.read_csv(file)
+                df_temp = pd.read_csv(file, encoding='utf-8')
                 columns_to_drop = [col for col in columns_to_drop if col in df_temp.columns]
                 df_temp = df_temp.drop(columns=columns_to_drop)
                 df_concat = pd.concat([df_temp, df_concat], axis=1)
@@ -235,7 +235,7 @@ def filter_atom_prop(aqme_db, csv_df):
     Function that filters off atomic properties if no atom was selected in the --qdescp_atoms option
     '''
     
-    aqme_df = pd.read_csv(aqme_db)
+    aqme_df = pd.read_csv(aqme_db, encoding='utf-8')
     for column in aqme_df.columns:
         if column == 'DBSTEP_Vbur':
             aqme_df = aqme_df.drop(column, axis=1)
@@ -252,7 +252,7 @@ def filter_aqme_args(aqme_db):
     Function that filters off AQME arguments in CSV inputs
     '''
     
-    aqme_df = pd.read_csv(aqme_db)
+    aqme_df = pd.read_csv(aqme_db, encoding='utf-8')
     for column in aqme_df.columns:
         if column.lower() in aqme_args:
             aqme_df = aqme_df.drop(column, axis=1)

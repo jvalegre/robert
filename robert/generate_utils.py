@@ -469,7 +469,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #var
 
     name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}_{seed}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
-    PFI_df = pd.read_csv(path_csv)
+    PFI_df = pd.read_csv(path_csv, encoding='utf-8')
     PFI_dict = pd_to_dict(PFI_df) # (using a dict to keep the same format of load_model)
     PFI_discard_cols = PFI_filter(self,Xy_data,PFI_dict,seed)
 
@@ -589,7 +589,7 @@ def filter_seed(self, name_csv):
         else:
             file_seed = f'{name_csv}_{seed}_PFI.csv'
         if os.path.exists(file_seed):
-            results_model = pd.read_csv(f'{file_seed}')
+            results_model = pd.read_csv(f'{file_seed}', encoding='utf-8')
             errors.append(results_model[results_model['error_type'][0]][0])
         else:
             errors.append(np.nan)
@@ -656,7 +656,7 @@ def detect_best(folder):
     errors = []
     for file in file_list:
         if '_db' not in file:
-            results_model = pd.read_csv(f'{file}')
+            results_model = pd.read_csv(f'{file}', encoding='utf-8')
             errors.append(results_model[results_model['error_type'][0]][0])
         else:
             errors.append(np.nan)
@@ -690,7 +690,7 @@ def heatmap_workflow(self,folder_hm):
             csv_size = basename.replace('.','_').split('_')[1]
             if csv_model not in size_list:
                 size_list.append(csv_size)
-            csv_value = pd.read_csv(csv_file)
+            csv_value = pd.read_csv(csv_file, encoding='utf-8')
             csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0]
     
     # fill missing values with NaN

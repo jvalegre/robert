@@ -433,7 +433,7 @@ def load_variables(kwargs, robert_module):
                     curate_csv_files = glob.glob(f'{curate_folder}/*.csv')
                     for csv_file in curate_csv_files:
                         if 'CURATE_options.csv' in csv_file:
-                            curate_df = pd.read_csv(csv_file)
+                            curate_df = pd.read_csv(csv_file, encoding='utf-8')
                             self.y = curate_df['y'][0]
                             self.ignore = curate_df['ignore'][0]
                             self.names = curate_df['names'][0]
@@ -468,7 +468,7 @@ def load_variables(kwargs, robert_module):
                         unique_columns.append(column)
 
             # Check if there are duplicate names in code_names in the csv file.
-            df = pd.read_csv(self.csv_name)
+            df = pd.read_csv(self.csv_name, encoding='utf-8')
             unique_entries=[]
             for entry in df['code_name']:
                 if entry in unique_entries:
@@ -697,7 +697,7 @@ def load_database(self,csv_load,module):
         new_csv_file.close()
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
-    csv_df = pd.read_csv(csv_load)
+    csv_df = pd.read_csv(csv_load, encoding='utf-8')
     # Fill missing values with zeros
     csv_df = csv_df.fillna(0)
 
@@ -995,13 +995,18 @@ def load_n_predict(self, params, data, hyperopt=False):
             return opt_target,data
         else:
             if 'X_test_scaled' in data:
-            # mapie for obtaining prediction intervals
+                # mapie for obtaining prediction intervals
 
                 my_conformity_score = AbsoluteConformityScore()
                 my_conformity_score.consistency_check = False
 
                 mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
                 mapie.fit(data['X_train_scaled'], data['y_train'])
+                
+                # Check if 1/alpha is lower than the number of samples
+                if 1 / self.args.alpha >= len(data['X_test_scaled']):
+                    self.args.alpha = 0.1
+                    print("Warning: Not enough samples for the given alpha value. Setting alpha to 0.1.")
                 
                 # Predict test set and obtain prediction intervals
                 y_test_pred, y_test_pis = mapie.predict(data['X_test_scaled'], alpha=[self.args.alpha])
@@ -1021,6 +1026,11 @@ def load_n_predict(self, params, data, hyperopt=False):
                 mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
                 mapie.fit(data['X_train_scaled'], data['y_train'])
                 
+                # Check if 1/alpha is lower than the number of samples
+                if 1 / self.args.alpha >= len(data['X_valid_scaled']):
+                    self.args.alpha = 0.1
+                    print("Warning: Not enough samples for the given alpha value. Setting alpha to 0.1.")
+                
                 # Predict validation set and obtain prediction intervals
                 y_valid_pred, y_valid_pis = mapie.predict(data['X_valid_scaled'], alpha=[self.args.alpha])
                 
@@ -1038,6 +1048,11 @@ def load_n_predict(self, params, data, hyperopt=False):
 
                 mapie_csv = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
                 mapie_csv.fit(data['X_train_scaled'], data['y_train'])
+                
+                # Check if 1/alpha is lower than the number of samples
+                if 1 / self.args.alpha >= len(data['X_csv_test_scaled']):
+                    self.args.alpha = 0.1
+                    print("Warning: Not enough samples for the given alpha value. Setting alpha to 0.1.")
                 
                 # Predict csv test set and obtain prediction intervals
                 y_csv_test_pred, y_csv_test_pis = mapie_csv.predict(data['X_csv_test_scaled'], alpha=[self.args.alpha])

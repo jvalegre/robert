@@ -126,7 +126,7 @@ class easyROB(tk.Tk):
         
         # Load the CSV file to get all column names
         if self.file_path:
-            df = pd.read_csv(self.file_path)
+            df = pd.read_csv(self.file_path, encoding='utf-8')
             self.all_columns = list(df.columns)
 
         # Linking change events in drop-down menus
@@ -173,7 +173,7 @@ class easyROB(tk.Tk):
 
         # Load the CSV file to get column names for --y and --names
         if self.file_path:
-            df = pd.read_csv(self.file_path)
+            df = pd.read_csv(self.file_path, encoding='utf-8')
             self.all_columns = list(df.columns)
 
             # Update dropdown menus with column names

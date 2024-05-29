@@ -350,7 +350,7 @@ def get_csv_pred(suffix,path_csv_test,y_value,names):
             if '_predicted_PFI' in file:
                 csv_test_file = file
 
-    csv_test_df = pd.read_csv(csv_test_file)
+    csv_test_df = pd.read_csv(csv_test_file, encoding='utf-8')
 
     # start the csv_test section
     pred_line = f'<u>csv_test predictions (sorted, max. 20 shown)</u>\n\n'
@@ -1097,7 +1097,7 @@ def get_y_values(file,y_param):
     Gets y and y_pred values from the PREDICT folder
     """
 
-    df = pd.read_csv(file)
+    df = pd.read_csv(file, encoding='utf-8')
 
     y_val = df[y_param]
     y_val_pred = df[f'{y_param}_pred']

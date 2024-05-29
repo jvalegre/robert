@@ -585,7 +585,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             files_param = glob.glob(f'{params_dir}/*.csv')
             for file_param in files_param:
                 if '_db' not in file_param:
-                    params_df = pd.read_csv(file_param)
+                    params_df = pd.read_csv(file_param, encoding='utf-8')
             params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
             columns_repro.append(get_col_transpa(params_dict,suffix,section))
@@ -675,7 +675,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             files_param = glob.glob(f'{params_dir}/*.csv')
             for file_param in files_param:
                 if '_db' not in file_param:
-                    params_df = pd.read_csv(file_param)
+                    params_df = pd.read_csv(file_param, encoding='utf-8')
             params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
             # get y and y_pred values

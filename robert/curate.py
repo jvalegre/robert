@@ -223,34 +223,11 @@ class curate:
         # drop descriptors that did not pass the filters
         csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
 
-        # # Check if descriptors are more than one third of datapoints
-        # if len(csv_df_filtered.columns) > len(csv_df[self.args.y]) / 3:
-        #     num_descriptors = int(len(csv_df[self.args.y]) / 3)
-        #     txt_corr += f'\n\no  Descriptors reduced to one third of datapoints: {num_descriptors} descriptors remaining'
-        #     selector = SelectKBest(score_func=f_regression, k=num_descriptors) 
-        #     X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
-        #     y = csv_df_filtered[self.args.y]
-        #     selector.fit(X, y)
-        #     mask = selector.get_support()
-        #     txt_corr += f'\n   F-statistic of descriptors:'
-        #     f_values = selector.scores_
-        #     sorted_descriptors = [column for column, f_value in sorted(zip(csv_df_filtered.columns, f_values), key=lambda x: x[1], reverse=True)]
-        #     for descriptor, f_value in zip(csv_df_filtered.columns, f_values):
-        #         txt_corr += f'\n   - {descriptor}: {f_value}'
-        #     txt_corr += f'\n   Selected descriptors based on F-statistic:'
-        #     for descriptor in sorted_descriptors:
-        #         if descriptor not in self.args.ignore and descriptor != self.args.y:
-        #             txt_corr += f'\n   - {descriptor}'
-        #     descriptors_drop = [column for column, keep in zip(csv_df_filtered.columns, mask) if not keep and column not in self.args.ignore and column != self.args.y]
-        #     txt_corr += f'\n   Excluded descriptors:'
-        #     for descriptor in descriptors_drop:
-        #         txt_corr += f'\n   - {descriptor}'
-        #     csv_df_filtered = csv_df_filtered.drop(descriptors_drop, axis=1)
-        
         # Check if descriptors are more than one third of datapoints
-        if len(csv_df_filtered.columns) > len(csv_df[self.args.y]) / 3:
+        n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
+        if n_descps > len(csv_df[self.args.y]) / 3:
             num_descriptors = int(len(csv_df[self.args.y]) / 3)
-            txt_corr += f'\n\no  Descriptors reduced to one third of datapoints: {num_descriptors} descriptors remaining'
+            txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV: {num_descriptors} descriptors remaining'
             # Use RFECV with RandomForestRegressor to select the most important descriptors
             estimator = RandomForestRegressor(random_state=0, n_estimators=100, max_depth=10)
             selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=5, shuffle=True, random_state=0))
@@ -260,16 +237,16 @@ class curate:
             # Sort the descriptors by their importance scores
             descriptors_importances = list(zip(X.columns, selector.estimator_.feature_importances_))
             sorted_descriptors = sorted(descriptors_importances, key=lambda x: x[1], reverse=True)
-            txt_corr += f'\n   Descriptors importance scores:'
-            for descriptor, importance in sorted_descriptors:
-                txt_corr += f'\n   - {descriptor}: {importance}'
+            # txt_corr += f'\n   Descriptors importance scores:'
+            # for descriptor, importance in sorted_descriptors:
+            #     txt_corr += f'\n   - {descriptor}: {importance}'
             # Select the top 'num_descriptors' descriptors
             selected_descriptors = [descriptor for descriptor, _ in sorted_descriptors[:num_descriptors]]
             # Find the descriptors to drop
             descriptors_drop = [descriptor for descriptor in csv_df_filtered.columns if descriptor not in selected_descriptors and descriptor not in self.args.ignore and descriptor != self.args.y]
-            txt_corr += f'\n   Excluded descriptors based on RFECV:'
-            for descriptor in descriptors_drop:
-                txt_corr += f'\n   - {descriptor}'
+            # txt_corr += f'\n   Excluded descriptors based on RFECV:'
+            # for descriptor in descriptors_drop:
+            #     txt_corr += f'\n   - {descriptor}'
             csv_df_filtered = csv_df_filtered.drop(descriptors_drop, axis=1)
 
         if len(descriptors_drop) == 0:
@@ -277,7 +254,7 @@ class curate:
 
         self.args.log.write(txt_corr)
 
-        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate and correlation filters:\n'
+        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate, correlation filters and RFECV:\n'
         txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
         self.args.log.write(txt_csv)
 

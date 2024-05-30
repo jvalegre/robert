@@ -457,7 +457,7 @@ def load_variables(kwargs, robert_module):
                 _, params_df, _, _, _ = load_db_n_params(self,params_dirs[0],"verify",False)
                 self.names = params_df["names"][0]
 
-        elif robert_module.upper() in ['AQME', 'AQME_TEST']: #PONER TAMBIEN CHECK DE SI NO HAY COLUMNA QUE TENGA SMILES
+        elif robert_module.upper() in ['AQME', 'AQME_TEST']: 
             # Check if the csv has 2 columns named smiles or smiles_Suffix. The file is read as text because pandas assigns automatically
             # .1 to duplicate columns. (i.e. SMILES and SMILES.1 if there are two columns named SMILES)
             unique_columns=[]
@@ -469,6 +469,11 @@ def load_variables(kwargs, robert_module):
                         sys.exit()
                     else:
                         unique_columns.append(column)
+            
+            # Check if there is a column with the name "smiles" or "smiles_" followed by any characters
+            if not any(col.lower().startswith("smiles") for col in unique_columns):
+                print("\nWARNING! The CSV file does not contain a column with the name 'smiles' or a column starting with 'smiles_'. Please make sure the column exists.")
+                sys.exit()
 
             # Check if there are duplicate names in code_names in the csv file.
             df = pd.read_csv(self.csv_name, encoding='utf-8')

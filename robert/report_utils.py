@@ -390,7 +390,7 @@ def get_csv_pred(suffix,path_csv_test,y_value,names):
         pred_line += f'''
             <td><strong>{y_value_head}</strong></td>'''
     pred_line += f'''
-            <td><strong>{y_value_head}_pred</strong></td>
+            <td><strong>{y_value_head}_pred ± sd</strong></td>
         </tr>'''
     
     # retrieve and sort the values

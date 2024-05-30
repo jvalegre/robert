@@ -295,10 +295,13 @@ def load_variables(kwargs, robert_module):
 
     # this part loads variables from yaml files (if varfile is used)
     txt_yaml = ""
-    if not os.path.exists(f"{self.csv_name}") and os.path.exists(f'{self.csv_name}.csv'):
-        self.csv_name = f'{self.csv_name}.csv'
     if self.varfile is not None:
         self, txt_yaml = load_from_yaml(self)
+
+    # check if user used .csv in csv_name
+    if not os.path.exists(f"{self.csv_name}") and os.path.exists(f'{self.csv_name}.csv'):
+        self.csv_name = f'{self.csv_name}.csv'
+
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 
@@ -1060,8 +1063,20 @@ def load_n_predict(self, params, data, hyperopt=False):
                 # Calculate prediction interval variability for each prediction in the csv test set
                 y_csv_test_error = np.abs(y_csv_test_pis[:, :, 0].T - y_csv_test_pred)
                 
+                # Calculate the width of the prediction intervals
+                y_csv_test_interval_width = np.abs(y_csv_test_pis[:, 0, :] - y_csv_test_pis[:, 1, :])
+
+                # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
+                if self.args.alpha == 0.05:
+                    y_csv_test_sd = y_csv_test_interval_width / (2 * 1.96)
+                elif self.args.alpha == 0.1:
+                    y_csv_test_sd = y_csv_test_interval_width / (2 * 1.645)
+
                 # Add 'y_pred_csv_test_error' entry to data dictionary
                 data['y_pred_csv_test_error'] = y_csv_test_error
+
+                # Add 'y_pred_test_sd' entry to data dictionary
+                data['y_pred_csv_test_sd'] = y_csv_test_sd
             return data
     
     elif params['type'].lower() == 'clas':

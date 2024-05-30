@@ -2,6 +2,8 @@
 #      This file contains the argument parser       #
 #####################################################.
 
+import sys
+
 var_dict = {
     "varfile": None,
     "command_line": False,
@@ -75,5 +77,6 @@ def set_options(kwargs):
             vars(options)[key.lower()] = kwargs[key.lower()]
         else:
             print("Warning! Option: [", key,":",kwargs[key],"] provided but no option exists, try the online documentation to see available options for each module.",)
-
+            sys.exit()
+            
     return options

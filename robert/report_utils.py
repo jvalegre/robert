@@ -403,14 +403,14 @@ def get_csv_pred(suffix,path_csv_test,y_value,names):
         max_table = True
 
     count_entries = 0
-    for y_val_pred, y_val, name, error in zip(y_pred_sorted, y_sorted, names_sorted, csv_test_df[f'{y_value}_error']):
+    for y_val_pred, y_val, name, sd in zip(y_pred_sorted, y_sorted, names_sorted, csv_test_df[f'{y_value}_sd']):
         # adjust format of entries
         if len(str(name)) > 12:
             name = f'{str(name[:9])}...'
         y_val_pred = round(y_val_pred, 2)
         y_val = round(y_val, 2)
-        error = round(error, 2)
-        y_val_pred_formatted = f'{y_val_pred} ± {error}'
+        sd = round(sd, 2)
+        y_val_pred_formatted = f'{y_val_pred} ± {sd}'
         add_entry = True
         # if there are more than 20 predictions, only 20 values will be shown
         if max_table and count_entries >= 10:

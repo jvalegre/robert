@@ -514,11 +514,13 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
         desc_list.append(desc)
         PFI_values.append(perm_importance.importances_mean[i])
         PFI_sd.append(perm_importance.importances_std[i])
-        if len(desc_list) == self.args.pfi_show:
-            break
-  
-    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=False)))
-
+    
+    # sort from higher to lower values and keep only the top self.args.pfi_show descriptors
+    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
+    PFI_values = PFI_values[:self.args.pfi_show][::-1]
+    PFI_sd = PFI_sd[:self.args.pfi_show][::-1]
+    desc_list = desc_list[:self.args.pfi_show][::-1]
+    
     # plot and print results
     fig, ax = plt.subplots(figsize=(7.45,6))
     y_ticks = np.arange(0, len(desc_list))

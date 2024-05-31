@@ -225,8 +225,15 @@ class curate:
 
         # Check if descriptors are more than one third of datapoints
         n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
-        if n_descps > len(csv_df[self.args.y]) / 3:
-            num_descriptors = int(len(csv_df[self.args.y]) / 3)
+        if len(csv_df[self.args.y]) > 50 and self.args.auto_test ==True:
+           datapoints= len(csv_df[self.args.y])*0.9
+        else:
+            datapoints = len(csv_df[self.args.y])
+        if n_descps > datapoints / 3:
+            num_descriptors = int(datapoints / 3)
+            # Avoid situations where the number of descriptors is equal to the number of datapoints/3
+            if len(csv_df[self.args.y]) / 3 == num_descriptors:
+                num_descriptors -= 1
             txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV: {num_descriptors} descriptors remaining'
             # Use RFECV with RandomForestRegressor to select the most important descriptors
             estimator = RandomForestRegressor(random_state=0, n_estimators=100, max_depth=10)

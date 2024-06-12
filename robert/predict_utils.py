@@ -506,7 +506,10 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+    if params_dict['type'].lower() == 'reg':
+        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+    else:
+        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]

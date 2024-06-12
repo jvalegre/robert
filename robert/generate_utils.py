@@ -556,7 +556,10 @@ def PFI_filter(self,Xy_data,PFI_dict,seed):
     # generalization power of the inspected model. Features that are important on the training set 
     # but not on the held-out set might cause the model to overfit."
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=seed)
+    if PFI_dict['type'].lower() == 'reg':
+        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=seed)
+    else:
+        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], random_state=seed)
     # transforms the values into a list and sort the PFI values with the descriptor names
     descp_cols, PFI_values, PFI_sd = [],[],[]
     for i,desc in enumerate(Xy_data['X_train'].columns):

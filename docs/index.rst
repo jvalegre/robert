@@ -41,7 +41,6 @@ Special acknowledgments
    :caption: Installation and interface
 
    Install/installation
-   Install/update
    Install/note
    Install/gui
 

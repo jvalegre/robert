@@ -113,7 +113,13 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
    conda install -c conda-forge robert
    pip install scikit-learn-intelex
 
-**3.** If conda-forge is too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+**3.** Update ROBERT to the latest version (do not skip this step!):
+
+.. code-block:: shell 
+   
+   pip install robert --upgrade
+
+**4.** If conda-forge is too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
 
 .. code-block:: shell
 
@@ -128,32 +134,6 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
    looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
 
 .. installation-end 
-
-.. update-start 
-
-Update to the latest version
-++++++++++++++++++++++++++++
-
-**1.** Activate the conda environment where ROBERT was installed:
-
-.. code-block:: shell
-
-   conda activate robert
-
-
-**2.** Update to the latest version with pip:  
-
-.. code-block:: shell
-
-   pip install robert --upgrade
-
-* Alternatively, download the code from GitHub, go to the main robert folder in your terminal (contains the setup.py file), and run this command line:  
-
-.. code-block:: shell
-
-   pip install .
-
-.. update-end 
 
 .. note-start 
 
@@ -191,10 +171,13 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **6.** Install the intelex code accelerator with pip (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
 
 
-**7.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+**7.** Update ROBERT to the latest version (do not skip this step!) (:code:`pip install robert --upgrade`).
 
 
-**8.** Run ROBERT as explained in the Examples section.
+**8.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+
+
+**9.** Run ROBERT as explained in the Examples section.
 
 .. note-end 
 

@@ -401,7 +401,10 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
 
     # run the SHAP analysis and save the plot
     explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=params_dict['seed'])
-    shap_values = explainer(Xy_data['X_valid_scaled'])
+    try:
+        shap_values = explainer(Xy_data['X_valid_scaled'])
+    except ValueError:
+        shap_values = explainer(Xy_data['X_valid_scaled'],max_evals=(2*len(Xy_data['X_valid_scaled'].columns))+1)
 
     shap_show = [self.args.shap_show,len(Xy_data['X_valid_scaled'].columns)]
     aspect_shap = 25+((min(shap_show)-2)*5)

@@ -15,6 +15,8 @@ Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Fixing CV_test bug in VERIFY (now it uses equal test size to the model tested)
    -  Adding variability (CI) in the prediction with MAPIE python library
    -  Adding sd in the predictions table when using external test set
+   -  Fixing error_type bug for classification models
+   -  MCC as default metric for classification models (better to check performance in unbalanced datasets)
 
 
 Version 1.0.5 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.5>`__]

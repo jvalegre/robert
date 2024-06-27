@@ -24,6 +24,7 @@ import json
 import glob
 from pkg_resources import resource_filename
 from sklearn.inspection import permutation_importance
+from sklearn.metrics import matthews_corrcoef, make_scorer
 from sklearn.model_selection import train_test_split
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from robert.utils import (
@@ -395,7 +396,7 @@ def data_split(self,csv_X,csv_y,size,seed):
                 if X_scaled[column].isnull().values.any():
                     X_scaled = X_scaled.drop(column, axis=1)
 
-            training_points = k_neigh(self,X_scaled,csv_y,size,seed)
+            training_points = k_means(self,X_scaled,csv_y,size,seed)
 
         elif self.args.split.upper() == 'RND':
             X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
@@ -421,12 +422,12 @@ def Xy_split(csv_X,csv_y,training_points):
     return Xy_data
 
 
-def k_neigh(self,X_scaled,csv_y,size,seed):
+def k_means(self,X_scaled,csv_y,size,seed):
     '''
-    Returns the data points that will be used as training set based on the k-neighbour clustering
+    Returns the data points that will be used as training set based on the k-means clustering
     '''
     
-    # number of clusters in the training set from the k-neighbours clustering (based on the
+    # number of clusters in the training set from the k-means clustering (based on the
     # training set size specified above)
     X_scaled_array = np.asarray(X_scaled)
     number_of_clusters = int(len(X_scaled)*(size/100))
@@ -436,7 +437,7 @@ def k_neigh(self,X_scaled,csv_y,size,seed):
     training_points = [csv_y.idxmin(),csv_y.idxmax()]
     number_of_clusters -= 2
     
-    # runs the k-neighbours algorithm and keeps the closest point to the center of each cluster
+    # runs the k-means algorithm and keeps the closest point to the center of each cluster
     kmeans = KMeans(n_clusters=number_of_clusters,random_state=seed)
     try:
         kmeans.fit(X_scaled_array)
@@ -559,7 +560,8 @@ def PFI_filter(self,Xy_data,PFI_dict,seed):
     if PFI_dict['type'].lower() == 'reg':
         perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=seed)
     else:
-        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], random_state=seed)
+        mcc_scorer = make_scorer(matthews_corrcoef)
+        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=mcc_scorer, random_state=seed)
     # transforms the values into a list and sort the PFI values with the descriptor names
     descp_cols, PFI_values, PFI_sd = [],[],[]
     for i,desc in enumerate(Xy_data['X_train'].columns):

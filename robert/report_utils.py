@@ -598,7 +598,7 @@ def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type,te
 """
 
     elif pred_type == 'clas':
-        score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an accuracy of {data_score['acc_valid']}</p>
+        score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an MCC of {data_score['mcc_valid']}</p>
 {reduced_line}{descp_pts}{spacing_descp} The {score_set} set uses {data_score['proportion_ratio']} points:descriptors</p>
 {reduced_line}{verify_pts}{spacing_verify} The {score_set} set passes {data_score['verify_score']} VERIFY tests</p>
 {reduced_line}{verify_extra_pts}{spacing_extra_verify} The {score_set} set passes {data_score['verify_extra_score']} y-mean/y-shuffle</p>
@@ -826,14 +826,14 @@ def get_predict_scores(dat_predict,suffix,pred_type):
 
                 elif pred_type == 'clas':
                     if '-  Test : Accuracy' in dat_predict[i+7]:
-                        data_score['acc_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
+                        data_score['mcc_valid'] = float(dat_predict[i+7].split()[-1])
                         test_set = True
                     elif '-  Valid. : Accuracy' in dat_predict[i+6]:
-                        data_score['acc_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
+                        data_score['mcc_valid'] = float(dat_predict[i+6].split()[-1])
 
-                    if data_score['acc_valid'] > 0.85:
+                    if data_score['mcc_valid'] > 0.85:
                         data_score['r2_score'] += 2
-                    elif data_score['acc_valid'] > 0.7:
+                    elif data_score['mcc_valid'] > 0.7:
                         data_score['r2_score'] += 1
 
                 # proportion

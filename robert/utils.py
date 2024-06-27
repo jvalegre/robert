@@ -382,7 +382,8 @@ def load_variables(kwargs, robert_module):
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
             if self.type.lower() == 'clas':
-                self.error_type = 'acc'
+                if self.error_type not in ['acc', 'mcc', 'f1']:
+                    self.error_type = 'mcc'
 
         if robert_module.upper() in ['PREDICT','VERIFY','REPORT']:
             if self.params_dir == '':

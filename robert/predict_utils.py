@@ -19,6 +19,7 @@ except (ModuleNotFoundError,ImportError):
     pass
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.inspection import permutation_importance
+from sklearn.metrics import matthews_corrcoef, make_scorer
 import shap
 from robert.curate import curate
 from robert.utils import (
@@ -283,7 +284,7 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_
     '''
     
     plt.clf()
-    matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize="true", cmap='Blues') 
+    matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize=None, cmap='Blues') 
     if print_fun:
         matrix.ax_.set_title(f'Confus. Matrix {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
 
@@ -509,7 +510,8 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     if params_dict['type'].lower() == 'reg':
         perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
     else:
-        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        mcc_scorer = make_scorer(matthews_corrcoef)
+        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=mcc_scorer, n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]

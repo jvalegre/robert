@@ -174,7 +174,7 @@ class curate:
     def correlation_filter(self, csv_df):
         """
         Discards a) correlated variables and b) variables that do not correlate with the y values, based
-        on R**2 values.
+        on R**2 values c) reduces the number of descriptors to one third of the datapoints using RFECV.
         """
 
         txt_corr = ''
@@ -244,16 +244,9 @@ class curate:
             # Sort the descriptors by their importance scores
             descriptors_importances = list(zip(X.columns, selector.estimator_.feature_importances_))
             sorted_descriptors = sorted(descriptors_importances, key=lambda x: x[1], reverse=True)
-            # txt_corr += f'\n   Descriptors importance scores:'
-            # for descriptor, importance in sorted_descriptors:
-            #     txt_corr += f'\n   - {descriptor}: {importance}'
-            # Select the top 'num_descriptors' descriptors
             selected_descriptors = [descriptor for descriptor, _ in sorted_descriptors[:num_descriptors]]
             # Find the descriptors to drop
             descriptors_drop = [descriptor for descriptor in csv_df_filtered.columns if descriptor not in selected_descriptors and descriptor not in self.args.ignore and descriptor != self.args.y]
-            # txt_corr += f'\n   Excluded descriptors based on RFECV:'
-            # for descriptor in descriptors_drop:
-            #     txt_corr += f'\n   - {descriptor}'
             csv_df_filtered = csv_df_filtered.drop(descriptors_drop, axis=1)
 
         if len(descriptors_drop) == 0:

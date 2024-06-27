@@ -57,7 +57,7 @@ Parameters
         epochs = 40)
         3. 'high', slowest and most accurate protocol (seed = [0,8,19,43,70,233,1989,9999,20394,3948301], 
         epochs = 100)
-    error_type : str, default: rmse (regression), acc (classification)
+    error_type : str, default: rmse (regression), mcc (classification)
         Target value used during the hyperopt optimization. Options:
         Regression:
         1. rmse (root-mean-square error)
@@ -259,13 +259,13 @@ class generate:
         low_vals = len([i for i in csv_df[self.args.y] if i < mid_value])
         imb_ratio_high = high_vals/low_vals
         imb_ratio_low = low_vals/high_vals
-        if max(imb_ratio_high,imb_ratio_low) > 10:
+        if max(imb_ratio_high,imb_ratio_low) > 5:
             self.args.split = 'KN'
-            if imb_ratio_high > 10:
+            if imb_ratio_high > 5:
                 range_type = 'high'
-            elif imb_ratio_low > 10:
+            elif imb_ratio_low > 5:
                 range_type = 'low'
-            self.args.log.write(f'\nx    WARNING! The database is imbalanced (imbalance ratio > 10, more values in the {range_type} half of values), KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')
+            self.args.log.write(f'\nx    WARNING! The database is imbalanced (imbalance ratio > 5, more values in the {range_type} half of values), KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')
         
         return self
 

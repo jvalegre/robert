@@ -61,9 +61,9 @@ Introduction
 .. introduction-start
 
 ROBERT is an ensemble of automated machine learning protocols that can be run sequentially 
-through a single command line. The program works for **regression and classification problems**.
-Comprehensive workflows have been designed to meet state-of-the-art standards for cheminformatics 
-studies, including:
+through a single command line or a graphical user interface. The program works for **regression 
+and classification problems**.Comprehensive workflows have been designed to meet state-of-the-art 
+standards for cheminformatics studies, including:
 
    *  **Atomic and molecular descriptor generation from SMILES**, including an RDKit conformer sampling and 
       the generation of 200+ steric, electronic and structural descriptors using RDKit, xTB and DBSTEP. 

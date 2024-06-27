@@ -9,9 +9,8 @@
 [![Read the Docs](https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs)](https://robert.readthedocs.io/)
 
 ROBERT is an ensemble of automated machine learning protocols that can be run sequentially 
-through a single command line. The program works for **regression and classification problems**.
-Comprehensive workflows have been designed to meet state-of-the-art standards for cheminformatics 
-studies.
+through a single command line or a graphical user interface. The program works for **regression and classification problems**.
+Comprehensive workflows have been designed to meet state-of-the-art standards for cheminformatics studies, including:
 
 ## Documentation  
 Full documentation with installation instructions, technical details and examples can be found in [Read the Docs](https://robert.readthedocs.io).  

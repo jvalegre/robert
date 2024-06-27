@@ -507,11 +507,24 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
+    score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
     if params_dict['type'].lower() == 'reg':
-        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        error_type = params_dict['error_type'].lower()
+        if error_type == 'rmse':
+            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        elif error_type == 'mae':
+            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_median_absolute_error', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        elif error_type == 'r2':
+            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='r2', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
     else:
-        mcc_scorer = make_scorer(matthews_corrcoef)
-        perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=mcc_scorer, n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        error_type = params_dict['error_type'].lower()
+        if error_type == 'mcc':
+            mcc_scorer = make_scorer(matthews_corrcoef)
+            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=mcc_scorer, random_state=params_dict['seed'])
+        elif error_type == 'f1':
+            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='f1', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        elif error_type == 'acc':
+            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='accuracy', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]

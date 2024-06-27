@@ -1004,8 +1004,8 @@ def load_n_predict(self, params, data, hyperopt=False):
             return opt_target,data
         else:
             if 'X_test_scaled' in data:
+                
                 # mapie for obtaining prediction intervals
-
                 my_conformity_score = AbsoluteConformityScore()
                 my_conformity_score.consistency_check = False
 
@@ -1027,8 +1027,8 @@ def load_n_predict(self, params, data, hyperopt=False):
                 data['y_pred_test_error'] = y_test_error
             
             elif 'X_valid_scaled' in data:
+                
                 # mapie for obtaining prediction intervals
-
                 my_conformity_score = AbsoluteConformityScore()
                 my_conformity_score.consistency_check = False
 
@@ -1050,8 +1050,8 @@ def load_n_predict(self, params, data, hyperopt=False):
                 data['y_pred_valid_error'] = y_valid_error
             
             if 'X_csv_test_scaled' in data:
+                
                 # mapie for obtaining prediction intervals
-
                 my_conformity_score = AbsoluteConformityScore()
                 my_conformity_score.consistency_check = False
 

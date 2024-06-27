@@ -507,24 +507,23 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
+    error_type = params_dict['error_type'].lower()
+    
+    # select scoring function for PFI analysis based on the error type
     if params_dict['type'].lower() == 'reg':
-        error_type = params_dict['error_type'].lower()
-        if error_type == 'rmse':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
-        elif error_type == 'mae':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_median_absolute_error', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
-        elif error_type == 'r2':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='r2', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        scoring = {
+            'rmse': 'neg_root_mean_squared_error',
+            'mae': 'neg_median_absolute_error',
+            'r2': 'r2'
+        }.get(error_type)
     else:
-        error_type = params_dict['error_type'].lower()
-        if error_type == 'mcc':
-            mcc_scorer = make_scorer(matthews_corrcoef)
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=mcc_scorer, random_state=params_dict['seed'])
-        elif error_type == 'f1':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='f1', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
-        elif error_type == 'acc':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='accuracy', n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+        scoring = {
+            'mcc': make_scorer(matthews_corrcoef),
+            'f1': 'f1',
+            'acc': 'accuracy'
+        }.get(error_type)
+
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]
@@ -532,18 +531,17 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
         desc_list.append(desc)
         PFI_values.append(perm_importance.importances_mean[i])
         PFI_sd.append(perm_importance.importances_std[i])
-    
+
     # sort from higher to lower values and keep only the top self.args.pfi_show descriptors
     PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
-    PFI_values = PFI_values[:self.args.pfi_show][::-1]
-    PFI_sd = PFI_sd[:self.args.pfi_show][::-1]
-    desc_list = desc_list[:self.args.pfi_show][::-1]
-    
+    PFI_values_plot = PFI_values[:self.args.pfi_show][::-1]
+    desc_list_plot = desc_list[:self.args.pfi_show][::-1]
+
     # plot and print results
     fig, ax = plt.subplots(figsize=(7.45,6))
-    y_ticks = np.arange(0, len(desc_list))
-    ax.barh(desc_list, PFI_values)
-    ax.set_yticks(y_ticks,labels=desc_list,fontsize=14)
+    y_ticks = np.arange(0, len(desc_list_plot))
+    ax.barh(desc_list_plot, PFI_values_plot)
+    ax.set_yticks(y_ticks,labels=desc_list_plot,fontsize=14)
     plt.text(0.5, 1.08, f'Permutation feature importances (PFIs) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
         fontsize=14, fontweight='bold', transform = ax.transAxes)
     fig.tight_layout()
@@ -562,8 +560,7 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
         print_PFI += f'\n      Original score (from model.score, R2) = {score_model:.2}'
     elif params_dict['type'].lower() == 'clas':
         print_PFI += f'\n      Original score (from model.score, accuracy) = {score_model:.2}'
-    # shown from higher to lower values
-    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
+
     for i,desc in enumerate(desc_list):
         print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} +- {PFI_sd[i]:.2}"
     

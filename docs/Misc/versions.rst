@@ -17,7 +17,7 @@ Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Adding sd in the predictions table when using external test set
    -  Fixing error_type bug for classification models
    -  MCC as default metric for classification models (better to check performance in unbalanced datasets)
-   -  PFI workflow now uses the same metric as the model
+   -  PFI workflow now uses the same metric as error_type
 
 
 Version 1.0.5 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.5>`__]

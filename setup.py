@@ -33,15 +33,15 @@ setup(
     ],
     install_requires=[
         "PyYAML",
-        "pandas==2.2.2",
+        "pandas>=2.0.3,<2.1",
         "progress",
-        "numpy==2.0.0",
-        "matplotlib==3.9.1",
+        "numpy>=1.24,<1.25",
+        "matplotlib>=3.7,<3.8",
         "seaborn",
         "scipy",
         "scikit-learn==1.5.1", # fixed to make ROBERT reproducible when using the same version
         "hyperopt",
-        "numba==0.60.0",
+        "numba>=0.57,<0.58",
         "shap==0.46.0",
         "mapie==0.8.6"
         # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py

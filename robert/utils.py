@@ -1014,7 +1014,7 @@ def load_n_predict(self, params, data, hyperopt=False):
                 
                 # Check if 1/alpha is lower than the number of samples
                 if 1 / self.args.alpha >= len(data['X_test_scaled']):
-                    self.args.alpha = 1 / len(data['X_test_scaled'])
+                    self.args.alpha = 0.1
                 
                 # Predict test set and obtain prediction intervals
                 y_test_pred, y_test_pis = mapie.predict(data['X_test_scaled'], alpha=[self.args.alpha])
@@ -1036,7 +1036,7 @@ def load_n_predict(self, params, data, hyperopt=False):
                 
                 # Check if 1/alpha is lower than the number of samples
                 if 1 / self.args.alpha >= len(data['X_valid_scaled']):
-                    self.args.alpha = 1 / len(data['X_valid_scaled'])
+                    self.args.alpha = 0.1
                 
                 # Predict validation set and obtain prediction intervals
                 y_valid_pred, y_valid_pis = mapie.predict(data['X_valid_scaled'], alpha=[self.args.alpha])
@@ -1058,7 +1058,7 @@ def load_n_predict(self, params, data, hyperopt=False):
                 
                 # Check if 1/alpha is lower than the number of samples
                 if 1 / self.args.alpha >= len(data['X_csv_test_scaled']):
-                    self.args.alpha = 1 / len(data['X_csv_test_scaled'])
+                    self.args.alpha = 0.1
                 
                 # Predict csv test set and obtain prediction intervals
                 y_csv_test_pred, y_csv_test_pis = mapie_csv.predict(data['X_csv_test_scaled'], alpha=[self.args.alpha])

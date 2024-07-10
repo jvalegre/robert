@@ -94,7 +94,8 @@ def test_AQME(test_job):
 
     if test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
-                    "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal"]
+                    "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal",
+                    "--alpha", "0.3"]
 
     subprocess.run(cmd_robert)
 

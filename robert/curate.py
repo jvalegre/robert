@@ -240,6 +240,8 @@ class curate:
             selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=5, shuffle=True, random_state=0))
             X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
             y = csv_df_filtered[self.args.y]
+            # Convert column names to strings to avoid any issues
+            X.columns = X.columns.astype(str)
             selector.fit(X, y)
             # Sort the descriptors by their importance scores
             descriptors_importances = list(zip(X.columns, selector.estimator_.feature_importances_))

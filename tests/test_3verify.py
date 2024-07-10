@@ -113,6 +113,3 @@ def test_VERIFY(test_job):
         # rename the regression GENERATE folder
         filepath_reg = Path(f"{path_main}/GENERATE_reg")
         filepath_reg.rename(f"{path_main}/GENERATE")
-
-cambia el print de 5-fold para aclarar que no es 5-fold, en el DAT del verify, readthedocs, etc.
-assert que va bien el resultado y el print

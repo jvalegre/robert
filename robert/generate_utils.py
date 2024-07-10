@@ -557,23 +557,22 @@ def PFI_filter(self,Xy_data,PFI_dict,seed):
     # generalization power of the inspected model. Features that are important on the training set 
     # but not on the held-out set might cause the model to overfit."
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
+    error_type = PFI_dict['error_type'].lower()
+    
     if PFI_dict['type'].lower() == 'reg':
-        error_type = PFI_dict['error_type'].lower()
-        if error_type == 'rmse':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_root_mean_squared_error', n_repeats=self.args.pfi_epochs, random_state=seed)
-        elif error_type == 'mae':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='neg_median_absolute_error', n_repeats=self.args.pfi_epochs, random_state=seed)
-        elif error_type == 'r2':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='r2', n_repeats=self.args.pfi_epochs, random_state=seed)
+        scoring = {
+            'rmse': 'neg_root_mean_squared_error',
+            'mae': 'neg_median_absolute_error',
+            'r2': 'r2'
+        }.get(error_type)
     else:
-        error_type = PFI_dict['error_type'].lower()
-        if error_type == 'mcc':
-            mcc_scorer = make_scorer(matthews_corrcoef)
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=mcc_scorer, random_state=seed)
-        elif error_type == 'f1':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='f1', n_repeats=self.args.pfi_epochs, random_state=seed)
-        elif error_type == 'acc':
-            perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring='accuracy', n_repeats=self.args.pfi_epochs, random_state=seed)
+        scoring = {
+            'mcc': make_scorer(matthews_corrcoef),
+            'f1': 'f1',
+            'acc': 'accuracy'
+        }.get(error_type)
+
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=seed)
             
     # transforms the values into a list and sort the PFI values with the descriptor names
     descp_cols, PFI_values, PFI_sd = [],[],[]

@@ -37,6 +37,9 @@ path_curate = os.getcwd() + "/CURATE"
         (
             "standard"
         ),  # standard test
+        (
+            "thres_rfecv"
+        ), # test to test the RFECV descriptor selection
     ],
 )
 def test_CURATE(test_job):
@@ -185,3 +188,25 @@ def test_CURATE(test_job):
         assert 'x1' in db_final.columns
         # check y threshold
         assert 'ynoise' in db_final.columns
+    
+    elif test_job == 'thres_rfecv':
+
+        # Test to check if descriptors are reduced to one third of the data points using RFECV
+        cmd_robert = [
+            "python",
+            "-m",
+            "robert",
+            "--curate",
+            "--csv_name", f"{path_tests}/Robert_example.csv",
+            '--y', 'Target_values',
+            "--ignore", "['Name']",
+            "--discard", "['xtest']"
+        ]
+        subprocess.run(cmd_robert)
+
+        # Check if the descriptors were reduced correctly
+        db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
+        n_descps = len(db_final.columns) - 2  # subtracting 'Name' and 'Target_values'
+        datapoints = len(db_final)
+        assert n_descps < (datapoints / 3)
+

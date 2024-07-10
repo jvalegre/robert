@@ -125,8 +125,3 @@ def test_PREDICT(test_job):
         # rename the regression GENERATE folder
         filepath_reg = Path(f"{path_main}/GENERATE_reg")
         filepath_reg.rename(f"{path_main}/GENERATE")
-
-assert 10 imagenes y que 2 sean Variability_XX
-en los normales, assert que la variability se calcule el SD con el valid set y se imprima en el DAT? o CSV?
-mete un test para test interno con CSV de 100 puntos pero solo con 2 columnas de X
-en el test interno, lo mismo que arriba pero variability con test set

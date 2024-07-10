@@ -33,17 +33,17 @@ setup(
     ],
     install_requires=[
         "PyYAML",
-        "pandas>=2.0.3,<2.1",
+        "pandas==2.2.2",
         "progress",
-        "numpy>=1.24,<1.25",
-        "matplotlib>=3.7,<3.8",
+        "numpy==2.0.0",
+        "matplotlib==3.9.1",
         "seaborn",
         "scipy",
-        "scikit-learn==1.3.0", # fixed to make ROBERT reproducible when using the same version
+        "scikit-learn==1.5.1", # fixed to make ROBERT reproducible when using the same version
         "hyperopt",
-        "numba>=0.57,<0.58",
-        "shap>=0.42,<0.43",
-        "mapie==0.8.3"
+        "numba==0.60.0",
+        "shap==0.46.0",
+        "mapie==0.8.6"
         # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
         # optionally, the intelex accelerator might be installed "pip install scikit-learn-intelex"
     ],

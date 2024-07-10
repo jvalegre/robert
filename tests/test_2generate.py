@@ -178,6 +178,14 @@ def test_GENERATE(test_job):
     else:
         assert not os.path.exists(f'{path_generate}/Raw_data/Heatmap ML models with PFI filter.png')
 
+    # Check that the default metric for classification models is MCC
+    if test_job == 'reduced_clas':
+        csv_clas = glob.glob(f'{path_generate}/Best_model/PFI/RF_80_PFI.csv')
+        df = pd.read_csv(csv_clas[0])
+        if 'error_type' in df.columns:
+            error_types = df['error_type'].tolist()
+        assert 'mcc' in error_types
+
     if test_job == 'reduced_clas':
         filepath = Path(f"{path_generate}")
         filepath.rename(f"{path_main}/GENERATE_clas")

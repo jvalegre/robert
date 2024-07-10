@@ -92,14 +92,14 @@ def test_VERIFY(test_job):
                 assert "x 10-fold CV: FAILED" in outlines[i+2]
             elif test_job == "clas":
                 assert "5-fold CV: " in outlines[i+2]
-                assert "ACC =" in outlines[i+3]
-                assert "ACC =" in outlines[i+4]
-                assert "ACC =" in outlines[i+5]
+                assert "MCC =" in outlines[i+3]
+                assert "MCC =" in outlines[i+4]
+                assert "MCC =" in outlines[i+5]
             elif test_job == "standard":
                 assert "x 5-fold CV: FAILED" in outlines[i+2]
                 assert "o y_mean: PASSED" in outlines[i+3]
                 assert "o y_shuffle: PASSED" in outlines[i+4]
-                assert "x onehot: FAILED" in outlines[i+5]
+                assert "o onehot: PASSED" in outlines[i+5]
             break
 
     #check that the donut plots and DAT files are created

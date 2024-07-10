@@ -107,9 +107,12 @@ def test_PREDICT(test_job):
         assert categor_test
 
     # check that all the plots, CSV and DAT files are created
-    assert len(glob.glob(f'{path_predict}/*.png')) == 8
+    if test_job == "clas":
+        assert len(glob.glob(f'{path_predict}/*.png')) == 8
+    else:
+        assert len(glob.glob(f'{path_predict}/*.png')) == 10
     if test_job == "csv_test":
-        assert len(glob.glob(f'{path_predict}/csv_test/*.png')) == 2
+        assert len(glob.glob(f'{path_predict}/csv_test/*.png')) == 4
     if test_job == "clas":
         assert len(glob.glob(f'{path_predict}/*.dat')) == 7
     else:

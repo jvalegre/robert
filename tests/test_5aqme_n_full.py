@@ -133,7 +133,7 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 2 # 2 extra PNG for test confusion matrices
     elif test_job == 'full_workflow_test':
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 4 extra CSV files for the test set
-        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 4 # 4 extra PNG for test confusion matrices
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 4 # 2 extra PNG for variability predictions
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
 

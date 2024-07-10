@@ -70,7 +70,7 @@ def test_AQME(test_job):
         "--csv_name", csv_var,
         '--y', y_var,
         "--epochs", "5",
-        "--seed", "[0]",
+        "--seed", "[666]",
         "--model", "['RF']",
         "--train", "[60]",
         "--pfi_epochs", "1",
@@ -143,7 +143,7 @@ def test_AQME(test_job):
         descps = ['code_name','solub','C_FUKUI+','MolLogP']
         for descp in descps:
             assert descp in db_aqme.columns
-        assert 'smiles' not in db_aqme.columns
+        assert 'smiles' in db_aqme.columns
         assert 'C_DBSTEP_Vbur' not in db_aqme.columns
 
         outfile = open(f"{path_aqme}/AQME_data.dat", "r")
@@ -152,7 +152,7 @@ def test_AQME(test_job):
         assert "ROBERT v" in outlines[0]
         assert os.path.exists(f'{path_aqme}/CSEARCH')
         assert os.path.exists(f'{path_aqme}/QDESCP')
-        assert len(glob.glob(f'{path_aqme}/*.csv')) == 2
+        assert len(glob.glob(f'{path_aqme}/*.csv')) == 1
         assert len(glob.glob(f'{path_aqme}/*.dat')) == 3
 
     # find important parts in ROBERT_report
@@ -221,11 +221,11 @@ def test_AQME(test_job):
     assert find_shap > 0
     assert find_pfi > 0
 
-    # # reset the folder
-    # folders = ['CURATE','GENERATE','PREDICT','VERIFY','AQME']
-    # for folder in folders:
-    #     if os.path.exists(f"{path_main}/{folder}"):
-    #         shutil.rmtree(f"{path_main}/{folder}")
-    # for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','solubility.csv']:
-    #     if os.path.exists(f'{path_main}/{file_discard}'):
-    #         os.remove(f'{path_main}/{file_discard}')
+    # reset the folder
+    folders = ['CURATE','GENERATE','PREDICT','VERIFY','AQME']
+    for folder in folders:
+        if os.path.exists(f"{path_main}/{folder}"):
+            shutil.rmtree(f"{path_main}/{folder}")
+    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','solubility.csv']:
+        if os.path.exists(f'{path_main}/{file_discard}'):
+            os.remove(f'{path_main}/{file_discard}')

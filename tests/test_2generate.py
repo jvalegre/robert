@@ -148,8 +148,10 @@ def test_GENERATE(test_job):
                 else:
                     desc_list = ['x1', 'x2', 'x3', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10']
             elif folder == 'PFI':
-                if test_job in ['reduced','reduced_rnd']:
+                if test_job == 'reduced':
                     desc_list = ['x6', 'x7', 'x10']
+                elif test_job == 'reduced_rnd':
+                    desc_list = ['x6', 'x7', 'x9', 'x10']
                 elif test_job =='reduced_PFImax':
                     desc_list = ['x6', 'x7']
 

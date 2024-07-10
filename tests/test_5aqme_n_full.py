@@ -128,9 +128,12 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 9
         assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 10
 
-    if test_job in ['full_clas_test','full_workflow_test']:
+    if test_job == 'full_clas_test':
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set
-        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 4 # 2 extra PNG for test confusion matrices
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 2 # 2 extra PNG for test confusion matrices
+    elif test_job == 'full_workflow_test':
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 4 extra CSV files for the test set
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 4 # 4 extra PNG for test confusion matrices
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
 

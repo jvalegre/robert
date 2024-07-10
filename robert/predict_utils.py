@@ -342,8 +342,9 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     # saves prediction for external test in --csv_test
     if self.args.csv_test != '':
         Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
-        Xy_test_df[f'{params_df["y"][0]}_sd'] = Xy_data['y_pred_csv_test_sd']
-        Xy_test_df[f'{params_df["y"][0]}_error'] = np.mean(Xy_data['y_pred_csv_test_error'], axis=0)
+        if self.args.type.lower() == 'reg':
+            Xy_test_df[f'{params_df["y"][0]}_sd'] = Xy_data['y_pred_csv_test_sd']
+            Xy_test_df[f'{params_df["y"][0]}_error'] = np.mean(Xy_data['y_pred_csv_test_error'], axis=0)
         folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
         Path(folder_csv).mkdir(exist_ok=True, parents=True)
         csv_name = f'{os.path.basename(self.args.csv_test)}'.split(".csv")[0]

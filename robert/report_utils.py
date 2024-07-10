@@ -137,6 +137,7 @@ def get_images(module,file=None,pred_type='reg'):
             image_pair_list_test = [csv_test_images_variability]
         elif pred_type == 'clas':
             image_pair_list = [results_train, results_valid, results_test, shap_images, pfi_images, outliers_images]
+            image_pair_list_test = [csv_test_images_results]
 
         html_png = ''
         for _,image_pair in enumerate(image_pair_list):
@@ -177,13 +178,14 @@ def get_images(module,file=None,pred_type='reg'):
 
             # add predictions table
             columns_predictions = []
-            for suffix in ['No PFI','PFI']:
-                pred_dat = get_csv_pred(suffix,path_csv_test,y_value,names)
-                columns_predictions.append(pred_dat)
-            
-            # Combine both prediction columns
-            predictions = combine_cols(columns_predictions)
-            html_predictions += f'<pre style="text-align: justify;">{predictions}</pre>'
+            if pred_type == 'reg':
+                for suffix in ['No PFI','PFI']:
+                    pred_dat = get_csv_pred(suffix,path_csv_test,y_value,names)
+                    columns_predictions.append(pred_dat)
+                
+                # Combine both prediction columns
+                predictions = combine_cols(columns_predictions)
+                html_predictions += f'<pre style="text-align: justify;">{predictions}</pre>'
 
     else:
         pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in module_images])

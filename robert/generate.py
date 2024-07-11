@@ -259,13 +259,13 @@ class generate:
         low_vals = len([i for i in csv_df[self.args.y] if i < mid_value])
         imb_ratio_high = high_vals/low_vals
         imb_ratio_low = low_vals/high_vals
-        if max(imb_ratio_high,imb_ratio_low) > 5:
+        if max(imb_ratio_high,imb_ratio_low) > 10:
             self.args.split = 'KN'
-            if imb_ratio_high > 5:
+            if imb_ratio_high > 10:
                 range_type = 'high'
-            elif imb_ratio_low > 5:
+            elif imb_ratio_low > 10:
                 range_type = 'low'
-            self.args.log.write(f'\nx    WARNING! The database is imbalanced (imbalance ratio > 5, more values in the {range_type} half of values), KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')
+            self.args.log.write(f'\nx    WARNING! The database is imbalanced (imbalance ratio > 10, more values in the {range_type} half of values), KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')
         
         return self
 

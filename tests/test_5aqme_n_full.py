@@ -34,6 +34,9 @@ path_aqme = path_main + "/AQME"
         (
             "aqme"
         ),  # test for a full workflow starting from AQME
+        (
+            "2smiles_columns"
+        ),  # test for a full workflow with 2 columns for SMILES
     ],
 )
 def test_AQME(test_job):
@@ -62,6 +65,12 @@ def test_AQME(test_job):
         # for AQME-ROBERT workflows, the CSV file must be in the working dir
         shutil.copy(f"{path_main}/tests/solubility.csv", f"{path_main}/solubility.csv")
         csv_var = "solubility.csv"
+
+    elif test_job == '2smiles_columns':
+        y_var = 'Target_values'
+        # for AQME-ROBERT workflows, the CSV file must be in the working dir
+        shutil.copy(f"{path_main}/tests/Robert_example_2smiles.csv", f"{path_main}/Robert_example_2smiles.csv")
+        csv_var = "Robert_example_2smiles.csv"
 
     cmd_robert = [
         "python",
@@ -96,6 +105,9 @@ def test_AQME(test_job):
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
                     "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal",
                     "--alpha", "0.3"]
+
+    if test_job == '2smiles_columns':
+        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 2"]
 
     subprocess.run(cmd_robert)
 
@@ -156,6 +168,11 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_aqme}/*.csv')) == 1
         assert len(glob.glob(f'{path_aqme}/*.dat')) == 3
 
+    if test_job == '2smiles_columns':
+        assert os.path.exists(f'{path_main}/AQME-ROBERT_Robert_example_2smiles.csv')
+        db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_Robert_example_2smiles.csv')
+        assert 'SMILES_SubA' and 'SMILES_Solvent' in db_aqme.columns
+
     # find important parts in ROBERT_report
     outfile = open(f"{path_main}/report_debug.txt", "r")
     outlines = outfile.readlines()
@@ -192,7 +209,7 @@ def test_AQME(test_job):
         if 'csv_test :' in line:
             find_test += 1
 
-    if test_job in ['full_workflow','full_workflow_test','aqme']:
+    if test_job in ['full_workflow','full_workflow_test','aqme','2smiles_columns']:
         assert find_report > 0 # images with no titles in the SCORE section for regression
         assert find_outliers > 0
         assert find_results_reg > 0
@@ -227,6 +244,6 @@ def test_AQME(test_job):
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
-    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','solubility.csv']:
+    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','Robert_example_2smiles.csv','AQME-ROBERT_Robert_example_2smiles.csv', 'solubility.csv']:
         if os.path.exists(f'{path_main}/{file_discard}'):
             os.remove(f'{path_main}/{file_discard}')

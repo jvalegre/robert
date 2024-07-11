@@ -67,10 +67,10 @@ def test_AQME(test_job):
         csv_var = "solubility.csv"
 
     elif test_job == '2smiles_columns':
-        y_var = 'Target_values'
+        y_var = 'solub'
         # for AQME-ROBERT workflows, the CSV file must be in the working dir
-        shutil.copy(f"{path_main}/tests/Robert_example_2smiles.csv", f"{path_main}/Robert_example_2smiles.csv")
-        csv_var = "Robert_example_2smiles.csv"
+        shutil.copy(f"{path_main}/tests/solubility_solvent.csv", f"{path_main}/solubility_solvent.csv")
+        csv_var = "solubility_solvent.csv"
 
     cmd_robert = [
         "python",
@@ -107,7 +107,7 @@ def test_AQME(test_job):
                     "--alpha", "0.3"]
 
     if test_job == '2smiles_columns':
-        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 2"]
+        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 2", "--alpha", "0.3"]
 
     subprocess.run(cmd_robert)
 
@@ -169,9 +169,9 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_aqme}/*.dat')) == 3
 
     if test_job == '2smiles_columns':
-        assert os.path.exists(f'{path_main}/AQME-ROBERT_Robert_example_2smiles.csv')
-        db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_Robert_example_2smiles.csv')
-        assert 'SMILES_SubA' and 'SMILES_Solvent' in db_aqme.columns
+        assert os.path.exists(f'{path_main}/AQME-ROBERT_solubility_solvent.csv')
+        db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_solubility_solvent.csv')
+        assert 'smiles_sub' and 'smiles_solvent' in db_aqme.columns
 
     # find important parts in ROBERT_report
     outfile = open(f"{path_main}/report_debug.txt", "r")

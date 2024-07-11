@@ -1,0 +1,13 @@
+code_name,solub,smiles_sub,smiles_solvent
+mol_5,-1.33,C,O
+mol_16,-1.41,CF,O
+mol_23,-4.11,CN,O
+mol_34,-1.64,CS,O
+mol_41,-2.93,CO,O
+mol_42,-2,CCl,O
+mol_43,-3,CP,O
+mol_44,-4,OCO,O
+mol_45,-1.5,FCF,O
+mol_46,-2.5,SCS,O
+mol_60,-4,NCN,O
+mol_61,-4,PCP,O

@@ -63,6 +63,7 @@ jobs:
           python -m pytest -v --cov=robert --cov-report=xml
           rm -r /tmp/*
           cp -r * /tmp
+          no_output_timeout: 20m 
       - persist_to_workspace:
           root: /tmp
           paths:

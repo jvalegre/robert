@@ -41,6 +41,18 @@ path_generate = os.getcwd() + "/GENERATE"
         (
             "imbalanced_data"
         ),  # test for imbalanced data
+        (  
+            "accuracy_low"
+            # test for chechking accuracy
+        ),
+        (
+            "accuracy_mid"
+            # test for chechking accuracy
+        ),
+        (
+            "accuracy_high"
+            # test for chechking accuracy
+        ),
         (
             "standard"
         ),  # standard test
@@ -77,6 +89,15 @@ def test_GENERATE(test_job):
         "--epochs", "10",
         "--seed", "[0]"
         ]
+    cmd_robert_acc = [
+        "python",
+        "-m",
+        "robert",
+        "--generate",
+        "--csv_name", csv_name,
+        '--y', 'Target_values',
+        "--ignore", "['Name']"
+        ]
 
     if test_job != 'standard':
         if test_job != 'reduced_others':
@@ -98,6 +119,13 @@ def test_GENERATE(test_job):
             cmd_robert = cmd_robert + ["--type", "clas"]
         elif test_job == 'imbalanced_data':
             cmd_robert = cmd_robert + ["--type", "clas"]
+        elif test_job == 'accuracy_low':
+            cmd_robert = cmd_robert_acc + ["--generate_acc", "low"]
+        elif test_job == 'accuracy_mid':
+            cmd_robert = cmd_robert_acc + ["--generate_acc", "mid"]
+        elif test_job == 'accuracy_high':
+            cmd_robert = cmd_robert_acc + ["--generate_acc", "high"]
+        
     else: # needed to define the variables, change if default options change
         model_list = ['RF','GB','NN','MVL']
         train_list = [60,70,80]
@@ -123,11 +151,18 @@ def test_GENERATE(test_job):
         assert "- 1 ignored descriptors" in outlines[11]
         assert "- 0 discarded descriptors" in outlines[12]
         finding_line = False
-        for line in outlines:
-            if f"- 1/{len(model_list) * len(train_list)}" in line:
-                finding_line = True
-        assert finding_line
-
+        if test_job != 'accuracy_low' and test_job != 'accuracy_mid' and test_job != 'accuracy_high':
+            for line in outlines:
+                if f"- 1/{len(model_list) * len(train_list)}" in line:
+                    finding_line = True
+            assert finding_line
+        else:
+            if test_job == 'accuracy_low':
+                assert "- 1/3 - Training size: 60, ML model: RF, seed: 0" in outlines[20]
+            if test_job == 'accuracy_mid':
+                assert "- 1/6 - Training size: 60, ML model: RF, seed: 0" in outlines[20]
+            if test_job == 'accuracy_high':
+                assert "- 1/10 - Training size: 60, ML model: RF, seed: 0" in outlines[20]
         # check that the right amount of CSV files were created
         expected_amount = len(model_list) * len(train_list) * 2
         if test_job != "reduced_noPFI":

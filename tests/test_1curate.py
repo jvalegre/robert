@@ -36,14 +36,15 @@ path_curate = os.getcwd() + "/CURATE"
         ),  # test to check the thresholds of the correlation filters with a yaml file
         (
             "standard"
-        ),  # standard test
-        (
-            "thres_rfecv"
-        ), # test to test the RFECV descriptor selection
+        ),  # standard test        
         (
             "csv_separator"
             # test to check the separator of the CSV file
         ),
+        (
+            "thres_rfecv"
+        ), # test to test the RFECV descriptor selection
+
     ],
 )
 def test_CURATE(test_job):

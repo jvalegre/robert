@@ -40,6 +40,10 @@ path_curate = os.getcwd() + "/CURATE"
         (
             "thres_rfecv"
         ), # test to test the RFECV descriptor selection
+        (
+            "csv_separator"
+            # test to check the separator of the CSV file
+        ),
     ],
 )
 def test_CURATE(test_job):
@@ -210,3 +214,23 @@ def test_CURATE(test_job):
         datapoints = len(db_final)
         assert n_descps < (datapoints / 3)
 
+    elif test_job == 'csv_separator':
+        # Test to check if the separator of the CSV file is correctly read
+        cmd_robert = [
+            "python",
+            "-m",
+            "robert",
+            "--curate",
+            "--csv_name", f"{path_tests}/Robert_example_separator.csv",
+            '--y', 'Target_values',
+            "--ignore", "['Name']",
+            "--discard", "['xtest']"
+        ]
+        subprocess.run(cmd_robert)
+
+        # check that the DAT file has a warning about the separator
+        assert not os.path.exists("CURATE_data.dat")
+        outfile = open(f"{path_curate}/CURATE_data.dat", "r")
+        outlines = outfile.readlines()
+        outfile.close()
+        assert "x  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?)." in outlines[8]

@@ -145,8 +145,8 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 2 # 2 extra PNG for test confusion matrices
     elif test_job == 'full_workflow_test':
-        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 4 extra CSV files for the test set
-        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 4 # 2 extra PNG for variability predictions
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set
+        assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 4 # 4 extra PNG for variability predictions
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
 
@@ -244,6 +244,6 @@ def test_AQME(test_job):
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
-    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','Robert_example_2smiles.csv','AQME-ROBERT_Robert_example_2smiles.csv', 'solubility.csv']:
+    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','AQME-ROBERT_Robert_example_2smiles.csv']:
         if os.path.exists(f'{path_main}/{file_discard}'):
             os.remove(f'{path_main}/{file_discard}')

@@ -236,8 +236,8 @@ class curate:
                 num_descriptors -= 1
             txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV: {num_descriptors} descriptors remaining'
             # Use RFECV with RandomForestRegressor to select the most important descriptors
-            estimator = RandomForestRegressor(random_state=0, n_estimators=100, max_depth=10)
-            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=5, shuffle=True, random_state=0))
+            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=5, shuffle=True, random_state=0), n_jobs=None)
             X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
             y = csv_df_filtered[self.args.y]
             # Convert column names to strings to avoid any issues

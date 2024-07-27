@@ -227,8 +227,9 @@ class generate:
 
                 if self.args.test_set > 0:
                     n_of_points = int(len(csv_X)*(self.args.test_set))
-
-                    random.seed(self.args.seed[0])
+                    
+                    # this number must be 0 always, as it changes everything related to random seeds across the generate module
+                    random.seed(0)
                     test_points = random.sample(range(len(csv_X)), n_of_points)
 
                     # separates the test set and reset_indexes
@@ -284,5 +285,13 @@ class generate:
             removed.append('80%')
         if len(removed) > 0:
             self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the {", ".join(removed)} training size(s) will be excluded (too few validation points to reach a reliable result). You can include this size(s) using "--filter_train False".')
+        
+        # Set default training sizes to avoid error if user only specifies 90% and 80% in small databases
+        if len(self.args.train) == 0:
+            # For example: If the user only specifies 90% in a database of 20 datapoints, by default that training size is going to be eliminated
+            self.args.train = [60, 70]
+            if 30 < len(csv_df[self.args.y]) < 50:
+                self.args.train.append(80)
+            self.args.log.write(f'\nx    WARNING! The specified training size is not suitable for the size of your database. Training sizes have been changed to {self.args.train}.')
         
         return self

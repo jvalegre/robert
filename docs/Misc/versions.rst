@@ -10,10 +10,12 @@ Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Fixing models where R2 in validation is much better than in training (if the validation set is very small or unrepresentative, the model may appear to perform excellently simply by chance)
    -  Fixing PFI_plot bug (now takes all the features into account)
    -  Fixing a bad allocation memory issue in GENERATE
+   -  Fixing bug in classification models when more than 2 classes of the target variable are present
+   -  Fixing reproducibility when using a specific seed in GENERATE module
    -  Change CV_test from Kflod to ShuffleSplit and adding a random_state to ensure reproducibility
    -  Allows CSV inputs that use ; as separator
    -  Fixing CV_test bug in VERIFY (now it uses equal test size to the model tested)
-   -  Adding variability (CI) in the prediction with MAPIE python library
+   -  Adding variability in the prediction with MAPIE python library
    -  Adding sd in the predictions table when using external test set
    -  Fixing error_type bug for classification models
    -  MCC as default metric for classification models (better to check performance in unbalanced datasets)

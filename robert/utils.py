@@ -1024,6 +1024,20 @@ def load_n_predict(self, params, data, hyperopt=False):
                 
                 # Add 'y_pred_test_error' entry to data dictionary
                 data['y_pred_test_error'] = y_test_error
+
+                # Calculate the width of the prediction intervals
+                y_test_interval_width = np.abs(y_test_pis[:, 0, :] - y_test_pis[:, 1, :])
+
+                # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
+                # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
+                # Student's t value is 2.086 instead of 1.96) 
+                if self.args.alpha == 0.05:
+                    y_test_sd = y_test_interval_width / (2 * 1.96)
+                elif self.args.alpha == 0.1:
+                    y_test_sd = y_test_interval_width / (2 * 1.645)
+
+                # Add 'y_pred_test_sd' entry to data dictionary
+                data['y_pred_test_sd'] = y_test_sd
             
             elif 'X_valid_scaled' in data:
                 
@@ -1046,6 +1060,20 @@ def load_n_predict(self, params, data, hyperopt=False):
                 
                 # Add 'y_pred_valid_error' entry to data dictionary
                 data['y_pred_valid_error'] = y_valid_error
+
+                # Calculate the width of the prediction intervals
+                y_valid_interval_width = np.abs(y_valid_pis[:, 0, :] - y_valid_pis[:, 1, :])
+
+                # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
+                # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
+                # Student's t value is 2.086 instead of 1.96) 
+                if self.args.alpha == 0.05:
+                    y_valid_sd = y_valid_interval_width / (2 * 1.96)
+                elif self.args.alpha == 0.1:
+                    y_valid_sd = y_valid_interval_width / (2 * 1.645)
+
+                # Add 'y_pred_valid_sd' entry to data dictionary
+                data['y_pred_valid_sd'] = y_valid_sd
             
             if 'X_csv_test_scaled' in data:
                 
@@ -1070,6 +1098,8 @@ def load_n_predict(self, params, data, hyperopt=False):
                 y_csv_test_interval_width = np.abs(y_csv_test_pis[:, 0, :] - y_csv_test_pis[:, 1, :])
 
                 # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
+                # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
+                # Student's t value is 2.086 instead of 1.96) 
                 if self.args.alpha == 0.05:
                     y_csv_test_sd = y_csv_test_interval_width / (2 * 1.96)
                 elif self.args.alpha == 0.1:
@@ -1112,7 +1142,12 @@ def get_prediction_results(params,y,y_pred):
 
     elif params['type'].lower() == 'clas':
         acc = accuracy_score(y,y_pred)
-        f1_score_val = f1_score(y,y_pred)
+        # F1 by default uses average='binnary', to deal with predictions with more than 2 ouput values we use average='micro'
+        # if len(set(y))==2:
+        try:
+            f1_score_val = f1_score(y,y_pred)
+        except ValueError:
+            f1_score_val = f1_score(y,y_pred,average='micro')
         mcc = matthews_corrcoef(y,y_pred)
         return acc, f1_score_val, mcc
 

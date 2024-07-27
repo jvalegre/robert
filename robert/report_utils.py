@@ -398,14 +398,14 @@ def get_csv_pred(suffix,path_csv_test,y_value,names):
     # retrieve and sort the values
     if not y_val_exist:
         csv_test_df[y_value] = csv_test_df[f'{y_value}_pred']
-    y_pred_sorted, y_sorted, names_sorted = (list(t) for t in zip(*sorted(zip(csv_test_df[f'{y_value}_pred'], csv_test_df[y_value], csv_test_df[names]), reverse=True)))
+    y_pred_sorted, y_sorted, names_sorted, sd_sorted = (list(t) for t in zip(*sorted(zip(csv_test_df[f'{y_value}_pred'], csv_test_df[y_value], csv_test_df[names], csv_test_df[f'{y_value}_sd']), reverse=True)))
 
     max_table = False
     if len(y_pred_sorted) > 20:
         max_table = True
 
     count_entries = 0
-    for y_val_pred, y_val, name, sd in zip(y_pred_sorted, y_sorted, names_sorted, csv_test_df[f'{y_value}_sd']):
+    for y_val_pred, y_val, name, sd in zip(y_pred_sorted, y_sorted, names_sorted, sd_sorted):
         # adjust format of entries
         if len(str(name)) > 12:
             name = f'{str(name[:9])}...'

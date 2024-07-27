@@ -33,17 +33,13 @@ path_curate = os.getcwd() + "/CURATE"
         ),  # test to check the thresholds of the correlation filters
         (
             "filter_thres_yaml"
-        ),  # test to check the thresholds of the correlation filters with a yaml file
-        (
-            "standard"
-        ),  # standard test        
+        ),  # test to check the thresholds of the correlation filters with a yaml file  
         (
             "csv_separator"
-            # test to check the separator of the CSV file
-        ),
+        ),  # test to check the separator of the CSV file
         (
-            "thres_rfecv"
-        ), # test to test the RFECV descriptor selection
+            "standard"
+        ),  # standard test  
 
     ],
 )
@@ -114,6 +110,12 @@ def test_CURATE(test_job):
 
         #check that the Pearson heatplot is created
         assert os.path.exists(f'{path_curate}/Pearson_heatmap.png')
+
+        # Check if the descriptors were reduced correctly (less than 1/3 of the data points)
+        db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
+        n_descps = len(db_final.columns) - 2  # subtracting 'Name' and 'Target_values'
+        datapoints = len(db_final)
+        assert n_descps < (datapoints / 3)
 
     elif test_job == "categorical":
         cmd_robert = cmd_robert + ['--categorical', 'numbers']
@@ -193,27 +195,6 @@ def test_CURATE(test_job):
         assert 'x1' in db_final.columns
         # check y threshold
         assert 'ynoise' in db_final.columns
-    
-    elif test_job == 'thres_rfecv':
-
-        # Test to check if descriptors are reduced to one third of the data points using RFECV
-        cmd_robert = [
-            "python",
-            "-m",
-            "robert",
-            "--curate",
-            "--csv_name", f"{path_tests}/Robert_example.csv",
-            '--y', 'Target_values',
-            "--ignore", "['Name']",
-            "--discard", "['xtest']"
-        ]
-        subprocess.run(cmd_robert)
-
-        # Check if the descriptors were reduced correctly
-        db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
-        n_descps = len(db_final.columns) - 2  # subtracting 'Name' and 'Target_values'
-        datapoints = len(db_final)
-        assert n_descps < (datapoints / 3)
 
     elif test_job == 'csv_separator':
         # Test to check if the separator of the CSV file is correctly read
@@ -235,3 +216,8 @@ def test_CURATE(test_job):
         outlines = outfile.readlines()
         outfile.close()
         assert "x  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?)." in outlines[8]
+
+        # check that the CSV file has the correct separator
+        csv_file = pd.read_csv(f"{path_tests}/Robert_example_separator_original.csv", sep=";")
+        csv_file_new = pd.read_csv(f"{path_tests}/Robert_example_separator.csv", sep=",")
+        assert csv_file.equals(csv_file_new)

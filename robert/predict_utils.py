@@ -178,9 +178,9 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
                 
         if plot_errors:
             # Plot the data with the error bars
-            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_error"], fmt='none', ecolor="gray", capsize=3, zorder=1)
+            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
             # Adjust labels from legend
-            set_types=[error_bars,f'{int((1-self.args.alpha)*100)}% CI']
+            set_types=[error_bars,f'± sd ({int((1-self.args.alpha)*100)}% CI)']
             
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
@@ -210,11 +210,10 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
                         c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
         # Plot the data with the error bars
         if plot_errors:
-            _ = ax.errorbar(Xy_data[f"y_csv_{error_bars}"], Xy_data[f"y_pred_csv_{error_bars}"], yerr=Xy_data[f"y_pred_csv_{error_bars}_error"], fmt='none', ecolor="gray", capsize=3, zorder=1)
-
+            _ = ax.errorbar(Xy_data[f"y_csv_{error_bars}"], Xy_data[f"y_pred_csv_{error_bars}"], yerr=Xy_data[f"y_pred_csv_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
-                fancybox=True, shadow=True, ncol=5, labels=[f'Predictions external set'], fontsize=14)
+                fancybox=True, shadow=True, ncol=5, labels=[f'Predictions external set',f'± sd ({int((1-self.args.alpha)*100)}% CI)'], fontsize=14)
 
         Xy_data_df = pd.DataFrame()
         Xy_data_df["y_csv_test"] = Xy_data["y_csv_test"]

@@ -151,7 +151,7 @@ def test_GENERATE(test_job):
         assert "- 1 ignored descriptors" in outlines[11]
         assert "- 0 discarded descriptors" in outlines[12]
         finding_line = False
-        if test_job != 'accuracy_low' and test_job != 'accuracy_mid' and test_job != 'accuracy_high':
+        if test_job not in [ 'accuracy_low', 'accuracy_mid', 'accuracy_high']:
             for line in outlines:
                 if f"- 1/{len(model_list) * len(train_list)}" in line:
                     finding_line = True

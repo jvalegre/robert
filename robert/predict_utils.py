@@ -180,7 +180,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             # Plot the data with the error bars
             _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
             # Adjust labels from legend
-            set_types=[error_bars,f'± sd ({int((1-self.args.alpha)*100)}% CI)']
+            set_types=[error_bars,f'± SD']
             
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
@@ -213,7 +213,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             _ = ax.errorbar(Xy_data[f"y_csv_{error_bars}"], Xy_data[f"y_pred_csv_{error_bars}"], yerr=Xy_data[f"y_pred_csv_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
-                fancybox=True, shadow=True, ncol=5, labels=[f'Predictions external set',f'± sd ({int((1-self.args.alpha)*100)}% CI)'], fontsize=14)
+                fancybox=True, shadow=True, ncol=5, labels=[f'Predictions external set',f'± SD'], fontsize=14)
 
         Xy_data_df = pd.DataFrame()
         Xy_data_df["y_csv_test"] = Xy_data["y_csv_test"]
@@ -326,6 +326,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     print_preds = f'      -  Train set with predicted results: PREDICT/{os.path.basename(train_path)}'
     Xy_orig_valid = Xy_orig_df[Xy_orig_df.Set == 'Validation']
     Xy_orig_valid[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_valid']
+    if self.args.type.lower() == 'reg':
+        Xy_orig_valid[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_valid_sd']
     valid_path = f'{base_csv_path}_valid_{suffix_title}.csv'
     _ = Xy_orig_valid.to_csv(valid_path, index = None, header=True)
     print_preds += f'\n      -  Validation set with predicted results: PREDICT/{os.path.basename(valid_path)}'
@@ -334,6 +336,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     if 'X_test_scaled' in Xy_data:
         Xy_orig_test = Xy_orig_df[Xy_orig_df.Set == 'Test']
         Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
+        if self.args.type.lower() == 'reg':
+            Xy_orig_test[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_test_sd']
         test_path = f'{base_csv_path}_test_{suffix_title}.csv'
         _ = Xy_orig_test.to_csv(test_path, index = None, header=True)
         print_preds += f'\n      -  Test set with predicted results: PREDICT/{os.path.basename(test_path)}'
@@ -342,8 +346,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     if self.args.csv_test != '':
         Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
         if self.args.type.lower() == 'reg':
-            Xy_test_df[f'{params_df["y"][0]}_sd'] = Xy_data['y_pred_csv_test_sd']
-            Xy_test_df[f'{params_df["y"][0]}_error'] = np.mean(Xy_data['y_pred_csv_test_error'], axis=0)
+            Xy_test_df[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_csv_test_sd']
         folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
         Path(folder_csv).mkdir(exist_ok=True, parents=True)
         csv_name = f'{os.path.basename(self.args.csv_test)}'.split(".csv")[0]

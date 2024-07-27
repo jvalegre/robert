@@ -1003,115 +1003,17 @@ def load_n_predict(self, params, data, hyperopt=False):
                     opt_target = 0
             return opt_target,data
         else:
-            if 'X_test_scaled' in data:
-                
-                # mapie for obtaining prediction intervals
-                my_conformity_score = AbsoluteConformityScore()
-                my_conformity_score.consistency_check = False
-
-                mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
-                mapie.fit(data['X_train_scaled'], data['y_train'])
-                
-                # Check if 1/alpha is lower than the number of samples
-                if 1 / self.args.alpha >= len(data['X_test_scaled']):
-                    self.args.alpha = 0.1
-                
-                # Predict test set and obtain prediction intervals
-                y_test_pred, y_test_pis = mapie.predict(data['X_test_scaled'], alpha=[self.args.alpha])
-                
-                # Calculate prediction interval variability for each prediction in the test set
-                y_test_error = np.abs(y_test_pis[:, :, 0].T - y_test_pred)
-                
-                # Add 'y_pred_test_error' entry to data dictionary
-                data['y_pred_test_error'] = y_test_error
-
-                # Calculate the width of the prediction intervals
-                y_test_interval_width = np.abs(y_test_pis[:, 0, :] - y_test_pis[:, 1, :])
-
-                # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
-                # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
-                # Student's t value is 2.086 instead of 1.96) 
-                if self.args.alpha == 0.05:
-                    y_test_sd = y_test_interval_width / (2 * 1.96)
-                elif self.args.alpha == 0.1:
-                    y_test_sd = y_test_interval_width / (2 * 1.645)
-
-                # Add 'y_pred_test_sd' entry to data dictionary
-                data['y_pred_test_sd'] = y_test_sd
-            
-            elif 'X_valid_scaled' in data:
-                
-                # mapie for obtaining prediction intervals
-                my_conformity_score = AbsoluteConformityScore()
-                my_conformity_score.consistency_check = False
-
-                mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
-                mapie.fit(data['X_train_scaled'], data['y_train'])
-                
-                # Check if 1/alpha is lower than the number of samples
-                if 1 / self.args.alpha >= len(data['X_valid_scaled']):
-                    self.args.alpha = 0.1
-                
-                # Predict validation set and obtain prediction intervals
-                y_valid_pred, y_valid_pis = mapie.predict(data['X_valid_scaled'], alpha=[self.args.alpha])
-                
-                # Calculate prediction interval variability for each prediction in the validation set
-                y_valid_error = np.abs(y_valid_pis[:, :, 0].T - y_valid_pred)
-                
-                # Add 'y_pred_valid_error' entry to data dictionary
-                data['y_pred_valid_error'] = y_valid_error
-
-                # Calculate the width of the prediction intervals
-                y_valid_interval_width = np.abs(y_valid_pis[:, 0, :] - y_valid_pis[:, 1, :])
-
-                # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
-                # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
-                # Student's t value is 2.086 instead of 1.96) 
-                if self.args.alpha == 0.05:
-                    y_valid_sd = y_valid_interval_width / (2 * 1.96)
-                elif self.args.alpha == 0.1:
-                    y_valid_sd = y_valid_interval_width / (2 * 1.645)
-
-                # Add 'y_pred_valid_sd' entry to data dictionary
-                data['y_pred_valid_sd'] = y_valid_sd
-            
             if 'X_csv_test_scaled' in data:
-                
-                # mapie for obtaining prediction intervals
-                my_conformity_score = AbsoluteConformityScore()
-                my_conformity_score.consistency_check = False
+                data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
 
-                mapie_csv = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score)
-                mapie_csv.fit(data['X_train_scaled'], data['y_train'])
-                
-                # Check if 1/alpha is lower than the number of samples
-                if 1 / self.args.alpha >= len(data['X_csv_test_scaled']):
-                    self.args.alpha = 0.1
-                
-                # Predict csv test set and obtain prediction intervals
-                y_csv_test_pred, y_csv_test_pis = mapie_csv.predict(data['X_csv_test_scaled'], alpha=[self.args.alpha])
-                
-                # Calculate prediction interval variability for each prediction in the csv test set
-                y_csv_test_error = np.abs(y_csv_test_pis[:, :, 0].T - y_csv_test_pred)
-                
-                # Calculate the width of the prediction intervals
-                y_csv_test_interval_width = np.abs(y_csv_test_pis[:, 0, :] - y_csv_test_pis[:, 1, :])
+            if 'X_test_scaled' in data:
+                data = calc_ci_n_sd(self,loaded_model,data,'test')
+            
+            if 'X_valid_scaled' in data:
+                data = calc_ci_n_sd(self,loaded_model,data,'valid')
 
-                # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
-                # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
-                # Student's t value is 2.086 instead of 1.96) 
-                if self.args.alpha == 0.05:
-                    y_csv_test_sd = y_csv_test_interval_width / (2 * 1.96)
-                elif self.args.alpha == 0.1:
-                    y_csv_test_sd = y_csv_test_interval_width / (2 * 1.645)
-
-                # Add 'y_pred_csv_test_error' entry to data dictionary
-                data['y_pred_csv_test_error'] = y_csv_test_error
-
-                # Add 'y_pred_test_sd' entry to data dictionary
-                data['y_pred_csv_test_sd'] = y_csv_test_sd
             return data
-    
+
     elif params['type'].lower() == 'clas':
         data['acc_train'], data['f1_train'], data['mcc_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
@@ -1127,6 +1029,47 @@ def load_n_predict(self, params, data, hyperopt=False):
             return opt_target,data
         else:
             return data
+
+
+
+def calc_ci_n_sd(self,loaded_model,data,set_mapie):
+    """
+    Calculate confidence intervals and standard deviations of each datapoint with MAPIE.
+    """
+
+    # mapie for obtaining prediction intervals
+    my_conformity_score = AbsoluteConformityScore()
+    my_conformity_score.consistency_check = False
+
+    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, random_state=0)
+    mapie.fit(data['X_train_scaled'], data['y_train'])
+    
+    # Check if 1/alpha is lower than the number of samples
+    if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
+        self.args.alpha = 0.1
+    
+    # Predict test set and obtain prediction intervals
+    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'], alpha=[self.args.alpha])
+    
+    # Calculate prediction interval variability for each prediction in the test set
+    y_error = np.abs(y_pis[:, :, 0].T - y_pred)
+    
+    # Add 'y_pred_test_error' entry to data dictionary
+    data[f'y_pred_{set_mapie}_error'] = y_error
+
+    # Calculate the width of the prediction intervals
+    y_interval_width = np.abs(y_pis[:, 0, :] - y_pis[:, 1, :])
+
+    # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
+    # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
+    # Student's t value is 2.086 instead of 1.96) 
+    dict_alpha  = {0.05: 1.96, 0.1: 1.645, 0.5: 0.674}
+    y_test_sd = y_interval_width / (2 * dict_alpha[self.args.alpha])
+
+    # Add 'y_pred_test_sd' entry to data dictionary
+    data[f'y_pred_{set_mapie}_sd'] = y_test_sd
+
+    return data
 
 
 def get_prediction_results(params,y,y_pred):

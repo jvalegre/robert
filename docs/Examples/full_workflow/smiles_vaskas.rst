@@ -17,12 +17,8 @@ Reproducibility warning
 
 .. warning::
 
-   When repeating end-to-end workflows starting from SMILES strings, **it may not be possible to exactly 
-   reproduce the results due to subtle differences in the generated xTB descriptors (0.1% changes in the 
-   vast majority of cases)**. However, the resulting ROBERT scores and model accuracies are very similar 
-   (see the supporting information of the ROBERT paper for a detailed explanation). In such cases, the PDF 
-   report recommends that authors upload the descriptor database created (i.e., AQME-ROBERT_FILENAME.csv) 
-   to facilitate the reproduction of results by other researchers.
+   **Update to AQME v1.6.0 or higher to obtain fully reproducible results!** Otherwise, it may not be possible to exactly 
+   reproduce the results due to subtle differences in the generated xTB descriptors (0.1% changes in most cases).
 
 Required inputs
 +++++++++++++++

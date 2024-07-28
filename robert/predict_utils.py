@@ -326,7 +326,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     print_preds = f'      -  Train set with predicted results: PREDICT/{os.path.basename(train_path)}'
     Xy_orig_valid = Xy_orig_df[Xy_orig_df.Set == 'Validation']
     Xy_orig_valid[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_valid']
-    if self.args.type.lower() == 'reg':
+    # Search in the csv file for model type to avoid problem when using only the predict module with a classification model (reg model is the default)
+    if params_df['type'].values[0] == 'reg':
         Xy_orig_valid[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_valid_sd']
     valid_path = f'{base_csv_path}_valid_{suffix_title}.csv'
     _ = Xy_orig_valid.to_csv(valid_path, index = None, header=True)
@@ -336,7 +337,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     if 'X_test_scaled' in Xy_data:
         Xy_orig_test = Xy_orig_df[Xy_orig_df.Set == 'Test']
         Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
-        if self.args.type.lower() == 'reg':
+        if params_df['type'].values[0] == 'reg':
             Xy_orig_test[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_test_sd']
         test_path = f'{base_csv_path}_test_{suffix_title}.csv'
         _ = Xy_orig_test.to_csv(test_path, index = None, header=True)
@@ -345,7 +346,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     # saves prediction for external test in --csv_test
     if self.args.csv_test != '':
         Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
-        if self.args.type.lower() == 'reg':
+        if params_df['type'].values[0] == 'reg':
             Xy_test_df[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_csv_test_sd']
         folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
         Path(folder_csv).mkdir(exist_ok=True, parents=True)

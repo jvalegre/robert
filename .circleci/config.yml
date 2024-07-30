@@ -50,7 +50,7 @@ jobs:
           pip install weasyprint
           conda install -y -c conda-forge gtk3
           conda install -y -c conda-forge pango
-          pip install aqme==1.6.0
+          pip install aqme==1.6.1
           pip install .
           pip install scikit-learn-intelex==2024.4.0
           # uninstall robert to avoid codecov issues (only running from the robert folder)

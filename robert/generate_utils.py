@@ -24,6 +24,8 @@ import json
 import glob
 from pkg_resources import resource_filename
 from sklearn.inspection import permutation_importance
+from sklearn.metrics import matthews_corrcoef, make_scorer
+from sklearn.model_selection import train_test_split
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from robert.utils import (
     load_model,
@@ -195,7 +197,7 @@ def f(params):
     params['error_type'] = hyperopt_data['error_type']
 
     try:
-        opt_target,data = load_n_predict(params, hyperopt_data, hyperopt=True)
+        opt_target,data = load_n_predict(None, params, hyperopt_data, hyperopt=True)
         # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes
         # because the errors of the validation sets are low
         if params['type'].lower() == 'reg':
@@ -299,6 +301,8 @@ def avoid_overfit(data,opt_target):
             opt_target = float('inf')
     if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
         opt_target = float('inf')
+    if data['r2_valid'] - data['r2_train'] > 0.2:
+        opt_target = float('inf')
 
     return opt_target
 
@@ -392,13 +396,11 @@ def data_split(self,csv_X,csv_y,size,seed):
                 if X_scaled[column].isnull().values.any():
                     X_scaled = X_scaled.drop(column, axis=1)
 
-            training_points = k_neigh(self,X_scaled,csv_y,size,seed)
+            training_points = k_means(self,X_scaled,csv_y,size,seed)
 
         elif self.args.split.upper() == 'RND':
-            n_of_points = int(len(csv_X)*(size/100))
-
-            random.seed(seed)
-            training_points = random.sample(range(len(csv_X)), n_of_points)
+            X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
+            training_points = X_train.index.tolist()
 
     Xy_data = Xy_split(csv_X,csv_y,training_points)
 
@@ -420,12 +422,12 @@ def Xy_split(csv_X,csv_y,training_points):
     return Xy_data
 
 
-def k_neigh(self,X_scaled,csv_y,size,seed):
+def k_means(self,X_scaled,csv_y,size,seed):
     '''
-    Returns the data points that will be used as training set based on the k-neighbour clustering
+    Returns the data points that will be used as training set based on the k-means clustering
     '''
     
-    # number of clusters in the training set from the k-neighbours clustering (based on the
+    # number of clusters in the training set from the k-means clustering (based on the
     # training set size specified above)
     X_scaled_array = np.asarray(X_scaled)
     number_of_clusters = int(len(X_scaled)*(size/100))
@@ -435,7 +437,7 @@ def k_neigh(self,X_scaled,csv_y,size,seed):
     training_points = [csv_y.idxmin(),csv_y.idxmax()]
     number_of_clusters -= 2
     
-    # runs the k-neighbours algorithm and keeps the closest point to the center of each cluster
+    # runs the k-means algorithm and keeps the closest point to the center of each cluster
     kmeans = KMeans(n_clusters=number_of_clusters,random_state=seed)
     try:
         kmeans.fit(X_scaled_array)
@@ -461,14 +463,14 @@ def k_neigh(self,X_scaled,csv_y,size,seed):
     return training_points
 
 
-def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
+def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #variable init_curate =False
     '''
     Filters off parameters with low PFI (not relevant in the model)
     '''
 
     name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}_{seed}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
-    PFI_df = pd.read_csv(path_csv)
+    PFI_df = pd.read_csv(path_csv, encoding='utf-8')
     PFI_dict = pd_to_dict(PFI_df) # (using a dict to keep the same format of load_model)
     PFI_discard_cols = PFI_filter(self,Xy_data,PFI_dict,seed)
 
@@ -482,12 +484,14 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
     #   2. Proportion of 1:3 of descriptors:total datapoints (training + validation)
     total_points = len(Xy_data['y_train'])+len(Xy_data['y_valid'])
     n_descp_PFI = desc_keep-len(PFI_discard_cols)
-    if n_descp_PFI > 0.2*total_points or n_descp_PFI >= (0.75*desc_keep) or n_descp_PFI == 0:
+    if self.args.pfi_max > 0:
+        pfi_max = self.args.pfi_max
+    elif n_descp_PFI > 0.2*total_points or n_descp_PFI >= (0.75*desc_keep) or n_descp_PFI == 0:
         option_one = int(0.75*len(Xy_data['X_train'].columns))
         option_two = int(0.2*total_points)
         pfi_max = min(option_one,option_two)
     else:
-        pfi_max = self.args.pfi_max
+        pfi_max = 0
     
     discard_idx, descriptors_PFI = [],[]
     # just in case none of the descriptors passed the PFI filter
@@ -515,7 +519,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test):
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target,data = load_n_predict(PFI_dict, Xy_data_PFI, hyperopt=True)
+    opt_target,data = load_n_predict(None, PFI_dict, Xy_data_PFI, hyperopt=True)
     valid_PFI_model = True
     if PFI_dict['type'].lower() == 'reg':
         opt_target = avoid_overfit(data,opt_target)
@@ -553,7 +557,23 @@ def PFI_filter(self,Xy_data,PFI_dict,seed):
     # generalization power of the inspected model. Features that are important on the training set 
     # but not on the held-out set might cause the model to overfit."
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=seed)
+    error_type = PFI_dict['error_type'].lower()
+    
+    if PFI_dict['type'].lower() == 'reg':
+        scoring = {
+            'rmse': 'neg_root_mean_squared_error',
+            'mae': 'neg_median_absolute_error',
+            'r2': 'r2'
+        }.get(error_type)
+    else:
+        scoring = {
+            'mcc': make_scorer(matthews_corrcoef),
+            'f1': 'f1',
+            'acc': 'accuracy'
+        }.get(error_type)
+
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=seed)
+            
     # transforms the values into a list and sort the PFI values with the descriptor names
     descp_cols, PFI_values, PFI_sd = [],[],[]
     for i,desc in enumerate(Xy_data['X_train'].columns):
@@ -562,7 +582,7 @@ def PFI_filter(self,Xy_data,PFI_dict,seed):
         PFI_sd.append(perm_importance.importances_std[i])
   
     PFI_values, PFI_sd, descp_cols = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, descp_cols), reverse=True)))
-
+    #Esto hay que hacerlo cuando init_curate =False, sino hay que hacer PFI_discard_cols=descp_cols.
     # PFI filter
     PFI_discard_cols = []
     PFI_thres = abs(self.args.pfi_threshold*score_model)
@@ -586,7 +606,7 @@ def filter_seed(self, name_csv):
         else:
             file_seed = f'{name_csv}_{seed}_PFI.csv'
         if os.path.exists(file_seed):
-            results_model = pd.read_csv(f'{file_seed}')
+            results_model = pd.read_csv(f'{file_seed}', encoding='utf-8')
             errors.append(results_model[results_model['error_type'][0]][0])
         else:
             errors.append(np.nan)
@@ -653,7 +673,7 @@ def detect_best(folder):
     errors = []
     for file in file_list:
         if '_db' not in file:
-            results_model = pd.read_csv(f'{file}')
+            results_model = pd.read_csv(f'{file}', encoding='utf-8')
             errors.append(results_model[results_model['error_type'][0]][0])
         else:
             errors.append(np.nan)
@@ -687,7 +707,7 @@ def heatmap_workflow(self,folder_hm):
             csv_size = basename.replace('.','_').split('_')[1]
             if csv_model not in size_list:
                 size_list.append(csv_size)
-            csv_value = pd.read_csv(csv_file)
+            csv_value = pd.read_csv(csv_file, encoding='utf-8')
             csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0]
     
     # fill missing values with NaN

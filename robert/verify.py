@@ -37,7 +37,7 @@ try:
     patch_sklearn(verbose=False)
 except (ModuleNotFoundError,ImportError):
     pass
-from sklearn.model_selection import KFold
+from sklearn.model_selection import ShuffleSplit
 from robert.utils import (load_variables,
     load_db_n_params,
     load_model,
@@ -88,7 +88,7 @@ class verify:
 
                 # get original score
                 Xy_orig = Xy_data.copy()
-                Xy_orig = load_n_predict(params_dict, Xy_orig)  
+                Xy_orig = load_n_predict(self, params_dict, Xy_orig)  
                 verify_results['original_score_train'] = Xy_orig[f'{verify_results["error_type"]}_train']
                 verify_results['original_score_valid'] = Xy_orig[f'{verify_results["error_type"]}_valid']
 
@@ -136,11 +136,11 @@ class verify:
         # Fit the original model with the training set
         loaded_model = load_model(params_dict)
         loaded_model.fit(np.asarray(Xy_data['X_train_scaled']).tolist(), np.asarray(Xy_data['y_train']).tolist())
-        data_cv = load_n_predict(params_dict, Xy_data)
+        data_cv = load_n_predict(self, params_dict, Xy_data)
         
         cv_score = []
         data_cv = {}
-        kf = KFold(n_splits=self.args.kfold,shuffle=True)
+        kf = ShuffleSplit(n_splits=self.args.kfold,test_size=((100-params_dict['train'])/100),random_state=params_dict['seed'])
         
         # combine training and validation for CV
         X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
@@ -151,7 +151,7 @@ class verify:
             XY_cv['y_train'] = y_combined.loc[train_index]
             XY_cv['X_valid_scaled'] = X_combined.loc[valid_index]
             XY_cv['y_valid'] = y_combined.loc[valid_index]
-            data_cv = load_n_predict(params_dict, XY_cv)
+            data_cv = load_n_predict(self, params_dict, XY_cv)
 
             cv_score.append(data_cv[f'{verify_results["error_type"].lower()}_valid'])
 
@@ -190,7 +190,7 @@ class verify:
 
         Xy_yshuffle = Xy_data.copy()
         Xy_yshuffle['y_valid'] = Xy_yshuffle['y_valid'].sample(frac=1,random_state=params_dict['seed'],axis=0)
-        Xy_yshuffle = load_n_predict(params_dict, Xy_yshuffle)  
+        Xy_yshuffle = load_n_predict(self, params_dict, Xy_yshuffle)  
         verify_results['y_shuffle'] = Xy_yshuffle[f'{verify_results["error_type"]}_valid']
 
         return verify_results
@@ -221,7 +221,7 @@ class verify:
                     new_vals.append(1)
             Xy_onehot['X_valid_scaled'][desc] = new_vals
 
-        Xy_onehot = load_n_predict(params_dict, Xy_onehot)  
+        Xy_onehot = load_n_predict(self, params_dict, Xy_onehot)  
         verify_results['onehot'] = Xy_onehot[f'{verify_results["error_type"]}_valid']
 
         return verify_results

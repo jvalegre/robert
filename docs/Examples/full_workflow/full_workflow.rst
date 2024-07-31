@@ -64,11 +64,6 @@ Results
 
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
 
-.. warning::
-
-   In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
-   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
-
 The PDF report contains all the results of the workflow. In this case, a Neural Network (NN) model with 80% training size was the optimal model found from: 
 
    * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 

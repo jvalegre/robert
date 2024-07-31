@@ -19,6 +19,7 @@ except (ModuleNotFoundError,ImportError):
     pass
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.inspection import permutation_importance
+from sklearn.metrics import matthews_corrcoef, make_scorer
 import shap
 from robert.curate import curate
 from robert.utils import (
@@ -40,7 +41,7 @@ def load_test(self, Xy_data, params_df, Xy_test_df):
 
     # test points coming from the files specified in csv_test
     if self.args.csv_test != '':
-        Xy_test_csv = load_database(self, self.args.csv_test, "predict", external_set=True)
+        Xy_test_csv = load_database(self, self.args.csv_test, "predict")
         X_test_csv, y_test_csv = test_csv(self,Xy_test_csv,descs_model,params_df)
         Xy_data['X_csv_test'] = X_test_csv
         Xy_data['y_csv_test'] = y_test_csv
@@ -101,9 +102,15 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     
     self.args.log.write(f"\n   o  Saving graphs and CSV databases in:")
     if params_dict['type'].lower() == 'reg':
+        # Plot graph with all sets
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
+        # Plot variability graph of validation or test set
+        _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,plot_errors=True)
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
+            # Plot graph with all sets
             _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True)
+            # Plot variability graph of validation or test set
+            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True,plot_errors=True)
 
     elif params_dict['type'].lower() == 'clas':
         for set_type in set_types:
@@ -115,7 +122,7 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     return graph_style
 
 
-def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True):
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,plot_errors=False):
     '''
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     '''
@@ -132,14 +139,24 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     plt.ylabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.xlabel(f'{params_dict["y"]}', fontsize=14)
     
+    error_bars = "valid"
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        error_bars = "test"
+    
     if not csv_test:
-        title_graph = f'Predictions_train_valid'
-        if 'test' in set_types:
-            title_graph += '_test'
+        if not plot_errors:
+            title_graph = f'Predictions_train_valid'
+            if 'test' in set_types:
+                title_graph += '_test'
+        else:
+            title_graph = f'Variability of {error_bars} set'  
     else:
-        title_graph = f'{os.path.basename(self.args.csv_test)}'
-        if len(title_graph) > 30:
-            title_graph = f'{title_graph[:27]}...'
+        if not plot_errors:
+            title_graph = f'{os.path.basename(self.args.csv_test)}'
+            if len(title_graph) > 30:
+                title_graph = f'{title_graph[:27]}...'
+        else:
+            title_graph = f'Variability of external test'
 
     if print_fun:
         plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
@@ -147,17 +164,27 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
     # Plot the data
     if not csv_test:
-        _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
-                    c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-
-        _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
-                    c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        if not plot_errors:
+            _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
+                        c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)   
+                    
+        if not plot_errors or error_bars == 'valid':
+            _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
+                        c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+            
+        if error_bars == 'test':
             _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
-                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
+                
+        if plot_errors:
+            # Plot the data with the error bars
+            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
+            # Adjust labels from legend
+            set_types=[error_bars,f'± SD']
+            
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
-                fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
+            fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
         # Add the regression line with a confidence interval based on the training sets
         Xy_data_df = pd.DataFrame()
@@ -170,16 +197,23 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
         min_value_graph, max_value_graph = set_lim_reg(Xy_data,set_types)
 
         # PATH of the graph
-        reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+        if not plot_errors:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+        else:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Variability_{os.path.basename(path_n_suffix)}.png'
         path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
 
     else:
+        error_bars = "test"
+        # Plot the points
         _ = ax.scatter(Xy_data["y_csv_test"], Xy_data["y_pred_csv_test"],
                         c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
-
+        # Plot the data with the error bars
+        if plot_errors:
+            _ = ax.errorbar(Xy_data[f"y_csv_{error_bars}"], Xy_data[f"y_pred_csv_{error_bars}"], yerr=Xy_data[f"y_pred_csv_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
         # Put a legend below current axis
         ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
-                fancybox=True, shadow=True, ncol=5, labels=[f'Predictions external set'], fontsize=14)
+                fancybox=True, shadow=True, ncol=5, labels=[f'Predictions external set',f'± SD'], fontsize=14)
 
         Xy_data_df = pd.DataFrame()
         Xy_data_df["y_csv_test"] = Xy_data["y_csv_test"]
@@ -202,7 +236,11 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
         # PATH of the graph
         folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
-        reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
+        if not plot_errors:
+            reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
+        else:
+            reg_plot_file = f'{folder_graph}/Variability_{os.path.basename(path_n_suffix)}.png'
+
         path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-3:])
 
     # Add gridlines
@@ -245,7 +283,7 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_
     '''
     
     plt.clf()
-    matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize="true", cmap='Blues') 
+    matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize=None, cmap='Blues') 
     if print_fun:
         matrix.ax_.set_title(f'Confus. Matrix {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
 
@@ -288,6 +326,9 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     print_preds = f'      -  Train set with predicted results: PREDICT/{os.path.basename(train_path)}'
     Xy_orig_valid = Xy_orig_df[Xy_orig_df.Set == 'Validation']
     Xy_orig_valid[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_valid']
+    # Search in the csv file for model type to avoid problem when using only the predict module with a classification model (reg model is the default)
+    if params_df['type'].values[0] == 'reg':
+        Xy_orig_valid[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_valid_sd']
     valid_path = f'{base_csv_path}_valid_{suffix_title}.csv'
     _ = Xy_orig_valid.to_csv(valid_path, index = None, header=True)
     print_preds += f'\n      -  Validation set with predicted results: PREDICT/{os.path.basename(valid_path)}'
@@ -296,6 +337,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     if 'X_test_scaled' in Xy_data:
         Xy_orig_test = Xy_orig_df[Xy_orig_df.Set == 'Test']
         Xy_orig_test[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_test']
+        if params_df['type'].values[0] == 'reg':
+            Xy_orig_test[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_test_sd']
         test_path = f'{base_csv_path}_test_{suffix_title}.csv'
         _ = Xy_orig_test.to_csv(test_path, index = None, header=True)
         print_preds += f'\n      -  Test set with predicted results: PREDICT/{os.path.basename(test_path)}'
@@ -303,6 +346,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     # saves prediction for external test in --csv_test
     if self.args.csv_test != '':
         Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
+        if params_df['type'].values[0] == 'reg':
+            Xy_test_df[f'{params_df["y"][0]}_pred_sd'] = Xy_data['y_pred_csv_test_sd']
         folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
         Path(folder_csv).mkdir(exist_ok=True, parents=True)
         csv_name = f'{os.path.basename(self.args.csv_test)}'.split(".csv")[0]
@@ -466,7 +511,23 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
     score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+    error_type = params_dict['error_type'].lower()
+    
+    # select scoring function for PFI analysis based on the error type
+    if params_dict['type'].lower() == 'reg':
+        scoring = {
+            'rmse': 'neg_root_mean_squared_error',
+            'mae': 'neg_median_absolute_error',
+            'r2': 'r2'
+        }.get(error_type)
+    else:
+        scoring = {
+            'mcc': make_scorer(matthews_corrcoef),
+            'f1': 'f1',
+            'acc': 'accuracy'
+        }.get(error_type)
+
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]
@@ -474,16 +535,17 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
         desc_list.append(desc)
         PFI_values.append(perm_importance.importances_mean[i])
         PFI_sd.append(perm_importance.importances_std[i])
-        if len(desc_list) == self.args.pfi_show:
-            break
-  
-    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=False)))
+
+    # sort from higher to lower values and keep only the top self.args.pfi_show descriptors
+    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
+    PFI_values_plot = PFI_values[:self.args.pfi_show][::-1]
+    desc_list_plot = desc_list[:self.args.pfi_show][::-1]
 
     # plot and print results
     fig, ax = plt.subplots(figsize=(7.45,6))
-    y_ticks = np.arange(0, len(desc_list))
-    ax.barh(desc_list, PFI_values)
-    ax.set_yticks(y_ticks,labels=desc_list,fontsize=14)
+    y_ticks = np.arange(0, len(desc_list_plot))
+    ax.barh(desc_list_plot, PFI_values_plot)
+    ax.set_yticks(y_ticks,labels=desc_list_plot,fontsize=14)
     plt.text(0.5, 1.08, f'Permutation feature importances (PFIs) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
         fontsize=14, fontweight='bold', transform = ax.transAxes)
     fig.tight_layout()
@@ -502,8 +564,7 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
         print_PFI += f'\n      Original score (from model.score, R2) = {score_model:.2}'
     elif params_dict['type'].lower() == 'clas':
         print_PFI += f'\n      Original score (from model.score, accuracy) = {score_model:.2}'
-    # shown from higher to lower values
-    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
+
     for i,desc in enumerate(desc_list):
         print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} +- {PFI_sd[i]:.2}"
     

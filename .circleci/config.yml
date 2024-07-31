@@ -43,17 +43,16 @@ jobs:
           conda activate cheminf
           # install AQME, ROBERT and their dependencies
           python -m pip install --upgrade pip          
-          pip install rdkit-pypi==2023.3.1b1
+          pip install rdkit==2024.3.1
           conda install -y -c conda-forge openbabel
-          conda install -y -c conda-forge xtb
-          conda install -y -c conda-forge crest
+          conda install -y -c conda-forge xtb=6.6.1
           conda install -y -c conda-forge glib
           pip install weasyprint
           conda install -y -c conda-forge gtk3
           conda install -y -c conda-forge pango
-          pip install aqme
+          pip install aqme==1.6.1
           pip install .
-          pip install scikit-learn-intelex==2024.0.1
+          pip install scikit-learn-intelex==2024.4.0
           # uninstall robert to avoid codecov issues (only running from the robert folder)
           pip uninstall -y robert
           # install and run pytest

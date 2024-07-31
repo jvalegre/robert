@@ -33,10 +33,14 @@ path_curate = os.getcwd() + "/CURATE"
         ),  # test to check the thresholds of the correlation filters
         (
             "filter_thres_yaml"
-        ),  # test to check the thresholds of the correlation filters with a yaml file
+        ),  # test to check the thresholds of the correlation filters with a yaml file  
+        (
+            "csv_separator"
+        ),  # test to check the separator of the CSV file
         (
             "standard"
-        ),  # standard test
+        ),  # standard test  
+
     ],
 )
 def test_CURATE(test_job):
@@ -106,6 +110,12 @@ def test_CURATE(test_job):
 
         #check that the Pearson heatplot is created
         assert os.path.exists(f'{path_curate}/Pearson_heatmap.png')
+
+        # Check if the descriptors were reduced correctly (less than 1/3 of the data points)
+        db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
+        n_descps = len(db_final.columns) - 2  # subtracting 'Name' and 'Target_values'
+        datapoints = len(db_final)
+        assert n_descps < (datapoints / 3)
 
     elif test_job == "categorical":
         cmd_robert = cmd_robert + ['--categorical', 'numbers']
@@ -185,3 +195,29 @@ def test_CURATE(test_job):
         assert 'x1' in db_final.columns
         # check y threshold
         assert 'ynoise' in db_final.columns
+
+    elif test_job == 'csv_separator':
+        # Test to check if the separator of the CSV file is correctly read
+        cmd_robert = [
+            "python",
+            "-m",
+            "robert",
+            "--curate",
+            "--csv_name", f"{path_tests}/Robert_example_separator.csv",
+            '--y', 'Target_values',
+            "--ignore", "['Name']",
+            "--discard", "['xtest']"
+        ]
+        subprocess.run(cmd_robert)
+
+        # check that the DAT file has a warning about the separator
+        assert not os.path.exists("CURATE_data.dat")
+        outfile = open(f"{path_curate}/CURATE_data.dat", "r")
+        outlines = outfile.readlines()
+        outfile.close()
+        assert "x  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?)." in outlines[8]
+
+        # check that the CSV file has the correct separator
+        csv_file = pd.read_csv(f"{path_tests}/Robert_example_separator_original.csv", sep=";")
+        csv_file_new = pd.read_csv(f"{path_tests}/Robert_example_separator.csv", sep=",")
+        assert csv_file.equals(csv_file_new)

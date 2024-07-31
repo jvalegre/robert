@@ -61,9 +61,9 @@ Introduction
 .. introduction-start
 
 ROBERT is an ensemble of automated machine learning protocols that can be run sequentially 
-through a single command line. The program works for **regression and classification problems**.
-Comprehensive workflows have been designed to meet state-of-the-art standards for cheminformatics 
-studies, including:
+through a single command line or a graphical user interface. The program works for **regression 
+and classification problems**.Comprehensive workflows have been designed to meet state-of-the-art 
+standards for cheminformatics studies, including:
 
    *  **Atomic and molecular descriptor generation from SMILES**, including an RDKit conformer sampling and 
       the generation of 200+ steric, electronic and structural descriptors using RDKit, xTB and DBSTEP. 
@@ -113,13 +113,17 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
    conda install -c conda-forge robert
    pip install scikit-learn-intelex
 
-**3.** Update ROBERT to the latest version (do not skip this step!):
+**3.** Install GLib to avoid errors when creating the PDF report:  
 
 .. code-block:: shell 
    
-   pip install robert --upgrade
+   conda install -c conda-forge glib
 
-**4.** If conda-forge is too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+.. warning::
+
+   In some computers, you might see lots of pop-up windows with errors when installing GLib. Just press "Accept" in all the windows and finish the process until you see "Done" in the terminal.
+
+**4.** If the installation of steps 1-3 with conda-forge are too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
 
 .. code-block:: shell
 
@@ -127,11 +131,6 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
    pip install weasyprint
    conda install -c conda-forge glib gtk3 pango
    pip install scikit-learn-intelex
-
-.. warning::
-
-   In some HPCs, the Helvetica/Arial font used to create the report might not be installed. If the report PDF 
-   looks messy, install the fonts with :code:`conda install -c conda-forge mscorefonts`.
 
 .. installation-end 
 

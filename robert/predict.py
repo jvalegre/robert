@@ -15,6 +15,10 @@ Parameters
         t-value that will be the threshold to identify outliers (check tables for t-values elsewhere).
         The higher the t-value the more restrictive the analysis will be (i.e. there will be more 
         outliers with t-value=1 than with t-value = 4).
+    alpha : float, default=0.05
+        Significance level, or probability of making a wrong decision. This parameter is related to
+        the confidence intervals (i.e. 1-alpha is the confidence interval). By default, an alpha value
+        of 0.05 is used, which corresponds to a confidence interval of 95%.
     shap_show : int, default=10,
         Number of descriptors shown in the plot of the SHAP analysis.
     pfi_show : int, default=10,
@@ -87,7 +91,7 @@ class predict:
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
                 
                 # get results from training, validation and test (if any)
-                Xy_data = load_n_predict(params_dict, Xy_data)
+                Xy_data = load_n_predict(self, params_dict, Xy_data)
 
                 # save predictions for all sets
                 path_n_suffix, name_points = save_predictions(self,Xy_data,params_dir,Xy_test_df)

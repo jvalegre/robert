@@ -51,6 +51,10 @@ from scipy import stats
 from matplotlib import pyplot as plt
 import seaborn as sb
 from robert.utils import load_variables, finish_print, load_database
+from sklearn.feature_selection import SelectKBest, f_regression
+from sklearn.feature_selection import RFECV
+from sklearn.model_selection import KFold
+from sklearn.ensemble import RandomForestRegressor
 
 
 class curate:
@@ -170,7 +174,7 @@ class curate:
     def correlation_filter(self, csv_df):
         """
         Discards a) correlated variables and b) variables that do not correlate with the y values, based
-        on R**2 values.
+        on R**2 values c) reduces the number of descriptors to one third of the datapoints using RFECV.
         """
 
         txt_corr = ''
@@ -216,14 +220,43 @@ class curate:
                                     descriptors_drop.append(column)
                                     txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
         
+        # drop descriptors that did not pass the filters
+        csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
+
+        # Check if descriptors are more than one third of datapoints
+        n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
+        if len(csv_df[self.args.y]) > 50 and self.args.auto_test ==True:
+           datapoints= len(csv_df[self.args.y])*0.9
+        else:
+            datapoints = len(csv_df[self.args.y])
+        if n_descps > datapoints / 3:
+            num_descriptors = int(datapoints / 3)
+            # Avoid situations where the number of descriptors is equal to the number of datapoints/3
+            if len(csv_df[self.args.y]) / 3 == num_descriptors:
+                num_descriptors -= 1
+            txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV: {num_descriptors} descriptors remaining'
+            # Use RFECV with RandomForestRegressor to select the most important descriptors
+            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=5, shuffle=True, random_state=0), n_jobs=None)
+            X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+            y = csv_df_filtered[self.args.y]
+            # Convert column names to strings to avoid any issues
+            X.columns = X.columns.astype(str)
+            selector.fit(X, y)
+            # Sort the descriptors by their importance scores
+            descriptors_importances = list(zip(X.columns, selector.estimator_.feature_importances_))
+            sorted_descriptors = sorted(descriptors_importances, key=lambda x: x[1], reverse=True)
+            selected_descriptors = [descriptor for descriptor, _ in sorted_descriptors[:num_descriptors]]
+            # Find the descriptors to drop
+            descriptors_drop = [descriptor for descriptor in csv_df_filtered.columns if descriptor not in selected_descriptors and descriptor not in self.args.ignore and descriptor != self.args.y]
+            csv_df_filtered = csv_df_filtered.drop(descriptors_drop, axis=1)
+
         if len(descriptors_drop) == 0:
             txt_corr += f'\n   -  No descriptors were removed'
 
         self.args.log.write(txt_corr)
 
-        # drop descriptors that did not pass the filters
-        csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
-        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate and correlation filters:\n'
+        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate, correlation filters and RFECV:\n'
         txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
         self.args.log.write(txt_csv)
 
@@ -259,7 +292,7 @@ class curate:
         Creates Pearson heatmap
         '''
 
-        csv_df_pearson = csv_df_pearson.drop(self.args.ignore,axis=1)
+        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
         corr_matrix = csv_df_pearson.corr()
         mask = np.zeros_like(corr_matrix, dtype=bool)
         mask[np.triu_indices_from(mask)]= True

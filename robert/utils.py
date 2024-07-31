@@ -37,10 +37,12 @@ from sklearn.ensemble import (
 from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
+from mapie.regression import MapieRegressor
+from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.0.6"
+robert_version = "1.1.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
@@ -136,10 +138,11 @@ def command_line_args(exe_type,sys_args):
     int_args = [
         'pfi_epochs',
         'epochs',
+        'nprocs',
         'pfi_max',
         'kfold',
         'shap_show',
-        'pfi_show'
+        'pfi_show',
     ]
     float_args = [
         'pfi_threshold',
@@ -149,6 +152,7 @@ def command_line_args(exe_type,sys_args):
         'thres_y',
         'test_set',
         'desc_thres',
+        'alpha',
     ]
 
     for arg in var_dict:
@@ -293,6 +297,11 @@ def load_variables(kwargs, robert_module):
     txt_yaml = ""
     if self.varfile is not None:
         self, txt_yaml = load_from_yaml(self)
+
+    # check if user used .csv in csv_name
+    if not os.path.exists(f"{self.csv_name}") and os.path.exists(f'{self.csv_name}.csv'):
+        self.csv_name = f'{self.csv_name}.csv'
+
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 
@@ -373,7 +382,8 @@ def load_variables(kwargs, robert_module):
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
             if self.type.lower() == 'clas':
-                self.error_type = 'acc'
+                if self.error_type not in ['acc', 'mcc', 'f1']:
+                    self.error_type = 'mcc'
 
         if robert_module.upper() in ['PREDICT','VERIFY','REPORT']:
             if self.params_dir == '':
@@ -427,7 +437,7 @@ def load_variables(kwargs, robert_module):
                     curate_csv_files = glob.glob(f'{curate_folder}/*.csv')
                     for csv_file in curate_csv_files:
                         if 'CURATE_options.csv' in csv_file:
-                            curate_df = pd.read_csv(csv_file)
+                            curate_df = pd.read_csv(csv_file, encoding='utf-8')
                             self.y = curate_df['y'][0]
                             self.ignore = curate_df['ignore'][0]
                             self.names = curate_df['names'][0]
@@ -448,7 +458,34 @@ def load_variables(kwargs, robert_module):
                 _, params_df, _, _, _ = load_db_n_params(self,params_dirs[0],"verify",False)
                 self.names = params_df["names"][0]
 
-        elif robert_module.upper() == 'AQME':
+        elif robert_module.upper() in ['AQME', 'AQME_TEST']: 
+            # Check if the csv has 2 columns named smiles or smiles_Suffix. The file is read as text because pandas assigns automatically
+            # .1 to duplicate columns. (i.e. SMILES and SMILES.1 if there are two columns named SMILES)
+            unique_columns=[]
+            with open(self.csv_name, 'r') as datfile:
+                lines = datfile.readlines()
+                for column in lines[0].split(','):
+                    if column in unique_columns:
+                        print(f"\nWARNING! The CSV file contains duplicate columns ({column}). Please, rename or remove these columns. If you want to use more than one SMILES column, use _Suffix (i.e. SMILES_1, SMILES_2, ...)")
+                        sys.exit()
+                    else:
+                        unique_columns.append(column)
+            
+            # Check if there is a column with the name "smiles" or "smiles_" followed by any characters
+            if not any(col.lower().startswith("smiles") for col in unique_columns):
+                print("\nWARNING! The CSV file does not contain a column with the name 'smiles' or a column starting with 'smiles_'. Please make sure the column exists.")
+                sys.exit()
+
+            # Check if there are duplicate names in code_names in the csv file.
+            df = pd.read_csv(self.csv_name, encoding='utf-8')
+            unique_entries=[]
+            for entry in df['code_name']:
+                if entry in unique_entries:
+                    print(f"\nWARNING! The code_name column in the CSV file contains duplicate entries ({entry}). Please, rename or remove these entries.")
+                    sys.exit()
+                else:
+                    unique_entries.append(entry)
+
             self.log.write(f"\no  Starting the generation of AQME descriptors with the AQME module")
 
         # initial sanity checks
@@ -456,7 +493,6 @@ def load_variables(kwargs, robert_module):
             _ = sanity_checks(self, 'initial', robert_module, None)
 
     return self
-
 
 def destination_folder(self,dest_module):
     if self.destination is None:
@@ -482,7 +518,7 @@ def missing_inputs(self,module,print_err=False):
     Gives the option to input missing variables in the terminal
     """
 
-    if module.lower() not in ['predict','verify','report']:
+    if module.lower() not in ['predict','verify','report','aqme_test']:
         if self.csv_name == '':
             if print_err:
                 print('\nx  Specify the name of your CSV file with the csv_name option!')
@@ -526,11 +562,11 @@ def sanity_checks(self, type_checks, module, columns_csv):
     self = missing_inputs(self,module)
 
     if type_checks == 'initial' and module.lower() not in ['verify','predict']:
-
+        
         path_csv = ''
-        if os.getcwd() in f"{self.csv_name}":
+        if os.path.exists(f"{self.csv_name}"):
             path_csv = self.csv_name
-        elif self.csv_name != '':
+        elif os.path.exists(f"{Path(os.getcwd()).joinpath(self.csv_name)}"):
             path_csv = f"{Path(os.getcwd()).joinpath(self.csv_name)}"
         if not os.path.exists(path_csv) or self.csv_name == '':
             self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
@@ -649,7 +685,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
-def load_database(self,csv_load,module,external_set=False):
+def load_database(self,csv_load,module):
     '''
     Loads a database in CSV format
     '''
@@ -668,11 +704,12 @@ def load_database(self,csv_load,module,external_set=False):
             # line = line.replace(':',',')
             new_csv_file.write(line)
         new_csv_file.close()
-        txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}.\n\n'
+        txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
-    csv_df = pd.read_csv(csv_load)
-    if not external_set:
-        csv_df = csv_df.fillna(0)
+    csv_df = pd.read_csv(csv_load, encoding='utf-8')
+    # Fill missing values with zeros
+    csv_df = csv_df.fillna(0)
+
     if module.lower() not in ['verify','no_print']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
@@ -925,7 +962,7 @@ def load_model_clas(params):
 
 
 # calculates errors/precision and predicted values of the ML models
-def load_n_predict(params, data, hyperopt=False):
+def load_n_predict(self, params, data, hyperopt=False):
 
     # set the parameters for each ML model of the hyperopt optimization
     loaded_model = load_model(params)
@@ -966,8 +1003,17 @@ def load_n_predict(params, data, hyperopt=False):
                     opt_target = 0
             return opt_target,data
         else:
+            if 'X_csv_test_scaled' in data:
+                data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
+
+            if 'X_test_scaled' in data:
+                data = calc_ci_n_sd(self,loaded_model,data,'test')
+            
+            if 'X_valid_scaled' in data:
+                data = calc_ci_n_sd(self,loaded_model,data,'valid')
+
             return data
-    
+
     elif params['type'].lower() == 'clas':
         data['acc_train'], data['f1_train'], data['mcc_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
         if params['train'] == 100:
@@ -982,7 +1028,48 @@ def load_n_predict(params, data, hyperopt=False):
             opt_target = data[f'{params["error_type"].lower()}_valid']
             return opt_target,data
         else:
-            return data    
+            return data
+
+
+
+def calc_ci_n_sd(self,loaded_model,data,set_mapie):
+    """
+    Calculate confidence intervals and standard deviations of each datapoint with MAPIE.
+    """
+
+    # mapie for obtaining prediction intervals
+    my_conformity_score = AbsoluteConformityScore()
+    my_conformity_score.consistency_check = False
+
+    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, random_state=0)
+    mapie.fit(data['X_train_scaled'], data['y_train'])
+    
+    # Check if 1/alpha is lower than the number of samples
+    if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
+        self.args.alpha = 0.1
+    
+    # Predict test set and obtain prediction intervals
+    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'], alpha=[self.args.alpha])
+    
+    # Calculate prediction interval variability for each prediction in the test set
+    y_error = np.abs(y_pis[:, :, 0].T - y_pred)
+    
+    # Add 'y_pred_test_error' entry to data dictionary
+    data[f'y_pred_{set_mapie}_error'] = y_error
+
+    # Calculate the width of the prediction intervals
+    y_interval_width = np.abs(y_pis[:, 0, :] - y_pis[:, 1, :])
+
+    # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
+    # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
+    # Student's t value is 2.086 instead of 1.96) 
+    dict_alpha  = {0.05: 1.96, 0.1: 1.645, 0.5: 0.674}
+    y_test_sd = y_interval_width / (2 * dict_alpha[self.args.alpha])
+
+    # Add 'y_pred_test_sd' entry to data dictionary
+    data[f'y_pred_{set_mapie}_sd'] = y_test_sd
+
+    return data
 
 
 def get_prediction_results(params,y,y_pred):
@@ -998,7 +1085,12 @@ def get_prediction_results(params,y,y_pred):
 
     elif params['type'].lower() == 'clas':
         acc = accuracy_score(y,y_pred)
-        f1_score_val = f1_score(y,y_pred)
+        # F1 by default uses average='binnary', to deal with predictions with more than 2 ouput values we use average='micro'
+        # if len(set(y))==2:
+        try:
+            f1_score_val = f1_score(y,y_pred)
+        except ValueError:
+            f1_score_val = f1_score(y,y_pred,average='micro')
         mcc = matthews_corrcoef(y,y_pred)
         return acc, f1_score_val, mcc
 

@@ -3,10 +3,24 @@
 ========
 Versions
 ========
-
-Version 1.0.6 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.6>`__]
-   -  Fixing a bad allocation memory issue in generate
+Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
+   -  Adding RFECV in CURATE to fix the maximum number of descriptors to 1/3 of datapoints
+   -  Added the possibility to use more than 1 SMILES column in the AQME module
+   -  Change the scoring criteria in the PFI workflow (from R2 to RMSE)
+   -  Fixing models where R2 in validation is much better than in training (if the validation set is very small or unrepresentative, the model may appear to perform excellently simply by chance)
+   -  Fixing PFI_plot bug (now takes all the features into account)
+   -  Fixing a bad allocation memory issue in GENERATE
+   -  Fixing bug in classification models when more than 2 classes of the target variable are present
+   -  Fixing reproducibility when using a specific seed in GENERATE module
+   -  Change CV_test from Kflod to ShuffleSplit and adding a random_state to ensure reproducibility
    -  Allows CSV inputs that use ; as separator
+   -  Fixing CV_test bug in VERIFY (now it uses equal test size to the model tested)
+   -  Adding variability in the prediction with MAPIE python library
+   -  Adding sd in the predictions table when using external test set
+   -  Fixing error_type bug for classification models
+   -  MCC as default metric for classification models (better to check performance in unbalanced datasets)
+   -  PFI workflow now uses the same metric as error_type
+
 
 Version 1.0.5 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.5>`__]
    -  Fixing some overfitted models with train and validation R2 0.99-1

@@ -79,7 +79,7 @@ def test_AQME(test_job):
         "--csv_name", csv_var,
         '--y', y_var,
         "--epochs", "5",
-        "--seed", "[666]",
+        "--seed", "[0]",
         "--model", "['RF']",
         "--train", "[60]",
         "--pfi_epochs", "1",
@@ -102,12 +102,12 @@ def test_AQME(test_job):
         cmd_robert = cmd_robert + ["--type", "clas"]
 
     if test_job == 'aqme':
-        cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 2", 
+        cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 1", 
                     "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal",
                     "--alpha", "0.5"]
 
     if test_job == '2smiles_columns':
-        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 2", "--alpha", "0.5"]
+        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 1", "--alpha", "0.5"]
 
     subprocess.run(cmd_robert)
 

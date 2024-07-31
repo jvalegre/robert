@@ -411,7 +411,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         citation_dat += f"""<p style="text-align: justify;"><br>{version_n_date}</p>
         <p style="text-align: justify;  margin-top: -8px;"><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
 
-        aqme_workflow = False
+        aqme_workflow,aqme_updated = False,True
         crest_workflow = False
         if '--aqme' in command_line:
             original_command = command_line
@@ -442,30 +442,43 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
 
         if aqme_workflow:
-            repro_dat += f"""{reduced_line}{space}<i>Warning! SMILES workflows might not be reproduced exactly due to subtle changes in xTB descriptors (&plusmn;0.1%):</i></p>"""
-            repro_dat += f"""{reduced_line}{space}To obtain the same results, download the descriptor database (AQME-ROBERT_{self.args.csv_name}) and run:</p>"""
-            repro_line = []
-            original_command = original_command.replace(self.args.csv_name,f'AQME-ROBERT_{self.args.csv_name}')
-            for i,keyword in enumerate(original_command.split('"')):
-                if i == 0:
-                    if '--aqme' not in keyword and '--qdescp_keywords' not in keyword and '--csearch_keywords' not in keyword:
-                            repro_line.append(keyword)
-                    else:
-                        repro_line.append('python -m robert ')
-                if i > 0:
-                    if '--qdescp_keywords' not in original_command.split('"')[i-1] and '--csearch_keywords' not in original_command.split('"')[i-1]:
-                        if '--aqme' not in keyword and '--qdescp_keywords' not in keyword and '--csearch_keywords' not in keyword and keyword != '\n':
-                            repro_line.append(keyword) 
-            repro_line = '"'.join(repro_line)
-            repro_line += '"'
-            if '--names ' not in repro_line:
-                repro_line += ' --names "code_name"'
-            repro_line = f'{reduced_line}{space}- Run: {repro_line}'
-            repro_line = format_lines(repro_line,cmd_line=True)
-            repro_dat += f"""{reduced_line}{repro_line}</p>"""
+            try:
+                path_aqme = Path(f'{os.getcwd()}/AQME/CSEARCH_data.dat')
+                datfile = open(path_aqme, 'r', errors="replace")
+                outlines = datfile.readlines()
+                aqme_version = outlines[0].split()[2]
+                datfile.close()
+                find_aqme = True
+            except:
+                find_aqme = False
+                aqme_version = '0.0' # dummy number
+            if int(aqme_version.split('.')[0]) in [0,1] and int(aqme_version.split('.')[1]) < 6:
+                aqme_updated = False
+                repro_dat += f"""{reduced_line}{space}<i>Warning! This workflow might not be exactly reproducible, update to AQME v1.6.0+ (pip install aqme --upgrade)</i></p>"""
+                repro_dat += f"""{reduced_line}{space}To obtain the same results, download the descriptor database (AQME-ROBERT_{self.args.csv_name}) and run:</p>"""
+                repro_line = []
+                original_command = original_command.replace(self.args.csv_name,f'AQME-ROBERT_{self.args.csv_name}')
+                for i,keyword in enumerate(original_command.split('"')):
+                    if i == 0:
+                        if '--aqme' not in keyword and '--qdescp_keywords' not in keyword and '--csearch_keywords' not in keyword:
+                                repro_line.append(keyword)
+                        else:
+                            repro_line.append('python -m robert ')
+                    if i > 0:
+                        if '--qdescp_keywords' not in original_command.split('"')[i-1] and '--csearch_keywords' not in original_command.split('"')[i-1]:
+                            if '--aqme' not in keyword and '--qdescp_keywords' not in keyword and '--csearch_keywords' not in keyword and keyword != '\n':
+                                repro_line.append(keyword) 
+                repro_line = '"'.join(repro_line)
+                repro_line += '"'
+                if '--names ' not in repro_line:
+                    repro_line += ' --names "code_name"'
+                repro_line = f'{reduced_line}{space}- Run: {repro_line}'
+                repro_line = format_lines(repro_line,cmd_line=True)
+                repro_dat += f"""{reduced_line}{repro_line}</p>"""
 
-        if aqme_workflow:
+        if aqme_workflow and not aqme_updated:
             # I use a very reduced line in this title because the formatted command_line comes with an extra blank line
+            # (if AQME is not updated the PDF contains a reproducibility warning)
             repro_dat += f"""<p style="text-align: justify; margin-top: -44px;"><br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
         else:
             repro_dat += f"""{first_line}<br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
@@ -480,15 +493,6 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             repro_dat += f"""{reduced_line}{space}<i>(if scikit-learn-intelex is installed, slightly different results might be obtained)</i></p>"""
 
         if aqme_workflow:
-            try:
-                path_aqme = Path(f'{os.getcwd()}/AQME/CSEARCH_data.dat')
-                datfile = open(path_aqme, 'r', errors="replace")
-                outlines = datfile.readlines()
-                aqme_version = outlines[0].split()[2]
-                datfile.close()
-                find_aqme = True
-            except:
-                find_aqme = False
             if not find_aqme:
                 repro_dat += f"""{reduced_line}{space}- AQME is required, but no version was found:</p>"""
             repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -c conda-forge aqme</p>"""

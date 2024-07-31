@@ -113,17 +113,24 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
    conda install -c conda-forge robert
    pip install scikit-learn-intelex
 
-**3.** Install GLib to avoid errors when creating the PDF report:  
+**3.** Update ROBERT to the latest version (do not skip this step!):
+
+.. code-block:: shell 
+
+   pip install robert --upgrade
+
+**4.** Install GLib and mscorefonts to avoid errors when creating the PDF report:  
 
 .. code-block:: shell 
    
    conda install -c conda-forge glib
+   conda install -c conda-forge mscorefonts
 
 .. warning::
 
    In some computers, you might see lots of pop-up windows with errors when installing GLib. Just press "Accept" in all the windows and finish the process until you see "Done" in the terminal.
 
-**4.** If the installation of steps 1-3 with conda-forge are too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+**(Alternative installation).** If the installation of steps 2-4 with conda-forge are too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
 
 .. code-block:: shell
 
@@ -173,10 +180,13 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **7.** Update ROBERT to the latest version (do not skip this step!) (:code:`pip install robert --upgrade`).
 
 
-**8.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+**8.** Install GLib and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -c conda-forge glib` and :code:`conda install -c conda-forge mscorefonts`).
 
 
-**9.** Run ROBERT as explained in the Examples section.
+**9.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+
+
+**10.** Run ROBERT as explained in the Examples section.
 
 .. note-end 
 

@@ -42,7 +42,7 @@ from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.1.0"
+robert_version = "1.1.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
@@ -1047,6 +1047,8 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     # Check if 1/alpha is lower than the number of samples
     if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
         self.args.alpha = 0.1
+        if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
+            self.args.alpha = 0.5
     
     # Predict test set and obtain prediction intervals
     y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'], alpha=[self.args.alpha])

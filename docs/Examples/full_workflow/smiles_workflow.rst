@@ -14,8 +14,9 @@ Reproducibility warning
 
 .. warning::
 
-   **Update to AQME v1.6.0 or higher to obtain fully reproducible results!** Otherwise, it may not be possible to exactly 
-   reproduce the results due to subtle differences in the generated xTB descriptors (0.1% changes in most cases).
+   **Update to AQME v1.6.0 or higher to obtain fully reproducible results!** You can do it with :code:`pip install aqme --upgrade`.
+   Otherwise, it may not be possible to exactly reproduce the results due to subtle differences in the 
+   generated xTB descriptors (0.1% changes in most cases).
 
 Required inputs
 +++++++++++++++

@@ -3,6 +3,14 @@
 ========
 Versions
 ========
+
+Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
+   -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs
+
+Version 1.1.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.1>`__]
+   -  Hotfix of 1.1.0 in the installation
+   -  Add documentation of AQME with versions >=1.6.0, in which SMIES workflows are fully reproducible
+
 Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Adding RFECV in CURATE to fix the maximum number of descriptors to 1/3 of datapoints
    -  Added the possibility to use more than 1 SMILES column in the AQME module

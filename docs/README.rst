@@ -14,8 +14,8 @@
 .. |Codecov| image:: https://img.shields.io/codecov/c/github/jvalegre/robert?label=Codecov&logo=codecov
    :target: https://anaconda.org/conda-forge/robert
 
-.. |Downloads| image:: https://img.shields.io/conda/dn/conda-forge/robert?label=Downloads&logo=Anaconda
-   :target: https://anaconda.org/conda-forge/robert
+.. |Downloads| image:: https://img.shields.io/pepy/dt/robert?label=Downloads&logo=pypi
+   :target: https://www.pepy.tech/projects/robert
 
 .. |ReadtheDocs| image:: https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs
    :target: https://robert.readthedocs.io
@@ -106,38 +106,31 @@ it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
    conda create -n robert python=3.10
    conda activate robert
 
-**2.** Install ROBERT using conda-forge and the intelex accelerator with pip (only if your system is compatible with intelex) (preferred):  
+**2.** Install ROBERT and the intelex accelerator with pip (only if your system is compatible with intelex):  
 
 .. code-block:: shell 
    
-   conda install -c conda-forge robert
+   pip install robert
    pip install scikit-learn-intelex
 
-**3.** Update ROBERT to the latest version (do not skip this step!):
-
-.. code-block:: shell 
-
-   pip install robert --upgrade
-
-**4.** Install GLib and mscorefonts to avoid errors when creating the PDF report:  
+**3.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:  
 
 .. code-block:: shell 
    
-   conda install -c conda-forge glib
-   conda install -c conda-forge mscorefonts
+   conda install -c conda-forge -y glib gtk3 pango mscorefonts
 
 .. warning::
 
    In some computers, you might see lots of pop-up windows with errors when installing GLib. Just press "Accept" in all the windows and finish the process until you see "Done" in the terminal.
 
-**(Alternative installation).** If the installation of steps 2-4 with conda-forge are too slow, users might install ROBERT using pip instead. Then, install the libraries required for report.py and the intelex accelerator (only if your system is compatible with intelex):  
+**(Alternative installation).** You can use conda-forge in step 2 instead of pip, executing these commands:  
 
 .. code-block:: shell
 
-   pip install robert
-   pip install weasyprint
-   conda install -c conda-forge glib gtk3 pango
+   conda install -c conda-forge robert
+   pip install robert --upgrade
    pip install scikit-learn-intelex
+   conda install -c conda-forge -y glib gtk3 pango mscorefonts
 
 .. installation-end 
 
@@ -171,22 +164,19 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **4.** Activate the conda environment called "robert" (:code:`conda activate robert`).
 
 
-**5.** Install ROBERT as defined in the "Installation" section (:code:`conda install -c conda-forge robert`).
+**5.** Install ROBERT as defined in the "Installation" section (:code:`pip install robert`).
 
 
-**6.** Install the intelex code accelerator with pip (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
+**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
 
 
-**7.** Update ROBERT to the latest version (do not skip this step!) (:code:`pip install robert --upgrade`).
+**7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -c conda-forge -y glib gtk3 pango mscorefonts`).
 
 
-**8.** Install GLib and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -c conda-forge glib` and :code:`conda install -c conda-forge mscorefonts`).
+**8.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
 
 
-**9.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
-
-
-**10.** Run ROBERT as explained in the Examples section.
+**9.** Run ROBERT as explained in the Examples section.
 
 .. note-end 
 

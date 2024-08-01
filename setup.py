@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="1.1.1"
+version="1.1.2"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
@@ -32,20 +32,19 @@ setup(
         "Programming Language :: Python :: 3.10",
     ],
     install_requires=[
-        "PyYAML",
-        "matplotlib>=3.7,<3.8",
+        "PyYAML==6.0.1",
+        "matplotlib==3.9.1",
         "pandas==2.2.2",
         "numpy==1.26.4",
-        "progress",
-        "seaborn",
-        "scipy",
-        "scikit-learn==1.5.1", # fixed to make ROBERT reproducible when using the same version
-        "hyperopt",
+        "progress==1.6",
+        "seaborn==0.13.2",
+        "scipy==1.14.0",
+        "scikit-learn==1.5.1",
+        "hyperopt==0.2.7",
         "numba==0.60.0",
         "shap==0.45.1",
-        "mapie==0.8.6"
-        # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
-        # optionally, the intelex accelerator might be installed "pip install scikit-learn-intelex"
+        "mapie==0.8.6",
+        "weasyprint==62.3"
     ],
     python_requires=">=3.0",
     include_package_data=True,

@@ -5,7 +5,7 @@
 
 [![CircleCI](https://img.shields.io/circleci/build/github/jvalegre/robert?label=Circle%20CI&logo=circleci)](https://app.circleci.com/pipelines/github/jvalegre/robert)
 [![Codecov](https://img.shields.io/codecov/c/github/jvalegre/robert?label=Codecov&logo=codecov)](https://codecov.io/gh/jvalegre/robert)
-[![Downloads](https://img.shields.io/conda/dn/conda-forge/robert?label=Downloads&logo=Anaconda)](https://anaconda.org/conda-forge/robert)
+[![Downloads](https://img.shields.io/pepy/dt/robert?label=Downloads&logo=pypi)](https://www.pepy.tech/projects/robert)
 [![Read the Docs](https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs)](https://robert.readthedocs.io/)
 
 ROBERT is an ensemble of automated machine learning protocols that can be run sequentially 

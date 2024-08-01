@@ -46,6 +46,6 @@ setup(
         "mapie==0.8.6",
         "weasyprint==62.3"
     ],
-    python_requires=">=3.0",
+    python_requires=">=3.10",
     include_package_data=True,
 )

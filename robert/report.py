@@ -150,7 +150,7 @@ The complete output (GENERATE_data.dat) and heatmaps are stored in the GENERATE 
             if os.path.exists(verify_file):
                 # section header
                 verify_time = get_time(verify_file)
-                verify_data = f"""<i>Determination of predictive ability of models using four tests: 5-fold CV, y-mean (error against the mean y baseline), y-shuffle (predict with shuffled y values), and one-hot (predict using one-hot encoding instead of the X values).</i>
+                verify_data = f"""<i>Determination of predictive ability of models using four tests: cross-validation, y-mean (error against the mean y baseline), y-shuffle (predict with shuffled y values), and one-hot (predict using one-hot encoding instead of the X values).</i>
 The complete output (VERIFY_data.dat) and donut plot are stored in the VERIFY folder.
 {verify_time}
 """
@@ -320,7 +320,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                         f'{get_pts(0)}{"&nbsp;"*5}     p:d ratio < 3:1']
             lines_verify = [f'<strong>VERIFY tests</strong>&nbsp;&nbsp;<u>{"&nbsp;"*13}</u>',
                         f'{"&nbsp;"*8}{get_pts(2)}{"&nbsp;"*2}y-shuffle & y-mean',
-                        f'{get_pts(1)}{"&nbsp;"*4}5-fold CV & onehot',
+                        f'{get_pts(1)}{"&nbsp;"*4}CV & onehot',
                         f'{"&nbsp;"*11}{get_pts(0)}{"&nbsp;"*5}(all tests failed)']
 
             for i,_ in enumerate(lines_R2):

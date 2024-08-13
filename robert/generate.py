@@ -249,8 +249,8 @@ class generate:
         Changes the split to KN when small or imbalanced databases are used
         '''
         
-        # when using databases with a small number of points
-        if len(csv_df[self.args.y]) < 100 and self.args.split.lower() == 'rnd':
+        # when using databases with a small number of points (less than 250 datapoints)
+        if len(csv_df[self.args.y]) < 250 and self.args.split.lower() == 'rnd':
             self.args.split = 'KN'
             self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, KN data splitting will replace the default random splitting (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
         

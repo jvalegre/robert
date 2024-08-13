@@ -217,7 +217,7 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default=5) : number of folds for the k-fold cross-validation
+  --kfold INT (default=5) : number of folds for the cross-validation. If the database contains less than 250 points, the program does a LOOCV. For larger databases, a 5-fold CV
   --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
 
 * Affecting predictions, PREDICT:
@@ -962,7 +962,7 @@ def load_model_clas(params):
 
 
 # calculates errors/precision and predicted values of the ML models
-def load_n_predict(self, params, data, hyperopt=False):
+def load_n_predict(self, params, data, hyperopt=False, mapie=False):
 
     # set the parameters for each ML model of the hyperopt optimization
     loaded_model = load_model(params)
@@ -1003,14 +1003,15 @@ def load_n_predict(self, params, data, hyperopt=False):
                     opt_target = 0
             return opt_target,data
         else:
-            if 'X_csv_test_scaled' in data:
-                data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
+            if mapie:
+                if 'X_csv_test_scaled' in data:
+                    data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
 
-            if 'X_test_scaled' in data:
-                data = calc_ci_n_sd(self,loaded_model,data,'test')
-            
-            if 'X_valid_scaled' in data:
-                data = calc_ci_n_sd(self,loaded_model,data,'valid')
+                if 'X_test_scaled' in data:
+                    data = calc_ci_n_sd(self,loaded_model,data,'test')
+                
+                if 'X_valid_scaled' in data:
+                    data = calc_ci_n_sd(self,loaded_model,data,'valid')
 
             return data
 
@@ -1041,7 +1042,13 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     my_conformity_score = AbsoluteConformityScore()
     my_conformity_score.consistency_check = False
 
-    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, random_state=0)
+    # LOOCV for relatively small datasets (less than 250 datapoints)
+    y_combined = pd.concat([data['y_train'],data['y_valid']], axis=0).reset_index(drop=True)
+    if len(y_combined) < 250:
+        self.args.kfold = -1 # -1 for LOOCV in MAPIE
+
+    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
+
     mapie.fit(data['X_train_scaled'], data['y_train'])
     
     # Check if 1/alpha is lower than the number of samples

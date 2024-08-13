@@ -65,12 +65,12 @@ Points Condition
 
 The tests conducted within the VERIFY module are also regarded as score indicators:
 
-*  5-fold CV test: Calculates the accuracy of the model with a 5-fold cross-validation.
+*  CV test: Calculates the accuracy of the model with a leave-one-out (LOOCV, for databases with less than 250 points) or a 5-fold (larger databases) cross-validation.
 *  y-mean test: Calculates the accuracy of the model when all the predicted y values are fixed to the mean of the measured y values (straight line when plotting measured vs predicted y values).  
 *  y-shuffle test: Calculates the accuracy of the model after shuffling randomly all the measured y values.
 *  onehot test: Calculates the accuracy of the model when replacing all descriptors for 0s and 1s. If the x value is 0, the value will be 0, otherwise it will be 1.
 
-The 5-fold cross-validation test guarantees the meaningfulness of the chosen data partition and guards against data overfitting. 
+The cross-validation test guarantees the meaningfulness of the chosen data partition and guards against data overfitting. 
 The y-mean and y-shuffle tests are valuable in identifying overfitted and underfitted models. 
 Finally, the one-hot test identifies models that are insensitive to specific values but instead focus 
 on the presence of such values (i.e., reaction datasets filled with 0s where compounds are not used).

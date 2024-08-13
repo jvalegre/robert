@@ -4,9 +4,10 @@
 Versions
 ========
 
-Version 1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
+Version 1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.2>`__]
    -  Changing cross-validation in VERIFY to LOOCV for datasets with less than 250 points
    -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 250 points
+   -  The external test set is chosen more evenly along the range of y values (not fully random)
 
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs

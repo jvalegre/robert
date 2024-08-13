@@ -1049,8 +1049,8 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
 
     mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
 
-    mapie.fit(data['X_train_scaled'], data['y_train'])
-    
+    mapie.fit(data['X_train_scaled'].values, data['y_train'].values) # .values is needed to avoid an sklearn warning
+
     # Check if 1/alpha is lower than the number of samples
     if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
         self.args.alpha = 0.1
@@ -1058,7 +1058,7 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
             self.args.alpha = 0.5
     
     # Predict test set and obtain prediction intervals
-    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'], alpha=[self.args.alpha])
+    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'].values, alpha=[self.args.alpha]) # .values is needed to avoid an sklearn warning
     
     # Calculate prediction interval variability for each prediction in the test set
     y_error = np.abs(y_pis[:, :, 0].T - y_pred)

@@ -14,9 +14,9 @@ Parameters
         original value). Test passes if:
         1. y-mean, y-shuffle and one-hot encoding tests: the error is greater than 25% (from original MAE and RMSE for regressors)
         2. Cross validation: the error is lower than 25%
-    kfold : int, default=5,
-        The training set is split into a K number of folds in the cross-validation test (i.e. 5-fold CV). If
-        the database contains less than 250 datapoints, the program does a LOOCV instead.
+    kfold : int, default='auto',
+        Number of random data splits for the ShuffleSplit cross-validation. If 'auto', the program does 
+        a LOOCV for databases with less than 250 points, and 5 splits during the ShuffleSplit CV for larger databases 
 
 """
 #####################################################.
@@ -94,7 +94,7 @@ class verify:
                 verify_results['original_score_valid'] = Xy_orig[f'{verify_results["error_type"]}_valid']
 
                 # calculate cross validation
-                verify_results = self.cv_test(verify_results,Xy_data,params_dict)
+                verify_results,kfold_type = self.cv_test(verify_results,Xy_data,params_dict)
 
                 # calculate scores for the y-mean test
                 verify_results = self.ymean_test(verify_results,Xy_data,params_dict)
@@ -118,10 +118,10 @@ class verify:
                 Xy_data, params_df, params_path, suffix_title, _ = load_db_n_params(self,params_dir,"verify",False)
 
                 # analysis of results
-                colors,color_codes,results_print,verify_results = self.analyze_tests(verify_results)
+                colors,color_codes,results_print,verify_results = self.analyze_tests(verify_results,kfold_type)
 
                 # plot a donut plot with the results
-                print_ver,path_n_suffix = self.plot_donut(colors,color_codes,params_path,suffix_title)
+                print_ver,path_n_suffix = self.plot_donut(colors,color_codes,params_path,suffix_title,kfold_type)
 
                 # print and save results
                 _ = self.print_verify(results_print,verify_results,print_ver,path_n_suffix)
@@ -145,15 +145,21 @@ class verify:
         X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
         y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
 
-        # LOOCV for relatively small datasets (less than 250 datapoints)
-        if len(y_combined) < 250:
-            self.args.kfold = 'loocv'
-            kf = KFold(n_splits=len(y_combined))
+        if self.args.kfold == 'auto':
+            # LOOCV for relatively small datasets (less than 250 datapoints)
+            if len(y_combined) < 250:
+                kfold_type = 'loocv'
+                kf = KFold(n_splits=len(y_combined))
+            # CV with the same training/validation proportion used for fitting the model, with 5 different data splits
+            else:
+                kfold_type = 5
+                kf = ShuffleSplit(n_splits=5,test_size=((100-params_dict['train'])/100),random_state=params_dict['seed'])
 
-        # CV with the same training/validation proportion used for fitting the model
+        # CV with the same training/validation proportion used for fitting the model, with k different data splits
         else:
+            kfold_type = self.args.kfold
             kf = ShuffleSplit(n_splits=self.args.kfold,test_size=((100-params_dict['train'])/100),random_state=params_dict['seed'])
-        
+
         for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
             XY_cv = {}
             XY_cv['X_train_scaled'] = X_combined.loc[train_index]
@@ -167,7 +173,7 @@ class verify:
         verify_results['cv_score'] = np.mean(cv_score)
         verify_results['cv_std'] = np.std(cv_score)
         
-        return verify_results
+        return verify_results,kfold_type
 
 
     def ymean_test(self,verify_results,Xy_data,params_dict):
@@ -236,7 +242,7 @@ class verify:
         return verify_results
 
 
-    def analyze_tests(self,verify_results):
+    def analyze_tests(self,verify_results,kfold_type):
         '''
         Function to check whether the tests pass and retrieve the corresponding colors:
         1. Blue for passing tests
@@ -254,10 +260,10 @@ class verify:
         verify_results['lower_thres'] = (1-self.args.thres_test)*verify_results['original_score_valid']
 
         # adjust type of cross-validation
-        if self.args.kfold == 'loocv':
+        if kfold_type == 'loocv':
             type_cv = f'LOOCV'
         else:
-            type_cv = f'{self.args.kfold}-fold CV'
+            type_cv = f'{kfold_type}-shuf. CV'
 
         for i,test_ver in enumerate(['y_mean', 'cv_score', 'onehot', 'y_shuffle']):
             if verify_results['error_type'].lower() in ['mae','rmse']:
@@ -295,7 +301,7 @@ class verify:
         return colors,color_codes,results_print,verify_results
 
 
-    def plot_donut(self,colors,color_codes,params_path,suffix_title):
+    def plot_donut(self,colors,color_codes,params_path,suffix_title,kfold_type):
         '''
         Creates a donut plot with the results of VERIFY
         '''
@@ -308,9 +314,15 @@ class verify:
 
         sb.reset_defaults()
         _, ax = plt.subplots(figsize=(7.45,6), subplot_kw=dict(aspect="equal"))
+
+        # adjust type of cross-validation
+        if kfold_type == 'loocv':
+            type_cv = f'LOOCV'
+        else:
+            type_cv = f'{kfold_type}-shuf. CV'
         
         recipe = ["y_mean",
-                f"{self.args.kfold}-fold CV",
+                type_cv,
                 "onehot",
                 "y_shuffle"]
                 

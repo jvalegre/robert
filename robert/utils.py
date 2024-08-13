@@ -42,7 +42,7 @@ from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.1.2"
+robert_version = "1.2.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
@@ -217,7 +217,7 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default=5) : number of folds for the cross-validation. If the database contains less than 250 points, the program does a LOOCV. For larger databases, a 5-fold CV
+  --kfold INT (default='auto') : number of random data splits for the ShuffleSplit cross-validation. If 'auto', the program does a LOOCV for databases with less than 250 points, and 5 splits during the ShuffleSplit CV for larger databases 
   --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
 
 * Affecting predictions, PREDICT:
@@ -1044,8 +1044,11 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
 
     # LOOCV for relatively small datasets (less than 250 datapoints)
     y_combined = pd.concat([data['y_train'],data['y_valid']], axis=0).reset_index(drop=True)
-    if len(y_combined) < 250:
-        self.args.kfold = -1 # -1 for LOOCV in MAPIE
+    if self.args.kfold == 'auto':
+        if len(y_combined) < 250:
+            self.args.kfold = -1 # -1 for LOOCV in MAPIE
+        else:
+            self.args.kfold = 5
 
     mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
 

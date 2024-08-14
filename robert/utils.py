@@ -42,7 +42,7 @@ from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.1.2"
+robert_version = "1.2.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
@@ -217,7 +217,7 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default=5) : number of folds for the k-fold cross-validation
+  --kfold INT (default='auto') : number of random data splits for the ShuffleSplit cross-validation. If 'auto', the program does a LOOCV for databases with less than 250 points, and 5 splits during the ShuffleSplit CV for larger databases 
   --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
 
 * Affecting predictions, PREDICT:
@@ -962,7 +962,7 @@ def load_model_clas(params):
 
 
 # calculates errors/precision and predicted values of the ML models
-def load_n_predict(self, params, data, hyperopt=False):
+def load_n_predict(self, params, data, hyperopt=False, mapie=False):
 
     # set the parameters for each ML model of the hyperopt optimization
     loaded_model = load_model(params)
@@ -1003,14 +1003,15 @@ def load_n_predict(self, params, data, hyperopt=False):
                     opt_target = 0
             return opt_target,data
         else:
-            if 'X_csv_test_scaled' in data:
-                data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
+            if mapie:
+                if 'X_csv_test_scaled' in data:
+                    data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
 
-            if 'X_test_scaled' in data:
-                data = calc_ci_n_sd(self,loaded_model,data,'test')
-            
-            if 'X_valid_scaled' in data:
-                data = calc_ci_n_sd(self,loaded_model,data,'valid')
+                if 'X_test_scaled' in data:
+                    data = calc_ci_n_sd(self,loaded_model,data,'test')
+                
+                if 'X_valid_scaled' in data:
+                    data = calc_ci_n_sd(self,loaded_model,data,'valid')
 
             return data
 
@@ -1041,9 +1042,18 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     my_conformity_score = AbsoluteConformityScore()
     my_conformity_score.consistency_check = False
 
-    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, random_state=0)
-    mapie.fit(data['X_train_scaled'], data['y_train'])
-    
+    # LOOCV for relatively small datasets (less than 250 datapoints)
+    y_combined = pd.concat([data['y_train'],data['y_valid']], axis=0).reset_index(drop=True)
+    if self.args.kfold == 'auto':
+        if len(y_combined) < 250:
+            self.args.kfold = -1 # -1 for LOOCV in MAPIE
+        else:
+            self.args.kfold = 5
+
+    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
+
+    mapie.fit(data['X_train_scaled'].values, data['y_train'].values) # .values is needed to avoid an sklearn warning
+
     # Check if 1/alpha is lower than the number of samples
     if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
         self.args.alpha = 0.1
@@ -1051,7 +1061,7 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
             self.args.alpha = 0.5
     
     # Predict test set and obtain prediction intervals
-    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'], alpha=[self.args.alpha])
+    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'].values, alpha=[self.args.alpha]) # .values is needed to avoid an sklearn warning
     
     # Calculate prediction interval variability for each prediction in the test set
     y_error = np.abs(y_pis[:, :, 0].T - y_pred)

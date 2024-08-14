@@ -12,7 +12,7 @@
    :target: https://app.circleci.com/pipelines/github/jvalegre/robert
 
 .. |Codecov| image:: https://img.shields.io/codecov/c/github/jvalegre/robert?label=Codecov&logo=codecov
-   :target: https://anaconda.org/conda-forge/robert
+   :target: https://codecov.io/gh/jvalegre/robert
 
 .. |Downloads| image:: https://img.shields.io/pepy/dt/robert?label=Downloads&logo=pypi
    :target: https://www.pepy.tech/projects/robert
@@ -99,7 +99,7 @@ In a nutshell, ROBERT and its dependencies are installed as follows:
 
 **1.** Create and activate the conda environment where you want to install the program. If you are not sure of what 
 this point means, check out the "Users with no Python experience" section. This is an example for Python 3.10, but 
-it also works for other Python versions (i.e., 3.7, 3.9 and 3.11):
+it also works for newer Python versions (i.e., 3.11 and 3.12):
 
 .. code-block:: shell 
    
@@ -158,7 +158,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 |br|
 *You only need to do this once.*
 |br|
-*This is an example for Python 3.10, but it also works for other Python versions (i.e., 3.7, 3.9 and 3.11).*
+*This is an example for Python 3.10, but it also works for newer Python versions (i.e., 3.11 and 3.12).*
 
 
 **4.** Activate the conda environment called "robert" (:code:`conda activate robert`).

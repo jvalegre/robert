@@ -227,10 +227,36 @@ class generate:
 
                 if self.args.test_set > 0:
                     n_of_points = int(len(csv_X)*(self.args.test_set))
-                    
+
                     # this number must be 0 always, as it changes everything related to random seeds across the generate module
                     random.seed(0)
-                    test_points = random.sample(range(len(csv_X)), n_of_points)
+                    
+                    # sometimes, using random selection leads to a test set with values that are not evenly
+                    # distributed across the range of y values. In this part, we aim to create a test set 
+                    # whose values cover a significant range of the y values
+                    test_points = []
+
+                    # first, we divide the y values into 5 (<100 datapoints) or 10 (>=100 datapoints) different sections
+                    sorted_csv_y = csv_y.sort_values()
+                    indexes = list(sorted_csv_y.index)
+                    if len(indexes) < 100:
+                        section_n = 5
+                    else:
+                        section_n = 10
+                    range_section = round(len(indexes)/section_n) # do not use int(), the last section might get too many numbers
+                    sections = {}
+                    for section in range(section_n):
+                        if section == section_n-1:
+                            sections[section] = indexes[section*range_section:]
+                        else:
+                            sections[section] = indexes[section*range_section:(section+1)*range_section]
+
+                    while len(test_points) < n_of_points:
+                        for section in sections:
+                            if len(test_points) < n_of_points:
+                                new_point = random.sample(sections[section],1)[0]
+                                sections[section].remove(new_point)
+                                test_points.append(new_point)
 
                     # separates the test set and reset_indexes
                     csv_df_test = csv_df.iloc[test_points].reset_index(drop=True)
@@ -249,8 +275,8 @@ class generate:
         Changes the split to KN when small or imbalanced databases are used
         '''
         
-        # when using databases with a small number of points
-        if len(csv_df[self.args.y]) < 100 and self.args.split.lower() == 'rnd':
+        # when using databases with a small number of points (less than 250 datapoints)
+        if len(csv_df[self.args.y]) < 250 and self.args.split.lower() == 'rnd':
             self.args.split = 'KN'
             self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, KN data splitting will replace the default random splitting (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
         

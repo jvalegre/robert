@@ -44,7 +44,7 @@ var_dict = {
     "pfi_filter" : True,
     "pfi_max" : 0,
     "thres_test" : 0.25,
-    "kfold" : 5,
+    "kfold" : 'auto',
     "alpha" : 0.05,
     "params_dir" : '',
     "csv_test" : '',

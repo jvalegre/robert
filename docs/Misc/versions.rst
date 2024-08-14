@@ -4,12 +4,17 @@
 Versions
 ========
 
+Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
+   -  Changing cross-validation in VERIFY to LOOCV for datasets with less than 250 points
+   -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 250 points
+   -  The external test set is chosen more evenly along the range of y values (not fully random)
+
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs
 
 Version 1.1.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.1>`__]
    -  Hotfix of 1.1.0 in the installation
-   -  Add documentation of AQME with versions >=1.6.0, in which SMIES workflows are fully reproducible
+   -  Add documentation of AQME with versions >=1.6.0, in which SMILES workflows are fully reproducible
 
 Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Adding RFECV in CURATE to fix the maximum number of descriptors to 1/3 of datapoints
@@ -28,7 +33,6 @@ Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Fixing error_type bug for classification models
    -  MCC as default metric for classification models (better to check performance in unbalanced datasets)
    -  PFI workflow now uses the same metric as error_type
-
 
 Version 1.0.5 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.5>`__]
    -  Fixing some overfitted models with train and validation R2 0.99-1

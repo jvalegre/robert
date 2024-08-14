@@ -91,7 +91,7 @@ class predict:
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
                 
                 # get results from training, validation and test (if any)
-                Xy_data = load_n_predict(self, params_dict, Xy_data)
+                Xy_data = load_n_predict(self, params_dict, Xy_data, mapie=True)
 
                 # save predictions for all sets
                 path_n_suffix, name_points = save_predictions(self,Xy_data,params_dir,Xy_test_df)

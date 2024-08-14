@@ -51,7 +51,6 @@ from scipy import stats
 from matplotlib import pyplot as plt
 import seaborn as sb
 from robert.utils import load_variables, finish_print, load_database
-from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.feature_selection import RFECV
 from sklearn.model_selection import KFold
 from sklearn.ensemble import RandomForestRegressor

@@ -134,7 +134,7 @@ The complete output (CURATE_data.dat) and curated database are stored in the CUR
             if os.path.exists(generate_file):
                 # section header
                 generate_time = get_time(generate_file)
-                generate_data = f"""<i>This module carries out a screening of ML models and selects the most accurate one. It includes a comparison of multiple hyperoptimized models and training sizes.</i>
+                generate_data = f"""<i>This module carries out a screening of ML models and selects the most accurate ones. It includes a comparison of multiple hyperoptimized models and training sizes.</i>
 The complete output (GENERATE_data.dat) and heatmaps are stored in the GENERATE folder.
 {generate_time}
 """

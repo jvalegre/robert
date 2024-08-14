@@ -1007,10 +1007,10 @@ def load_n_predict(self, params, data, hyperopt=False, mapie=False):
                 if 'X_csv_test_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
 
-                if 'X_test_scaled' in data:
+                elif 'X_test_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'test')
                 
-                if 'X_valid_scaled' in data:
+                elif 'X_valid_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'valid')
 
             return data
@@ -1046,13 +1046,17 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     y_combined = pd.concat([data['y_train'],data['y_valid']], axis=0).reset_index(drop=True)
     if self.args.kfold == 'auto':
         if len(y_combined) < 250:
-            self.args.kfold = -1 # -1 for LOOCV in MAPIE
+            cv_type = 'loocv'
+            kfold_type = -1 # -1 for LOOCV in MAPIE
         else:
-            self.args.kfold = 5
+            cv_type = '5_fold_cv'
+            kfold_type = 5
+    else:
+        cv_type = f'{self.args.kfold}_fold_cv'
+        kfold_type = self.args.kfold
 
-    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
-
-    mapie.fit(data['X_train_scaled'].values, data['y_train'].values) # .values is needed to avoid an sklearn warning
+    mapie_model = MapieRegressor(loaded_model, method="plus", cv=kfold_type, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
+    mapie_model.fit(data['X_train_scaled'].values, data['y_train'].values) # .values is needed to avoid an sklearn warning
 
     # Check if 1/alpha is lower than the number of samples
     if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
@@ -1061,16 +1065,14 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
             self.args.alpha = 0.5
     
     # Predict test set and obtain prediction intervals
-    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'].values, alpha=[self.args.alpha]) # .values is needed to avoid an sklearn warning
-    
-    # Calculate prediction interval variability for each prediction in the test set
-    y_error = np.abs(y_pis[:, :, 0].T - y_pred)
-    
-    # Add 'y_pred_test_error' entry to data dictionary
-    data[f'y_pred_{set_mapie}_error'] = y_error
+    y_pred, y_pis = mapie_model.predict(data[f'X_{set_mapie}_scaled'].values, alpha=[self.args.alpha]) # .values is needed to avoid an sklearn warning
 
     # Calculate the width of the prediction intervals
     y_interval_width = np.abs(y_pis[:, 0, :] - y_pis[:, 1, :])
+
+    # NOTE: the middle of the prediction intervals is very close to the predicted value from
+    # the original model. Therefore, we will use the originally predicted values with the 
+    # calculated SD from the intervals
 
     # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
     # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
@@ -1078,8 +1080,9 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     dict_alpha  = {0.05: 1.96, 0.1: 1.645, 0.5: 0.674}
     y_test_sd = y_interval_width / (2 * dict_alpha[self.args.alpha])
 
-    # Add 'y_pred_test_sd' entry to data dictionary
+    # Add 'y_pred_SET_cv' and 'y_pred_SET_sd' entry to data dictionary
     data[f'y_pred_{set_mapie}_sd'] = y_test_sd
+    data['cv_type'] = cv_type
 
     return data
 

@@ -83,7 +83,7 @@ def get_images(module,file=None,pred_type='reg'):
             if "_REPORT" not in filename:
                 if "Results_" in filename:
                     results_images.append(image_path)
-                elif "Variability_" in filename:
+                elif "CV_variability_" in filename:
                     variability_images.append(image_path)
                 elif "SHAP_" in filename:
                     shap_images.append(image_path)
@@ -107,7 +107,7 @@ def get_images(module,file=None,pred_type='reg'):
                 filename = Path(image_path).stem
                 if "Results_" in filename:
                     csv_test_images_results.append(image_path)
-                elif "Variability_" in filename:
+                elif "CV_variability_" in filename:
                     csv_test_images_variability.append(image_path)
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)

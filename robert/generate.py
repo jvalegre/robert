@@ -219,11 +219,13 @@ class generate:
             if self.args.test_set != 0:
                 if len(csv_df[self.args.y]) < 50:
                     self.args.test_set = 0
-                    self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split in training and validation with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
-                    self.args.test_set
+                    self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split into training and validation sets with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
                 elif self.args.test_set < 0.1:
                     self.args.test_set = 0.1
                     self.args.log.write(f'\nx    WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
+                else:
+                    self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data was separated as test set, using an even distribution of data points across the range of y values. The remaining data points will be split into training and validation.')
+
 
                 if self.args.test_set > 0:
                     n_of_points = int(len(csv_X)*(self.args.test_set))
@@ -278,8 +280,10 @@ class generate:
         # when using databases with a small number of points (less than 250 datapoints)
         if len(csv_df[self.args.y]) < 250 and self.args.split.lower() == 'rnd':
             self.args.split = 'KN'
-            self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, KN data splitting will replace the default random splitting (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
-        
+            self.args.log.write(f'\no  The database contains {len(csv_df[self.args.y])} datapoints, k-means data splitting will replace the default random splitting to select training and validation sets (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
+        elif self.args.split.lower() == 'rnd':
+            self.args.log.write(f'\no  The database contains {len(csv_df[self.args.y])} datapoints, the default random splitting will be used to select training and validation sets.')
+
         # when using unbalanced databases (using an arbitrary imbalance ratio of 10 with the two halves of the data)
         mid_value = max(csv_df[self.args.y])-((max(csv_df[self.args.y])-min(csv_df[self.args.y]))/2)
         high_vals = len([i for i in csv_df[self.args.y] if i >= mid_value])

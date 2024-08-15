@@ -1079,10 +1079,12 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
     # Student's t value is 2.086 instead of 1.96) 
     dict_alpha  = {0.05: 1.96, 0.1: 1.645, 0.5: 0.674}
-    y_test_sd = y_interval_width / (2 * dict_alpha[self.args.alpha])
+    y_pred_sd = y_interval_width / (2 * dict_alpha[self.args.alpha])
+    avg_sd = np.mean(y_pred_sd) # average SD
 
     # Add 'y_pred_SET_cv' and 'y_pred_SET_sd' entry to data dictionary
-    data[f'y_pred_{set_mapie}_sd'] = y_test_sd
+    data[f'y_pred_{set_mapie}_sd'] = y_pred_sd
+    data['avg_sd'] = avg_sd
     data['cv_type'] = cv_type
 
     return data

@@ -326,7 +326,6 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     Saves CSV files with the different sets and their predicted results
     '''
 
-    cv_type = Xy_data['cv_type']
     Xy_orig_df, Xy_path, params_df, _, _, suffix_title = load_dfs(self,params_dir,'no_print')
     base_csv_name = '_'.join(os.path.basename(Path(Xy_path)).replace('.csv','_').split('_')[0:2])
     base_csv_name = f'PREDICT/{base_csv_name}'
@@ -344,6 +343,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
     valid_path = f'{base_csv_path}_valid_{suffix_title}.csv'
     _ = Xy_orig_valid.to_csv(valid_path, index = None, header=True)
     print_preds += f'\n      -  Validation set with predicted results: PREDICT/{os.path.basename(valid_path)}'
+    Xy_data['csv_pred_name'] = os.path.basename(valid_path)
     # saves test predictions
     Xy_orig_test = None
     if 'X_test_scaled' in Xy_data:
@@ -354,7 +354,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
         test_path = f'{base_csv_path}_test_{suffix_title}.csv'
         _ = Xy_orig_test.to_csv(test_path, index = None, header=True)
         print_preds += f'\n      -  Test set with predicted results: PREDICT/{os.path.basename(test_path)}'
-
+        Xy_data['csv_pred_name'] = os.path.basename(test_path)
+        
     # saves prediction for external test in --csv_test
     if self.args.csv_test != '':
         Xy_test_df[f'{params_df["y"][0]}_pred'] = Xy_data['y_pred_csv_test']
@@ -367,6 +368,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
         csv_test_path = f'{folder_csv}/{csv_name}'
         _ = Xy_test_df.to_csv(csv_test_path, index = None, header=True)
         print_preds += f'\n      -  External set with predicted results: PREDICT/csv_test/{os.path.basename(csv_test_path)}'
+        Xy_data['csv_pred_name'] = f'csv_test/{os.path.basename(csv_test_path)}'
 
     self.args.log.write(print_preds)
 
@@ -385,7 +387,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
         if Xy_orig_test is not None:
             name_points['test'] = Xy_orig_test[self.args.names]
 
-    return path_n_suffix, name_points
+    return path_n_suffix, name_points, Xy_data
 
 
 def print_predict(self,Xy_data,params_dict,path_n_suffix):
@@ -442,6 +444,30 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     self.args.log.write(print_results)
     dat_results = open(dat_file, "w")
     dat_results.write(print_results)
+    dat_results.close()
+
+
+def print_cv_var(self,Xy_data,params_dict,path_n_suffix):
+    '''
+    Prints results of the predictions for all the sets
+    '''
+
+    shap_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.png'
+    path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
+    if Xy_data['cv_type'] == 'loocv':
+        cv_type = f'Jackknife CV'
+    else:
+        kfold = Xy_data['cv_type'].split('_')[-3]
+        cv_type = f'{kfold}-fold CV'
+
+    print_cv_var = f"\n   o  Cross-validation variation (with {cv_type}) graph saved in {path_reduced}:"
+    print_cv_var += f"\n      -  Standard deviations saved in PREDICT/{Xy_data['csv_pred_name']} in the {params_dict['y']}_pred_sd column"
+    print_cv_var += f"\n      -  Average SD = {round(Xy_data['avg_sd'],2)}"
+
+    cv_var_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.dat'
+    self.args.log.write(print_cv_var)
+    dat_results = open(cv_var_file, "w")
+    dat_results.write(print_cv_var)
     dat_results.close()
 
 

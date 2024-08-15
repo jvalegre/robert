@@ -43,7 +43,8 @@ from robert.predict_utils import (plot_predictions,
     print_predict,
     shap_analysis,
     PFI_plot,
-    outlier_plot
+    outlier_plot,
+    print_cv_var
     )
 from robert.utils import (load_variables,
     load_db_n_params,
@@ -94,13 +95,17 @@ class predict:
                 Xy_data = load_n_predict(self, params_dict, Xy_data, mapie=True)
 
                 # save predictions for all sets
-                path_n_suffix, name_points = save_predictions(self,Xy_data,params_dir,Xy_test_df)
+                path_n_suffix, name_points, Xy_data = save_predictions(self,Xy_data,params_dir,Xy_test_df)
 
                 # represent y vs predicted y
                 colors = plot_predictions(self, params_dict, Xy_data, path_n_suffix)
 
                 # print results
                 _ = print_predict(self,Xy_data,params_dict,path_n_suffix)  
+
+                # print CV variation (for regression)
+                if params_dict['type'].lower() == 'reg':
+                    _ = print_cv_var(self,Xy_data,params_dict,path_n_suffix)  
 
                 # SHAP analysis
                 _ = shap_analysis(self,Xy_data,params_dict,path_n_suffix)

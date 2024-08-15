@@ -30,6 +30,7 @@ from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerPatch
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch, ArrowStyle
+import matplotlib.lines as lines
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -398,12 +399,12 @@ class verify:
 
         sb.reset_defaults()
         sb.set(style="ticks")
-        _, (ax1, ax2) =  plt.subplots(1, 2, sharex=False, sharey= False, figsize=(7.45,6), 
+        fig, (ax1, ax2) =  plt.subplots(1, 2, sharex=False, sharey= False, figsize=(7.45,6), 
                                     constrained_layout=True, gridspec_kw={
                                                             'width_ratios': [1, 1.3],
-                                                            'wspace': 0.05}) 
+                                                            'wspace': 0.07}) 
 
-        width_1 = 0.7 # respect to the original size of the bar (i.e. single bar takes whole graph)
+        width_1 = 0.67 # respect to the original size of the bar (i.e. single bar takes whole graph)
         width_2 = 0.75
         for test_metric,test_name,test_color in zip(verify_metrics['metrics'],verify_metrics['test_names'],verify_metrics['colors']):
             # flawed models
@@ -422,7 +423,7 @@ class verify:
         # styling preferences
         ax1.tick_params(axis='y', labelsize=14)
         ax1.tick_params(axis='x', labelsize=14)
-        ax2.tick_params(axis='y', labelsize=14, labelleft=False)
+        ax2.tick_params(axis='y', labelsize=14, labelleft=False, left = False)
         ax2.tick_params(axis='x', labelsize=14)
 
         # title and labels of the axis
@@ -430,14 +431,7 @@ class verify:
 
         # borders
         ax1.spines[['right', 'top']].set_visible(False)
-        ax2.spines[['right', 'top']].set_visible(False)
-
-        # titles
-        fontsize = 14
-        title_verify = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
-        ax1.set_title(f'Model & cross-valid.', fontsize=14, style='italic', y=0.96)
-        ax2.set_title('"Flawed" models', fontsize=14, style='italic', y=0.96)
-        plt.suptitle(title_verify, y=1.06, fontsize = fontsize, fontweight="bold")
+        ax2.spines[['right', 'top', 'left']].set_visible(False)
 
         # axis limits
         max_val = max(verify_metrics['metrics'])
@@ -451,6 +445,14 @@ class verify:
             min_lim = min_val - (0.1*range_vals)
         ax1.set_ylim([min_lim, max_lim])
         ax2.set_ylim([min_lim, max_lim])
+
+        # titles and line separating titles
+        fontsize = 14
+        title_verify = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
+        ax1.set_title(f'Model & cross-valid.', fontsize=14, y=0.96)
+        ax2.set_title('"Flawed" models', fontsize=14, y=0.96)
+        fig.add_artist(lines.Line2D([0.41, 0.62], [0.975, 0.975],color='k',linewidth=1)) # format: [x1,x2], [y1,y2]
+        plt.suptitle(title_verify, y=1.06, fontsize = fontsize, fontweight="bold")
 
         # add threshold line and arrow indicating passed test direction
         arrow_length = np.abs(max_lim-min_lim)/11

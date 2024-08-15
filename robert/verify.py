@@ -16,7 +16,7 @@ Parameters
         2. Cross validation: the error is lower than 25%
     kfold : int, default='auto',
         Number of random data splits for the ShuffleSplit cross-validation. If 'auto', the program does 
-        a LOOCV for databases with less than 250 points, and 5 splits during the ShuffleSplit CV for larger databases 
+        a LOOCV for databases with less than 50 points, and 5 splits during the ShuffleSplit CV for larger databases 
 
 """
 #####################################################.
@@ -27,6 +27,9 @@ Parameters
 import os
 import time
 from matplotlib import pyplot as plt
+from matplotlib.legend_handler import HandlerPatch
+import matplotlib.patches as mpatches
+from matplotlib.patches import FancyArrowPatch, ArrowStyle
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -118,13 +121,13 @@ class verify:
                 Xy_data, params_df, params_path, suffix_title, _ = load_db_n_params(self,params_dir,"verify",False)
 
                 # analysis of results
-                colors,color_codes,results_print,verify_results = self.analyze_tests(verify_results,kfold_type)
+                results_print,verify_results,verify_metrics = self.analyze_tests(verify_results,kfold_type)
 
-                # plot a donut plot with the results
-                print_ver,path_n_suffix = self.plot_donut(colors,color_codes,params_path,suffix_title,kfold_type)
+                # plot a bar graph with the results
+                print_ver,path_n_suffix = self.plot_metrics(params_path,suffix_title,verify_metrics,verify_results)
 
                 # print and save results
-                _ = self.print_verify(results_print,verify_results,print_ver,path_n_suffix)
+                _ = self.print_verify(results_print,verify_results,print_ver,path_n_suffix,verify_metrics,params_dict)
 
         _ = finish_print(self,start_time,'VERIFY')
 
@@ -139,26 +142,28 @@ class verify:
         loaded_model.fit(np.asarray(Xy_data['X_train_scaled']).tolist(), np.asarray(Xy_data['y_train']).tolist())
         data_cv = load_n_predict(self, params_dict, Xy_data)
         
-        cv_score = []
+        cv_r2, cv_mae, cv_rmse, cv_acc, cv_f1, cv_mcc = [],[],[],[],[],[]
+        cy_y,cv_y_pred = [],[]
         data_cv = {}
         # combine training and validation for CV
         X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
         y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
 
+        test_size = 100-params_dict['train']
         if self.args.kfold == 'auto':
-            # LOOCV for relatively small datasets (less than 250 datapoints)
-            if len(y_combined) < 250:
+            # LOOCV for relatively small datasets (less than 50 datapoints)
+            if len(y_combined) < 50:
                 kfold_type = 'loocv'
                 kf = KFold(n_splits=len(y_combined))
-            # CV with the same training/validation proportion used for fitting the model, with 5 different data splits
+            # CV with the same training/validation proportion used for fitting the model, using 5 splits
             else:
                 kfold_type = 5
-                kf = ShuffleSplit(n_splits=5,test_size=((100-params_dict['train'])/100),random_state=params_dict['seed'])
+                kf = ShuffleSplit(n_splits=kfold_type,test_size=test_size,random_state=params_dict['seed'])
 
         # CV with the same training/validation proportion used for fitting the model, with k different data splits
         else:
             kfold_type = self.args.kfold
-            kf = ShuffleSplit(n_splits=self.args.kfold,test_size=((100-params_dict['train'])/100),random_state=params_dict['seed'])
+            kf = ShuffleSplit(n_splits=self.args.kfold,test_size=test_size,random_state=params_dict['seed'])
 
         for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
             XY_cv = {}
@@ -168,10 +173,37 @@ class verify:
             XY_cv['y_valid'] = y_combined.loc[valid_index]
             data_cv = load_n_predict(self, params_dict, XY_cv)
 
-            cv_score.append(data_cv[f'{verify_results["error_type"].lower()}_valid'])
+            if kfold_type == 'loocv': # LOOCV: first, we need to collect all the predictions
+                cy_y.append(list(data_cv['y_valid'])[0])
+                cv_y_pred.append(list(data_cv['y_pred_valid'])[0])
 
-        verify_results['cv_score'] = np.mean(cv_score)
-        verify_results['cv_std'] = np.std(cv_score)
+            else: # for k-fold, we just need to collect the metrics k times and average
+                if params_dict['type'].lower() == 'reg': 
+                    cv_r2.append(data_cv[f'r2_valid'])
+                    cv_mae.append(data_cv[f'mae_valid'])
+                    cv_rmse.append(data_cv[f'rmse_valid'])
+                elif params_dict['type'].lower() == 'clas':
+                    cv_acc.append(data_cv[f'acc_valid'])
+                    cv_f1.append(data_cv[f'f1_valid'])
+                    cv_mcc.append(data_cv[f'mcc_valid'])
+
+        if kfold_type == 'loocv':
+            if params_dict['type'].lower() == 'reg':
+                verify_results['cv_r2'], verify_results['cv_mae'], verify_results['cv_rmse'] = get_prediction_results(params_dict,cy_y,cv_y_pred)
+            elif params_dict['type'].lower() == 'clas':
+                verify_results['cv_acc'], verify_results['cv_f1'], verify_results['cv_mcc'] = get_prediction_results(params_dict,cy_y,cv_y_pred)
+
+        else:
+            if params_dict['type'].lower() == 'reg':
+                verify_results['cv_r2'] = np.mean(cv_r2)
+                verify_results['cv_mae'] = np.mean(cv_mae)
+                verify_results['cv_rmse'] = np.mean(cv_rmse)
+            elif params_dict['type'].lower() == 'clas':
+                verify_results['cv_acc'] = np.mean(cv_acc)
+                verify_results['cv_f1'] = np.mean(cv_f1)
+                verify_results['cv_mcc'] = np.mean(cv_mcc)
+
+        verify_results['cv_score'] = verify_results[f'cv_{verify_results["error_type"].lower()}']
         
         return verify_results,kfold_type
 
@@ -251,13 +283,9 @@ class verify:
 
         blue_color = '#1f77b4'
         red_color = '#cd5c5c'
-        color_codes = {'blue' : blue_color,
-                        'red' : red_color}
         colors = [None,None,None,None]
-        results_print = [None,None,None,None]
-        # these thresholds use validation results to compare in the tests
-        verify_results['higher_thres'] = (1+self.args.thres_test)*verify_results['original_score_valid']
-        verify_results['lower_thres'] = (1-self.args.thres_test)*verify_results['original_score_valid']
+        results_print = [None,None,None,None,None]
+        metrics = [None,None,None,None]
 
         # adjust type of cross-validation
         if kfold_type == 'loocv':
@@ -265,7 +293,40 @@ class verify:
         else:
             type_cv = f'{kfold_type}-shuf. CV'
 
-        for i,test_ver in enumerate(['y_mean', 'cv_score', 'onehot', 'y_shuffle']):
+        # initial evaluation of the tests and adjusting the thresholds
+        # NOTE: by default, the thresholds are set to ± 25% of the original score. However,
+        # there are cases in where the statistical tests (y-mean, onehot and y-shuffle) give values
+        # that show errors way passed these thresholds. In such cases, the thresholds are
+        # increased to give more flexibility to the k-shuffle CV test (considering the big difference
+        # between the original and the three flawed models).
+        if verify_results['error_type'].lower() in ['mae','rmse']:
+            lowest_flawed = min([verify_results['y_mean'],verify_results['onehot'],verify_results['y_shuffle']])
+            if lowest_flawed > 3*verify_results['original_score_valid']: # the best flawed model has x3 times more error
+                # the value is adjusted so is 1/4 close to the original model and 3/4 far from the flawed models
+                diff_flawed_orig = lowest_flawed - verify_results['original_score_valid']
+                new_thres_value = lowest_flawed - (0.75*diff_flawed_orig)
+                thres_test = round((new_thres_value/verify_results['original_score_valid'])-1, 2)
+                results_print[4] = f'\n      Theshold adjusted to {int(thres_test*100)}% (big errors in flawed tests)'
+            else:
+                thres_test = self.args.thres_test
+        else:
+            highest_flawed = max([verify_results['y_mean'],verify_results['onehot'],verify_results['y_shuffle']])
+            if highest_flawed < verify_results['original_score_valid']/3: # the best flawed model has x3 times more error
+                diff_flawed_orig = verify_results['original_score_valid'] - highest_flawed
+                new_thres_value = highest_flawed + (0.75*diff_flawed_orig)
+                thres_test = round(1-(new_thres_value/verify_results['original_score_valid']), 2)
+                results_print[4] = f'\n      Theshold adjusted to {int(thres_test*100)}% (big errors in flawed tests)'
+            else:
+                thres_test = self.args.thres_test
+
+        # these thresholds use validation results to compare in the tests
+        verify_results['higher_thres'] = (1+thres_test)*verify_results['original_score_valid']
+        verify_results['lower_thres'] = (1-thres_test)*verify_results['original_score_valid']
+
+        # determine whether the tests pass
+        test_names = ['cv_score','y_mean','y_shuffle','onehot']
+        for i,test_ver in enumerate(test_names):
+            metrics[i] = verify_results[test_ver]
             if verify_results['error_type'].lower() in ['mae','rmse']:
                 if verify_results[test_ver] <= verify_results['higher_thres']:
                     if test_ver != 'cv_score':
@@ -297,13 +358,36 @@ class verify:
                     else:
                         colors[i] = red_color
                         results_print[i] = f'\n         x {type_cv}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thres.'
+
+        # adjust type of cross-validation
+        if kfold_type == 'loocv':
+            type_cv = f'LOOCV'
+        else:
+            type_cv = f'{kfold_type}-shuf. CV'
+        for i,ele in enumerate(test_names):
+            if ele == 'cv_score':
+                test_names[i] = type_cv
+
+        # store metrics and colors to represent in comparison graph, adding the metrics of the 
+        # original model first
+        test_names = ['Model'] + test_names
+        colors = [blue_color] + colors
+        metrics = [verify_results['original_score_valid']] + metrics
+        verify_metrics = {'test_names': test_names,
+                          'colors': colors,
+                          'metrics': metrics,
+                          'thres_test': thres_test,
+                          'higher_thres': verify_results['higher_thres'],
+                          'lower_thres': verify_results['lower_thres'],
+                          'type_cv': type_cv
+                          }        
         
-        return colors,color_codes,results_print,verify_results
+        return results_print,verify_results,verify_metrics
 
 
-    def plot_donut(self,colors,color_codes,params_path,suffix_title,kfold_type):
+    def plot_metrics(self,params_path,suffix_title,verify_metrics,verify_results):
         '''
-        Creates a donut plot with the results of VERIFY
+        Creates a plot with the results of VERIFY
         '''
 
         # set PATH names and plot
@@ -313,49 +397,98 @@ class verify:
         path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
         sb.reset_defaults()
-        _, ax = plt.subplots(figsize=(7.45,6), subplot_kw=dict(aspect="equal"))
+        sb.set(style="ticks")
+        _, (ax1, ax2) =  plt.subplots(1, 2, sharex=False, sharey= False, figsize=(7.45,6), 
+                                    constrained_layout=True, gridspec_kw={
+                                                            'width_ratios': [1, 1.3],
+                                                            'wspace': 0.05}) 
 
-        # adjust type of cross-validation
-        if kfold_type == 'loocv':
-            type_cv = f'LOOCV'
-        else:
-            type_cv = f'{kfold_type}-shuf. CV'
-        
-        recipe = ["y_mean",
-                type_cv,
-                "onehot",
-                "y_shuffle"]
-                
-        # make 4 even parts in the donut plot
-        data = [25, 25, 25, 25]
-        explode = [None, None, None, None]
-        
-        # failing or undetermined tests will lead to pieces that are outside the regular donut
-        for i,color in enumerate(colors):
-            if color == color_codes['red']:
-                explode[i] = 0.05
+        width_1 = 0.7 # respect to the original size of the bar (i.e. single bar takes whole graph)
+        width_2 = 0.75
+        for test_metric,test_name,test_color in zip(verify_metrics['metrics'],verify_metrics['test_names'],verify_metrics['colors']):
+            # flawed models
+            if test_name in ['y_mean','y_shuffle','onehot']:
+                rects = ax2.bar(test_name, round(test_metric,2), label=test_name, 
+                                width=width_2, linewidth=1, edgecolor='k', 
+                                color=test_color, zorder=2)
+                ax2.bar_label(rects, padding=3, backgroundcolor='w', zorder=1) # adds values on top of the bars
+            # original and CV
             else:
-                explode[i] = 0
-        
-        wedgeprops = {'width':0.4, 'edgecolor':'black', 'lw':0.72}
-        wedges, _ = ax.pie(data, wedgeprops=wedgeprops, startangle=0, colors=colors, explode=explode)
+                rects = ax1.bar(test_name, round(test_metric,2), label=test_name,
+                                width=width_1, linewidth=1, edgecolor='k', 
+                                color=test_color, zorder=2)
+                ax1.bar_label(rects, padding=3, backgroundcolor='w', zorder=1)
 
-        bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
-        kw = dict(arrowprops=dict(arrowstyle="-"),
-                bbox=bbox_props, zorder=0, va="center")
+        # styling preferences
+        ax1.tick_params(axis='y', labelsize=14)
+        ax1.tick_params(axis='x', labelsize=14)
+        ax2.tick_params(axis='y', labelsize=14, labelleft=False)
+        ax2.tick_params(axis='x', labelsize=14)
+
+        # title and labels of the axis
+        ax1.set_ylabel(f'{verify_results["error_type"].upper()}', fontsize=14)
+
+        # borders
+        ax1.spines[['right', 'top']].set_visible(False)
+        ax2.spines[['right', 'top']].set_visible(False)
+
+        # titles
         fontsize = 14
-
-        for i, p in enumerate(wedges):
-            ang = (p.theta2 - p.theta1)/2. + p.theta1
-            y = np.sin(np.deg2rad(ang))
-            x = np.cos(np.deg2rad(ang))
-            horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
-            connectionstyle = f"angle,angleA=0,angleB={ang}"
-            kw["arrowprops"].update({"connectionstyle": connectionstyle})
-            ax.annotate(recipe[i], xy=(x, y), xytext=(1.15*np.sign(x), 1.4*y),
-                        horizontalalignment=horizontalalignment, fontsize=fontsize, **kw)
         title_verify = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
-        plt.title(title_verify, y=1.04, fontsize = fontsize, fontweight="bold")
+        ax1.set_title(f'Model & cross-valid.', fontsize=14, style='italic', y=0.96)
+        ax2.set_title('"Flawed" models', fontsize=14, style='italic', y=0.96)
+        plt.suptitle(title_verify, y=1.06, fontsize = fontsize, fontweight="bold")
+
+        # axis limits
+        max_val = max(verify_metrics['metrics'])
+        if verify_results['error_type'].lower() in ['mae','rmse']:
+            max_lim = 1.2*max_val
+            min_lim = 0
+        else:
+            min_val = min(verify_metrics['metrics'])
+            range_vals = np.abs(max_val - min_val)
+            max_lim = max_val + (0.2*range_vals)
+            min_lim = min_val - (0.1*range_vals)
+        ax1.set_ylim([min_lim, max_lim])
+        ax2.set_ylim([min_lim, max_lim])
+
+        # add threshold line and arrow indicating passed test direction
+        arrow_length = np.abs(max_lim-min_lim)/11
+        
+        if verify_results['error_type'].lower() in ['mae','rmse']:
+            thres_line = verify_metrics['higher_thres']            
+        else:
+            thres_line = verify_metrics['lower_thres']
+            arrow_length = -arrow_length
+
+        width = 2
+        thres = ax1.axhline(thres_line,color='black',ls='--', label='thres', zorder=0)
+        ax2.axhline(thres_line,color='black',ls='--', zorder=0)
+
+        x1,x2 = 1.7, 2.7
+        style = ArrowStyle('simple', head_length=4.5*width, head_width=3.5*width, tail_width=width)
+        arrow_1 = FancyArrowPatch((x1, thres_line), (x1, thres_line-arrow_length), 
+                                arrowstyle=style, color='k')  # (x1,y1), (x2,y2) vector direction                   
+        ax1.add_patch(arrow_1)
+        arrow_2 = FancyArrowPatch((x2, thres_line), (x2, thres_line+arrow_length), 
+                                arrowstyle=style, color='k')
+        ax2.add_patch(arrow_2)
+
+        # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
+        ax1.arrow(1.7, thres_line, 0, 0, width=0) # x,y,dx,dy format
+        ax2.arrow(2.7, thres_line, 0, 0, width=0, fc='k', ec='k') # x,y,dx,dy format
+
+        # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+        def make_legend_arrow(legend, orig_handle,
+                            xdescent, ydescent,
+                            width, height, fontsize):
+            p = mpatches.FancyArrow(0, 0.5*height, width, 0, width=1.5, length_includes_head=True, head_width=0.58*height )
+            return p
+
+        arrow = plt.arrow(0, 0, 0, 0, label='arrow', width=0, fc='k', ec='k') # arrow for the legend
+        plt.figlegend([thres,arrow], [f'Threshold ({verify_results["error_type"].upper()} = {round(thres_line,2)})  ','Test-passing condition'], handler_map={mpatches.FancyArrow : HandlerPatch(patch_func=make_legend_arrow),},
+                      loc="lower center", ncol=2, bbox_to_anchor=(0.5, -0.1),
+                      fancybox=True, shadow=True, fontsize=14)
 
         # save plot
         verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
@@ -363,12 +496,12 @@ class verify:
         plt.clf()
 
         path_reduced = '/'.join(f'{verify_plot_file}'.replace('\\','/').split('/')[-2:])
-        print_ver = f"\n   o  VERIFY donut plots saved in {path_reduced}"
+        print_ver = f"\n   o  VERIFY plot saved in {path_reduced}"
 
         return print_ver, path_n_suffix
 
 
-    def print_verify(self,results_print,verify_results,print_ver,path_n_suffix):
+    def print_verify(self,results_print,verify_results,print_ver,path_n_suffix,verify_metrics,params_dict):
         '''
         Print and store the results of VERIFY
         '''
@@ -378,14 +511,20 @@ class verify:
         print_ver += f"\n   o  VERIFY test values saved in {path_reduced}"
         print_ver += f'\n      Results of the VERIFY tests:'
         # the printing order should be CV, y-mean, y-shuffle and one-hot
+        if results_print[4] is not None:
+            print_ver += results_print[4] # in case the threshold was modified
         if verify_results['error_type'].lower() in ['mae','rmse']:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} + {int(self.args.thres_test*100)}% thres. = {verify_results["higher_thres"]:.2}'
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} + {int(verify_metrics["thres_test"]*100)}% thres. = {verify_results["higher_thres"]:.2}'
         else:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} - {int(self.args.thres_test*100)}% thres. = {verify_results["lower_thres"]:.2}'
-        print_ver += results_print[1]
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} - {int(verify_metrics["thres_test"]*100)}% thres. = {verify_results["lower_thres"]:.2}'
         print_ver += results_print[0]
-        print_ver += results_print[3]
+        print_ver += results_print[1]
         print_ver += results_print[2]
+        print_ver += results_print[3]
+        if params_dict['type'].lower() == 'reg':
+            print_ver += f"\n      -  {verify_metrics['type_cv']} : R2 = {verify_results['cv_r2']:.2}, MAE = {verify_results['cv_mae']:.2}, RMSE = {verify_results['cv_rmse']:.2}"
+        elif params_dict['type'].lower() == 'clas':
+            print_ver += f"\n      -  {verify_metrics['type_cv']} : Accuracy = {verify_results['cv_acc']:.2}, F1 score = {verify_results['cv_f1']:.2}, MCC = {verify_results['cv_mcc']:.2}"
         self.args.log.write(print_ver)
         dat_results = open(verify_results_file, "w")
         dat_results.write(print_ver)

@@ -36,6 +36,9 @@ Parameters
     thres_y : float, default=0.001
         Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
         if thres_y=0.001, variables that show R**2 < 0.001 will be discarded).
+    kfold : int, default='auto'
+        Number of random data splits for the cross-validation of the RFECV feature selector. If 'auto', the program uses 5 splits 
+
 
 """
 #####################################################.
@@ -235,8 +238,12 @@ class curate:
                 num_descriptors -= 1
             txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV: {num_descriptors} descriptors remaining'
             # Use RFECV with RandomForestRegressor to select the most important descriptors
-            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
-            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=5, shuffle=True, random_state=0), n_jobs=None)
+            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=-1)
+            if self.args.kfold == 'auto':
+                n_splits = 5
+            else:
+                n_splits = self.args.kfold
+            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=n_splits, shuffle=True, random_state=0), n_jobs=-1)
             X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
             y = csv_df_filtered[self.args.y]
             # Convert column names to strings to avoid any issues

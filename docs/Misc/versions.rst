@@ -5,9 +5,12 @@ Versions
 ========
 
 Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
-   -  Changing cross-validation in VERIFY to LOOCV for datasets with less than 250 points
-   -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 250 points
+   -  Changing cross-validation in VERIFY to LOOCV for datasets with less than 50 points
+   -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 50 points
    -  The external test set is chosen more evenly along the range of y values (not fully random)
+   -  Adjustable threshold in VERIFY when the difference between original and flawed models is large
+   -  Changing the format of the VERIFY plot, from donut to bar plots
+   -  Automatic KN data splitting for databases with less than 250 datapoints
 
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs

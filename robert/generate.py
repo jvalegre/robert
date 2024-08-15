@@ -21,7 +21,7 @@ Parameters
         Proportions of the training set to use in the ML scan. The numbers are relative to the training 
         set proportion (i.e. 40 = 40% training data).
     auto_kn : bool, default=True
-        Changes random splitting to KN splitting in databases with less than 100 datapoints.
+        Changes random splitting to KN splitting in databases with less than 250 datapoints.
     filter_train : bool, default=True
         Disables the 90% training size in databases with less than 50 datapoints, and the 80% in less than 30.
     split : str, default='RND'

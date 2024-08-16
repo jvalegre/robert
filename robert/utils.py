@@ -1008,7 +1008,7 @@ def load_n_predict(self, params, data, hyperopt=False, mapie=False):
                 if 'X_csv_test_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'csv_test')
 
-                elif 'X_test_scaled' in data:
+                if 'X_test_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'test')
                 
                 elif 'X_valid_scaled' in data:

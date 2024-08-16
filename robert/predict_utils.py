@@ -312,8 +312,10 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
         matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_{set_type}'], Xy_data[f'y_pred_{set_type}'], normalize=None, cmap='Blues') 
     if print_fun:
         if 'CV' not in set_type:
-            set_type = f'{set_type} set'
-        matrix.ax_.set_title(f'{set_type} of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
+            title_set = f'{set_type} set'
+        else:
+            title_set = set_type
+        matrix.ax_.set_title(f'{title_set} of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
 
     plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)

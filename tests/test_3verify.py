@@ -102,9 +102,10 @@ def test_VERIFY(test_job):
                 assert "x onehot: FAILED" in outlines[i+5]
             break
 
-    #check that the donut plots and DAT files are created
-    assert len(glob.glob(f'{path_verify}/*.png')) == 2
+    #check that the verify plots, CSV and DAT files are created
+    assert len(glob.glob(f'{path_verify}/*.png')) == 4
     assert len(glob.glob(f'{path_verify}/*.dat')) == 3
+    assert len(glob.glob(f'{path_verify}/*.csv')) == 2
 
     if test_job == 'clas': # rename folders back to their original names
         # rename the classification GENERATE folder

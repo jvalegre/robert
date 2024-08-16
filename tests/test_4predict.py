@@ -116,7 +116,7 @@ def test_PREDICT(test_job):
     if test_job == "clas":
         assert len(glob.glob(f'{path_predict}/*.dat')) == 7
     else:
-        assert len(glob.glob(f'{path_predict}/*.dat')) == 9
+        assert len(glob.glob(f'{path_predict}/*.dat')) == 11
     if test_job == "csv_test":
         assert len(glob.glob(f'{path_predict}/csv_test/*.csv')) == 2
     assert len(glob.glob(f'{path_predict}/*.csv')) == 4

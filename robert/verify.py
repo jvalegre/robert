@@ -15,8 +15,8 @@ Parameters
         1. y-mean, y-shuffle and one-hot encoding tests: the error is greater than 25% (from original MAE and RMSE for regressors)
         2. Cross validation: the error is lower than 25%
     kfold : int, default='auto',
-        Number of random data splits for the ShuffleSplit cross-validation. If 'auto', the program does 
-        a LOOCV for databases with less than 50 points, and 5 splits during the ShuffleSplit CV for larger databases 
+        Number of folds for the k-fold cross validation. If 'auto', the program does 
+        a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
 
 """
 #####################################################.
@@ -26,6 +26,7 @@ Parameters
 
 import os
 import time
+import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerPatch
 import matplotlib.patches as mpatches
@@ -42,7 +43,7 @@ try:
     patch_sklearn(verbose=False)
 except (ModuleNotFoundError,ImportError):
     pass
-from sklearn.model_selection import ShuffleSplit,KFold
+from sklearn.model_selection import KFold
 from robert.utils import (load_variables,
     load_db_n_params,
     load_model,
@@ -50,8 +51,10 @@ from robert.utils import (load_variables,
     load_n_predict,
     finish_print,
     get_prediction_results,
-    print_pfi
+    print_pfi,
+    get_graph_style
 )
+from robert.predict_utils import graph_reg,graph_clas
 
 
 class verify:
@@ -98,7 +101,7 @@ class verify:
                 verify_results['original_score_valid'] = Xy_orig[f'{verify_results["error_type"]}_valid']
 
                 # calculate cross validation
-                verify_results,kfold_type = self.cv_test(verify_results,Xy_data,params_dict)
+                verify_results,type_cv,path_n_suffix = self.cv_test(verify_results,Xy_data,params_dict,params_path,suffix_title)
 
                 # calculate scores for the y-mean test
                 verify_results = self.ymean_test(verify_results,Xy_data,params_dict)
@@ -122,10 +125,10 @@ class verify:
                 Xy_data, params_df, params_path, suffix_title, _ = load_db_n_params(self,params_dir,"verify",False)
 
                 # analysis of results
-                results_print,verify_results,verify_metrics = self.analyze_tests(verify_results,kfold_type)
+                results_print,verify_results,verify_metrics = self.analyze_tests(verify_results,type_cv)
 
                 # plot a bar graph with the results
-                print_ver,path_n_suffix = self.plot_metrics(params_path,suffix_title,verify_metrics,verify_results)
+                print_ver = self.plot_metrics(path_n_suffix,verify_metrics,verify_results)
 
                 # print and save results
                 _ = self.print_verify(results_print,verify_results,print_ver,path_n_suffix,verify_metrics,params_dict)
@@ -133,39 +136,43 @@ class verify:
         _ = finish_print(self,start_time,'VERIFY')
 
 
-    def cv_test(self,verify_results,Xy_data,params_dict):
+    def cv_test(self,verify_results,Xy_data,params_dict,params_path,suffix_title):
         '''
-        Performs a cross-validation on the training set.
+        Performs a cross validation on the training+validation dataset.
         '''      
+
+        # set PATH names and plot
+        base_csv_name = '_'.join(os.path.basename(params_path).replace('.csv','_').split('_')[0:2])
+        base_csv_name = f'VERIFY/{base_csv_name}'
+        base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
+        path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
         # Fit the original model with the training set
         loaded_model = load_model(params_dict)
         loaded_model.fit(np.asarray(Xy_data['X_train_scaled']).tolist(), np.asarray(Xy_data['y_train']).tolist())
         data_cv = load_n_predict(self, params_dict, Xy_data)
         
-        cv_r2, cv_mae, cv_rmse, cv_acc, cv_f1, cv_mcc = [],[],[],[],[],[]
-        cy_y,cv_y_pred = [],[]
+        cv_y_list,cv_y_pred_list = [],[]
         data_cv = {}
         # combine training and validation for CV
         X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
         y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
 
-        test_size = 100-params_dict['train']
         if self.args.kfold == 'auto':
             # LOOCV for relatively small datasets (less than 50 datapoints)
             if len(y_combined) < 50:
-                kfold_type = 'loocv'
+                type_cv = f'LOOCV'
                 kf = KFold(n_splits=len(y_combined))
-            # CV with the same training/validation proportion used for fitting the model, using 5 splits
+            # k-fold CV with the same training/validation proportion used for fitting the model, using 5 splits
             else:
-                kfold_type = 5
-                kf = ShuffleSplit(n_splits=kfold_type,test_size=test_size,random_state=params_dict['seed'])
-
-        # CV with the same training/validation proportion used for fitting the model, with k different data splits
+                type_cv = '5-fold CV'
+                kf = KFold(n_splits=5, shuffle=True, random_state=params_dict['seed'])
+        # k-fold CV with the same training/validation proportion used for fitting the model, with k different data splits
         else:
-            kfold_type = self.args.kfold
-            kf = ShuffleSplit(n_splits=self.args.kfold,test_size=test_size,random_state=params_dict['seed'])
+            type_cv = f'{self.args.kfold}-fold CV'
+            kf = KFold(n_splits=self.args.kfold, shuffle=True, random_state=params_dict['seed'])
 
+        # separate into folds, then store the predictions
         for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
             XY_cv = {}
             XY_cv['X_train_scaled'] = X_combined.loc[train_index]
@@ -174,39 +181,35 @@ class verify:
             XY_cv['y_valid'] = y_combined.loc[valid_index]
             data_cv = load_n_predict(self, params_dict, XY_cv)
 
-            if kfold_type == 'loocv': # LOOCV: first, we need to collect all the predictions
-                cy_y.append(list(data_cv['y_valid'])[0])
-                cv_y_pred.append(list(data_cv['y_pred_valid'])[0])
+            for y_cv,y_pred_cv in zip(data_cv['y_valid'],data_cv['y_pred_valid']):
+                cv_y_list.append(y_cv)
+                cv_y_pred_list.append(y_pred_cv)
 
-            else: # for k-fold, we just need to collect the metrics k times and average
-                if params_dict['type'].lower() == 'reg': 
-                    cv_r2.append(data_cv[f'r2_valid'])
-                    cv_mae.append(data_cv[f'mae_valid'])
-                    cv_rmse.append(data_cv[f'rmse_valid'])
-                elif params_dict['type'].lower() == 'clas':
-                    cv_acc.append(data_cv[f'acc_valid'])
-                    cv_f1.append(data_cv[f'f1_valid'])
-                    cv_mcc.append(data_cv[f'mcc_valid'])
+        # calculate metrics and plot graphs
+        graph_style = get_graph_style()
+        Xy_data["y_cv_valid"] = cv_y_list
+        Xy_data["y_pred_cv_valid"] = cv_y_pred_list
 
-        if kfold_type == 'loocv':
-            if params_dict['type'].lower() == 'reg':
-                verify_results['cv_r2'], verify_results['cv_mae'], verify_results['cv_rmse'] = get_prediction_results(params_dict,cy_y,cv_y_pred)
-            elif params_dict['type'].lower() == 'clas':
-                verify_results['cv_acc'], verify_results['cv_f1'], verify_results['cv_mcc'] = get_prediction_results(params_dict,cy_y,cv_y_pred)
+        if params_dict['type'].lower() == 'reg':
+            verify_results['cv_r2'], verify_results['cv_mae'], verify_results['cv_rmse'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
+            set_types = [type_cv]
+            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
 
-        else:
-            if params_dict['type'].lower() == 'reg':
-                verify_results['cv_r2'] = np.mean(cv_r2)
-                verify_results['cv_mae'] = np.mean(cv_mae)
-                verify_results['cv_rmse'] = np.mean(cv_rmse)
-            elif params_dict['type'].lower() == 'clas':
-                verify_results['cv_acc'] = np.mean(cv_acc)
-                verify_results['cv_f1'] = np.mean(cv_f1)
-                verify_results['cv_mcc'] = np.mean(cv_mcc)
+        elif params_dict['type'].lower() == 'clas':
+            verify_results['cv_acc'], verify_results['cv_f1'], verify_results['cv_mcc'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
+            set_type = f'{type_cv} train+valid.'
+            _ = graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix)
 
         verify_results['cv_score'] = verify_results[f'cv_{verify_results["error_type"].lower()}']
-        
-        return verify_results,kfold_type
+
+        # save CSV with results
+        Xy_cv_df = pd.DataFrame()
+        Xy_cv_df[f'{params_dict["y"]}'] = Xy_data["y_cv_valid"]
+        Xy_cv_df[f'{params_dict["y"]}_pred'] = Xy_data["y_pred_cv_valid"]
+        csv_test_path = f'{os.path.dirname(path_n_suffix)}/CV_predictions_{os.path.basename(path_n_suffix)}.csv'
+        _ = Xy_cv_df.to_csv(csv_test_path, index = None, header=True)
+
+        return verify_results,type_cv,path_n_suffix
 
 
     def ymean_test(self,verify_results,Xy_data,params_dict):
@@ -275,7 +278,7 @@ class verify:
         return verify_results
 
 
-    def analyze_tests(self,verify_results,kfold_type):
+    def analyze_tests(self,verify_results,type_cv):
         '''
         Function to check whether the tests pass and retrieve the corresponding colors:
         1. Blue for passing tests
@@ -288,17 +291,11 @@ class verify:
         results_print = [None,None,None,None,None]
         metrics = [None,None,None,None]
 
-        # adjust type of cross-validation
-        if kfold_type == 'loocv':
-            type_cv = f'LOOCV'
-        else:
-            type_cv = f'{kfold_type}-shuf. CV'
-
         # initial evaluation of the tests and adjusting the thresholds
         # NOTE: by default, the thresholds are set to ± 25% of the original score. However,
         # there are cases in where the statistical tests (y-mean, onehot and y-shuffle) give values
         # that show errors way passed these thresholds. In such cases, the thresholds are
-        # increased to give more flexibility to the k-shuffle CV test (considering the big difference
+        # increased to give more flexibility to the k-fold CV test (considering the big difference
         # between the original and the three flawed models).
         if verify_results['error_type'].lower() in ['mae','rmse']:
             lowest_flawed = min([verify_results['y_mean'],verify_results['onehot'],verify_results['y_shuffle']])
@@ -360,11 +357,6 @@ class verify:
                         colors[i] = red_color
                         results_print[i] = f'\n         x {type_cv}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thres.'
 
-        # adjust type of cross-validation
-        if kfold_type == 'loocv':
-            type_cv = f'LOOCV'
-        else:
-            type_cv = f'{kfold_type}-shuf. CV'
         for i,ele in enumerate(test_names):
             if ele == 'cv_score':
                 test_names[i] = type_cv
@@ -386,16 +378,10 @@ class verify:
         return results_print,verify_results,verify_metrics
 
 
-    def plot_metrics(self,params_path,suffix_title,verify_metrics,verify_results):
+    def plot_metrics(self,path_n_suffix,verify_metrics,verify_results):
         '''
         Creates a plot with the results of VERIFY
         '''
-
-        # set PATH names and plot
-        base_csv_name = '_'.join(os.path.basename(params_path).replace('.csv','_').split('_')[0:2])
-        base_csv_name = f'VERIFY/{base_csv_name}'
-        base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
-        path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
         sb.reset_defaults()
         sb.set(style="ticks")
@@ -448,10 +434,14 @@ class verify:
 
         # titles and line separating titles
         fontsize = 14
+        artist = lines.Line2D([0.31, 0.72], [0.975, 0.975],color='k',linewidth=1) # format: [x1,x2], [y1,y2]
+        fig.add_artist(artist)
+        matplotlib.artist.Artist.set_zorder(artist,2)
+        fig.text(0.17, 0.968, 'Model & cross-valid.', fontsize=fontsize,
+                 backgroundcolor='w', zorder=3)
+        fig.text(0.645, 0.968, '"Flawed" models', fontsize=fontsize,
+                 backgroundcolor='w', zorder=3)
         title_verify = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
-        ax1.set_title(f'Model & cross-valid.', fontsize=14, y=0.96)
-        ax2.set_title('"Flawed" models', fontsize=14, y=0.96)
-        fig.add_artist(lines.Line2D([0.41, 0.62], [0.975, 0.975],color='k',linewidth=1)) # format: [x1,x2], [y1,y2]
         plt.suptitle(title_verify, y=1.06, fontsize = fontsize, fontweight="bold")
 
         # add threshold line and arrow indicating passed test direction
@@ -500,7 +490,7 @@ class verify:
         path_reduced = '/'.join(f'{verify_plot_file}'.replace('\\','/').split('/')[-2:])
         print_ver = f"\n   o  VERIFY plot saved in {path_reduced}"
 
-        return print_ver, path_n_suffix
+        return print_ver
 
 
     def print_verify(self,results_print,verify_results,print_ver,path_n_suffix,verify_metrics,params_dict):

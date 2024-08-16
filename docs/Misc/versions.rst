@@ -11,6 +11,9 @@ Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
    -  Adjustable threshold in VERIFY when the difference between original and flawed models is large
    -  Changing the format of the VERIFY plot, from donut to bar plots
    -  Automatic KN data splitting for databases with less than 250 datapoints
+   -  Change CV_test from ShuffleSplit to Kfold
+   -  Predictions from CV are now represented in a graph and stored in a CSV
+   -  By default, RFECV uses LOOCV for small datasets and 5-fold CV for larger datasets
 
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs
@@ -28,7 +31,7 @@ Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Fixing a bad allocation memory issue in GENERATE
    -  Fixing bug in classification models when more than 2 classes of the target variable are present
    -  Fixing reproducibility when using a specific seed in GENERATE module
-   -  Change CV_test from Kflod to ShuffleSplit and adding a random_state to ensure reproducibility
+   -  Change CV_test from Kfold to ShuffleSplit and adding a random_state to ensure reproducibility
    -  Allows CSV inputs that use ; as separator
    -  Fixing CV_test bug in VERIFY (now it uses equal test size to the model tested)
    -  Adding variability in the prediction with MAPIE python library

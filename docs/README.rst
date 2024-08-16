@@ -74,7 +74,7 @@ standards for cheminformatics studies, including:
       scikit-learn and training sizes.  
    *  **Prediction** of external test sets, as well as SHAP and PFI feature analysis.  
    *  **VERIFY tests** to asses the predictive ability of the models, including y-shuffle
-      and y-mean tests, leave-one-out and k-ShuffleSplit cross-validation, and predictions with one-hot features.  
+      and y-mean tests, leave-one-out and k-fold cross-validation, and predictions with one-hot features.  
 
 The code has been designed for:
 

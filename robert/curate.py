@@ -228,7 +228,7 @@ class curate:
         # Check if descriptors are more than one third of datapoints
         n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
         if len(csv_df[self.args.y]) > 50 and self.args.auto_test ==True:
-           datapoints= len(csv_df[self.args.y])*0.9
+           datapoints = len(csv_df[self.args.y])*0.9
         else:
             datapoints = len(csv_df[self.args.y])
         if n_descps > datapoints / 3:
@@ -236,14 +236,23 @@ class curate:
             # Avoid situations where the number of descriptors is equal to the number of datapoints/3
             if len(csv_df[self.args.y]) / 3 == num_descriptors:
                 num_descriptors -= 1
-            txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV: {num_descriptors} descriptors remaining'
-            # Use RFECV with RandomForestRegressor to select the most important descriptors
-            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=-1)
+            # Use RFECV with a simple RandomForestRegressor to select the most important descriptors
+            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
             if self.args.kfold == 'auto':
-                n_splits = 5
+                # LOOCV for relatively small datasets (less than 50 datapoints)
+                if len(csv_df[self.args.y]) < 50:
+                    n_splits = len(csv_df[self.args.y])
+                    cv_type = 'LOOCV'
+                # k-fold CV with the same training/validation proportion used for fitting the model, using 5 splits
+                else:
+                    n_splits = 5
+                    cv_type = '5-fold CV'
             else:
                 n_splits = self.args.kfold
-            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=n_splits, shuffle=True, random_state=0), n_jobs=-1)
+                cv_type = f'{n_splits}-fold CV'
+            txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV with {cv_type}: {num_descriptors} descriptors remaining'
+
+            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=n_splits, shuffle=True, random_state=0), n_jobs=None)
             X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
             y = csv_df_filtered[self.args.y]
             # Convert column names to strings to avoid any issues

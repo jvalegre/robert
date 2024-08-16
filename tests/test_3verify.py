@@ -89,7 +89,7 @@ def test_VERIFY(test_job):
                 assert "x y_mean: FAILED" in outlines[i+3]
                 assert "x y_shuffle: FAILED" in outlines[i+4]
             elif test_job == "kfold":
-                assert "x 10-shuf. CV: FAILED" in outlines[i+2]
+                assert "x 10-fold CV: FAILED" in outlines[i+2]
             elif test_job == "clas":
                 assert "LOOCV: " in outlines[i+2]
                 assert "MCC =" in outlines[i+3]

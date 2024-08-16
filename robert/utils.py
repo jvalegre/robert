@@ -206,7 +206,7 @@ o Other common options:
   --discard "[COL1,COL2,etc]" (default=[]) : CSV columns that will be removed
 
 * Affecting data curation in CURATE:
-  --kfold INT (default='auto') : number of random data splits for the cross-validation of the RFECV feature selector. If 'auto', the program uses 5 splits 
+  --kfold INT (default='auto') : number of folds for k-fold cross-validation of the RFECV feature selector. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
   --categorical "onehot" or "numbers" (default="onehot") : type of conversion for categorical variables
   --corr_filter BOOL (default=True) : disable the correlation filter
 
@@ -218,7 +218,7 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default='auto') : number of random data splits for the ShuffleSplit cross-validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5 splits during the ShuffleSplit CV for larger databases 
+  --kfold INT (default='auto') : number of folds for k-fold cross validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
   --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
 
 * Affecting predictions, PREDICT:
@@ -1043,10 +1043,9 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     my_conformity_score = AbsoluteConformityScore()
     my_conformity_score.consistency_check = False
 
-    # LOOCV for relatively small datasets (less than 50 datapoints)
-    y_combined = pd.concat([data['y_train'],data['y_valid']], axis=0).reset_index(drop=True)
+    # LOOCV for relatively small training sets (less than 50 datapoints), 5-fold CV otherwise
     if self.args.kfold == 'auto':
-        if len(y_combined) < 50:
+        if len(data['X_train_scaled']) < 50:
             cv_type = 'loocv'
             kfold_type = -1 # -1 for LOOCV in MAPIE
         else:

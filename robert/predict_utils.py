@@ -88,12 +88,6 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     Plot graphs of predicted vs actual values for train, validation and test sets
     '''
 
-    if params_dict['type'].lower() == 'clas':
-        # load the ML model
-        loaded_model = load_model(params_dict)
-        # Fit the model with the training set
-        loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])  
-
     set_types = ['train','valid']
     if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
         set_types.append('test')
@@ -105,24 +99,24 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
         # Plot graph with all sets
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
         # Plot CV average ± SD graph of validation or test set
-        _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,cv_graph=True)
+        _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,cv_mapie_graph=True)
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
             # Plot graph with all sets
             _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True)
             # Plot CV average ± SD graph of validation or test set
-            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True,cv_graph=True)
+            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True,cv_mapie_graph=True)
 
     elif params_dict['type'].lower() == 'clas':
         for set_type in set_types:
-            _ = graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix)
+            _ = graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix)
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
             set_type = 'csv_test'
-            _ = graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_test=True)
+            _ = graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=True)
 
     return graph_style
 
 
-def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,cv_graph=False):
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,cv_mapie_graph=False):
     '''
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     '''
@@ -143,19 +137,25 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
         error_bars = "test"
 
-    title_graph = graph_title(self,csv_test,set_types,cv_graph,error_bars,Xy_data)
+    title_graph = graph_title(self,csv_test,set_types,cv_mapie_graph,error_bars,Xy_data)
 
     if print_fun:
         plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
             fontsize=14, fontweight='bold', transform = ax.transAxes)
 
     # Plot the data
-    if not csv_test:
-        if not cv_graph:
+    # CV graphs from VERIFY
+    if 'CV' in set_types[0]:
+        _ = ax.scatter(Xy_data["y_cv_valid"], Xy_data["y_pred_cv_valid"],
+                    c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+
+    # other graphs
+    elif not csv_test:
+        if not cv_mapie_graph:
             _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
                         c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)   
                     
-        if not cv_graph or error_bars == 'valid':
+        if not cv_mapie_graph or error_bars == 'valid':
             _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
                         c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
@@ -168,8 +168,8 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
         _ = ax.scatter(Xy_data["y_csv_test"], Xy_data["y_pred_csv_test"],
                         c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
-    # average CV ± SD graphs 
-    if cv_graph:
+    # average CV (MAPIE) ± SD graphs 
+    if cv_mapie_graph:
         if not csv_test:   
             # Plot the data with the error bars
             _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
@@ -185,7 +185,9 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
     Xy_data_df = pd.DataFrame()
-    if not csv_test:
+    if 'CV' in set_types[0]:
+        line_suff = 'cv_valid'
+    elif not csv_test:
         line_suff = 'train'
     else:
         line_suff = 'csv_test'
@@ -197,7 +199,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
                         truncate = True, ax=ax, seed=params_dict['seed'])
 
     # set axis limits and graph PATH
-    min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_graph)
+    min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_mapie_graph)
 
     # Add gridlines
     ax.grid(linestyle='--', linewidth=1)
@@ -213,14 +215,18 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     plt.clf()
 
 
-def graph_title(self,csv_test,set_types,cv_graph,error_bars,Xy_data):
+def graph_title(self,csv_test,set_types,cv_mapie_graph,error_bars,Xy_data):
     '''
     Retrieves the corresponding graph title.
     '''
 
     # set title for regular graphs
-    if not cv_graph:
-        if not csv_test:
+    if not cv_mapie_graph:
+        # title for k-fold CV graphs
+        if 'CV' in set_types[0]:
+            title_graph = f'{set_types[0]} for train+valid. sets'
+        elif not csv_test:
+            # regular graphs
             title_graph = f'Predictions_train_valid'
             if 'test' in set_types:
                 title_graph += '_test'
@@ -244,13 +250,13 @@ def graph_title(self,csv_test,set_types,cv_graph,error_bars,Xy_data):
     return title_graph
 
 
-def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_graph):
+def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_mapie_graph):
     '''
-    Set axis limits for regression plots
+    Set axis limits for regression plots and PATH to save the graphs
     '''
 
-    # x and y axis limits
-    if not csv_test:
+    # x and y axis limits for graphs with multiple sets
+    if not csv_test and 'CV' not in set_types[0]:
         size_space = 0.1*abs(min(Xy_data["y_train"])-max(Xy_data["y_train"]))
         min_value_graph = min(min(Xy_data["y_train"]),min(Xy_data["y_pred_train"]),min(Xy_data["y_valid"]),min(Xy_data["y_pred_valid"]))
         if 'test' in set_types:
@@ -261,17 +267,23 @@ def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_graph):
         if 'test' in set_types:
             max_value_graph = max(max_value_graph,max(Xy_data["y_test"]),max(Xy_data["y_pred_test"]))
         max_value_graph = max_value_graph+size_space
-    
-    else:
-        size_space = 0.1*abs(min(Xy_data["y_csv_test"])-max(Xy_data["y_csv_test"]))
-        min_value_graph = min(min(Xy_data["y_csv_test"]),min(Xy_data["y_pred_csv_test"]))
+
+    else: # limits for graphs with only one set
+        if 'CV' in set_types[0]: # for CV graphs
+            set_type = 'cv_valid'
+        else: # for external test sets
+            set_type = 'csv_test'
+        size_space = 0.1*abs(min(Xy_data[f'y_{set_type}'])-max(Xy_data[f'y_{set_type}']))
+        min_value_graph = min(min(Xy_data[f'y_{set_type}']),min(Xy_data[f'y_pred_{set_type}']))
         min_value_graph = min_value_graph-size_space
-        max_value_graph = max(max(Xy_data["y_csv_test"]),max(Xy_data["y_pred_csv_test"]))
+        max_value_graph = max(max(Xy_data[f'y_{set_type}']),max(Xy_data[f'y_pred_{set_type}']))
         max_value_graph = max_value_graph+size_space
 
     # PATH of the graph
     if not csv_test:
-        if not cv_graph:
+        if 'CV' in set_types[0]:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_train_valid_predict_{os.path.basename(path_n_suffix)}.png'
+        elif not cv_mapie_graph:
             reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
         else:
             reg_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.png'
@@ -279,7 +291,7 @@ def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_graph):
 
     else:
         folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
-        if not cv_graph:
+        if not cv_mapie_graph:
             reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
         else:
             reg_plot_file = f'{folder_graph}/CV_variability_{os.path.basename(path_n_suffix)}.png'
@@ -288,15 +300,20 @@ def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_graph):
     return min_value_graph,max_value_graph,reg_plot_file,path_reduced
 
 
-def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,print_fun=True):
+def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,print_fun=True):
     '''
     Plot a confusion matrix with the prediction vs actual values
     '''
     
     plt.clf()
-    matrix = ConfusionMatrixDisplay.from_estimator(loaded_model, Xy_data[f'X_{set_type}_scaled'], Xy_data[f'y_{set_type}'], normalize=None, cmap='Blues') 
+    if 'CV' in set_type: # CV graphs
+        matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_cv_valid'], Xy_data[f'y_pred_cv_valid'], normalize=None, cmap='Blues') 
+    else: # other graphs
+        matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_{set_type}'], Xy_data[f'y_pred_{set_type}'], normalize=None, cmap='Blues') 
     if print_fun:
-        matrix.ax_.set_title(f'Confus. Matrix {set_type} set of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
+        if 'CV' not in set_type:
+            set_type = f'{set_type} set'
+        matrix.ax_.set_title(f'{set_type} of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
 
     plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
@@ -304,7 +321,11 @@ def graph_clas(self,loaded_model,Xy_data,params_dict,set_type,path_n_suffix,csv_
     plt.gcf().axes[1].tick_params(size=14)
 
     # save fig
-    if not csv_test:
+    if 'CV' in set_type: # CV graphs
+        clas_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_train_valid_predict_{os.path.basename(path_n_suffix)}.png'
+        path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-2:])
+
+    elif not csv_test:
         clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
         path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-2:])
 

@@ -26,27 +26,28 @@ import pandas as pd
 from pathlib import Path
 from robert.utils import (load_variables,
     pd_to_dict,
-    get_graph_style,
 )
-from robert.predict_utils import graph_reg
 from robert.report_utils import (
     get_csv_names,
     get_images,
     get_time,
     get_col_score,
+    calc_score,
+    adv_flawed,
+    adv_predict,
+    adv_cv_r2,
+    adv_cv_sd,
+    adv_cv_diff,
+    adv_descp,
     get_col_text,
-    get_verify_scores,
-    get_predict_scores,
     repro_info,
     make_report,
     css_content,
     format_lines,
     combine_cols,
-    get_y_values,
     revert_list,
     get_summary,
     get_col_transpa,
-    get_pts
 )
 
 class report:
@@ -175,6 +176,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
                 # include images and summary for No PFI and PFI models
                 data_lines += get_images('PREDICT',file=predict_file,pred_type=params_df['type'][0].lower())
+                data_lines +=f'<hr style="margin-top: 15px;">'
 
         return data_lines
 
@@ -185,13 +187,13 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         """
 
         # Reproducibility section
-        citation_dat, repro_dat, dat_files, csv_name, csv_test, robert_version = self.get_repro(modules)
+        citation_dat, repro_dat, dat_files, csv_name, robert_version = self.get_repro(modules)
 
         # Transparency section
         transpa_dat,params_df = self.get_transparency()
 
         # ROBERT score section
-        score_dat = self.get_score(dat_files,csv_test,params_df['type'][0].lower())
+        score_dat = self.print_score_section(dat_files,params_df['type'][0].lower())
 
         # abbreviation section
         abbrev_dat = self.get_abbrev()
@@ -199,7 +201,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         # combines the top image with the other sections of the header
         header_lines = f"""
             <h1 style="text-align: center; margin-bottom: 0.5em;">
-                <img src="file:///{self.args.path_icons}/Robert_logo.jpg" alt="" style="display: block; margin-left: auto; margin-right: auto; width: 50%; margin-top: -12px;" />
+                <img src="file:///{self.args.path_icons}/Robert_logo.jpg" alt="" style="display: block; margin-left: auto; margin-right: auto; width: 50%; margin-top: -18px;" />
                 <span style="font-weight:bold;"></span>
             </h1>
             {citation_dat}
@@ -213,7 +215,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         return header_lines,csv_name,robert_version,params_df
 
 
-    def get_score(self,dat_files,csv_test,pred_type):
+    def print_score_section(self,dat_files,pred_type):
         """
         Generates the ROBERT score section
         """
@@ -223,134 +225,121 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         score_dat = self.module_lines('score',score_dat) 
 
         # calculates the ROBERT scores (R2 is analogous for accuracy in classification)
-        outliers_warnings, r2_verify_warnings, descp_warning = 0,0,0
-        robert_score_list,columns_score = [],[]
-        
-        for suffix in ['No PFI','PFI']:
-            data_score,test_set = get_predict_scores(dat_files['PREDICT'],suffix,pred_type)
-            if data_score['outliers_score'] < 2:
-                outliers_warnings += 1
-            if data_score['descp_score'] < 2:
-                descp_warning += 1
+        robert_score_list = []
+        data_score = {}
+        # parts of the robert score section
+        score_sections = ['score_main']
+        score_sections.append('metrics_predict')
+        score_sections.append('adv_flawed')
+        score_sections.append('adv_flawed_extra')
+        score_sections.append('adv_predict')
+        score_sections.append('adv_cv_r2')
+        score_sections.append('adv_cv_sd')
+        score_sections.append('adv_cv_diff')
+        score_sections.append('adv_descp')
 
-            data_score['verify_score'],data_score['verify_extra_score'] = get_verify_scores(dat_files['VERIFY'],suffix,pred_type)
-            if pred_type == 'reg':
-                if data_score['r2_score'] < 2 or data_score['verify_score'] < 4:
-                    r2_verify_warnings += 1
-                robert_score = data_score['r2_score'] + data_score['outliers_score'] + data_score['verify_score'] + data_score['descp_score']
+        for section in score_sections:
+            columns_score = []
+            # get two columns to combine and print
+            for suffix in ['No PFI','PFI']:
+                # add spacing of PFI column
+                if suffix == 'No PFI':
+                    spacing_PFI = ''
+                elif suffix == 'PFI':
+                    spacing_PFI = '&nbsp;&nbsp;&nbsp;&nbsp;'
 
-            elif pred_type == 'clas':
-                if data_score['r2_score'] < 2 or data_score['verify_score'] < 2 or data_score['verify_extra_score'] < 2:
-                    r2_verify_warnings += 1
-                robert_score = data_score['r2_score'] + data_score['verify_score'] + data_score['verify_extra_score'] + data_score['descp_score']
-            
-            robert_score_list.append(robert_score)
+                if section == 'score_main':
+                    # calculate score
+                    robert_score,test_set,descp_warning = calc_score(dat_files,suffix,pred_type,data_score)
+                    robert_score_list.append(robert_score)
 
-            # add some spacing to the PFI column fo be aligned with the second half of the threshold section
-            if suffix == 'No PFI':
-                spacing_PFI = ''
-            elif suffix == 'PFI':
-                spacing_PFI = '&nbsp;&nbsp;&nbsp;&nbsp;'
+                    # initial two-column ROBERT score summary
+                    score_info = f"""{spacing_PFI}<img src="file:///{self.args.path_icons}/score_{robert_score}.jpg" alt="ROBERT Score" style="width: 100%; margin-top:7px; margin-bottom:-18px;">"""
+                    columns_score.append(get_col_score(score_info,data_score,suffix,spacing_PFI))
 
-            # prints the two-column ROBERT score summary
-            score_info = f"""{spacing_PFI}<img src="file:///{self.args.path_icons}/score_{robert_score}.jpg" alt="ROBERT Score" style="width: 100%; margin-top:5px;">
-<p style="text-align: justify; margin-top: -2px; margin-bottom: -2px;"><strong>{spacing_PFI}The model has a score of {robert_score}/10</strong><p>"""
+                elif section == 'metrics_predict':
+                    # metrics of the models
+                    module_file = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
+                    columns_score.append(get_summary('PREDICT',module_file,suffix,titles=False,pred_type=pred_type))
 
-            # get amount of points or lines to add
-            if suffix == 'No PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type,test_set))
-            elif suffix == 'PFI':
-                columns_score.append(get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type,test_set))
+                elif section == 'adv_flawed':
+                    # advanced score analysis 1, flawed models
+                    columns_score.append(adv_flawed(self,suffix,data_score,spacing_PFI,test_set))
 
-        # Combine both columns
-        score_dat += combine_cols(columns_score)
+                elif section == 'adv_predict':
+                    # advanced score analysis 2, predictive ability
+                    columns_score.append(adv_predict(self,suffix,data_score,spacing_PFI,test_set,pred_type))
 
-        # gets the result images from PREDICT
-        score_dat += self.get_results_img()
+                elif section == 'adv_cv_r2':
+                    # advanced score analysis 3 and 3a, predictive ability of CV
+                    columns_score.append(adv_cv_r2(self,suffix,data_score,spacing_PFI,pred_type))
 
-        # gets errors from PREDICT
-        columns_summary = []
-        module_file = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
-        for suffix in ['No PFI','PFI']:
-            # in the SCORE section, we only take the lines showing errors
-            columns_summary.append(get_summary('PREDICT',module_file,suffix,titles=False,pred_type=pred_type))
-        
-        # Combine both columns
-        score_dat += combine_cols(columns_summary)
-        
-        # represents the thresholds
-        score_dat += f"""
-<br><p style="text-align: justify; margin-top: -6px; margin-bottom: -2px;"></p>"""
-        
-        space_title = '&nbsp;'*21
-        threshold_cols = ''
-        if pred_type == 'reg':
-            lines_R2 = [f'{"&nbsp;"*1}<strong>R<sup>2</sup></strong>&nbsp;&nbsp;<u>{"&nbsp;"*27}</u>',
-                        f'<br>{"&nbsp;"*1}{get_pts(2)}{"&nbsp;"*2}  R<sup>2</sup> > 0.85{"&nbsp;"*11}',
-                        f'<br>{"&nbsp;"*1}{get_pts(1)}{"&nbsp;"*4}    0.85 > R<sup>2</sup> > 0.70',
-                        f'<br>{"&nbsp;"*1}{get_pts(0)}{"&nbsp;"*5}     R<sup>2</sup> < 0.70{"&nbsp;"*12}']
-            lines_outliers = [f'<strong>Outliers</strong>&nbsp;&nbsp;<u>{"&nbsp;"*27}</u>',
-                        f'{get_pts(2)}{"&nbsp;"*2}  < 7.5% of outliers{"&nbsp;"*7}',
-                        f'{get_pts(1)}{"&nbsp;"*4}    7.5% < outliers < 15%',
-                        f'{get_pts(0)}{"&nbsp;"*5}     > 15% of outliers{"&nbsp;"*8}']
-            lines_descp = [f'<strong>Points:descriptors</strong>&nbsp;&nbsp;<u>{"&nbsp;"*6}</u>',
-                        f'{get_pts(2)}{"&nbsp;"*2}  > 10:1 p:d ratio',
-                        f'{get_pts(1)}{"&nbsp;"*4}    10:1 > p:d ratio > 3:1',
-                        f'{get_pts(0)}{"&nbsp;"*5}     p:d ratio < 3:1']
-            lines_verify = [f'<strong>VERIFY tests</strong>&nbsp;&nbsp;<u>{"&nbsp;"*13}</u>',
-                        f'{"&nbsp;"*7}  Up to {get_pts(4)} (tests pass)',
-                        f'{get_pts(0)}&nbsp; (all tests failed)',
-                        f'']
-            for i,_ in enumerate(lines_R2):
-                threshold_cols += f'{lines_R2[i]}{"&nbsp;"*10}{lines_outliers[i]}{"&nbsp;"*10}{lines_descp[i]}{"&nbsp;"*9}{lines_verify[i]}'
+                elif section == 'adv_cv_sd' and pred_type == 'reg':
+                    # advanced score analysis 3b, SD of CV
+                    columns_score.append(adv_cv_sd(self,suffix,data_score,spacing_PFI,test_set))
 
+                elif section == 'adv_cv_diff' and pred_type == 'clas':
+                    # advanced score analysis 3b, difference of MCC in model and CV
+                    columns_score.append(adv_cv_diff(self,suffix,data_score,spacing_PFI,test_set))
 
-        elif pred_type == 'clas':
-            lines_R2 = [f'{"&nbsp;"*1}<strong>Accuracy</strong>&nbsp;&nbsp;<u>{"&nbsp;"*21}</u>',
-                        f'<br>{"&nbsp;"*1}{get_pts(2)}{"&nbsp;"*2}  Accuracy > 0.85{"&nbsp;"*7}',
-                        f'<br>{"&nbsp;"*1}{get_pts(1)}{"&nbsp;"*4}    0.85 > Accur. > 0.70',
-                        f'<br>{"&nbsp;"*2}{get_pts(0)}{"&nbsp;"*5}    Accur. < 0.70{"&nbsp;"*4}']
-            lines_outliers = [f'<strong>Outliers</strong>&nbsp;&nbsp;<u>{"&nbsp;"*19}</u>',
-                        f'{get_pts(0)}{"&nbsp;"*2}Excluded in classif.',
-                        f'{"&nbsp;"*35}',
-                        f'{"&nbsp;"*42}']
-            lines_descp = [f'<strong>Points:descriptors</strong>&nbsp;&nbsp;<u>{"&nbsp;"*7}</u>',
-                        f'{get_pts(2)}{"&nbsp;"*2}  > 10:1 p:d ratio{"&nbsp;"*1}',
-                        f'{get_pts(1)}{"&nbsp;"*4}    10:1 > p:d ratio > 3:1',
-                        f'{get_pts(0)}{"&nbsp;"*5}     p:d ratio < 3:1']
-            lines_verify = [f'<strong>VERIFY tests</strong>&nbsp;&nbsp;<u>{"&nbsp;"*13}</u>',
-                        f'{"&nbsp;"*8}{get_pts(2)}{"&nbsp;"*2}y-shuffle & y-mean',
-                        f'{get_pts(1)}{"&nbsp;"*4}CV & onehot',
-                        f'{"&nbsp;"*11}{get_pts(0)}{"&nbsp;"*5}(all tests failed)']
+                elif section == 'adv_descp':
+                    # advanced score analysis 4, descriptor proportion
+                    columns_score.append(adv_descp(self,suffix,data_score,spacing_PFI))
 
-            for i,_ in enumerate(lines_R2):
-                threshold_cols += f'{lines_R2[i]}{"&nbsp;"*10}{lines_outliers[i]}{"&nbsp;"*10}{lines_descp[i]}{"&nbsp;"*10}{lines_verify[i]}'
+            # Combine both columns
+            score_dat += combine_cols(columns_score)
 
-        score_dat += '''<style>
-        th, td {
-        border:0.75px solid black;
-        border-collapse: collapse;
-        padding: 5px;
-        text-align: justify;
-        }
-        '''
-        score_dat += f'''
-        </style>
-        <table style="width:100%">
-            <tr>
-                <td colspan="3">{space_title}<strong>Score thresholds</strong> <i>(detailed in https://robert.readthedocs.io/en/latest/Score/score.html)</i></td>
-            </tr>
-            <tr>
-                <td colspan="3">{threshold_cols}</td>
-            </tr>
-            <tr>
-        </table>'''
+            # add corresponding images
+            diff_height = 25 # account for different graph sizes in reg and clas
+            margin_bottom = -5 # margin for section separator
+            section_separator = f'<hr style="height: 0.5px; margin-top: 15px; margin-bottom: {margin_bottom}px; background-color:LightGray">'
+
+            if section == 'score_main':
+                height = 215
+                if pred_type == 'clas':
+                    if test_set:
+                        height += 17 # otherwise the first graph doesn't fit
+                    else:
+                        height += diff_height
+                score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,test_set=test_set,diff_names=True)
+
+            # add separator line between main and advanced analysis
+            elif section == 'metrics_predict':
+                score_dat += f'<hr style="height: 0.5px; margin-top: -2px; margin-bottom: 8px; background-color:LightGray">'
+
+            elif section == 'adv_flawed':
+                height = 238
+                if pred_type == 'clas':
+                    height -= 15
+                score_dat += self.print_img('VERIFY_tests',13,height,'VERIFY',pred_type)
+                # page break to second page
+                score_dat += f"""<p style="page-break-after: always;"></p>"""
+                score_dat += f'<hr style="height: 0.5px; margin-bottom: 13px; background-color:LightGray">'
+
+            elif section == 'adv_predict':
+                score_dat += section_separator
+
+            elif section == 'adv_cv_r2':
+                height = 215
+                if pred_type == 'clas':
+                    height += diff_height
+                score_dat += self.print_img('CV_train_valid_predict',10,height,'VERIFY',pred_type)
+
+            elif section == 'adv_cv_sd' and pred_type == 'reg':
+                score_dat += self.print_img('CV_variability',10,215,'PREDICT',pred_type)
+                score_dat += section_separator
+
+            elif section == 'adv_cv_diff' and pred_type == 'clas':
+                score_dat += section_separator
+
+            elif section == 'adv_descp':
+                score_dat += '<hr style="margin-top: 20px;">'
         
         score_dat += f"""<p style="page-break-after: always;"></p>"""
 
         # get some tips
-        score_dat += f"""
-<br><p style="text-align: justify; margin-top: -8px; margin-bottom: -2px;"><u>Some tips to improve the score</u></p>"""
+        score_dat += f"""<hr style="margin-top: 10px; margin-bottom: 35px">
+<p style="text-align: justify; margin-top: -8px; margin-bottom: -2px;"><u>Some tips to improve the score</u></p>"""
         
         n_scoring = 1
         style_line = '<p style="text-align: justify;">'
@@ -361,17 +350,9 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             n_scoring += 1
             style_line = reduced_line
         else:
-            datapoints = int(data_score['proportion_ratio'].split(':')[0])
+            datapoints = int(data_score[f'points_descp_ratio_{suffix}'].split(':')[0])
             if datapoints <= 50:
                 score_dat += f'{style_line}&#9888;&nbsp; The model uses only {datapoints} datapoints, adding meaningful datapoints might help to improve the model.</p>'
-                n_scoring += 1
-                style_line = reduced_line
-            if outliers_warnings > 0 and pred_type == 'reg':
-                if outliers_warnings == 1:
-                    outliers_warnings = 'One'
-                elif outliers_warnings == 2:
-                    outliers_warnings = 'Two'
-                score_dat += f'{style_line}&#9888;&nbsp; {outliers_warnings} of your models have more than 7.5% of outliers (5% is expected for a normal distribution with the t-value of 2 that ROBERT uses), using a more homogeneous distribution of results might help.</p>'
                 n_scoring += 1
                 style_line = reduced_line
             if descp_warning > 0:
@@ -408,8 +389,8 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         repro_dat,citation_dat = '',''
         
         # version, date and citation
-        citation_dat += f"""<p style="text-align: justify;"><br>{version_n_date}</p>
-        <p style="text-align: justify;  margin-top: -8px;"><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
+        citation_dat += f"""<p style="text-align: justify; margin-top: -15px;"><br>{version_n_date}</p>
+        <p style="text-align: justify;  margin-top: -10px;"><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
 
         aqme_workflow,aqme_updated = False,True
         crest_workflow = False
@@ -543,12 +524,13 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         # add total execution time
         repro_dat += f"""{reduced_line}Originally run in Python {python_version} using {platform.system()} {platform.version()}</p>"""
         repro_dat += f"""{reduced_line}Total execution time: {total_time} seconds <i>(the number of processors should be specified by the user)</i></p>"""
+        repro_dat +=f'<hr style="margin-top: 25px;">'
 
         repro_dat += f"""<p style="page-break-after: always;"></p>"""
 
         repro_dat = self.module_lines('repro',repro_dat) 
 
-        return citation_dat, repro_dat, dat_files, self.args.csv_name, self.args.csv_test, robert_version
+        return citation_dat, repro_dat, dat_files, self.args.csv_name, robert_version
 
 
     def get_transparency(self):
@@ -616,6 +598,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         columns_abbrev.append(get_col_text('abbrev_3'))
 
         abbrev_dat += combine_cols(columns_abbrev)
+        abbrev_dat +=f'<hr style="margin-top: 15px;">'
 
         abbrev_dat += f"""<p style="page-break-after: always;"></p>"""
 
@@ -635,7 +618,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             section_explain = f'<i style="text-align: justify;">This section contains important parameters used in scikit-learn models and ROBERT.</i>'
         elif module == 'score':
             module_name = 'ROBERT SCORE'
-            section_explain = f'<i style="text-align: justify;">This score is designed to analyze the predictive ability of the models using different metrics.</i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics.</i>'
         elif module == 'abbrev':
             module_name = 'ABBREVIATIONS'
             section_explain = f'<i style="text-align: justify;">Reference section for the abbreviations used.</i>'
@@ -645,8 +628,10 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         if module not in ['repro','transpa']:
             module_data = format_lines(module_data)
         module_data = '<div class="aqme-content"><pre>' + module_data + '</pre></div>'
-        separator_section = ''
-        separator_section = '<hr><p style="margin-top:25px;"></p>'
+        if module == 'score':
+            separator_section = '<hr><p style="margin-top:23px;"></p>'
+        else:
+            separator_section = '<hr><p style="margin-top:25px;"></p>'
 
         title_line = f"""
             {separator_section}
@@ -661,75 +646,46 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         return title_line
 
 
-    def get_results_img(self):
+    def print_img(self,file_name,margin_top,height,module,pred_type,test_set=False,diff_names=False):
         """
         Generate the string that includes the results images from PREDICT
         """
         
-        # first, generates graphs with no titles
+        module_path = Path(f'{os.getcwd()}/{module}')
 
-        # get all the y and y_pred
-        module_path = Path(f'{os.getcwd()}/PREDICT')
-        csv_files = [str(file_path) for file_path in module_path.rglob('*.csv')]
-        graph_style = get_graph_style()
+        # detect test
+        set_types = ['train','valid']
+        if test_set:
+            set_types.append('test')
 
-        for suffix in ['No_PFI','PFI']:
-            # set the parameters for each ML model
-            params_dir = f'{self.args.params_dir}/{suffix}'
-            files_param = glob.glob(f'{params_dir}/*.csv')
-            for file_param in files_param:
-                if '_db' not in file_param:
-                    params_df = pd.read_csv(file_param, encoding='utf-8')
-            params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
+        module_path = Path(f'{os.getcwd()}/{module}')
 
-            # get y and y_pred values
-            Xy_data = {}
-            for file in csv_files:
-                plot_graph = False
-                if suffix == 'No_PFI' and suffix in file:
-                    plot_graph = True
-                elif suffix == 'PFI' and 'No_PFI' not in file:
-                    plot_graph = True
-                if plot_graph:
-                    if f'_train_{suffix}.csv' in file:
-                        Xy_data["y_train"], Xy_data["y_pred_train"] = get_y_values(file,params_dict["y"])
-                    elif f'_valid_{suffix}.csv' in file:
-                        Xy_data["y_valid"], Xy_data["y_pred_valid"] = get_y_values(file,params_dict["y"])
-                    elif f'_test_{suffix}.csv' in file:
-                        Xy_data["y_test"], Xy_data["y_pred_test"] = get_y_values(file,params_dict["y"])
-
-            set_types = ['train','valid']
-            if 'y_test' in Xy_data:
-                set_types.append('test')
-            
-            path_n_suffix = f'{module_path}/Results_{suffix}_REPORT' # I add "_REPORT" to the file so I can delete these files later
-
-            if params_dict['type'].lower() == 'reg':
-                _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,print_fun=False)
-
-        module_path = Path(f'{os.getcwd()}/PREDICT')
-        if params_dict['type'].lower() == 'reg':
-            results_images = [str(file_path) for file_path in module_path.rglob('*_REPORT.png')]
-        elif params_dict['type'].lower() == 'clas':
-            results_images  = []
-            all_images = [str(file_path) for file_path in module_path.rglob('*.png')]
-            for img in all_images:
-                if 'test' in set_types:
-                    if 'Results' in img and '_test.png' in img:
-                        results_images.append(img)
-                else:
-                    if 'Results' in img and '_valid.png' in img:
-                        results_images.append(img)
+        # different names for reg and clas problems, only for results images from PREDICT
+        if diff_names:
+            if pred_type.lower() == 'reg':
+                results_images = [str(file_path) for file_path in module_path.rglob(f'{file_name}_*.png')]
+            elif pred_type.lower() == 'clas':
+                results_images  = []
+                all_images = [str(file_path) for file_path in module_path.rglob('*.png')]
+                for img in all_images:
+                    if 'test' in set_types:
+                        if file_name in img and '_test.png' in img:
+                            results_images.append(img)
+                    else:
+                        if file_name in img and '_valid.png' in img:
+                            results_images.append(img)
+        # images with no suffixes in the names
+        else:
+            results_images = [str(file_path) for file_path in module_path.rglob(f'{file_name}_*.png')]
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
-        if 'No_PFI' in results_images[1]:
-            results_images = revert_list(results_images)
+        results_images = revert_list(results_images)
         
-        # define widths the graphs
+        # define widths of the graphs
         width = 91
-        pair_list = f'<p style="width: {width}%; margin-bottom: -2px;  margin-top: -5px"><img src="file:///{results_images[0]}" style="margin: 0"/>'
-        pair_list += f'{("&nbsp;")*15}'
-        pair_list += f'<img src="file:///{results_images[1]}" style="margin: 0"/></p>'
+        pair_list = f'<p style="width: {width}%; margin-bottom: -2px;  margin-top: {margin_top}px"><img src="file:///{results_images[0]}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
+        pair_list += f'{("&nbsp;")*17}'
+        pair_list += f'<img src="file:///{results_images[1]}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/></p>'
 
         html_png = f'{pair_list}'
 

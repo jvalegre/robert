@@ -218,7 +218,7 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default='auto') : number of folds for k-fold cross validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
+  --kfold INT (default='auto') : number of folds for k-fold cross-validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
   --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
 
 * Affecting predictions, PREDICT:

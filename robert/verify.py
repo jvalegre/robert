@@ -13,9 +13,9 @@ Parameters
         the RMSE (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
         original value). Test passes if:
         1. y-mean, y-shuffle and one-hot encoding tests: the error is greater than 25% (from original MAE and RMSE for regressors)
-        2. Cross validation: the error is lower than 25%
+        2. Cross-validation: the error is lower than 25%
     kfold : int, default='auto',
-        Number of folds for the k-fold cross validation. If 'auto', the program does 
+        Number of folds for the k-fold cross-validation. If 'auto', the program does 
         a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
 
 """
@@ -26,12 +26,10 @@ Parameters
 
 import os
 import time
-import matplotlib
 from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerPatch
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch, ArrowStyle
-import matplotlib.lines as lines
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -100,7 +98,7 @@ class verify:
                 verify_results['original_score_train'] = Xy_orig[f'{verify_results["error_type"]}_train']
                 verify_results['original_score_valid'] = Xy_orig[f'{verify_results["error_type"]}_valid']
 
-                # calculate cross validation
+                # calculate cross-validation
                 verify_results,type_cv,path_n_suffix = self.cv_test(verify_results,Xy_data,params_dict,params_path,suffix_title)
 
                 # calculate scores for the y-mean test
@@ -138,7 +136,7 @@ class verify:
 
     def cv_test(self,verify_results,Xy_data,params_dict,params_path,suffix_title):
         '''
-        Performs a cross validation on the training+validation dataset.
+        Performs a cross-validation on the training+validation dataset.
         '''      
 
         # set PATH names and plot
@@ -287,79 +285,34 @@ class verify:
 
         blue_color = '#1f77b4'
         red_color = '#cd5c5c'
-        colors = [None,None,None,None]
-        results_print = [None,None,None,None,None]
-        metrics = [None,None,None,None]
+        colors = [None,None,None]
+        results_print = [None,None,None]
+        metrics = [None,None,None]
+        thres_test = self.args.thres_test                
 
-        # initial evaluation of the tests and adjusting the thresholds
-        # NOTE: by default, the thresholds are set to ± 25% of the original score. However,
-        # there are cases in where the statistical tests (y-mean, onehot and y-shuffle) give values
-        # that show errors way passed these thresholds. In such cases, the thresholds are
-        # increased to give more flexibility to the k-fold CV test (considering the big difference
-        # between the original and the three flawed models).
-        if verify_results['error_type'].lower() in ['mae','rmse']:
-            lowest_flawed = min([verify_results['y_mean'],verify_results['onehot'],verify_results['y_shuffle']])
-            if lowest_flawed > 3*verify_results['original_score_valid']: # the best flawed model has x3 times more error
-                # the value is adjusted so is 1/4 close to the original model and 3/4 far from the flawed models
-                diff_flawed_orig = lowest_flawed - verify_results['original_score_valid']
-                new_thres_value = lowest_flawed - (0.75*diff_flawed_orig)
-                thres_test = round((new_thres_value/verify_results['original_score_valid'])-1, 2)
-                results_print[4] = f'\n      Theshold adjusted to {int(thres_test*100)}% (big errors in flawed tests)'
-            else:
-                thres_test = self.args.thres_test
-        else:
-            highest_flawed = max([verify_results['y_mean'],verify_results['onehot'],verify_results['y_shuffle']])
-            if highest_flawed < verify_results['original_score_valid']/3: # the best flawed model has x3 times more error
-                diff_flawed_orig = verify_results['original_score_valid'] - highest_flawed
-                new_thres_value = highest_flawed + (0.75*diff_flawed_orig)
-                thres_test = round(1-(new_thres_value/verify_results['original_score_valid']), 2)
-                results_print[4] = f'\n      Theshold adjusted to {int(thres_test*100)}% (big errors in flawed tests)'
-            else:
-                thres_test = self.args.thres_test
-
-        # these thresholds use validation results to compare in the tests
+        # the threshold uses validation results to compare in the tests
         verify_results['higher_thres'] = (1+thres_test)*verify_results['original_score_valid']
         verify_results['lower_thres'] = (1-thres_test)*verify_results['original_score_valid']
 
         # determine whether the tests pass
-        test_names = ['cv_score','y_mean','y_shuffle','onehot']
+        test_names = ['y_mean','y_shuffle','onehot']
         for i,test_ver in enumerate(test_names):
             metrics[i] = verify_results[test_ver]
             if verify_results['error_type'].lower() in ['mae','rmse']:
                 if verify_results[test_ver] <= verify_results['higher_thres']:
-                    if test_ver != 'cv_score':
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thres.'
-                    else:
-                        colors[i] = blue_color
-                        results_print[i] = f'\n         o {type_cv}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thres.'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, lower than thres.'
                 else:
-                    if test_ver != 'cv_score':
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thres.'
-                    else:
-                        colors[i] = red_color
-                        results_print[i] = f'\n         x {type_cv}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thres.'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, higher than thres.'
 
             else:
                 if verify_results[test_ver] >= verify_results['lower_thres']:
-                    if test_ver != 'cv_score':
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thres.'
-                    else:
-                        colors[i] = blue_color
-                        results_print[i] = f'\n         o {type_cv}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thres.'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, higher than thres.'
                 else:
-                    if test_ver != 'cv_score':
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thres.'
-                    else:
-                        colors[i] = red_color
-                        results_print[i] = f'\n         x {type_cv}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thres.'
-
-        for i,ele in enumerate(test_names):
-            if ele == 'cv_score':
-                test_names[i] = type_cv
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, lower than thres.'
 
         # store metrics and colors to represent in comparison graph, adding the metrics of the 
         # original model first
@@ -380,69 +333,56 @@ class verify:
 
     def plot_metrics(self,path_n_suffix,verify_metrics,verify_results):
         '''
-        Creates a plot with the results of VERIFY
+        Creates a plot with the results of the flawed models in VERIFY
         '''
 
         sb.reset_defaults()
         sb.set(style="ticks")
-        fig, (ax1, ax2) =  plt.subplots(1, 2, sharex=False, sharey= False, figsize=(7.45,6), 
-                                    constrained_layout=True, gridspec_kw={
-                                                            'width_ratios': [1, 1.3],
-                                                            'wspace': 0.07}) 
-
-        width_1 = 0.67 # respect to the original size of the bar (i.e. single bar takes whole graph)
-        width_2 = 0.75
-        for test_metric,test_name,test_color in zip(verify_metrics['metrics'],verify_metrics['test_names'],verify_metrics['colors']):
-            # flawed models
-            if test_name in ['y_mean','y_shuffle','onehot']:
-                rects = ax2.bar(test_name, round(test_metric,2), label=test_name, 
-                                width=width_2, linewidth=1, edgecolor='k', 
-                                color=test_color, zorder=2)
-                ax2.bar_label(rects, padding=3, backgroundcolor='w', zorder=1) # adds values on top of the bars
-            # original and CV
-            else:
-                rects = ax1.bar(test_name, round(test_metric,2), label=test_name,
-                                width=width_1, linewidth=1, edgecolor='k', 
-                                color=test_color, zorder=2)
-                ax1.bar_label(rects, padding=3, backgroundcolor='w', zorder=1)
-
-        # styling preferences
-        ax1.tick_params(axis='y', labelsize=14)
-        ax1.tick_params(axis='x', labelsize=14)
-        ax2.tick_params(axis='y', labelsize=14, labelleft=False, left = False)
-        ax2.tick_params(axis='x', labelsize=14)
-
-        # title and labels of the axis
-        ax1.set_ylabel(f'{verify_results["error_type"].upper()}', fontsize=14)
-
-        # borders
-        ax1.spines[['right', 'top']].set_visible(False)
-        ax2.spines[['right', 'top', 'left']].set_visible(False)
+        _, ax = plt.subplots(figsize=(7.45,6))
 
         # axis limits
         max_val = max(verify_metrics['metrics'])
+        min_val = min(verify_metrics['metrics'])
+        range_vals = np.abs(max_val - min_val)
         if verify_results['error_type'].lower() in ['mae','rmse']:
             max_lim = 1.2*max_val
             min_lim = 0
         else:
-            min_val = min(verify_metrics['metrics'])
-            range_vals = np.abs(max_val - min_val)
             max_lim = max_val + (0.2*range_vals)
             min_lim = min_val - (0.1*range_vals)
-        ax1.set_ylim([min_lim, max_lim])
-        ax2.set_ylim([min_lim, max_lim])
+        plt.ylim(min_lim, max_lim)
+        plt.ylim(min_lim, max_lim)
 
-        # titles and line separating titles
-        fontsize = 14
-        artist = lines.Line2D([0.31, 0.72], [0.975, 0.975],color='k',linewidth=1) # format: [x1,x2], [y1,y2]
-        fig.add_artist(artist)
-        matplotlib.artist.Artist.set_zorder(artist,2)
-        fig.text(0.17, 0.968, 'Model & cross-valid.', fontsize=fontsize,
-                 backgroundcolor='w', zorder=3)
-        fig.text(0.645, 0.968, '"Flawed" models', fontsize=fontsize,
-                 backgroundcolor='w', zorder=3)
-        title_verify = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
-        plt.suptitle(title_verify, y=1.06, fontsize = fontsize, fontweight="bold")
+        width_bar = 0.55
+        label_count = 0
+        for test_metric,test_name,test_color in zip(verify_metrics['metrics'],verify_metrics['test_names'],verify_metrics['colors']):
+            rects = ax.bar(test_name, round(test_metric,2), label=test_name, 
+                   width=width_bar, linewidth=1, edgecolor='k', 
+                   color=test_color, zorder=2)
+            # plot whether the tests pass or fail
+            if test_name != 'Model':
+                if test_metric >= 0:
+                    offset_txt = test_metric+(0.05*range_vals)
+                else:
+                    offset_txt = test_metric-(0.05*range_vals)
+                if test_color == '#1f77b4':
+                    txt_bar = 'pass'
+                elif test_color == '#cd5c5c':
+                    txt_bar = 'fail'
+                ax.text(label_count, offset_txt, txt_bar, color=test_color, 
+                        fontstyle='italic', horizontalalignment='center')
+            label_count += 1
+
+        # Set tick sizes
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+
+        # title and labels of the axis
+        plt.ylabel(f'{verify_results["error_type"].upper()}', fontsize=14)
+
+        title_graph = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
+        plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
 
         # add threshold line and arrow indicating passed test direction
         arrow_length = np.abs(max_lim-min_lim)/11
@@ -454,21 +394,17 @@ class verify:
             arrow_length = -arrow_length
 
         width = 2
-        thres = ax1.axhline(thres_line,color='black',ls='--', label='thres', zorder=0)
-        ax2.axhline(thres_line,color='black',ls='--', zorder=0)
+        xmin = 0.237
+        thres = ax.axhline(thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
 
-        x1,x2 = 1.7, 2.7
+        x_arrow = 0.5
         style = ArrowStyle('simple', head_length=4.5*width, head_width=3.5*width, tail_width=width)
-        arrow_1 = FancyArrowPatch((x1, thres_line), (x1, thres_line-arrow_length), 
+        arrow = FancyArrowPatch((x_arrow, thres_line), (x_arrow, thres_line+arrow_length), 
                                 arrowstyle=style, color='k')  # (x1,y1), (x2,y2) vector direction                   
-        ax1.add_patch(arrow_1)
-        arrow_2 = FancyArrowPatch((x2, thres_line), (x2, thres_line+arrow_length), 
-                                arrowstyle=style, color='k')
-        ax2.add_patch(arrow_2)
+        ax.add_patch(arrow)
 
         # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
-        ax1.arrow(1.7, thres_line, 0, 0, width=0) # x,y,dx,dy format
-        ax2.arrow(2.7, thres_line, 0, 0, width=0, fc='k', ec='k') # x,y,dx,dy format
+        ax.arrow(x_arrow, thres_line, 0, 0, width=0, fc='k', ec='k') # x,y,dx,dy format
 
         # legend and regression line with 95% CI considering all possible lines (not CI of the points)
         def make_legend_arrow(legend, orig_handle,
@@ -478,9 +414,12 @@ class verify:
             return p
 
         arrow = plt.arrow(0, 0, 0, 0, label='arrow', width=0, fc='k', ec='k') # arrow for the legend
-        plt.figlegend([thres,arrow], [f'Threshold ({verify_results["error_type"].upper()} = {round(thres_line,2)})  ','Test-passing condition'], handler_map={mpatches.FancyArrow : HandlerPatch(patch_func=make_legend_arrow),},
-                      loc="lower center", ncol=2, bbox_to_anchor=(0.5, -0.1),
+        plt.figlegend([thres,arrow], [f'Threshold ({verify_results["error_type"].upper()} = {round(thres_line,2)})','Passing condition'], handler_map={mpatches.FancyArrow : HandlerPatch(patch_func=make_legend_arrow),},
+                      loc="lower center", ncol=2, bbox_to_anchor=(0.5, -0.05),
                       fancybox=True, shadow=True, fontsize=14)
+
+        # Add gridlines
+        ax.grid(linestyle='--', linewidth=1)
 
         # save plot
         verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
@@ -501,22 +440,20 @@ class verify:
         verify_results_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.dat'
         path_reduced = '/'.join(f'{verify_results_file}'.replace('\\','/').split('/')[-2:])
         print_ver += f"\n   o  VERIFY test values saved in {path_reduced}"
-        print_ver += f'\n      Results of the VERIFY tests:'
-        # the printing order should be CV, y-mean, y-shuffle and one-hot
-        if results_print[4] is not None:
-            print_ver += results_print[4] # in case the threshold was modified
+        print_ver += f'\n      Results of flawed models and cross-validation:'
+        # the printing order should be y-mean, y-shuffle and one-hot
         if verify_results['error_type'].lower() in ['mae','rmse']:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} + {int(verify_metrics["thres_test"]*100)}% thres. = {verify_results["higher_thres"]:.2}'
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {round(verify_results["original_score_valid"],2)} + {int(verify_metrics["thres_test"]*100)}% thres. = {round(verify_results["higher_thres"],2)}'
         else:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {verify_results["original_score_valid"]:.2} - {int(verify_metrics["thres_test"]*100)}% thres. = {verify_results["lower_thres"]:.2}'
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {round(verify_results["original_score_valid"],2)} - {int(verify_metrics["thres_test"]*100)}% thres. = {round(verify_results["lower_thres"],2)}'
         print_ver += results_print[0]
         print_ver += results_print[1]
         print_ver += results_print[2]
-        print_ver += results_print[3]
         if params_dict['type'].lower() == 'reg':
-            print_ver += f"\n      -  {verify_metrics['type_cv']} : R2 = {verify_results['cv_r2']:.2}, MAE = {verify_results['cv_mae']:.2}, RMSE = {verify_results['cv_rmse']:.2}"
+            print_ver += f"\n         - {verify_metrics['type_cv']} : R2 = {round(verify_results['cv_r2'],2)}, MAE = {round(verify_results['cv_mae'],2)}, RMSE = {round(verify_results['cv_rmse'],2)}"
         elif params_dict['type'].lower() == 'clas':
-            print_ver += f"\n      -  {verify_metrics['type_cv']} : Accuracy = {verify_results['cv_acc']:.2}, F1 score = {verify_results['cv_f1']:.2}, MCC = {verify_results['cv_mcc']:.2}"
+            print_ver += f"\n         - {verify_metrics['type_cv']} : Accuracy = {round(verify_results['cv_acc'],2)}, F1 score = {round(verify_results['cv_f1'],2)}, MCC = {round(verify_results['cv_mcc'],2)}"
+
         self.args.log.write(print_ver)
         dat_results = open(verify_results_file, "w")
         dat_results.write(print_ver)

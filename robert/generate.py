@@ -81,8 +81,8 @@ Parameters
         filter are used.
     test_set : float, default=0.1
         Amount of datapoints to separate as external test set. These points will not be used during the
-        hyperoptimization, and PREDICT will be used the points as test set during ROBERT workflows. The separation
-        of test points occurs at random before any data splits are carried out inside the GENErATE screening.
+        hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select
+        --test_set 0 to use only training and validation.
     auto_test : bool, default=True
         Removes test sets in databases with less than 50 datapoints and raises % of test points to 10% if 
         test_set is lower than that.
@@ -223,52 +223,48 @@ class generate:
                 elif self.args.test_set < 0.1:
                     self.args.test_set = 0.1
                     self.args.log.write(f'\nx    WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
+
+        if self.args.test_set > 0:
+                self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data was separated as test set, using an even distribution of data points across the range of y values. The remaining data points will be split into training and validation.')
+
+                n_of_points = int(len(csv_X)*(self.args.test_set))
+
+                # this number must be 0 always, as it changes everything related to random seeds across the generate module
+                random.seed(0)
+                
+                # sometimes, using random selection leads to a test set with values that are not evenly
+                # distributed across the range of y values. In this part, we aim to create a test set 
+                # whose values cover a significant range of the y values
+                test_points = []
+
+                # first, we divide the y values into 5 (<100 datapoints) or 10 (>=100 datapoints) different sections
+                sorted_csv_y = csv_y.sort_values()
+                indexes = list(sorted_csv_y.index)
+                if len(indexes) < 100:
+                    section_n = 5
                 else:
-                    self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data was separated as test set, using an even distribution of data points across the range of y values. The remaining data points will be split into training and validation.')
-
-
-                if self.args.test_set > 0:
-                    n_of_points = int(len(csv_X)*(self.args.test_set))
-
-                    # this number must be 0 always, as it changes everything related to random seeds across the generate module
-                    random.seed(0)
-                    
-                    # sometimes, using random selection leads to a test set with values that are not evenly
-                    # distributed across the range of y values. In this part, we aim to create a test set 
-                    # whose values cover a significant range of the y values
-                    test_points = []
-
-                    # first, we divide the y values into 5 (<100 datapoints) or 10 (>=100 datapoints) different sections
-                    sorted_csv_y = csv_y.sort_values()
-                    indexes = list(sorted_csv_y.index)
-                    if len(indexes) < 100:
-                        section_n = 5
+                    section_n = 10
+                range_section = round(len(indexes)/section_n) # do not use int(), the last section might get too many numbers
+                sections = {}
+                for section in range(section_n):
+                    if section == section_n-1:
+                        sections[section] = indexes[section*range_section:]
                     else:
-                        section_n = 10
-                    range_section = round(len(indexes)/section_n) # do not use int(), the last section might get too many numbers
-                    sections = {}
-                    for section in range(section_n):
-                        if section == section_n-1:
-                            sections[section] = indexes[section*range_section:]
-                        else:
-                            sections[section] = indexes[section*range_section:(section+1)*range_section]
+                        sections[section] = indexes[section*range_section:(section+1)*range_section]
 
-                    while len(test_points) < n_of_points:
-                        for section in sections:
-                            if len(test_points) < n_of_points:
-                                new_point = random.sample(sections[section],1)[0]
-                                sections[section].remove(new_point)
-                                test_points.append(new_point)
+                while len(test_points) < n_of_points:
+                    for section in sections:
+                        if len(test_points) < n_of_points:
+                            new_point = random.sample(sections[section],1)[0]
+                            sections[section].remove(new_point)
+                            test_points.append(new_point)
 
-                    # separates the test set and reset_indexes
-                    csv_df_test = csv_df.iloc[test_points].reset_index(drop=True)
-                    csv_df = csv_df.drop(test_points, axis=0).reset_index(drop=True)
-                    csv_X = csv_X.drop(test_points, axis=0).reset_index(drop=True)
-                    csv_y = csv_y.drop(test_points, axis=0).reset_index(drop=True)
-        
-        else:
-            self.args.test_set = 0
-
+                # separates the test set and reset_indexes
+                csv_df_test = csv_df.iloc[test_points].reset_index(drop=True)
+                csv_df = csv_df.drop(test_points, axis=0).reset_index(drop=True)
+                csv_X = csv_X.drop(test_points, axis=0).reset_index(drop=True)
+                csv_y = csv_y.drop(test_points, axis=0).reset_index(drop=True)
+    
         return csv_df, csv_X, csv_y, csv_df_test
 
 

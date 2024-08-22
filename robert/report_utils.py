@@ -6,6 +6,7 @@ import os
 import sys
 import glob
 import pandas as pd
+import numpy as np
 import textwrap
 from pathlib import Path
 
@@ -65,10 +66,27 @@ def get_images(module,file=None,pred_type='reg'):
         image_caption += combine_cols(columns_score)
 
     if module == 'VERIFY':
-        if len(module_images) == 2 and 'No_PFI' in module_images[1]:
-            module_images = revert_list(module_images)
+        flawed_models, cv_results = [],[]
+        for image_path in module_images:
+            filename = Path(image_path).stem
+            if "VERIFY_tests_" in filename:
+                flawed_models.append(image_path)
+            elif "CV_train_valid_predict_" in filename:
+                cv_results.append(image_path)
 
-    if module == 'PREDICT':
+        # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
+        flawed_models = revert_list(flawed_models)
+        cv_results = revert_list(cv_results)
+
+        image_pair_list = [flawed_models, cv_results]
+
+        html_png = ''
+        for _,image_pair in enumerate(image_pair_list):
+            pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in image_pair])
+            html_png += f'<pre style="text-align: center;">{pair_list}</pre>'
+
+    elif module == 'PREDICT':
+        # this needs refactoring (all these lists inside a dict, then for loop to do all the reverse lists)
         results_images = []
         results_train, results_valid, results_test = [],[],[]
         shap_images = []
@@ -80,17 +98,16 @@ def get_images(module,file=None,pred_type='reg'):
 
         for image_path in module_images:
             filename = Path(image_path).stem
-            if "_REPORT" not in filename:
-                if "Results_" in filename:
-                    results_images.append(image_path)
-                elif "CV_variability_" in filename:
-                    variability_images.append(image_path)
-                elif "SHAP_" in filename:
-                    shap_images.append(image_path)
-                elif "Outliers_" in filename:
-                    outliers_images.append(image_path)
-                elif "PFI_" in filename:
-                    pfi_images.append(image_path)
+            if "Results_" in filename:
+                results_images.append(image_path)
+            elif "CV_variability_" in filename:
+                variability_images.append(image_path)
+            elif "SHAP_" in filename:
+                shap_images.append(image_path)
+            elif "Outliers_" in filename:
+                outliers_images.append(image_path)
+            elif "PFI_" in filename:
+                pfi_images.append(image_path)
 
         if pred_type == 'clas':
             for image_path in module_images:
@@ -111,26 +128,16 @@ def get_images(module,file=None,pred_type='reg'):
                     csv_test_images_variability.append(image_path)
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
-        if len(results_images) == 2 and 'No_PFI' in results_images[1]:
-            results_images = revert_list(results_images)
-        if len(results_train) == 2 and 'No_PFI' in results_train[1]:
-            results_train = revert_list(results_train)
-        if len(results_valid) == 2 and 'No_PFI' in results_valid[1]:
-            results_valid = revert_list(results_valid)
-        if len(results_test) == 2 and 'No_PFI' in results_test[1]:
-            results_test = revert_list(results_test)
-        if len(variability_images) == 2 and 'No_PFI' in variability_images[1]:
-            variability_images = revert_list(variability_images)
-        if len(shap_images) == 2 and 'No_PFI' in shap_images[1]:
-            shap_images = revert_list(shap_images)
-        if len(pfi_images) == 2 and 'No_PFI' in pfi_images[1]:
-            pfi_images = revert_list(pfi_images)
-        if len(outliers_images) == 2 and 'No_PFI' in outliers_images[1]:
-            outliers_images = revert_list(outliers_images)
-        if len(csv_test_images_results) == 2 and 'No_PFI' in csv_test_images_results[1]:
-            csv_test_images_results = revert_list(csv_test_images_results)
-        if len(csv_test_images_variability) == 2 and 'No_PFI' in csv_test_images_variability[1]:
-            csv_test_images_variability = revert_list(csv_test_images_variability)
+        results_images = revert_list(results_images)
+        results_train = revert_list(results_train)
+        results_valid = revert_list(results_valid)
+        results_test = revert_list(results_test)
+        variability_images = revert_list(variability_images)
+        shap_images = revert_list(shap_images)
+        pfi_images = revert_list(pfi_images)
+        outliers_images = revert_list(outliers_images)
+        csv_test_images_results = revert_list(csv_test_images_results)
+        csv_test_images_variability = revert_list(csv_test_images_variability)
 
         if pred_type == 'reg':
             image_pair_list = [results_images, variability_images, shap_images, pfi_images, outliers_images,csv_test_images_results]
@@ -148,7 +155,7 @@ def get_images(module,file=None,pred_type='reg'):
         path_csv_test = ''
         with open(file, 'r') as datfile:
             lines = datfile.readlines()
-            for i,line in enumerate(lines):
+            for _,line in enumerate(lines):
                 if '- Target value:' in line:
                     y_value = line.split()[-1]
                 elif '- Names:' in line:
@@ -165,27 +172,27 @@ def get_images(module,file=None,pred_type='reg'):
                 metrics_dat = get_csv_metrics(module_file,suffix)
                 if metrics_dat != f'<u>csv_test metrics</u>\n':
                     columns_metrics.append(metrics_dat)
-            
+
             # combine both metrics columns and add them if they exist
             if len(columns_metrics) == 2:
                 metrics = combine_cols(columns_metrics)
                 html_predictions += f'<pre style="text-align: justify;">{metrics}</pre>'
 
             # add csv_test images if they exist
-            for _,image_pair_test in enumerate(image_pair_list_test):
-                pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in image_pair_test])
-                html_predictions += f'<pre style="text-align: center;">{pair_list}</pre>'
+            if len(image_pair_list_test) > 0:
+                for _,image_pair_test in enumerate(image_pair_list_test):
+                    pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: -10px; margin-top: -45px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in image_pair_test])
+                    html_predictions += f'<pre style="text-align: center;">{pair_list}</pre>'
 
             # add predictions table
             columns_predictions = []
-            if pred_type == 'reg':
-                for suffix in ['No PFI','PFI']:
-                    pred_dat = get_csv_pred(suffix,path_csv_test,y_value,names)
-                    columns_predictions.append(pred_dat)
-                
-                # Combine both prediction columns
-                predictions = combine_cols(columns_predictions)
-                html_predictions += f'<pre style="text-align: justify;">{predictions}</pre>'
+            for suffix in ['No PFI','PFI']:
+                pred_dat = get_csv_pred(suffix,path_csv_test,y_value,names)
+                columns_predictions.append(pred_dat)
+            
+            # Combine both prediction columns
+            predictions = combine_cols(columns_predictions)
+            html_predictions += f'<pre style="text-align: justify;">{predictions}</pre>'
 
     else:
         pair_list = ''.join([f'<img src="file:///{image_path}" style="margin-bottom: 10px; margin-top: 10px; margin-left: -13px; width: 100%, margin: 0"/>' for image_path in module_images])
@@ -276,7 +283,7 @@ def get_summary(module,file,suffix,titles=True,pred_type='reg'):
     if titles:
         if suffix == 'No PFI':
             column = f"""
-            <p><span style="font-weight:bold;">No PFI (all descriptors):</span></p>
+            <p><span style="font-weight:bold;">No PFI (standard descriptor filter):</span></p>
             <pre style="text-align: justify;">{summary}</pre>
             """
 
@@ -284,13 +291,14 @@ def get_summary(module,file,suffix,titles=True,pred_type='reg'):
         elif suffix == 'PFI':
             if titles:
                 column = f"""
-                <p><span style="font-weight:bold;">PFI (only important descriptors):</span></p>
+                <p><span style="font-weight:bold;">PFI (only most important descriptors):</span></p>
                 <pre style="text-align: justify;">{summary}</pre>
                 """
     
+    # prints for the PREDICT metrics in the ROBERT score
     else:
         column = f"""
-        <pre style="text-align: justify;">{summary}</pre>
+        <pre style="text-align: justify; margin-top: 10px;">{summary}</pre>
         """
 
     return column
@@ -391,14 +399,26 @@ def get_csv_pred(suffix,path_csv_test,y_value,names):
     if y_val_exist:
         pred_line += f'''
             <td><strong>{y_value_head}</strong></td>'''
-    pred_line += f'''
-            <td><strong>{y_value_head}_pred ± sd</strong></td>
-        </tr>'''
+    if f'{y_value}_pred_sd' in csv_test_df:
+        pred_line += f'''
+                <td><strong>{y_value_head}_pred ± sd</strong></td>
+            </tr>'''
+    else:
+        pred_line += f'''
+                <td><strong>{y_value_head}_pred</strong></td>
+            </tr>'''
     
     # retrieve and sort the values
     if not y_val_exist:
         csv_test_df[y_value] = csv_test_df[f'{y_value}_pred']
-    y_pred_sorted, y_sorted, names_sorted, sd_sorted = (list(t) for t in zip(*sorted(zip(csv_test_df[f'{y_value}_pred'], csv_test_df[y_value], csv_test_df[names], csv_test_df[f'{y_value}_pred_sd']), reverse=True)))
+
+    # in clas problems, there are no SD in the predictions (we use a list of 0s)
+    if f'{y_value}_pred_sd' in csv_test_df:
+        sd_list = csv_test_df[f'{y_value}_pred_sd']
+    else:
+        sd_list = [0] * len(csv_test_df[f'{y_value}_pred'])
+
+    y_pred_sorted, y_sorted, names_sorted, sd_sorted = (list(t) for t in zip(*sorted(zip(csv_test_df[f'{y_value}_pred'], csv_test_df[y_value], csv_test_df[names], sd_list), reverse=True)))
 
     max_table = False
     if len(y_pred_sorted) > 20:
@@ -412,7 +432,10 @@ def get_csv_pred(suffix,path_csv_test,y_value,names):
         y_val_pred = round(y_val_pred, 2)
         y_val = round(y_val, 2)
         sd = round(sd, 2)
-        y_val_pred_formatted = f'{y_val_pred} ± {sd}'
+        if f'{y_value}_pred_sd' in csv_test_df:
+            y_val_pred_formatted = f'{y_val_pred} ± {sd}'
+        else:
+            y_val_pred_formatted = f'{y_val_pred}'
         add_entry = True
         # if there are more than 20 predictions, only 20 values will be shown
         if max_table and count_entries >= 10:
@@ -536,11 +559,13 @@ def revert_list(list_tuple):
     Reverts the order of a list of two components
     """
 
-    new_sort = [] # for some reason reverse() gives a weird issue when reverting lists
-    new_sort.append(list_tuple[1])
-    new_sort.append(list_tuple[0])
+    if len(list_tuple) == 2 and 'No_PFI' in list_tuple[1]:
+        new_sort = [] # for some reason reverse() gives a weird issue when reverting lists
+        new_sort.append(list_tuple[1])
+        new_sort.append(list_tuple[0])
+        list_tuple = new_sort
 
-    return new_sort
+    return list_tuple
 
 
 def get_time(file):
@@ -558,60 +583,212 @@ def get_time(file):
     return module_time
 
 
-def get_col_score(score_info,data_score,suffix,csv_test,spacing_PFI,pred_type,test_set):
+def get_col_score(score_info,data_score,suffix,spacing_PFI):
     """
     Gather the information regarding the score of the No PFI and PFI models
     """
     
-    r2_pts = get_pts(data_score['r2_score'])
-    outliers_pts = get_pts(data_score['outliers_score'])
-    descp_pts = get_pts(data_score['descp_score'])
-    verify_pts = get_pts(data_score['verify_score'])
-    verify_extra_pts = get_pts(data_score['verify_extra_score'])
-
-    spacing_r2 = get_spacing(data_score['r2_score'])
-    spacing_outliers = get_spacing(data_score['outliers_score'])
-    spacing_descp = get_spacing(data_score['descp_score'])
-    spacing_verify = get_spacing(data_score['verify_score'])
-    spacing_extra_verify = get_spacing(data_score['verify_extra_score'])
-
-    first_line = f'<p style="text-align: justify; margin-top: -8px;">{spacing_PFI}' # reduces line separation separation
-    reduced_line = f'<p style="text-align: justify; margin-top: -10px;">{spacing_PFI}' # reduces line separation separation        
-
-    if test_set:
-        score_set = 'test'
-    else:
-        score_set = 'valid.'
-        
-    ML_line_format = f'<p style="text-align: justify; margin-top: -2px; margin-bottom: 0px;">{spacing_PFI}'
-    part_line_format = f'<p style="text-align: justify; margin-top: 0px; margin-bottom: 4px;">{spacing_PFI}'
+    ML_line_format = f'<p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;">{spacing_PFI}'
+    part_line_format = f'<p style="text-align: justify; margin-top: 1px; margin-bottom: 0px;">{spacing_PFI}'
 
     if suffix == 'No PFI':
-        caption = f'{spacing_PFI}No PFI (all descriptors):'
+        caption = f'{spacing_PFI}No PFI (standard descriptor filter):'
 
     elif suffix == 'PFI':
-        caption = f'{spacing_PFI}PFI (only important descriptors):'
+        caption = f'{spacing_PFI}PFI (only most important descriptors):'
+
+    partitions_ratio = data_score['proportion_ratio_print'].split('-  Proportion ')[1]
+
+    column = f"""<p style="margin-top:-23px;"><span style="font-weight:bold;">{caption}</span></p>
+    {ML_line_format}Model = {data_score['ML_model']}&nbsp;&nbsp;·&nbsp;&nbsp;{partitions_ratio}</p>
+    {part_line_format}Points(train+valid.):descriptors = {data_score[f'points_descp_ratio_{suffix}']}</p>
+    <p style="margin-top: 4px;">{score_info}
+    <p style="margin-bottom: 18px;"></p>
+    """
+
+    return column
+
+
+def adv_flawed(self,suffix,data_score,spacing_PFI,test_set):
+    """
+    Gather the advanced analysis of flawed models
+    """
+
+    score_flawed = data_score[f'flawed_mod_score_{suffix}']
+    if score_flawed <= 0:
+        verify_image = f'{self.args.path_icons}/score_w_3_0.jpg'
+    else:
+        verify_image = f'{self.args.path_icons}/score_w_3_{score_flawed}.jpg'
+
+    if score_flawed == 0:
+       flaw_result = f'DO NOT USE THIS MODEL! It has important flaws.'
+    elif score_flawed in [1,2]:
+        flaw_result = f'WARNING! The model might have important flaws.'
+    elif score_flawed == 3:
+        flaw_result = f'The model predicts right for the right reasons.'
+
+    # adds a bit more space if there is no test set
+    score_adv_flawed = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing_PFI}'
+    if test_set:
+        init_spacing = f'<p style="text-align: justify; margin-top: 5px; margin-bottom: 0px;">{spacing_PFI}'
+    else:
+        init_spacing = f'<p style="text-align: justify; margin-top: 10px; margin-bottom: 0px;">{spacing_PFI}'
+    column = f"""{init_spacing}<strong>Advanced score analysis</strong></p>
+    {score_adv_flawed}<u>1. Model vs "flawed" models</u> &nbsp;({score_flawed} / 3 &nbsp;<img src="file:///{verify_image}" alt="ROBERT Score" style="width: 19%">)</p>
+    {score_adv_flawed}{flaw_result}<br>{spacing_PFI}Pass (blue): +1, Fail (red): -1. <i><a href="https://robert.readthedocs.io/en/latest/Modules/verify.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
+    """
+
+    return column
+
+
+def adv_predict(self,suffix,data_score,spacing_PFI,test_set,pred_type):
+    """
+    Gather the advanced analysis of predictive ability
+    """
+
+    score_predict = data_score[f'r2_score_{suffix}']
+    predict_image = f'{self.args.path_icons}/score_w_2_{score_predict}.jpg'
+
+    if test_set:
+        r2_set = 'test'
+    else:
+        r2_set = 'valid.'
 
     if pred_type == 'reg':
-        score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an R<sup>2</sup> of {data_score['r2_valid']}</p>
-{reduced_line}{outliers_pts}{spacing_outliers} The valid. set has {data_score['outliers_prop']}% of outliers</p>
-{reduced_line}{descp_pts}{spacing_descp} Using {data_score['proportion_ratio']} points(train+valid.):descriptors</p>
-{reduced_line}{verify_pts}{spacing_verify} The valid. set passes {data_score['verify_score']} VERIFY tests</p>
-"""
+        metric_type = 'R<sup>2</sup>'
+    else:
+        metric_type = 'MCC'
 
-    elif pred_type == 'clas':
-        score_info += f"""{first_line}{r2_pts}{spacing_r2} The {score_set} set shows an MCC of {data_score['mcc_valid']}</p>
-{reduced_line}{descp_pts}{spacing_descp} The {score_set} set uses {data_score['proportion_ratio']} points:descriptors</p>
-{reduced_line}{verify_pts}{spacing_verify} The {score_set} set passes {data_score['verify_score']} VERIFY tests</p>
-{reduced_line}{verify_extra_pts}{spacing_extra_verify} The {score_set} set passes {data_score['verify_extra_score']} y-mean/y-shuffle</p>
-"""
-    partitions_ratio = data_score['proportion_ratio_print'].split('-  ')[1]
+    if score_predict == 0:
+        predict_result = f'Low predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
+    elif score_predict == 1:
+        predict_result = f'Moderate predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
+    elif score_predict == 2:
+        predict_result = f'Good predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
     
-    column = f"""<p style="margin-top:-12px;"><span style="font-weight:bold;">{caption}</span></p>
-    {ML_line_format}ML model: {data_score['ML_model']}</p>
-    {part_line_format}{partitions_ratio}</p>
-    {score_info}
-    <p style="margin-bottom: 20px;"></p>
+    if pred_type == 'reg':
+        thres_line = 'R<sup>2</sup> 0.70-0.85: +1, R<sup>2</sup> >0.85: +2.'
+    else:
+        thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
+
+    score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing_PFI}'
+    column = f"""{score_adv_pred}<u>2. Predictive ability of the model</u> &nbsp;({score_predict} / 2 &nbsp;<img src="file:///{predict_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}{predict_result}<br>{spacing_PFI}{thres_line}</p>
+    """
+
+    return column
+
+
+def adv_cv_r2(self,suffix,data_score,spacing_PFI,pred_type):
+    """
+    Gather the advanced analysis of cross-validation regarding predictive ability
+    """
+
+    score_cv_r2 = data_score[f'cv_r2_score_{suffix}']
+    cv_r2_image = f'{self.args.path_icons}/score_w_2_{score_cv_r2}.jpg'
+    cv_type = data_score[f'cv_type_{suffix}']
+
+    if pred_type == 'reg':
+        metric_type = 'R<sup>2</sup>'
+    else:
+        metric_type = 'MCC'
+
+    if score_cv_r2 == 0:
+        cv_result = f'Low predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
+    elif score_cv_r2 == 1:
+        cv_result = f'Moderate predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
+    elif score_cv_r2 == 2:
+        cv_result = f'Good predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
+
+    if pred_type == 'reg':
+        thres_line = 'R<sup>2</sup> 0.70-0.85: +1, R<sup>2</sup> >0.85: +2.'
+    else:
+        thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
+
+    score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing_PFI}'
+    column = f"""{score_adv_cv}<br>{spacing_PFI}<u>3. Cross-validation ({cv_type}) of the model</u></p>
+    {score_adv_cv}Overfitting analysis on the model with 3a and 3b:</p>
+    <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing_PFI}<u>3a. CV predictions train + valid.</u> &nbsp;({score_cv_r2} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_cv}{cv_result}<br>{spacing_PFI}{thres_line}</p>
+    """
+
+    return column
+
+
+def adv_cv_sd(self,suffix,data_score,spacing_PFI,test_set):
+    """
+    Gather the advanced analysis of cross-validation regarding variation
+    """
+
+    score_cv_sd = data_score[f'cv_sd_score_{suffix}']
+    cv_r2_image = f'{self.args.path_icons}/score_w_2_{score_cv_sd}.jpg'
+    y_range_covered = round(data_score[f"cv_range_cov_{suffix}"]*100)
+    cv_4sd = round(data_score[f"cv_4sd_{suffix}"],1)
+    if test_set:
+        sd_set = 'test'
+    else:
+        sd_set = 'valid.'
+
+    if score_cv_sd == 0:
+        cv_sd_result = f'High variation, 4*SD ({sd_set}) = {cv_4sd} ({y_range_covered}% y-range).'
+    elif score_cv_sd == 1:
+        cv_sd_result = f'Moderate variation, 4*SD ({sd_set}) = {cv_4sd} ({y_range_covered}% y-range).'
+    elif score_cv_sd == 2:
+        cv_sd_result = f'Low variation, 4*SD ({sd_set}) = {cv_4sd} ({y_range_covered}% y-range).'
+
+    score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing_PFI}'
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing_PFI}<u>3b. Avg. standard deviation (SD)</u> &nbsp;({score_cv_sd} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}{cv_sd_result}<br>{spacing_PFI}4*SD 25-50% y-range: +1, 4*SD < 25% y-range: +2. <i>
+    <br>{spacing_PFI}<a href="https://robert.readthedocs.io/en/latest/Report/score.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
+    """
+
+    return column
+
+
+def adv_cv_diff(self,suffix,data_score,spacing_PFI,test_set):
+    """
+    Gather the advanced analysis of cross-validation regarding variation
+    """
+
+    score_cv_diff = data_score[f'r2_diff_score_{suffix}']
+    cv_diff_image = f'{self.args.path_icons}/score_w_2_{score_cv_diff}.jpg'
+    cv_diff = round(data_score[f'r2_diff_{suffix}'],2)
+    if test_set:
+        sd_set = 'test'
+    else:
+        sd_set = 'valid.'
+
+    if score_cv_diff == 0:
+        cv_diff_result = f'High variation ({sd_set} and CV), ΔMCC = {cv_diff}.'
+    elif score_cv_diff == 1:
+        cv_diff_result = f'Moderate variation ({sd_set} and CV), ΔMCC = {cv_diff}.'
+    elif score_cv_diff == 2:
+        cv_diff_result = f'Low variation ({sd_set} and CV), ΔMCC = {cv_diff}.'
+
+    score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing_PFI}'
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing_PFI}<u>3b. MCC difference (model vs CV)</u> &nbsp;({score_cv_diff} / 2 &nbsp;<img src="file:///{cv_diff_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}{cv_diff_result}<br>{spacing_PFI}ΔMCC 0.15-0.30: +1, ΔMCC < 0.15: +2.
+    """
+
+    return column
+
+
+def adv_descp(self,suffix,data_score,spacing_PFI):
+    """
+    Gather the advanced analysis of predictive ability
+    """
+
+    score_descp = data_score[f'descp_score_{suffix}']
+    points_descp_ratio = data_score[f'points_descp_ratio_{suffix}']
+    predict_image = f'{self.args.path_icons}/score_w_1_{score_descp}.jpg'
+    if score_descp == 0:
+        predict_result = f'Number of descps. could be lower (ratio {points_descp_ratio}).'
+    elif score_descp == 1:
+        predict_result = f'Decent number of descps. (ratio {points_descp_ratio}).'
+
+    score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing_PFI}'
+    column = f"""{score_adv_pred}<br>{spacing_PFI}<u>4. Points(train+valid.):descriptors</u> &nbsp;({score_descp} / 1 &nbsp;<img src="file:///{predict_image}" alt="ROBERT Score" style="width: 6.6%">)</p>
+    {score_adv_pred}{predict_result}<br>{spacing_PFI}5 or more points per descriptor: +1.</p>
     """
 
     return column
@@ -676,10 +853,10 @@ def get_col_transpa(params_dict,suffix,section):
     reduced_line = '<p style="text-align: justify; margin-top: -8px;">' # reduces line separation separation
 
     if suffix == 'No_PFI':
-        caption = f'No PFI (all descriptors):'
+        caption = f'No PFI (standard descriptor filter):'
 
     elif suffix == 'PFI':
-        caption = f'PFI (only important descriptors):'
+        caption = f'PFI (only most important descriptors):'
 
     excluded_params = [params_dict['error_type'],'train','y']
     misc_params = ['split','type','error_type']
@@ -753,13 +930,44 @@ def get_spacing(score):
     return spacing
 
 
-def get_verify_scores(dat_verify,suffix,pred_type):
+def calc_score(dat_files,suffix,pred_type,data_score):
+    '''
+    Calculates ROBERT score
+    '''
+
+    descp_warning = 0
+    data_score,test_set = get_predict_scores(dat_files['PREDICT'],suffix,pred_type,data_score)
+
+    if data_score[f'descp_score_{suffix}'] == 0:
+        descp_warning += 1
+
+    data_score = get_verify_scores(dat_files['VERIFY'],suffix,pred_type,data_score)
+
+    if pred_type == 'reg':
+        robert_score = data_score[f'r2_score_{suffix}'] + data_score[f'cv_sd_score_{suffix}'] + data_score[f'cv_r2_score_{suffix}'] + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'descp_score_{suffix}']
+
+    elif pred_type == 'clas':
+        # MCC difference between model and CV (the variables say r2 for uniformity with reg)
+        r2_diff = round(np.abs(data_score[f'r2_valid_{suffix}']-data_score[f'cv_r2_{suffix}']),2)
+        data_score[f'r2_diff_{suffix}'] = r2_diff
+        data_score[f'r2_diff_score_{suffix}'] = 0
+        if r2_diff < 0.15:
+            data_score[f'r2_diff_score_{suffix}'] += 2
+        elif r2_diff <= 0.30:
+            data_score[f'r2_diff_score_{suffix}'] += 1
+        
+        robert_score = data_score[f'r2_score_{suffix}'] + data_score[f'cv_r2_score_{suffix}'] + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'r2_diff_score_{suffix}'] + data_score[f'descp_score_{suffix}']
+    
+    return robert_score,test_set,descp_warning
+    
+
+def get_verify_scores(dat_verify,suffix,pred_type,data_score):
     """
     Calculates scores that come from the VERIFY module (VERIFY tests)
     """
 
     start_data = False
-    verify_score, verify_extra_score = 0,0
+    flawed_score = 0
     for i,line in enumerate(dat_verify):
         # set starting points for No PFI and PFI models
         if suffix == 'No PFI':
@@ -773,28 +981,40 @@ def get_verify_scores(dat_verify,suffix,pred_type):
         
         if start_data:
             if 'Original ' in line and '(valid' in line:
-                for j in range(i+1,i+5):
+                for j in range(i+1,i+4): # y-mean, y-shuffle and onehot tests
                     if 'PASSED' in dat_verify[j]:
-                        verify_score += 1
-                if pred_type == 'clas':
-                    if 'PASSED' in dat_verify[i+2]:
-                        verify_extra_score += 1
-                    if 'PASSED' in dat_verify[i+3]:
-                        verify_extra_score += 1
+                        flawed_score += 1
+                    else:
+                        flawed_score -= 1
+                if 'LOOCV' in dat_verify[i+4]:
+                    cv_type = 'LOOCV'
+                else:
+                    cv_type = f'{dat_verify[i+4].split()[1]} CV'
+                if pred_type == 'reg':
+                    cv_r2 = float(dat_verify[i+4].split('R2 = ')[1].split(',')[0])
+                else:
+                    cv_r2 = float(dat_verify[i+4].split()[-1])
 
-    return verify_score,verify_extra_score
+    # calculate CV scores
+    cv_r2_score = score_r2_mcc(pred_type,cv_r2)
+
+    # stores data
+    data_score[f'flawed_mod_score_{suffix}'] = flawed_score
+    data_score[f'cv_type_{suffix}'] = cv_type
+    data_score[f'cv_r2_{suffix}'] = cv_r2
+    data_score[f'cv_r2_score_{suffix}'] = cv_r2_score
+
+    return data_score
 
 
-def get_predict_scores(dat_predict,suffix,pred_type):
+def get_predict_scores(dat_predict,suffix,pred_type,data_score):
     """
     Calculates scores that come from the PREDICT module (R2 or accuracy, datapoints:descriptors ratio, outlier proportion)
     """
 
     start_data, test_set = False, False
-    data_score = {}
-    data_score['r2_score'] = 0
-    data_score['descp_score'] = 0
-    data_score['outliers_score'] = 0
+    data_score[f'r2_score_{suffix}'] = 0
+    data_score[f'descp_score_{suffix}'] = 0
 
     for i,line in enumerate(dat_predict):
 
@@ -813,58 +1033,72 @@ def get_predict_scores(dat_predict,suffix,pred_type):
             if 'o  Results saved in PREDICT/' in line:
                 data_score['ML_model'] = line.split('_')[1]
                 data_score['proportion_ratio_print'] = dat_predict[i+2]
-                # R2/accuracy from test (if any) or validation
+                # R2/MCC from test (if any) or validation
                 if pred_type == 'reg':
                     if '-  Test : R2' in dat_predict[i+7]:
-                        data_score['r2_valid'] = float(dat_predict[i+7].split()[5].split(',')[0])
+                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+7].split()[5].split(',')[0])
                         test_set = True
                     elif '-  Valid. : R2' in dat_predict[i+6]:
-                        data_score['r2_valid'] = float(dat_predict[i+6].split()[5].split(',')[0])
-                   
-                    if data_score['r2_valid'] > 0.85:
-                        data_score['r2_score'] += 2
-                    elif data_score['r2_valid'] > 0.7:
-                        data_score['r2_score'] += 1
+                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+6].split()[5].split(',')[0])
 
-                elif pred_type == 'clas':
+                    data_score[f'r2_score_{suffix}'] = score_r2_mcc(pred_type,data_score[f'r2_valid_{suffix}'])
+
+                elif pred_type == 'clas': # it stores MCC but the label says R2 for consistency with reg
                     if '-  Test : Accuracy' in dat_predict[i+7]:
-                        data_score['mcc_valid'] = float(dat_predict[i+7].split()[-1])
+                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+7].split()[-1])
                         test_set = True
                     elif '-  Valid. : Accuracy' in dat_predict[i+6]:
-                        data_score['mcc_valid'] = float(dat_predict[i+6].split()[-1])
+                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+6].split()[-1])
 
-                    if data_score['mcc_valid'] > 0.85:
-                        data_score['r2_score'] += 2
-                    elif data_score['mcc_valid'] > 0.7:
-                        data_score['r2_score'] += 1
+                    data_score[f'r2_score_{suffix}'] = score_r2_mcc(pred_type,data_score[f'r2_valid_{suffix}'])
 
-                # proportion
-                data_score['proportion_ratio'] = dat_predict[i+4].split()[-1]
-                proportion = int(data_score['proportion_ratio'].split(':')[0]) / int(data_score['proportion_ratio'].split(':')[1])
-                if proportion > 10:
-                    data_score['descp_score'] += 2
-                elif proportion > 3:
-                    data_score['descp_score'] += 1
+                # proportion of datapoints and descriptors
+                data_score[f'points_descp_ratio_{suffix}'] = dat_predict[i+4].split()[-1]
+                proportion = int(data_score[f'points_descp_ratio_{suffix}'].split(':')[0]) / int(data_score[f'points_descp_ratio_{suffix}'].split(':')[1])
+                if proportion >= 5:
+                    data_score[f'descp_score_{suffix}'] += 1            
 
-            # outliers
+            # SD from CV
             if pred_type == 'reg':
-                if 'o  Outlier values saved in' in line:
-                    for j in range(i,len(dat_predict)):
-                        if 'Validation:' in dat_predict[j]:
-                            outliers_prop = dat_predict[j].split()[-1]
-                            outliers_prop = outliers_prop.split('%)')[0]
-                            data_score['outliers_prop'] = float(outliers_prop.split('(')[-1])
-                        elif len(dat_predict[j].split()) == 0:
-                            break
-                    if data_score['outliers_prop'] < 7.5:
-                        data_score['outliers_score'] += 2
-                    elif data_score['outliers_prop'] < 15:
-                        data_score['outliers_score'] += 1
+                if 'o  Cross-validation variation' in line:
+                    cv_sd = float(dat_predict[i+2].split()[-1])
+                    cv_4sd = 4*cv_sd
+                    y_range = float(dat_predict[i+3].split()[-1])
+                    y_range_covered = cv_4sd/y_range
 
-            elif pred_type == 'clas':
-                data_score['outliers_prop'] = 0
+                    cv_sd_score = 0
+                    if y_range_covered < 0.25:
+                        cv_sd_score += 2
+                    elif y_range_covered <= 0.50:
+                        cv_sd_score += 1
+
+                    data_score[f"cv_4sd_{suffix}"] = cv_4sd
+                    data_score[f"cv_range_cov_{suffix}"] = y_range_covered
+                    data_score[f'cv_sd_score_{suffix}'] = cv_sd_score
 
     return data_score,test_set
+
+
+def score_r2_mcc(pred_type,r2_mcc_val):
+    '''
+    Calculate scores for R2 and MCC using predetermined thresholds
+    '''
+
+    r2_mcc_score = 0
+
+    if pred_type == 'reg': # R2
+        if r2_mcc_val > 0.85:
+            r2_mcc_score += 2
+        elif r2_mcc_val >= 0.7:
+            r2_mcc_score += 1
+
+    else: # MCC
+        if r2_mcc_val > 0.75:
+            r2_mcc_score += 2
+        elif r2_mcc_val >= 0.5:
+            r2_mcc_score += 1
+    
+    return r2_mcc_score
 
 
 def repro_info(modules):
@@ -893,7 +1127,8 @@ def repro_info(modules):
                 if 'ROBERT v' == line[:8]:
                     version_n_date = line
                 if 'Command line used in ROBERT: ' in line:
-                    command_line = line.split('Command line used in ROBERT: ')[1]
+                    if '--csv_name' not in command_line: # ensures that the value for --csv_name is stored
+                        command_line = line.split('Command line used in ROBERT: ')[1]
             total_time = round(total_time,2)
             dat_files[module] = txt_file
             datfile.close()

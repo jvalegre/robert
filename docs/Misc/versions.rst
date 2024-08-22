@@ -5,15 +5,17 @@ Versions
 ========
 
 Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
-   -  Changing cross-validation in VERIFY to LOOCV for datasets with less than 50 points
+   -  Changing cross-validation (CV) in VERIFY to LOOCV for datasets with less than 50 points
    -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 50 points
+   -  By default, RFECV uses LOOCV for small datasets and 5-fold CV for larger datasets
    -  The external test set is chosen more evenly along the range of y values (not fully random)
-   -  Adjustable threshold in VERIFY when the difference between original and flawed models is large
    -  Changing the format of the VERIFY plot, from donut to bar plots
    -  Automatic KN data splitting for databases with less than 250 datapoints
    -  Change CV_test from ShuffleSplit to Kfold
    -  Predictions from CV are now represented in a graph and stored in a CSV
-   -  By default, RFECV uses LOOCV for small datasets and 5-fold CV for larger datasets
+   -  Changing the ROBERT score to depend more heavily on results from CV
+   -  Fixing auto_test (now it works as specified in the documentation)
+   -  Adding clas predictions to report PDF
 
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs

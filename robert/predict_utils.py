@@ -101,8 +101,6 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
         # Plot CV average ± SD graph of validation or test set
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,cv_mapie_graph=True)
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
-            # Plot graph with all sets
-            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True)
             # Plot CV average ± SD graph of validation or test set
             _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True,cv_mapie_graph=True)
 
@@ -125,7 +123,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     sb.set(style="ticks")
     _, ax = plt.subplots(figsize=(7.45,6))
 
-    # Set styling preferences
+    # Set tick sizes
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
 
@@ -181,7 +179,22 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             set_types=['External test',f'± SD']
 
     # legend and regression line with 95% CI considering all possible lines (not CI of the points)
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.17),
+    if 'CV' in set_types[0]: # CV in VERIFY
+        if 'LOOCV' in set_types[0]:
+            legend_coords = (0.835, 0.15) # LOOCV
+        else:
+            if len(set_types[0].split('-')[0]) == 1: # 1- to 9-fold CV
+                legend_coords = (0.82, 0.15)
+            elif len(set_types[0].split('-')[0]) == 2: # => 10-fold CV
+                legend_coords = (0.807, 0.15)
+    elif len(set_types) == 3: # train + valid + test
+        legend_coords = (0.63, 0.15)
+    elif len(set_types) == 2: # train + valid (or sets with ± SD)
+        if 'External test' in set_types:
+            legend_coords = (0.66, 0.15)
+        else:
+            legend_coords = (0.735, 0.15)
+    ax.legend(loc='upper center', bbox_to_anchor=legend_coords,
             fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
     Xy_data_df = pd.DataFrame()
@@ -200,6 +213,14 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
     # set axis limits and graph PATH
     min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_mapie_graph)
+
+    # track the range of predictions (used in ROBERT score)
+    pred_min = min(min(Xy_data["y_train"]),min(Xy_data["y_valid"]))
+    pred_max = max(max(Xy_data["y_train"]),max(Xy_data["y_valid"]))
+    pred_range = np.abs(pred_max-pred_min)
+    Xy_data['pred_min'] = pred_min
+    Xy_data['pred_max'] = pred_max
+    Xy_data['pred_range'] = pred_range
 
     # Add gridlines
     ax.grid(linestyle='--', linewidth=1)
@@ -242,7 +263,7 @@ def graph_title(self,csv_test,set_types,cv_mapie_graph,error_bars,Xy_data):
         else:
             sets_title = 'external test'
         if Xy_data['cv_type'] == 'loocv':
-            title_graph = f'{sets_title} set ± SD (Jackknife CV)'
+            title_graph = f'{sets_title} set ± SD (LOOCV)'
         else:
             kfold = Xy_data['cv_type'].split('_')[-3]
             title_graph = f'{sets_title} set ± SD ({kfold}-fold CV)'
@@ -306,21 +327,29 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
     '''
     
     plt.clf()
+
+    # get confusion matrix
     if 'CV' in set_type: # CV graphs
         matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_cv_valid'], Xy_data[f'y_pred_cv_valid'], normalize=None, cmap='Blues') 
     else: # other graphs
         matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_{set_type}'], Xy_data[f'y_pred_{set_type}'], normalize=None, cmap='Blues') 
+
+    # transfer it to the same format and size used in reg graphs
+    _, ax = plt.subplots(figsize=(7.45,6))
+    matrix.plot(ax=ax, cmap='Blues')
+
     if print_fun:
         if 'CV' not in set_type:
             title_set = f'{set_type} set'
         else:
             title_set = set_type
-        matrix.ax_.set_title(f'{title_set} of {os.path.basename(path_n_suffix)}', fontsize=14, weight='bold')
+        plt.text(0.5, 1.08, f'{title_set} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
 
     plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
     plt.ylabel(f'{params_dict["y"]}', fontsize=14)
-    plt.gcf().axes[0].tick_params(size=14)
-    plt.gcf().axes[1].tick_params(size=14)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
 
     # save fig
     if 'CV' in set_type: # CV graphs
@@ -478,7 +507,7 @@ def print_cv_var(self,Xy_data,params_dict,path_n_suffix):
     shap_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.png'
     path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
     if Xy_data['cv_type'] == 'loocv':
-        cv_type = f'Jackknife CV'
+        cv_type = f'LOOCV'
     else:
         kfold = Xy_data['cv_type'].split('_')[-3]
         cv_type = f'{kfold}-fold CV'
@@ -486,6 +515,7 @@ def print_cv_var(self,Xy_data,params_dict,path_n_suffix):
     print_cv_var = f"\n   o  Cross-validation variation (with {cv_type}) graph saved in {path_reduced}:"
     print_cv_var += f"\n      -  Standard deviations saved in PREDICT/{Xy_data['csv_pred_name']} in the {params_dict['y']}_pred_sd column"
     print_cv_var += f"\n      -  Average SD = {round(Xy_data['avg_sd'],2)}"
+    print_cv_var += f"\n      -  y range of dataset (train+valid.) = {round(Xy_data['pred_min'],2)} to {round(Xy_data['pred_max'],2)}, total {round(Xy_data['pred_range'],2)}"
 
     cv_var_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.dat'
     self.args.log.write(print_cv_var)

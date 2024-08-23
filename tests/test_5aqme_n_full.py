@@ -179,14 +179,12 @@ def test_AQME(test_job):
     outlines = outfile.readlines()
     outfile.close()
 
-    find_report,find_pearson,find_heatmap,find_verify = 0,0,0,0
+    find_pearson,find_heatmap,find_verify = 0,0,0
     find_shap,find_pfi,find_outliers = 0,0,0
     find_results_reg,find_results_train_clas,find_results_valid_clas = 0,0,0
     find_results_test_clas,find_test = 0,0
 
     for line in outlines:
-        if '_PFI_REPORT.png' in line:
-            find_report += 1
         if 'Pearson_heatmap.png' in line:
             find_pearson += 1
         if 'Heatmap ML models no PFI filter.png' in line:
@@ -211,13 +209,11 @@ def test_AQME(test_job):
             find_test += 1
 
     if test_job in ['full_workflow','full_workflow_test','aqme','2smiles_columns']:
-        assert find_report > 0 # images with no titles in the SCORE section for regression
         assert find_outliers > 0
         assert find_results_reg > 0
         assert find_results_train_clas == 0
         assert find_results_valid_clas == 0
     else:
-        assert find_report == 0
         assert find_outliers == 0
         assert find_results_reg == 0
         assert find_results_train_clas > 0

@@ -620,7 +620,7 @@ def adv_flawed(self,suffix,data_score,spacing_PFI,test_set):
     else:
         verify_image = f'{self.args.path_icons}/score_w_3_{score_flawed}.jpg'
 
-    if score_flawed == 0:
+    if score_flawed <= 0:
        flaw_result = f'DO NOT USE THIS MODEL! It has important flaws.'
     elif score_flawed in [1,2]:
         flaw_result = f'WARNING! The model might have important flaws.'

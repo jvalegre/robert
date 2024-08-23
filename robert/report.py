@@ -85,12 +85,8 @@ class report:
 
         _ = make_report(report_html,HTML)
 
-        # Remove report.css file and _REPORT graphs created
+        # Remove report.css file
         os.remove("report.css")
-        graph_path = Path(f'{os.getcwd()}/PREDICT')
-        graph_remove = [str(file_path) for file_path in graph_path.rglob('*_REPORT.png')]
-        for file in graph_remove:
-            os.remove(file)
         
         print('\no  ROBERT_report.pdf was created successfully in the working directory!')
 

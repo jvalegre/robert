@@ -207,6 +207,83 @@ def test_AQME(test_job):
             find_results_test_clas += 1
         if 'csv_test :' in line:
             find_test += 1
+    
+    # more specific tests to check content from the ROBERT score section
+    if test_job == 'full_workflow':
+        robert_score,points_desc = [],[]
+        ml_model_count,partition_count,metrics_count = 0,0,0
+        flawed_models,pred_ability,cv_r2_models,cv_sd_models,points_descp = [],[],[],[],[]
+        predict_graphs,flawed_image,cv_r2_image,cv_sd_image = False,False,False,False
+
+        for line in outlines:
+            if 'robert/report/score_' in line:
+                robert_score.append(line.split('robert/report/score_')[1][0])
+            if 'Model = RF' in line:
+                ml_model_count += 1
+            if 'Train:Validation = 59:41' in line:
+                partition_count += 1
+            if 'Points(train+valid.):descriptors = ' in line:
+                points_desc.append(line.split('Points(train+valid.):descriptors = ')[1].split('</p>')[0])
+            if 'Results_RF_60_No_PFI.png' in line:
+                predict_graphs = True
+            if 'Train : R<sup>2</sup> = ' in line:
+                metrics_count += 1
+            if '1. Model vs "flawed" models' in line:
+                flawed_models.append(line)
+            if 'VERIFY/VERIFY_tests_RF_60_No_PFI.png' in line:
+                flawed_image = True
+            if '2. Predictive ability of the model' in line:
+                pred_ability.append(line)
+            if '3a. CV predictions train + valid.' in line:
+                cv_r2_models.append(line)
+            if 'VERIFY/CV_train_valid_predict_RF_60_No_PFI.png' in line:
+                cv_r2_image = True
+            if '3b. Avg. standard deviation (SD)' in line:
+                cv_sd_models.append(line)
+            if 'PREDICT/CV_variability_RF_60_No_PFI.png' in line:
+                cv_sd_image = True
+            if '4. Points(train+valid.):descriptors' in line:
+                points_descp.append(line)
+            if 'How to predict new values with these models?' in line:
+                break
+
+        # model summary, robert score, predict graphs and model metrics
+        assert robert_score[0] == '3'
+        assert robert_score[1] == '8'
+        assert ml_model_count == 2
+        assert partition_count == 2
+        assert points_desc[0] == '37:12'
+        assert points_desc[1] == '37:3'
+        assert predict_graphs
+        assert metrics_count == 2
+        # advanced analysis, flawed models section 1
+        assert '1 / 3' in flawed_models[0]
+        assert 'robert/report/score_w_3_1.jpg' in flawed_models[0]
+        assert '3 / 3' in flawed_models[1]
+        assert 'robert/report/score_w_3_3.jpg' in flawed_models[1]
+        assert flawed_image
+        # advanced analysis, predictive ability section 2
+        assert '1 / 2' in pred_ability[0]
+        assert 'robert/report/score_w_2_1.jpg' in pred_ability[0]
+        assert '2 / 2' in pred_ability[1]
+        assert 'robert/report/score_w_2_2.jpg' in pred_ability[1]
+        # advanced analysis, CV predictive ability section 3a
+        assert '1 / 2' in cv_r2_models[0]
+        assert 'robert/report/score_w_2_1.jpg' in cv_r2_models[0]
+        assert '2 / 2' in cv_r2_models[1]
+        assert 'robert/report/score_w_2_2.jpg' in cv_r2_models[1]
+        assert cv_r2_image
+        # advanced analysis, CV variability section 3b
+        assert '0 / 2' in cv_sd_models[0]
+        assert 'robert/report/score_w_2_0.jpg' in cv_sd_models[0]
+        assert '0 / 2' in cv_sd_models[1]
+        assert 'robert/report/score_w_2_0.jpg' in cv_sd_models[1]
+        assert cv_sd_image
+        # advanced analysis, predictive ability section 2
+        assert '0 / 1' in points_descp[0]
+        assert 'robert/report/score_w_1_0.jpg' in points_descp[0]
+        assert '1 / 1' in points_descp[1]
+        assert 'robert/report/score_w_1_1.jpg' in points_descp[1]
 
     if test_job in ['full_workflow','full_workflow_test','aqme','2smiles_columns']:
         assert find_outliers > 0

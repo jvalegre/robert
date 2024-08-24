@@ -368,7 +368,8 @@ class verify:
                 elif test_color == '#cd5c5c':
                     txt_bar = 'fail'
                 ax.text(label_count, offset_txt, txt_bar, color=test_color, 
-                        fontstyle='italic', horizontalalignment='center')
+                        fontstyle='italic', horizontalalignment='center', 
+                        backgroundcolor='w')
             label_count += 1
 
         # Set tick sizes

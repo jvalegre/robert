@@ -868,26 +868,8 @@ def load_model_reg(params):
 
     if params['model'].upper() in ['NN','VR']:
 
-        # correct for a problem when loading arrays in json
-        layer_arrays = []
-
-        if not isinstance(params['hidden_layer_sizes'],int):
-            if params['hidden_layer_sizes'][0] == '[':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
-            if params['hidden_layer_sizes'][-1] == ']':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
-            if not isinstance(params['hidden_layer_sizes'],list):
-                for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-            else:
-                for _,ele in enumerate(params['hidden_layer_sizes']):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-        else:
-            layer_arrays = ele
-
-        params['hidden_layer_sizes'] = (layer_arrays)
+        # correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
+        params = correct_hidden_layers(params)
 
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
@@ -965,26 +947,8 @@ def load_model_clas(params):
 
     if params['model'].upper() in ['NN','VR']:
 
-        # correct for a problem when loading arrays in json
-        layer_arrays = []
-
-        if not isinstance(params['hidden_layer_sizes'],int):
-            if params['hidden_layer_sizes'][0] == '[':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
-            if params['hidden_layer_sizes'][-1] == ']':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
-            if not isinstance(params['hidden_layer_sizes'],list):
-                for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-            else:
-                for _,ele in enumerate(params['hidden_layer_sizes']):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-        else:
-            layer_arrays = ele
-
-        params['hidden_layer_sizes'] = (layer_arrays)
+        # correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
+        params = correct_hidden_layers(params)
 
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
@@ -1084,6 +1048,33 @@ def load_n_predict(self, params, data, hyperopt=False, mapie=False):
         else:
             return data
 
+
+def correct_hidden_layers(params):
+    '''
+    Correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
+    '''
+    
+    layer_arrays = []
+
+    if not isinstance(params['hidden_layer_sizes'],int):
+        if params['hidden_layer_sizes'][0] == '[':
+            params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
+        if params['hidden_layer_sizes'][-1] == ']':
+            params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
+        if not isinstance(params['hidden_layer_sizes'],list):
+            for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
+                if ele != '':
+                    layer_arrays.append(int(ele))
+        else:
+            for _,ele in enumerate(params['hidden_layer_sizes']):
+                if ele != '':
+                    layer_arrays.append(int(ele))
+    else:
+        layer_arrays = ele
+
+    params['hidden_layer_sizes'] = (layer_arrays)
+
+    return params
 
 
 def calc_ci_n_sd(self,loaded_model,data,set_mapie):

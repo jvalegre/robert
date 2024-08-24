@@ -62,7 +62,7 @@ def test_CURATE(test_job):
         "--curate",
         "--csv_name", f"{path_tests}/Robert_example.csv",
         '--y', 'Target_values',
-        "--ignore", "['Name']",
+        "--names", "Name",
         "--discard", "['xtest']"
     ]
 
@@ -134,7 +134,7 @@ def test_CURATE(test_job):
             "--curate",
             "--csv_name", f"{path_tests}/Robert_example_NaNs.csv",
             '--y', 'Target_values',
-            "--ignore", "['Name']",
+            "--names", "Name",
             "--discard", "['xtest']"
         ]
         subprocess.run(cmd_robert)
@@ -153,7 +153,7 @@ def test_CURATE(test_job):
             "--curate",
             "--csv_name", f"{path_tests}/Robert_example.csv",
             '--y', 'Target_values',
-            "--ignore", "['Name']",
+            "--names", 'Name',
             "--discard", "['xtest']",
             "--corr_filter", "False"
         ]
@@ -174,7 +174,7 @@ def test_CURATE(test_job):
                 "--curate",
                 "--csv_name", f"{path_tests}/Robert_example.csv",
                 '--y', 'Target_values',
-                "--ignore", "['Name']",
+                "--name", "Name",
                 "--discard", "['xtest']",
                 "--thres_x", "0.999",
                 "--thres_y", "0.000001"
@@ -205,7 +205,7 @@ def test_CURATE(test_job):
             "--curate",
             "--csv_name", f"{path_tests}/Robert_example_separator.csv",
             '--y', 'Target_values',
-            "--ignore", "['Name']",
+            "--names", "Name",
             "--discard", "['xtest']"
         ]
         subprocess.run(cmd_robert)

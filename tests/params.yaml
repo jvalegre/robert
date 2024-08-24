@@ -1,6 +1,6 @@
 curate : True
 y : Target_values
-ignore : ['Name']
+names : 'Name'
 discard : ['xtest']
 thres_x : 0.999
 thres_y : 0.000001

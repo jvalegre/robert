@@ -11,9 +11,7 @@ Parameters
     thres_test : float, default=0.25,
         Threshold used to determine if a test pasess. It is determined in % units of diference between
         the RMSE (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
-        original value). Test passes if:
-        1. y-mean, y-shuffle and one-hot encoding tests: the error is greater than 25% (from original MAE and RMSE for regressors)
-        2. Cross-validation: the error is lower than 25%
+        original value).
     kfold : int, default='auto',
         Number of folds for the k-fold cross-validation. If 'auto', the program does 
         a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 

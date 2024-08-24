@@ -71,9 +71,15 @@ class report:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
 
+        eval_only = False
+        # if EVALUATE is activated, no PFI models are generated
+        path_eval = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
+        if os.path.exists(path_eval):
+            eval_only = True
+
         # create report
-        report_html,csv_name,robert_version,params_df = self.get_header(self.args.report_modules)
-        report_html += self.get_data(self.args.report_modules,params_df)
+        report_html,csv_name,robert_version,params_df = self.get_header(self.args.report_modules,eval_only)
+        report_html += self.get_data(self.args.report_modules,params_df,eval_only)
 
         if self.args.debug_report:
             with open("report_debug.txt", "w") as debug_text:
@@ -91,7 +97,7 @@ class report:
         print('\no  ROBERT_report.pdf was created successfully in the working directory!')
 
      
-    def get_data(self, modules, params_df):
+    def get_data(self, modules, params_df, eval_only):
         """
         Get information, times and images of the modules
         """
@@ -115,15 +121,20 @@ The complete output (AQME_data.dat) and raw data are stored in the AQME folder.
             if os.path.exists(curate_file):
                 # section header
                 curate_time = get_time(curate_file)
-                curate_data = f"""<i>This module takes care of data curation, including filters for correlated descriptors, noise, and duplicates, as well as conversion of categorical descriptors.</i>
+                if not eval_only:
+                    curate_data = f"""<i>This module takes care of data curation, including filters for correlated descriptors, noise, and duplicates, as well as conversion of categorical descriptors.</i>
 The complete output (CURATE_data.dat) and curated database are stored in the CURATE folder.
+{curate_time}
+"""
+                else:
+                    curate_data = f"""<i>When the EVALUATION module is activated, the CURATE module only represents the corresponding Pearson correlation matrix (stored in the CURATE folder).</i>
 {curate_time}
 """
 
                 data_lines += self.module_lines('CURATE',curate_data)
 
                 # include images
-                data_lines += get_images('CURATE')
+                data_lines += get_images('CURATE',eval_only)
 
         # GENERATE section
         if 'GENERATE' in modules:
@@ -139,7 +150,7 @@ The complete output (GENERATE_data.dat) and heatmaps are stored in the GENERATE 
                 data_lines += self.module_lines('GENERATE',generate_data)
 
                 # include images
-                data_lines += get_images('GENERATE')
+                data_lines += get_images('GENERATE',eval_only)
 
         # VERIFY section
         if 'VERIFY' in modules:
@@ -155,7 +166,7 @@ The complete output (VERIFY_data.dat) and donut plot are stored in the VERIFY fo
                 data_lines += self.module_lines('VERIFY',verify_data)
 
                 # include images
-                data_lines += get_images('VERIFY')
+                data_lines += get_images('VERIFY',eval_only)
 
         # PREDICT section
         if 'PREDICT' in modules:
@@ -171,25 +182,25 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 data_lines += self.module_lines('PREDICT',predict_data)
 
                 # include images and summary for No PFI and PFI models
-                data_lines += get_images('PREDICT',file=predict_file,pred_type=params_df['type'][0].lower())
+                data_lines += get_images('PREDICT',eval_only,file=predict_file,pred_type=params_df['type'][0].lower())
                 data_lines +=f'<hr style="margin-top: 15px;">'
 
         return data_lines
 
 
-    def get_header(self,modules):
+    def get_header(self,modules,eval_only):
         """
         Retrieves the header for the HTML string
         """
 
         # Reproducibility section
-        citation_dat, repro_dat, dat_files, csv_name, robert_version = self.get_repro(modules)
+        citation_dat, repro_dat, dat_files, csv_name, robert_version = self.get_repro(modules,eval_only)
 
         # Transparency section
         transpa_dat,params_df = self.get_transparency()
 
         # ROBERT score section
-        score_dat = self.print_score_section(dat_files,params_df['type'][0].lower())
+        score_dat = self.print_score_section(dat_files,params_df['type'][0].lower(),eval_only)
 
         # abbreviation section
         abbrev_dat = self.get_abbrev()
@@ -211,7 +222,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         return header_lines,csv_name,robert_version,params_df
 
 
-    def print_score_section(self,dat_files,pred_type):
+    def print_score_section(self,dat_files,pred_type,eval_only):
         """
         Generates the ROBERT score section
         """
@@ -238,49 +249,53 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             columns_score = []
             # get two columns to combine and print
             for suffix in ['No PFI','PFI']:
+
                 # add spacing of PFI column
                 if suffix == 'No PFI':
                     spacing_PFI = ''
                 elif suffix == 'PFI':
                     spacing_PFI = '&nbsp;&nbsp;&nbsp;&nbsp;'
 
-                if section == 'score_main':
-                    # calculate score
-                    robert_score,test_set,descp_warning = calc_score(dat_files,suffix,pred_type,data_score)
-                    robert_score_list.append(robert_score)
+                if eval_only and suffix == 'PFI':
+                    columns_score.append('')
+                else:
+                    if section == 'score_main':
+                        # calculate score
+                        robert_score,test_set,descp_warning = calc_score(dat_files,suffix,pred_type,data_score)
+                        robert_score_list.append(robert_score)
 
-                    # initial two-column ROBERT score summary
-                    score_info = f"""{spacing_PFI}<img src="file:///{self.args.path_icons}/score_{robert_score}.jpg" alt="ROBERT Score" style="width: 100%; margin-top:7px; margin-bottom:-18px;">"""
-                    columns_score.append(get_col_score(score_info,data_score,suffix,spacing_PFI))
+                        # initial two-column ROBERT score summary
+                        score_info = f"""{spacing_PFI}<img src="file:///{self.args.path_icons}/score_{robert_score}.jpg" alt="ROBERT Score" style="width: 100%; margin-top:7px; margin-bottom:-18px;">"""
+                        columns_score.append(get_col_score(score_info,data_score,suffix,spacing_PFI,eval_only))
 
-                elif section == 'metrics_predict':
-                    # metrics of the models
-                    module_file = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
-                    columns_score.append(get_summary('PREDICT',module_file,suffix,titles=False,pred_type=pred_type))
+                    elif section == 'metrics_predict':
+                        # metrics of the models
+                        module_file = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
+                        columns_score.append(get_summary('PREDICT',module_file,suffix,eval_only,titles=False,pred_type=pred_type))
 
-                elif section == 'adv_flawed':
-                    # advanced score analysis 1, flawed models
-                    columns_score.append(adv_flawed(self,suffix,data_score,spacing_PFI,test_set))
+                    elif section == 'adv_flawed':
+                        # advanced score analysis 1, flawed models
+                        columns_score.append(adv_flawed(self,suffix,data_score,spacing_PFI,test_set))
 
-                elif section == 'adv_predict':
-                    # advanced score analysis 2, predictive ability
-                    columns_score.append(adv_predict(self,suffix,data_score,spacing_PFI,test_set,pred_type))
+                    elif section == 'adv_predict':
+                        # advanced score analysis 2, predictive ability
+                        columns_score.append(adv_predict(self,suffix,data_score,spacing_PFI,test_set,pred_type))
 
-                elif section == 'adv_cv_r2':
-                    # advanced score analysis 3 and 3a, predictive ability of CV
-                    columns_score.append(adv_cv_r2(self,suffix,data_score,spacing_PFI,pred_type))
+                    elif section == 'adv_cv_r2':
+                        # advanced score analysis 3 and 3a, predictive ability of CV
+                        columns_score.append(adv_cv_r2(self,suffix,data_score,spacing_PFI,pred_type))
 
-                elif section == 'adv_cv_sd' and pred_type == 'reg':
-                    # advanced score analysis 3b, SD of CV
-                    columns_score.append(adv_cv_sd(self,suffix,data_score,spacing_PFI,test_set))
+                    elif section == 'adv_cv_sd' and pred_type == 'reg':
+                        # advanced score analysis 3b, SD of CV
+                        columns_score.append(adv_cv_sd(self,suffix,data_score,spacing_PFI,test_set))
 
-                elif section == 'adv_cv_diff' and pred_type == 'clas':
-                    # advanced score analysis 3b, difference of MCC in model and CV
-                    columns_score.append(adv_cv_diff(self,suffix,data_score,spacing_PFI,test_set))
+                    elif section == 'adv_cv_diff' and pred_type == 'clas':
+                        # advanced score analysis 3b, difference of MCC in model and CV
+                        columns_score.append(adv_cv_diff(self,suffix,data_score,spacing_PFI,test_set))
 
-                elif section == 'adv_descp':
-                    # advanced score analysis 4, descriptor proportion
-                    columns_score.append(adv_descp(self,suffix,data_score,spacing_PFI))
+                    elif section == 'adv_descp':
+                        # advanced score analysis 4, descriptor proportion
+                        columns_score.append(adv_descp(self,suffix,data_score,spacing_PFI))
 
             # Combine both columns
             score_dat += combine_cols(columns_score)
@@ -297,7 +312,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                         height += 17 # otherwise the first graph doesn't fit
                     else:
                         height += diff_height
-                score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,test_set=test_set,diff_names=True)
+                score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,eval_only,test_set=test_set,diff_names=True)
 
             # add separator line between main and advanced analysis
             elif section == 'metrics_predict':
@@ -307,7 +322,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 height = 238
                 if pred_type == 'clas':
                     height -= 15
-                score_dat += self.print_img('VERIFY_tests',13,height,'VERIFY',pred_type)
+                score_dat += self.print_img('VERIFY_tests',13,height,'VERIFY',pred_type,eval_only)
                 # page break to second page
                 score_dat += f"""<p style="page-break-after: always;"></p>"""
                 score_dat += f'<hr style="height: 0.5px; margin-bottom: 13px; background-color:LightGray">'
@@ -319,10 +334,10 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
                 height = 215
                 if pred_type == 'clas':
                     height += diff_height
-                score_dat += self.print_img('CV_train_valid_predict',10,height,'VERIFY',pred_type)
+                score_dat += self.print_img('CV_train_valid_predict',10,height,'VERIFY',pred_type,eval_only)
 
             elif section == 'adv_cv_sd' and pred_type == 'reg':
-                score_dat += self.print_img('CV_variability',10,215,'PREDICT',pred_type)
+                score_dat += self.print_img('CV_variability',10,215,'PREDICT',pred_type,eval_only)
                 score_dat += section_separator
 
             elif section == 'adv_cv_diff' and pred_type == 'clas':
@@ -371,7 +386,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         return score_dat
 
 
-    def get_repro(self,modules):
+    def get_repro(self,modules,eval_only):
         """
         Generates the data printed in the Reproducibility section
         """
@@ -381,6 +396,9 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
         if self.args.csv_name == '' or self.args.csv_test == '':
             self = get_csv_names(self,command_line)
+
+        if eval_only and self.args.csv_train != '':
+            self.args.csv_name = self.args.csv_train
 
         repro_dat,citation_dat = '',''
         
@@ -414,9 +432,15 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
 
         # reproducibility section, starts with the icon of reproducibility  
         repro_dat += f"""{first_line}<br><strong>1. Download these files <i>(the authors should have uploaded the files as supporting information!)</i>:</strong></p>"""
-        repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
-        if self.args.csv_test != '':
-            repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
+        if not eval_only:
+            repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
+            if self.args.csv_test != '':
+                repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
+        else:
+            repro_dat += f"""{reduced_line}{space}- Training CSV database ({self.args.csv_train})</p>"""
+            repro_dat += f"""{reduced_line}{space}- Validation CSV database ({self.args.csv_valid})</p>"""
+            if self.args.csv_test != '':
+                repro_dat += f"""{reduced_line}{space}- Test CSV database ({self.args.csv_test})</p>"""  
 
         if aqme_workflow:
             try:
@@ -642,7 +666,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         return title_line
 
 
-    def print_img(self,file_name,margin_top,height,module,pred_type,test_set=False,diff_names=False):
+    def print_img(self,file_name,margin_top,height,module,pred_type,eval_only,test_set=False,diff_names=False):
         """
         Generate the string that includes the results images from PREDICT
         """
@@ -680,8 +704,9 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
         # define widths of the graphs
         width = 91
         pair_list = f'<p style="width: {width}%; margin-bottom: -2px;  margin-top: {margin_top}px"><img src="file:///{results_images[0]}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
-        pair_list += f'{("&nbsp;")*17}'
-        pair_list += f'<img src="file:///{results_images[1]}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/></p>'
+        if not eval_only:
+            pair_list += f'{("&nbsp;")*17}'
+            pair_list += f'<img src="file:///{results_images[1]}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/></p>'
 
         html_png = f'{pair_list}'
 

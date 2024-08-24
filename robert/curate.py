@@ -13,6 +13,8 @@ Parameters
         List containing the columns of the input CSV file that will be ignored during the curation process
         (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
         is automatically ignored.
+    names : str, default=''
+        Column of the names for each datapoint. Names are used to print outliers.
     destination : str, default=None,
         Directory to create the output file(s).
     varfile : str, default=None
@@ -79,15 +81,16 @@ class curate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df = load_database(self,self.args.csv_name,"curate")
 
-        # transform categorical descriptors
-        csv_df = self.categorical_transform(csv_df,'curate')
+        if not self.args.evaluate:
+            # transform categorical descriptors
+            csv_df = self.categorical_transform(csv_df,'curate')
 
-        # apply duplicate filters (i.e., duplication of datapoints or descriptors)
-        csv_df = self.dup_filter(csv_df)
+            # apply duplicate filters (i.e., duplication of datapoints or descriptors)
+            csv_df = self.dup_filter(csv_df)
 
-        # apply the correlation filters and returns the database without correlated descriptors
-        if self.args.corr_filter:
-            csv_df = self.correlation_filter(csv_df)
+            # apply the correlation filters and returns the database without correlated descriptors
+            if self.args.corr_filter:
+                csv_df = self.correlation_filter(csv_df)
 
         # create Pearson heatmap
         _ = self.pearson_map(csv_df)

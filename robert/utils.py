@@ -125,7 +125,8 @@ def command_line_args(exe_type,sys_args):
         "predict",
         "aqme",
         "report",
-        "cheers"
+        "cheers",
+        "evaluate"
     ]
     list_args = [
         "discard",
@@ -440,8 +441,8 @@ def load_variables(kwargs, robert_module):
                         if 'CURATE_options.csv' in csv_file:
                             curate_df = pd.read_csv(csv_file, encoding='utf-8')
                             self.y = curate_df['y'][0]
-                            self.ignore = curate_df['ignore'][0]
                             self.names = curate_df['names'][0]
+                            self.ignore = curate_df['ignore'][0]
                             self.ignore  = format_lists(self.ignore)
                             self.csv_name = curate_df['csv_name'][0]
 
@@ -520,16 +521,17 @@ def missing_inputs(self,module,print_err=False):
     """
 
     if module.lower() not in ['predict','verify','report','aqme_test']:
-        if self.csv_name == '':
-            if print_err:
-                print('\nx  Specify the name of your CSV file with the csv_name option!')
-            else:
-                self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
-            self.csv_name = input('Enter the name of your CSV file: ')
-            self.extra_cmd += f' --csv_name {self.csv_name}'
-            if not print_err:
-                self.log.write(f"   -  csv_name option set to {self.csv_name} by the user")
+        if module.lower() == 'evaluate':
+            if self.csv_train == '':
+                self = check_csv_option(self,'csv_train',print_err)
+            if self.csv_valid == '':
+                self = check_csv_option(self,'csv_valid',print_err)
 
+        else:
+            if self.csv_name == '':
+                self = check_csv_option(self,'csv_name',print_err)
+
+    if module.lower() not in ['predict','verify','report','aqme_test']:
         if self.y == '':
             if print_err:
                 print(f'\nx  Specify a y value (column name) with the y option! (i.e. y="solubility")')
@@ -540,7 +542,7 @@ def missing_inputs(self,module,print_err=False):
             if not print_err:
                 self.log.write(f"   -  y option set to {self.y} by the user")
 
-    if module.lower() in ['full_workflow','predict']:
+    if module.lower() in ['full_workflow','predict','curate','evaluate']:
         if self.names == '':
             if print_err:
                 print(f'\nx  Specify the column with the entry names! (i.e. names="code_name")')
@@ -550,8 +552,42 @@ def missing_inputs(self,module,print_err=False):
             self.extra_cmd += f' --names {self.names}'
             if not print_err:
                 self.log.write(f"   -  names option set to {self.names} by the user")
+        if self.names != '' and self.names not in self.ignore:
+            self.ignore.append(self.names)
 
     return self
+
+
+def check_csv_option(self,csv_option,print_err):
+    '''
+    Checks missing values in input CSV options
+    '''
+    
+    if csv_option == 'csv_name':
+        line_print = f'\nx  Specify the CSV name for the {csv_option} option!'
+    elif csv_option == 'csv_train':
+        line_print = f'\nx  Specify the CSV name containing the TRAINING set!'
+    elif csv_option == 'csv_valid':
+        line_print = f'\nx  Specify the CSV name containing the VALIDATION set!'
+
+    if print_err:
+        print(line_print)
+    else:
+        self.log.write(line_print)
+    val_option = input('Enter the name of your CSV file: ')
+    self.extra_cmd += f' --{csv_option} {val_option}'
+    if not print_err:
+        self.log.write(f"   -  {csv_option} option set to {val_option} by the user")
+
+    if csv_option == 'csv_name':
+        self.csv_name = val_option    
+    elif csv_option == 'csv_train':
+        self.csv_train = val_option
+    elif csv_option == 'csv_valid':
+        self.csv_valid = val_option
+
+    return self
+
 
 def sanity_checks(self, type_checks, module, columns_csv):
     """
@@ -562,16 +598,15 @@ def sanity_checks(self, type_checks, module, columns_csv):
     # adds manual inputs missing from the command line
     self = missing_inputs(self,module)
 
-    if type_checks == 'initial' and module.lower() not in ['verify','predict']:
-        
-        path_csv = ''
-        if os.path.exists(f"{self.csv_name}"):
-            path_csv = self.csv_name
-        elif os.path.exists(f"{Path(os.getcwd()).joinpath(self.csv_name)}"):
-            path_csv = f"{Path(os.getcwd()).joinpath(self.csv_name)}"
-        if not os.path.exists(path_csv) or self.csv_name == '':
-            self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
-            curate_valid = False
+    if module.lower() == 'evaluate':
+        curate_valid = locate_csv(self,self.csv_train,'csv_train',curate_valid)
+        curate_valid = locate_csv(self,self.csv_valid,'csv_valid',curate_valid)
+        if self.csv_test != '':
+            curate_valid = locate_csv(self,self.csv_test,'csv_test',curate_valid)
+
+    elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
+
+        curate_valid = locate_csv(self,self.csv_name,'csv_name',curate_valid)
 
         if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:
@@ -686,6 +721,23 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
+def locate_csv(self,csv_input,csv_type,curate_valid):
+    '''
+    Assesses whether the input CSV databases can be located
+    '''
+
+    path_csv = ''
+    if os.path.exists(f"{csv_input}"):
+        path_csv = csv_input
+    elif os.path.exists(f"{Path(os.getcwd()).joinpath(csv_input)}"):
+        path_csv = f"{Path(os.getcwd()).joinpath(csv_input)}"
+    if not os.path.exists(path_csv) or csv_input == '':
+        self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: --{csv_type} {csv_input}')
+        curate_valid = False
+    
+    return curate_valid
+
+
 def load_database(self,csv_load,module):
     '''
     Loads a database in CSV format
@@ -711,7 +763,7 @@ def load_database(self,csv_load,module):
     # Fill missing values with zeros
     csv_df = csv_df.fillna(0)
 
-    if module.lower() not in ['verify','no_print']:
+    if module.lower() not in ['verify','no_print','evaluate']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
         total_amount = len(csv_df.columns)

@@ -25,6 +25,7 @@
 
 import os
 import sys
+import shutil
 from pathlib import Path
 import pandas as pd
 from robert.curate import curate
@@ -61,6 +62,11 @@ def main(exe_type='command',sys_args=None):
 
         # save the csv_name, y and names values from full workflows
         if full_workflow:
+            # remove the EVALUATE folder to avoid issues when generating the report PDF
+            eval_folder = Path(f'{os.getcwd()}/EVALUATE')
+            if os.path.exists(eval_folder):
+                shutil.rmtree(eval_folder)
+
             args = missing_inputs(args,'full_workflow',print_err=True)
 
         # AQME

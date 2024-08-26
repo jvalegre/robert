@@ -1066,9 +1066,11 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                 start_data = True
         
         if start_data:
+            # model type
+            if line.startswith('   - Model:'):
+                data_score['ML_model'] = line.split()[-1]
             # R2 and proportion
             if 'o  Results saved in PREDICT/' in line:
-                data_score['ML_model'] = line.split('_')[1]
                 data_score['proportion_ratio_print'] = dat_predict[i+2]
                 # R2/MCC from test (if any) or validation
                 if pred_type == 'reg':

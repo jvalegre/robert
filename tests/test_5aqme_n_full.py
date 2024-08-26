@@ -41,13 +41,12 @@ path_aqme = path_main + "/AQME"
 )
 def test_AQME(test_job):
 
-    # reset the folders
+    # reset the folders (to avoid interferences with previous failed tests)
     folders = ['CURATE','GENERATE','GENERATE_reg','GENERATE_clas','PREDICT','VERIFY','AQME']
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
-    files_remove = ['report_debug.txt','ROBERT_report.pdf']
-    for file in files_remove:
+    for file in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','AQME-ROBERT_Robert_example_2smiles.csv','AQME-ROBERT_solubility_solvent.csv','Robert_example.csv','solubility.csv','solubility_solvent.csv']:
         if os.path.exists(f"{path_main}/{file}"):
             os.remove(f"{path_main}/{file}")
 
@@ -216,7 +215,7 @@ def test_AQME(test_job):
         predict_graphs,flawed_image,cv_r2_image,cv_sd_image = False,False,False,False
 
         for line in outlines:
-            if 'robert/report/score_' in line:
+            if 'robert/report/score_' in line and 'robert/report/score_w' not in line:
                 robert_score.append(line.split('robert/report/score_')[1][0])
             if 'Model = RF' in line:
                 ml_model_count += 1
@@ -318,6 +317,6 @@ def test_AQME(test_job):
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
-    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','AQME-ROBERT_Robert_example_2smiles.csv']:
+    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','AQME-ROBERT_Robert_example_2smiles.csv','AQME-ROBERT_solubility_solvent.csv','Robert_example.csv','solubility.csv','solubility_solvent.csv']:
         if os.path.exists(f'{path_main}/{file_discard}'):
             os.remove(f'{path_main}/{file_discard}')

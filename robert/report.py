@@ -361,7 +361,7 @@ The complete output (PREDICT_data.dat) and heatmaps are stored in the PREDICT fo
             n_scoring += 1
             style_line = reduced_line
         else:
-            datapoints = int(data_score[f'points_descp_ratio_{suffix}'].split(':')[0])
+            datapoints = int(data_score[f'points_descp_ratio_No PFI'].split(':')[0])
             if datapoints <= 50:
                 score_dat += f'{style_line}&#9888;&nbsp; The model uses only {datapoints} datapoints, adding meaningful datapoints might help to improve the model.</p>'
                 n_scoring += 1

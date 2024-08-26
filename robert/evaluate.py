@@ -151,17 +151,22 @@ class evaluate:
         
         # copy database
         generate_folder = Path('GENERATE/Best_model/No_PFI')
-        # if os.path.exists(generate_folder):
-        #     shutil.rmtree(generate_folder)
-        # Path(generate_folder).mkdir(exist_ok=True, parents=True)
+        if os.path.exists(generate_folder):
+            shutil.rmtree(generate_folder)
+        Path(generate_folder).mkdir(exist_ok=True, parents=True)
 
-        shutil.copy(f"{self.args.csv_name}", f"{generate_folder}/{self.args.csv_name}")
+        train_points = len(csv_df_train[self.args.y])
+        valid_points = len(csv_df_valid[self.args.y])
+        train_proportion = round((train_points/(train_points+valid_points))*100)
+        adapted_name = f'{self.args.eval_model}_{train_proportion}'
+
+        shutil.copy(f"{self.args.csv_name}", f"{generate_folder}/{adapted_name}_db.csv")
 
         # save all the parameters of the model
         df_params = pd.DataFrame()
         train_points = len(csv_df_train[self.args.y])
         valid_points = len(csv_df_valid[self.args.y])
-        df_params['train'] = [round((train_points/(train_points+valid_points))*100)]
+        df_params['train'] = [train_proportion]
         df_params['split'] = ['user-defined']
         df_params['model'] = [self.args.eval_model]
         df_params['type'] = [self.args.type]
@@ -175,4 +180,4 @@ class evaluate:
         descriptors = csv_df_train.drop(self.args.ignore+[self.args.y], axis=1).columns
         df_params['X_descriptors'] = [list(descriptors)]
 
-        _ = df_params.to_csv(f'{generate_folder}/{self.args.csv_name}'.replace('_db',''), index = None, header=True)
+        _ = df_params.to_csv(f'{generate_folder}/{adapted_name}.csv', index = None, header=True)

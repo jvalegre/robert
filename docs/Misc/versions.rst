@@ -18,6 +18,8 @@ Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
    -  Adding clas predictions to report PDF
    -  Adding new pytests that cover the ROBERT score section from the report PDF
    -  Adding the EVALUATE module to evaluate linear models with user-defined descriptors and partitions
+   -  Adding Pearson heatmap in PREDICT for the two models, with individual variable correlation analysis
+   -  Adding y-distribution graphs and analysis of uniformity
 
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs

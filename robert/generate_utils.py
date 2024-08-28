@@ -296,7 +296,7 @@ def avoid_overfit(data,opt_target):
     if data['r2_train'] > 0.99:
         if data['r2_valid'] < 0.99:
             opt_target = float('inf')
-        elif data['rmse_valid'] > 1000*data['rmse_train']:
+        elif data['rmse_valid'] > 2*data['rmse_train']:
             opt_target = float('inf')
     if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
         opt_target = float('inf')
@@ -752,5 +752,6 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     sb.despine(top=False, right=False)
     plt.savefig(f'{path_raw.joinpath(title_fig)}.png', dpi=300, bbox_inches='tight')
     plt.clf()
+    plt.close()
     path_reduced = '/'.join(f'{path_raw}'.replace('\\','/').split('/')[-2:])
     self.args.log.write(f'\no  {title_fig} succesfully created in {path_reduced}')

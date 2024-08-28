@@ -14,6 +14,8 @@ import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
+from matplotlib import pyplot as plt
+import seaborn as sb
 from scipy import stats
 # for users with no intel architectures. This part has to be before the sklearn imports
 try:
@@ -603,6 +605,14 @@ def sanity_checks(self, type_checks, module, columns_csv):
         curate_valid = locate_csv(self,self.csv_valid,'csv_valid',curate_valid)
         if self.csv_test != '':
             curate_valid = locate_csv(self,self.csv_test,'csv_test',curate_valid)
+
+        if self.eval_model.lower() not in ['mvl']:
+            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL' (more options will be added soon)")
+            curate_valid = False
+
+        if self.type.lower() not in ['reg']:
+            self.log.write(f"\nx  The type option used is not valid in EVALUATE! Options: 'reg' (the 'clas' option will be added soon)")
+            curate_valid = False
 
     elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
 
@@ -1268,3 +1278,76 @@ def get_graph_style():
         }
 
     return graph_style
+
+
+def pearson_map(self,csv_df_pearson,module,params_dir=None):
+    '''
+    Creates Pearson heatmap
+    '''
+
+    if module.lower() == 'curate': # only represent the final descriptors in CURATE
+        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
+
+    corr_matrix = csv_df_pearson.corr()
+    mask = np.zeros_like(corr_matrix, dtype=bool)
+    mask[np.triu_indices_from(mask)]= True
+    
+    # no representatoins when there are more than 30 descriptors
+    if len(csv_df_pearson.columns) > 30:
+        disable_plot = True
+    else:
+        disable_plot = False
+        _, ax = plt.subplots(figsize=(7.45,6))
+        size_title = 14
+        size_font = 14-2*((len(csv_df_pearson.columns)/5))
+
+    if disable_plot:
+        self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+    else:
+        sb.set(font_scale=1.2, style='ticks')
+
+        _ = sb.heatmap(corr_matrix,
+                        mask = mask,
+                        square = True,
+                        linewidths = .5,
+                        cmap = 'coolwarm',
+                        cbar = False,
+                        cbar_kws = {'shrink': .4,
+                                    'ticks' : [-1, -.5, 0, 0.5, 1]},
+                        vmin = -1,
+                        vmax = 1,
+                        annot = True,
+                        annot_kws = {'size': size_font})
+
+        plt.tick_params(labelsize=size_font)
+        #add the column names as labels
+        ax.set_yticklabels(corr_matrix.columns, rotation = 0)
+        ax.set_xticklabels(corr_matrix.columns)
+
+        title_fig = 'Pearson\'s r heatmap'
+        if module.lower() == 'predict':
+            if os.path.basename(Path(params_dir)) == 'No_PFI':
+                suffix_title = 'No_PFI'
+            elif os.path.basename(Path(params_dir)) == 'PFI':
+                suffix_title = 'PFI'
+            title_fig += f'_{suffix_title}'
+
+        plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
+        sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
+
+        if module.lower() == 'curate':
+            heatmap_name = 'Pearson_heatmap.png'
+        elif module.lower() == 'predict':
+            heatmap_name = f'Pearson_heatmap_{suffix_title}.png'
+
+        heatmap_path = self.args.destination.joinpath(heatmap_name)
+        plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
+        plt.clf()
+        plt.close()
+        path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
+        if module.lower() == 'curate':
+            self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
+        elif module.lower() == 'predict':
+            self.args.log.write(f'\n   o  The Pearson heatmap was stored in {path_reduced}.')
+
+    return corr_matrix

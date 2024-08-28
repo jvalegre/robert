@@ -5,6 +5,7 @@
 import os
 import sys
 import ast
+import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -28,6 +29,7 @@ from robert.utils import (
     load_dfs,
     load_database,
     get_graph_style,
+    pearson_map
     )
 
 
@@ -234,6 +236,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
     plt.clf()
+    plt.close()
 
 
 def graph_title(self,csv_test,set_types,cv_mapie_graph,error_bars,Xy_data):
@@ -371,9 +374,10 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
         self.args.log.write(f"      -  Graph in: {path_reduced}")
 
     plt.clf()
+    plt.close()
 
 
-def save_predictions(self,Xy_data,params_dir,Xy_test_df):
+def save_predictions(self,Xy_data,params_dir,Xy_test_df,params_dict):
     '''
     Saves CSV files with the different sets and their predicted results
     '''
@@ -428,16 +432,16 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df):
 
     # store the names of the datapoints
     name_points = {}
-    if self.args.names != '':
-        if self.args.names.lower() in Xy_orig_train: # accounts for upper/lowercase mismatches
-            self.args.names = self.args.names.lower()
-        if self.args.names.upper() in Xy_orig_train:
-            self.args.names = self.args.names.upper()
-        if self.args.names in Xy_orig_train:
-            name_points['train'] = Xy_orig_train[self.args.names]
-            name_points['valid'] = Xy_orig_valid[self.args.names]
+    if params_dict['names'] != '':
+        if params_dict['names'].lower() in Xy_orig_train: # accounts for upper/lowercase mismatches
+            params_dict['names'] = params_dict['names'].lower()
+        if params_dict['names'].upper() in Xy_orig_train:
+            params_dict['names'] = params_dict['names'].upper()
+        if params_dict['names'] in Xy_orig_train:
+            name_points['train'] = Xy_orig_train[params_dict['names']]
+            name_points['valid'] = Xy_orig_valid[params_dict['names']]
         if Xy_orig_test is not None:
-            name_points['test'] = Xy_orig_test[self.args.names]
+            name_points['test'] = Xy_orig_test[params_dict['names']]
 
     return path_n_suffix, name_points, Xy_data
 
@@ -558,6 +562,8 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     
     plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
     plt.clf()
+    plt.close()
+
     path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
     print_shap = f"\n   o  SHAP plot saved in {path_reduced}"
 
@@ -644,6 +650,7 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
 
     plt.savefig(f'{pfi_plot_file}', dpi=300, bbox_inches='tight')
     plt.clf()
+    plt.close()
 
     path_reduced = '/'.join(f'{pfi_plot_file}'.replace('\\','/').split('/')[-2:])
     print_PFI = f"\n   o  PFI plot saved in {path_reduced}"
@@ -671,7 +678,7 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     '''
 
     # detect outliers
-    outliers_data, print_outliers = outlier_filter(self, Xy_data, name_points, path_n_suffix)
+    outliers_data, print_outliers = outlier_filter(self, Xy_data, name_points)
 
     # plot data in SD units
     sb.set(style="ticks")
@@ -717,6 +724,8 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     outliers_plot_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{outliers_plot_file}', dpi=300, bbox_inches='tight')
     plt.clf()
+    plt.close()
+    
     path_reduced = '/'.join(f'{outliers_plot_file}'.replace('\\','/').split('/')[-2:])
     print_outliers += f"\n   o  Outliers plot saved in {path_reduced}"
 
@@ -767,7 +776,7 @@ def outlier_analysis(print_outliers,outliers_data,outliers_set):
         print_outliers += f"\n      -  {name} ({val:.2} SDs)"
     return print_outliers
 
-def outlier_filter(self, Xy_data, name_points, path_n_suffix):
+def outlier_filter(self, Xy_data, name_points):
     '''
     Calculates and stores absolute errors in SD units for all the sets
     '''
@@ -820,3 +829,189 @@ def detect_outliers(self, outliers_scaled, name_points, naming_detect, set_type)
                 name_outliers.append(name_points_list[i])
 
     return val_outliers, name_outliers
+
+
+def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
+    '''
+    Plots histogram (reg) or bin plot (clas).
+    '''
+
+    # make graph
+    sb.set(style="ticks")
+    _, ax = plt.subplots(figsize=(7.45,6))
+    plt.text(0.5, 1.08, f'y-values distribution (train+valid.) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+    fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    plt.grid(linestyle='--', linewidth=1)
+
+    # combine train and validation sets
+    y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
+
+    # plot histogram, quartile lines and the points in each quartile
+    if params_dict['type'].lower() == 'reg':
+        y_dist_dict,ax = plot_quartiles(y_combined,ax)
+    
+    # plot a bar plot with the count of each y type
+    elif params_dict['type'].lower() == 'clas':
+        y_dist_dict,ax = plot_y_count(y_combined,ax)
+
+    # set styling preferences and graph limits
+    plt.xlabel(f'{params_dict["y"]} values',fontsize=14)
+    plt.xticks(fontsize=14)
+    plt.ylabel('Frequency',fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # set limits
+    if params_dict['type'].lower() == 'reg':
+        border_y_range = 0.1*np.abs(max(y_combined)-min(y_combined))
+        plt.xlim(min(y_combined)-border_y_range, max(y_combined)+border_y_range)
+
+    # save plot and print results
+    orig_distrib_file = f'y_distribution_{os.path.basename(path_n_suffix)}.png'
+    plt.savefig(f'{orig_distrib_file}', dpi=300, bbox_inches='tight')
+    # for a VERY weird reason, I need to save the figure in the working directory and then move it into PREDICT
+    final_distrib_file = f'{os.path.dirname(path_n_suffix)}/y_distribution_{os.path.basename(path_n_suffix)}.png'
+    shutil.move(orig_distrib_file, final_distrib_file)
+
+    plt.clf()
+    plt.close()
+
+    path_reduced = '/'.join(f'{final_distrib_file}'.replace('\\','/').split('/')[-2:])
+    print_distrib = f"\n   o  y-values distribution plot saved in {path_reduced}"
+
+    # print the quartile results
+    if params_dict['type'].lower() == 'reg':
+        print_distrib += f"\n      Ideally, the number of datapoints in the four quartiles of the y-range should be uniform (25% population in each quartile) to have similar confidence intervals in the predictions across the y-range"
+        quartile_pops = [len(y_dist_dict['q1_points']),len(y_dist_dict['q2_points']),len(y_dist_dict['q3_points']),len(y_dist_dict['q4_points'])]
+        print_distrib += f"\n      - The number of points in each quartile is Q1: {quartile_pops[0]}, Q2: {quartile_pops[1]}, Q3: {quartile_pops[2]}, Q4: {quartile_pops[3]}"
+        quartile_min_idx = quartile_pops.index(min(quartile_pops))
+        quartile_max_idx = quartile_pops.index(max(quartile_pops))
+        if 4*min(quartile_pops) < max(quartile_pops):
+            print_distrib += f"\n      x  WARNING! Your data is not uniform (Q{quartile_min_idx+1} has {min(quartile_pops)} points while Q{quartile_max_idx+1} has {max(quartile_pops)})"
+        elif 2*min(quartile_pops) < max(quartile_pops):
+            print_distrib += f"\n      x  WARNING! Your data is slightly not uniform (Q{quartile_min_idx+1} has {min(quartile_pops)} points while Q{quartile_max_idx+1} has {max(quartile_pops)})"
+        else:
+            print_distrib += f"\n      o  Your data seems quite uniform"
+
+    elif params_dict['type'].lower() == 'clas':
+        if len(y_dist_dict['count_labels']) > 2:
+            self.args.log.write(f"\n      ADAPT THIS PART for 3+ prediction classes!!")
+            sys.exit()
+        print_distrib += f"\n      Ideally, the number of datapoints in each prediction class should be uniform (50% population per class) to have similar reliability in the predictions across classes"
+        distrib_counts = [y_dist_dict['count_labels'][0],y_dist_dict['count_labels'][1]]
+        print_distrib += f"\n      - The number of points in each class is {y_dist_dict['type_labels'][0]}: {y_dist_dict['count_labels'][0]}, {y_dist_dict['type_labels'][1]}: {y_dist_dict['count_labels'][1]}"
+        class_min_idx = distrib_counts.index(min(distrib_counts))
+        class_max_idx = distrib_counts.index(max(distrib_counts))
+        if 3*min(distrib_counts) < max(distrib_counts):
+            print_distrib += f"\n      x  WARNING! Your data is not uniform (class {y_dist_dict['type_labels'][class_min_idx]} has {min(distrib_counts)} points while class {y_dist_dict['type_labels'][class_max_idx]} has {max(distrib_counts)})"
+        elif 1.5*min(distrib_counts) < max(distrib_counts):
+            print_distrib += f"\n      x  WARNING! Your data is slightly not uniform (class {y_dist_dict['type_labels'][class_min_idx]} has {min(distrib_counts)} points while class {y_dist_dict['type_labels'][class_max_idx]} has {max(distrib_counts)})"
+        else:
+            print_distrib += f"\n      o  Your data seems quite uniform"
+
+    self.args.log.write(print_distrib)
+
+
+def plot_quartiles(y_combined,ax):
+    '''
+    Plot histogram, quartile lines and the points in each quartile.
+    '''
+    
+    bins = max([round(len(y_combined)/5),5]) # at least 5 bins until 25 points
+    # histogram
+    y_hist, _, _ = ax.hist(y_combined, bins=bins,
+                color='#1f77b4', edgecolor='k', linewidth=1, alpha=1)
+
+    # uniformity lines to plot
+    separation_range = np.abs(max(y_combined)-min(y_combined))/4
+    quart_dict = {'line_1': min(y_combined),
+                    'line_2': min(y_combined) + separation_range,
+                    'line_3': min(y_combined) + (2*separation_range),
+                    'line_4': min(y_combined) + (3*separation_range),
+                    'line_5': max(y_combined)}
+
+    lines_plot = [quart_dict[line] for line in quart_dict]
+    ax.vlines([lines_plot], ymin=max(y_hist)*1.05, ymax=max(y_hist)*1.3, colors='crimson', linestyles='--')
+
+    # points in each quartile
+    quart_dict['q1_points'] = []
+    quart_dict['q2_points'] = []
+    quart_dict['q3_points'] = []
+    quart_dict['q4_points'] = []
+
+    for val in y_combined:
+        if val < quart_dict['line_2']:
+            quart_dict['q1_points'].append(val)
+        elif quart_dict['line_2'] < val < quart_dict['line_3']:
+            quart_dict['q2_points'].append(val)
+        elif quart_dict['line_3'] < val < quart_dict['line_4']:
+            quart_dict['q3_points'].append(val)
+        elif val >= quart_dict['line_4']:
+            quart_dict['q4_points'].append(val)
+
+    x_quart = 0.185
+    for quart in quart_dict:
+        if 'points' in quart:
+            plt.text(x_quart, 0.845, f'Q{quart[1]}\n{len(quart_dict[quart])} points', horizontalalignment='center',
+                    fontsize=12, transform = ax.transAxes, backgroundcolor='w')
+            x_quart += 0.209
+
+    return quart_dict,ax
+
+
+def plot_y_count(y_combined,ax):
+    '''
+    Plot a bar plot with the count of each y type.
+    '''
+
+    # get the number of times that each y type is included
+    labels_used = set(y_combined)
+    type_labels,count_labels = [],[]
+    for label in labels_used:
+        type_labels.append(label)
+        count_labels.append(len(y_combined[y_combined == label]))
+
+    _ = ax.bar(type_labels, count_labels, tick_label=type_labels,
+                color='#1f77b4', edgecolor='k', linewidth=1, alpha=1,
+                width=0.4)
+
+    y_dist_dict = {'type_labels': type_labels,
+                   'count_labels': count_labels}
+
+    return y_dist_dict,ax
+
+
+def pearson_map_predict(self,Xy_data,params_dir):
+    '''
+    Plots the Pearson map and analyzes correlation of descriptors.
+    '''
+
+    X_combined = pd.concat([Xy_data['X_train'],Xy_data['X_valid']], axis=0).reset_index(drop=True)
+    corr_matrix = pearson_map(self,X_combined,'predict',params_dir=params_dir)
+
+    corr_dict = {'descp_1': [],
+                 'descp_2': [],
+                 'r': []
+    }
+    for i,descp in enumerate(corr_matrix.columns):
+        for j,val in enumerate(corr_matrix[descp]):
+            if i < j and np.abs(val) > 0.8:
+                corr_dict['descp_1'].append(corr_matrix.columns[i])
+                corr_dict['descp_2'].append(corr_matrix.columns[j])
+                corr_dict['r'].append(val)
+
+    print_corr = f'      Ideally, variables should show low correlations.' # no initial \n, it's a new log.write
+    if len(corr_dict['descp_1']) == 0:
+        print_corr += f"\n      o  Correlations between variables are acceptable"
+    else:
+        abs_r_list = list(np.abs(corr_dict['r']))
+        abs_max_r = max(abs_r_list)
+        max_r = corr_dict['r'][abs_r_list.index(abs_max_r)]
+        max_descp_1 = corr_dict['descp_1'][abs_r_list.index(abs_max_r)]
+        max_descp_2 = corr_dict['descp_2'][abs_r_list.index(abs_max_r)]
+        if abs_max_r > 0.95:
+            print_corr += f"\n      x  WARNING! Noticeable correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
+        elif abs_max_r > 0.8:
+            print_corr += f"\n      x  WARNING! High correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
+
+    self.args.log.write(print_corr)

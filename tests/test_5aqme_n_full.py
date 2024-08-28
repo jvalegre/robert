@@ -136,10 +136,10 @@ def test_AQME(test_job):
     # PREDICT folder
     if test_job in ['full_clas','full_clas_test']:
         assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 7 # missing the 4 dat files from outliers and CV variability
-        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 8
+        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 12
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 11
-        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 10
+        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 14
 
     if test_job == 'full_clas_test':
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set

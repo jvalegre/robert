@@ -423,6 +423,7 @@ class verify:
         verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
         plt.savefig(verify_plot_file, dpi=300, bbox_inches='tight')
         plt.clf()
+        plt.close()
 
         path_reduced = '/'.join(f'{verify_plot_file}'.replace('\\','/').split('/')[-2:])
         print_ver = f"\n   o  VERIFY plot saved in {path_reduced}"

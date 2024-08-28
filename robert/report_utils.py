@@ -632,7 +632,7 @@ def get_col_score(score_info,data_score,suffix,spacing_PFI,eval_only):
     if not eval_only:
         title_line = f'{caption}'
     else:
-        title_line = 'Summary and score of your model'
+        title_line = 'Summary and score of your model (No PFI)'
 
     column = f"""<p style="margin-top:-23px;"><span style="font-weight:bold;">{title_line}</span></p>
     {ML_line_format}Model = {data_score['ML_model']}&nbsp;&nbsp;·&nbsp;&nbsp;{partitions_ratio}</p>

@@ -44,7 +44,9 @@ from robert.predict_utils import (plot_predictions,
     shap_analysis,
     PFI_plot,
     outlier_plot,
-    print_cv_var
+    print_cv_var,
+    distribution_plot,
+    pearson_map_predict
     )
 from robert.utils import (load_variables,
     load_db_n_params,
@@ -95,7 +97,7 @@ class predict:
                 Xy_data = load_n_predict(self, params_dict, Xy_data, mapie=True)
 
                 # save predictions for all sets
-                path_n_suffix, name_points, Xy_data = save_predictions(self,Xy_data,params_dir,Xy_test_df)
+                path_n_suffix, name_points, Xy_data = save_predictions(self,Xy_data,params_dir,Xy_test_df,params_dict)
 
                 # represent y vs predicted y
                 colors = plot_predictions(self, params_dict, Xy_data, path_n_suffix)
@@ -105,7 +107,7 @@ class predict:
 
                 # print CV variation (for regression)
                 if params_dict['type'].lower() == 'reg':
-                    _ = print_cv_var(self,Xy_data,params_dict,path_n_suffix)  
+                    _ = print_cv_var(self,Xy_data,params_dict,path_n_suffix)
 
                 # SHAP analysis
                 _ = shap_analysis(self,Xy_data,params_dict,path_n_suffix)
@@ -113,8 +115,14 @@ class predict:
                 # PFI analysis
                 _ = PFI_plot(self,Xy_data,params_dict,path_n_suffix)
 
+                # create Pearson heatmap
+                _ = pearson_map_predict(self,Xy_data,params_dir)
+
                 # Outlier analysis
                 if params_dict['type'].lower() == 'reg':
                     _ = outlier_plot(self,Xy_data,path_n_suffix,name_points,colors)
+
+                # y distribution
+                _ = distribution_plot(self,Xy_data,path_n_suffix,params_dict)
 
         _ = finish_print(self,start_time,'PREDICT')

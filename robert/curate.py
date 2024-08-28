@@ -51,11 +51,8 @@ Parameters
 import time
 import os
 import pandas as pd
-import numpy as np
 from scipy import stats
-from matplotlib import pyplot as plt
-import seaborn as sb
-from robert.utils import load_variables, finish_print, load_database
+from robert.utils import load_variables, finish_print, load_database, pearson_map
 from sklearn.feature_selection import RFECV
 from sklearn.model_selection import KFold
 from sklearn.ensemble import RandomForestRegressor
@@ -93,7 +90,7 @@ class curate:
                 csv_df = self.correlation_filter(csv_df)
 
         # create Pearson heatmap
-        _ = self.pearson_map(csv_df)
+        _ = pearson_map(self,csv_df,'curate')
 
         # save the curated CSV
         _ = self.save_curate(csv_df)
@@ -303,63 +300,3 @@ class curate:
         options_df['names'] = [self.args.names]
         options_df['csv_name'] = [csv_curate_name]
         _ = options_df.to_csv(f'{options_name}', index = None, header=True)
-
-
-    def pearson_map(self,csv_df_pearson):
-        '''
-        Creates Pearson heatmap
-        '''
-
-        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
-        corr_matrix = csv_df_pearson.corr()
-        mask = np.zeros_like(corr_matrix, dtype=bool)
-        mask[np.triu_indices_from(mask)]= True
-        
-        # these size ranges avoid matplot errors
-        if len(csv_df_pearson.columns) > 30:
-            disable_plot = True
-        else:
-            disable_plot = False
-            _, ax = plt.subplots(figsize=(7.45,6))
-            size_title = 14
-            size_font = 14-2*((len(csv_df_pearson.columns)/5))
-
-        if disable_plot:
-            self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
-        else:
-            sb.set(font_scale=1.2, style='ticks')
-
-            # determines size of the letters inside the boxes (approx.)
-            annot = True
-            if len(csv_df_pearson.columns) > 30:
-                annot = False
-
-            _ = sb.heatmap(corr_matrix,
-                            mask = mask,
-                            square = True,
-                            linewidths = .5,
-                            cmap = 'coolwarm',
-                            cbar = False,
-                            cbar_kws = {'shrink': .4,
-                                        'ticks' : [-1, -.5, 0, 0.5, 1]},
-                            vmin = -1,
-                            vmax = 1,
-                            annot = annot,
-                            annot_kws = {'size': size_font})
-
-            plt.tick_params(labelsize=size_font)
-            #add the column names as labels
-            ax.set_yticklabels(corr_matrix.columns, rotation = 0)
-            ax.set_xticklabels(corr_matrix.columns)
-
-            title_fig = 'Pearson\'s r heatmap'
-            plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
-            sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
-
-            heatmap_name = 'Pearson_heatmap.png'
-            heatmap_path = self.args.destination.joinpath(heatmap_name)
-            plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
-            plt.clf()
-            path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
-            self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
-        

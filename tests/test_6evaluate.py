@@ -93,10 +93,10 @@ def test_eval(test_job):
     # PREDICT folder
     if test_job in ['clas']:
         assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 4 # missing the 2 dat files from outliers and CV variability
-        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 4
+        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 6
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 6
-        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 5
+        assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 7
     if test_job != 'test':
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 2
     else:

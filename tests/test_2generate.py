@@ -215,7 +215,7 @@ def test_GENERATE(test_job):
                 assert len(desc_list) == len(params_best['X_descriptors'][0].split(','))
     
         # check that the heatmap plots were generated
-        assert os.path.exists(f'{path_generate}/Raw_data/Heatmap_ML_models_no_PFI.png')
+        assert os.path.exists(f'{path_generate}/Raw_data/Heatmap_ML_models_No_PFI.png')
         if test_job != "reduced_noPFI":
             assert os.path.exists(f'{path_generate}/Raw_data/Heatmap_ML_models_PFI.png')
         else:

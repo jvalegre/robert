@@ -82,8 +82,10 @@ def main(exe_type='command',sys_args=None):
             curate(**vars(args))
 
         if full_workflow:
-            args.y = '' # this ensures GENERATE communicates with CURATE (see the load_variables() function in utils.py)
+            # this ensures GENERATE communicates with CURATE (see the load_variables() function in utils.py)
+            args.y = ''
             args.discard = [] # avoids an error since the variable(s) are removed in CURATE
+            args.csv_name = '' # force GENERATE to use the curated database
 
         # GENERATE
         if args.generate or full_workflow:

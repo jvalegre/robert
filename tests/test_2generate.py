@@ -85,7 +85,6 @@ def test_GENERATE(test_job):
         "--generate",
         "--csv_name", csv_name,
         '--y', 'Target_values',
-        "--ignore", "['Name']",
         "--epochs", "10",
         "--seed", "[0]"
         ]
@@ -96,7 +95,6 @@ def test_GENERATE(test_job):
         "--generate",
         "--csv_name", csv_name,
         '--y', 'Target_values',
-        "--ignore", "['Name']"
         ]
 
     if test_job != 'standard':
@@ -217,11 +215,11 @@ def test_GENERATE(test_job):
                 assert len(desc_list) == len(params_best['X_descriptors'][0].split(','))
     
         # check that the heatmap plots were generated
-        assert os.path.exists(f'{path_generate}/Raw_data/Heatmap ML models no PFI filter.png')
+        assert os.path.exists(f'{path_generate}/Raw_data/Heatmap_ML_models_no_PFI.png')
         if test_job != "reduced_noPFI":
-            assert os.path.exists(f'{path_generate}/Raw_data/Heatmap ML models with PFI filter.png')
+            assert os.path.exists(f'{path_generate}/Raw_data/Heatmap_ML_models_PFI.png')
         else:
-            assert not os.path.exists(f'{path_generate}/Raw_data/Heatmap ML models with PFI filter.png')
+            assert not os.path.exists(f'{path_generate}/Raw_data/Heatmap_ML_models_PFI.png')
 
         # Check that the default metric for classification models is MCC
         if test_job == 'reduced_clas':

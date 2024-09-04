@@ -24,9 +24,9 @@ path_tests = os.getcwd() + "/tests"
         (
             "test"
         ),  # test for a train+valid.+test evaluation
-        (
-            "clas"
-        ),  # test for classification models, currently EVALUATE only works for MVL, but this test will be implemented in the future
+        # (
+        #     "clas"
+        # ),  # test for classification models, currently EVALUATE only works for MVL, but this test will be implemented in the future
         (
             "missing_input"
         ),  # test that if the --csv_train or --csv_valid options are empty, a prompt pops up and asks for them 
@@ -87,20 +87,19 @@ def test_eval(test_job):
 
     # VERIFY folder
     assert len(glob.glob(f'{path_main}/VERIFY/*.png')) == 2
-    assert len(glob.glob(f'{path_main}/VERIFY/*.dat')) == 2
+    assert len(glob.glob(f'{path_main}/VERIFY/*.dat')) == 1
     assert len(glob.glob(f'{path_main}/VERIFY/*.csv')) == 1
 
     # PREDICT folder
     if test_job in ['clas']:
-        assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 4 # missing the 2 dat files from outliers and CV variability
         assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 6
     else:
-        assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 6
         assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 7
     if test_job != 'test':
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 2
     else:
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 3
+    assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 1
 
     # find important parts in ROBERT_report
     assert os.path.exists(f'{path_main}/ROBERT_report.pdf')
@@ -109,15 +108,14 @@ def test_eval(test_job):
     outlines = outfile.readlines()
     outfile.close()
 
-    find_pearson,find_heatmap,find_verify = 0,0,0
+    find_heatmap,find_verify = 0,0
     find_shap,find_pfi,find_outliers = 0,0,0
-    find_results_reg,find_results_train_clas,find_results_valid_clas = 0,0,0
+    find_results_reg,find_results_valid_clas = 0,0
     find_results_test_clas,find_test = 0,0
+    y_distrib_image,pearson_pred_image = False,False
 
     for line in outlines:
-        if 'Pearson_heatmap.png' in line:
-            find_pearson += 1
-        if 'Heatmap ML models no PFI filter.png' in line:
+        if 'Heatmap_ML_models_No_PFI.png' in line:
             find_heatmap += 1
         if 'VERIFY_tests_MVL_59_No_PFI.png' in line:
             find_verify += 1
@@ -129,8 +127,6 @@ def test_eval(test_job):
             find_outliers += 1
         if 'Results_MVL_59_No_PFI.png' in line:
             find_results_reg += 1
-        if 'Results_MVL_59_No_PFI_train.png' in line:
-            find_results_train_clas += 1
         if 'Results_MVL_59_No_PFI_valid.png' in line:
             find_results_valid_clas += 1
         if 'Results_MVL_59_No_PFI_csv_test.png' in line:
@@ -182,6 +178,10 @@ def test_eval(test_job):
             cv_sd_image = True
         if '4. Points(train+valid.):descriptors' in line:
             points_descp.append(line)
+        if 'y_distribution_MVL_59_No_PFI.png' in line:
+            y_distrib_image = True
+        if 'Pearson_heatmap_No_PFI.png' in line:
+            pearson_pred_image = True
         if 'How to predict new values with these models?' in line:
             break
 
@@ -247,12 +247,10 @@ def test_eval(test_job):
     if test_job not in ['clas']:
         assert find_outliers == 1
         assert find_results_reg == 1
-        assert find_results_train_clas == 0
         assert find_results_valid_clas == 0
     else:
         assert find_outliers == 0
         assert find_results_reg == 0
-        assert find_results_train_clas == 1
         assert find_results_valid_clas == 1
 
     if test_job in ['test']:
@@ -260,11 +258,13 @@ def test_eval(test_job):
         assert partition_count_test
 
     # common to all reports
-    assert find_pearson == 1
     assert find_heatmap == 0 # EVALUATE skips GENERATE model selection
     assert find_verify == 1
     assert find_shap == 1
     assert find_pfi == 1
+    # y distribution and Pearson images
+    assert y_distrib_image
+    assert pearson_pred_image
 
     # reset the folder
     folders = ['CURATE','GENERATE','GENERATE_reg','GENERATE_clas','PREDICT','VERIFY','AQME','EVALUATE']

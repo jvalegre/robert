@@ -435,17 +435,28 @@ def load_variables(kwargs, robert_module):
                 models_gen.append(model_type.upper())
             self.model = models_gen
 
-            if self.y == '':
-                curate_folder = Path(self.initial_dir).joinpath('CURATE')
-                if os.path.exists(curate_folder):
-                    curate_csv_files = glob.glob(f'{curate_folder}/*.csv')
-                    for csv_file in curate_csv_files:
-                        if 'CURATE_options.csv' in csv_file:
-                            curate_df = pd.read_csv(csv_file, encoding='utf-8')
+            # if there are missing options, look for them from a previous CURATE job (if any)
+            options_dict = {
+                'y': self.y,
+                'names': self.names,
+                'ignore': self.ignore,
+                'csv_name': self.csv_name
+            }
+            curate_folder = Path(self.initial_dir).joinpath('CURATE')
+            curate_csv = f'{curate_folder}/CURATE_options.csv'
+            if os.path.exists(curate_csv):
+                curate_df = pd.read_csv(curate_csv, encoding='utf-8')
+
+                for option in options_dict:
+                    if options_dict[option] == '':
+                        if option == 'y':
                             self.y = curate_df['y'][0]
+                        elif option == 'names':
                             self.names = curate_df['names'][0]
+                        elif option == 'ignore':
                             self.ignore = curate_df['ignore'][0]
                             self.ignore  = format_lists(self.ignore)
+                        elif option == 'csv_name':
                             self.csv_name = curate_df['csv_name'][0]
 
         elif robert_module.upper() == 'VERIFY':
@@ -544,7 +555,7 @@ def missing_inputs(self,module,print_err=False):
             if not print_err:
                 self.log.write(f"   -  y option set to {self.y} by the user")
 
-    if module.lower() in ['full_workflow','predict','curate','evaluate']:
+    if module.lower() in ['full_workflow','predict','curate','generate','evaluate']:
         if self.names == '':
             if print_err:
                 print(f'\nx  Specify the column with the entry names! (i.e. names="code_name")')
@@ -1302,7 +1313,11 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
         size_font = 14-2*((len(csv_df_pearson.columns)/5))
 
     if disable_plot:
-        self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+        if module.lower() == 'curate':
+            self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+        if module.lower() == 'predict':
+            self.args.log.write(f'\n   x  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+
     else:
         sb.set(font_scale=1.2, style='ticks')
 

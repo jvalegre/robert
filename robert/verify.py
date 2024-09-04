@@ -436,9 +436,6 @@ class verify:
         Print and store the results of VERIFY
         '''
         
-        verify_results_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.dat'
-        path_reduced = '/'.join(f'{verify_results_file}'.replace('\\','/').split('/')[-2:])
-        print_ver += f"\n   o  VERIFY test values saved in {path_reduced}"
         print_ver += f'\n      Results of flawed models and cross-validation:'
         # the printing order should be y-mean, y-shuffle and one-hot
         if verify_results['error_type'].lower() in ['mae','rmse']:
@@ -454,6 +451,3 @@ class verify:
             print_ver += f"\n         - {verify_metrics['type_cv']} : Accuracy = {round(verify_results['cv_acc'],2)}, F1 score = {round(verify_results['cv_f1'],2)}, MCC = {round(verify_results['cv_mcc'],2)}"
 
         self.args.log.write(print_ver)
-        dat_results = open(verify_results_file, "w")
-        dat_results.write(print_ver)
-        dat_results.close()

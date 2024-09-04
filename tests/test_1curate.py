@@ -202,6 +202,13 @@ def test_CURATE(test_job):
         assert 'ynoise' in db_final.columns
 
     elif test_job == 'csv_separator':
+
+        # restore original files
+        if os.path.exists(f"{path_tests}/Robert_example_separator_original.csv"):
+            if os.path.exists(f"{path_tests}/Robert_example_separator.csv"):
+                os.remove(f"{path_tests}/Robert_example_separator.csv")
+                shutil.move(f"{path_tests}/Robert_example_separator_original.csv",f"{path_tests}/Robert_example_separator.csv")
+
         # Test to check if the separator of the CSV file is correctly read
         cmd_robert = [
             "python",
@@ -230,6 +237,10 @@ def test_CURATE(test_job):
         csv_file = pd.read_csv(f"{path_tests}/Robert_example_separator_original.csv", sep=";")
         csv_file_new = pd.read_csv(f"{path_tests}/Robert_example_separator.csv", sep=",")
         assert csv_file.equals(csv_file_new)
+
+        # restore original files
+        os.remove(f"{path_tests}/Robert_example_separator.csv")
+        shutil.move(f"{path_tests}/Robert_example_separator_original.csv",f"{path_tests}/Robert_example_separator.csv")
     
     elif test_job == 'missing_input':
         # since we're inputting values for input() prompts, we use command lines and provide

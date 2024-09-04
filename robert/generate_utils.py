@@ -728,10 +728,11 @@ def heatmap_workflow(self,folder_hm):
 
     # plot heatmap
     if folder_hm == "No_PFI":
-        suffix = 'no PFI filter'
+        suffix = 'No PFI'
     elif folder_hm == "PFI":
-        suffix = 'with PFI filter'
+        suffix = 'PFI'
     _ = create_heatmap(self,csv_df,suffix,path_raw)
+
 
 def create_heatmap(self,csv_df,suffix,path_raw):
     """
@@ -750,8 +751,9 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     title_fig = f'Heatmap ML models {suffix}'
     plt.title(title_fig, y=1.04, fontsize = fontsize, fontweight="bold")
     sb.despine(top=False, right=False)
-    plt.savefig(f'{path_raw.joinpath(title_fig)}.png', dpi=300, bbox_inches='tight')
+    name_fig = '_'.join(title_fig.split())
+    plt.savefig(f'{path_raw.joinpath(name_fig)}.png', dpi=300, bbox_inches='tight')
     plt.clf()
     plt.close()
     path_reduced = '/'.join(f'{path_raw}'.replace('\\','/').split('/')[-2:])
-    self.args.log.write(f'\no  {title_fig} succesfully created in {path_reduced}')
+    self.args.log.write(f'\no  {name_fig} succesfully created in {path_reduced}')

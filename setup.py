@@ -33,7 +33,7 @@ setup(
     ],
     install_requires=[
         "PyYAML==6.0.1",
-        "matplotlib==3.9.1",
+        "matplotlib==3.9.2",
         "pandas==2.2.2",
         "numpy==1.26.4",
         "progress==1.6",

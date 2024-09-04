@@ -86,7 +86,7 @@ def test_AQME(test_job):
     ]
 
     if test_job in ['full_workflow','full_workflow_test','full_clas','full_clas_test']:
-        cmd_robert = cmd_robert + ["--ignore", "[Name]", "--names","Name"]
+        cmd_robert = cmd_robert + ["--names","Name"]
     
     if test_job in ['full_workflow','full_workflow_test']:
         cmd_robert = cmd_robert + ["--discard", "['xtest']"]
@@ -130,16 +130,15 @@ def test_AQME(test_job):
 
     # VERIFY folder
     assert len(glob.glob(f'{path_main}/VERIFY/*.png')) == 4
-    assert len(glob.glob(f'{path_main}/VERIFY/*.dat')) == 3
+    assert len(glob.glob(f'{path_main}/VERIFY/*.dat')) == 1
     assert len(glob.glob(f'{path_main}/VERIFY/*.csv')) == 2
 
     # PREDICT folder
     if test_job in ['full_clas','full_clas_test']:
-        assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 7 # missing the 4 dat files from outliers and CV variability
         assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 12
     else:
-        assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 11
         assert len(glob.glob(f'{path_main}/PREDICT/*.png')) == 14
+    assert len(glob.glob(f'{path_main}/PREDICT/*.dat')) == 1
 
     if test_job == 'full_clas_test':
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set
@@ -178,15 +177,13 @@ def test_AQME(test_job):
     outlines = outfile.readlines()
     outfile.close()
 
-    find_pearson,find_heatmap,find_verify = 0,0,0
+    find_heatmap,find_verify = 0,0
     find_shap,find_pfi,find_outliers = 0,0,0
-    find_results_reg,find_results_train_clas,find_results_valid_clas = 0,0,0
+    find_results_reg,find_results_valid_clas = 0,0
     find_results_test_clas,find_test = 0,0
 
     for line in outlines:
-        if 'Pearson_heatmap.png' in line:
-            find_pearson += 1
-        if 'Heatmap ML models no PFI filter.png' in line:
+        if 'Heatmap_ML_models_No_PFI.png' in line:
             find_heatmap += 1
         if 'VERIFY_tests_RF_60_PFI.png' in line:
             find_verify += 1
@@ -198,8 +195,6 @@ def test_AQME(test_job):
             find_outliers += 1
         if 'Results_RF_60_No_PFI.png' in line:
             find_results_reg += 1
-        if 'Results_RF_60_No_PFI_train.png' in line:
-            find_results_train_clas += 1
         if 'Results_RF_60_No_PFI_valid.png' in line:
             find_results_valid_clas += 1
         if 'Results_RF_60_No_PFI_csv_test.png' in line:
@@ -213,8 +208,12 @@ def test_AQME(test_job):
         ml_model_count,partition_count,metrics_count = 0,0,0
         flawed_models,pred_ability,cv_r2_models,cv_sd_models,points_descp = [],[],[],[],[]
         predict_graphs,flawed_image,cv_r2_image,cv_sd_image = False,False,False,False
+        y_distrib_image,pearson_pred_image = False,False
+        find_severe_red,find_severe_blue = False,False
+        find_moder_pred,find_moder_y_dist,find_moder_corr = False,False,False
+        find_assess_yellow,find_assess_red = False,False
 
-        for line in outlines:
+        for i,line in enumerate(outlines):
             if 'robert/report/score_' in line and 'robert/report/score_w' not in line:
                 robert_score.append(line.split('robert/report/score_')[1][0])
             if 'Model = RF' in line:
@@ -243,6 +242,24 @@ def test_AQME(test_job):
                 cv_sd_image = True
             if '4. Points(train+valid.):descriptors' in line:
                 points_descp.append(line)
+            if 'y_distribution_RF_60_No_PFI.png' in line:
+                y_distrib_image = True
+            if 'Pearson_heatmap_No_PFI.png' in line:
+                pearson_pred_image = True
+            if 'Failing required tests (Section B.1)' in line and 'color: #c56666' in outlines[i-1]:
+                find_severe_red = True
+            if 'No severe warnings detected' in line and 'color: #9ba5e3' in outlines[i-1]:
+                find_severe_blue = True
+            if 'Imprecise predictions (Section B.3b)' in line and 'color: #c5c57d' in outlines[i-1]:
+                find_moder_pred = True
+            if 'Slightly uneven y distribution (Section C)' in line and 'color: #c5c57d' in outlines[i-1]:
+                find_moder_y_dist = True
+            if 'Moderately correlated features (Section D)' in line and 'color: #c5c57d' in outlines[i-1]:
+                find_moder_corr = True
+            if 'Decent model, but it has limitations' in line and 'color: #c5c57d' in outlines[i-1]:
+                find_assess_yellow = True
+            if 'The model is unreliable' in line and 'color: #c56666' in outlines[i-1]:
+                find_assess_red = True                
             if 'How to predict new values with these models?' in line:
                 break
 
@@ -283,16 +300,25 @@ def test_AQME(test_job):
         assert 'robert/report/score_w_1_0.jpg' in points_descp[0]
         assert '1 / 1' in points_descp[1]
         assert 'robert/report/score_w_1_1.jpg' in points_descp[1]
+        # y distribution and Pearson images
+        assert y_distrib_image
+        assert pearson_pred_image
+        # warnings
+        assert find_severe_red
+        assert find_severe_blue
+        assert find_moder_pred
+        assert find_moder_y_dist
+        assert find_moder_corr
+        assert find_assess_yellow
+        assert find_assess_red
 
     if test_job in ['full_workflow','full_workflow_test','aqme','2smiles_columns']:
         assert find_outliers > 0
         assert find_results_reg > 0
-        assert find_results_train_clas == 0
         assert find_results_valid_clas == 0
     else:
         assert find_outliers == 0
         assert find_results_reg == 0
-        assert find_results_train_clas > 0
         assert find_results_valid_clas > 0
 
     if test_job in ['full_workflow_test','full_clas_test']:
@@ -305,8 +331,6 @@ def test_AQME(test_job):
         assert find_test == 0
 
     # common to all reports
-    if test_job != 'aqme': # too many descriptors so no Pearon heatmap
-        assert find_pearson > 0
     assert find_heatmap > 0
     assert find_verify > 0
     assert find_shap > 0

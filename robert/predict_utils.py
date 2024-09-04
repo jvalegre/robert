@@ -123,6 +123,12 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
     # Create graph
     sb.set(style="ticks")
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
+    plt.close()
+
     _, ax = plt.subplots(figsize=(7.45,6))
 
     # Set tick sizes
@@ -235,7 +241,10 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     plt.savefig(f'{reg_plot_file}', dpi=300, bbox_inches='tight')
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
-    plt.clf()
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
     plt.close()
 
 
@@ -329,7 +338,10 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
     Plot a confusion matrix with the prediction vs actual values
     '''
     
-    plt.clf()
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
+    plt.close()
 
     # get confusion matrix
     if 'CV' in set_type: # CV graphs
@@ -373,7 +385,9 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
 
-    plt.clf()
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
     plt.close()
 
 
@@ -498,9 +512,6 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
             print_results += f"\n      -  csv_test : Accur. = {Xy_data['acc_csv_test']:.2}, F1 score = {Xy_data['f1_csv_test']:.2}, MCC = {Xy_data['mcc_csv_test']:.2}"
 
     self.args.log.write(print_results)
-    dat_results = open(dat_file, "w")
-    dat_results.write(print_results)
-    dat_results.close()
 
 
 def print_cv_var(self,Xy_data,params_dict,path_n_suffix):
@@ -521,11 +532,7 @@ def print_cv_var(self,Xy_data,params_dict,path_n_suffix):
     print_cv_var += f"\n      -  Average SD = {round(Xy_data['avg_sd'],2)}"
     print_cv_var += f"\n      -  y range of dataset (train+valid.) = {round(Xy_data['pred_min'],2)} to {round(Xy_data['pred_max'],2)}, total {round(Xy_data['pred_range'],2)}"
 
-    cv_var_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.dat'
     self.args.log.write(print_cv_var)
-    dat_results = open(cv_var_file, "w")
-    dat_results.write(print_cv_var)
-    dat_results.close()
 
 
 def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
@@ -538,6 +545,11 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     # load and fit the ML model
     loaded_model = load_model(params_dict)
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
+    plt.close()
 
     # run the SHAP analysis and save the plot
     explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=params_dict['seed'])
@@ -561,14 +573,16 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     plt.gcf().axes[-1].set_box_aspect(aspect_shap)
     
     plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
-    plt.clf()
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
     plt.close()
 
     path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
     print_shap = f"\n   o  SHAP plot saved in {path_reduced}"
 
     # collect SHAP values and print
-    shap_results_file = f'{os.path.dirname(path_n_suffix)}/SHAP_{os.path.basename(path_n_suffix)}.dat'
     desc_list, min_list, max_list = [],[],[]
     for i,desc in enumerate(Xy_data['X_train_scaled']):
         desc_list.append(desc)
@@ -585,15 +599,10 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     else:
         min_list, max_list, desc_list = (list(t) for t in zip(*sorted(zip(min_list, max_list, desc_list), reverse=False)))
 
-    path_reduced = '/'.join(f'{shap_results_file}'.replace('\\','/').split('/')[-2:])
-    print_shap += f"\n   o  SHAP values saved in {path_reduced}:"
     for i,desc in enumerate(desc_list):
         print_shap += f"\n      -  {desc} = min: {min_list[i]:.2}, max: {max_list[i]:.2}"
 
     self.args.log.write(print_shap)
-    dat_results = open(shap_results_file, "w")
-    dat_results.write(print_shap)
-    dat_results.close()
 
 
 def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
@@ -638,38 +647,39 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     PFI_values_plot = PFI_values[:self.args.pfi_show][::-1]
     desc_list_plot = desc_list[:self.args.pfi_show][::-1]
 
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
+    plt.close()
+
     # plot and print results
-    fig, ax = plt.subplots(figsize=(7.45,6))
+    _, ax = plt.subplots(figsize=(7.45,6))
     y_ticks = np.arange(0, len(desc_list_plot))
     ax.barh(desc_list_plot, PFI_values_plot)
     ax.set_yticks(y_ticks,labels=desc_list_plot,fontsize=14)
     plt.text(0.5, 1.08, f'Permutation feature importances (PFIs) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
         fontsize=14, fontweight='bold', transform = ax.transAxes)
-    fig.tight_layout()
     ax.set(ylabel=None, xlabel='PFI')
 
     plt.savefig(f'{pfi_plot_file}', dpi=300, bbox_inches='tight')
-    plt.clf()
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
     plt.close()
 
     path_reduced = '/'.join(f'{pfi_plot_file}'.replace('\\','/').split('/')[-2:])
     print_PFI = f"\n   o  PFI plot saved in {path_reduced}"
 
-    pfi_results_file = f'{os.path.dirname(path_n_suffix)}/PFI_{os.path.basename(path_n_suffix)}.dat'
-    path_reduced = '/'.join(f'{pfi_results_file}'.replace('\\','/').split('/')[-2:])
-    print_PFI += f"\n   o  PFI values saved in {path_reduced}:"
     if params_dict['type'].lower() == 'reg':
         print_PFI += f'\n      Original score (from model.score, R2) = {score_model:.2}'
     elif params_dict['type'].lower() == 'clas':
-        print_PFI += f'\n      Original score (from model.score, accuracy) = {score_model:.2}'
+        print_PFI += f'\n      Original score (from model.score, MCC) = {score_model:.2}'
 
     for i,desc in enumerate(desc_list):
         print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} ± {PFI_sd[i]:.2}"
     
     self.args.log.write(print_PFI)
-    dat_results = open(pfi_results_file, "w")
-    dat_results.write(print_PFI)
-    dat_results.close()
 
 
 def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
@@ -682,6 +692,12 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
 
     # plot data in SD units
     sb.set(style="ticks")
+    
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
+    plt.close()
+
     _, ax = plt.subplots(figsize=(7.45,6))
     plt.text(0.5, 1.08, f'Outlier analysis of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
     fontsize=14, fontweight='bold', transform = ax.transAxes)
@@ -723,15 +739,15 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     # save plot and print results
     outliers_plot_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{outliers_plot_file}', dpi=300, bbox_inches='tight')
-    plt.clf()
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
     plt.close()
     
     path_reduced = '/'.join(f'{outliers_plot_file}'.replace('\\','/').split('/')[-2:])
     print_outliers += f"\n   o  Outliers plot saved in {path_reduced}"
 
-    outlier_results_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.dat'
-    path_reduced = '/'.join(f'{outlier_results_file}'.replace('\\','/').split('/')[-2:])
-    print_outliers += f"\n   o  Outlier values saved in {path_reduced}:"
     if 'train' not in name_points:
         print_outliers += f'\n      x  No names option (or var missing in CSV file)! Outlier names will not be shown'
     else:
@@ -744,9 +760,6 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
         print_outliers = outlier_analysis(print_outliers,outliers_data,'test')
     
     self.args.log.write(print_outliers)
-    dat_results = open(outlier_results_file, "w")
-    dat_results.write(print_outliers)
-    dat_results.close()
 
 
 def outlier_analysis(print_outliers,outliers_data,outliers_set):
@@ -838,6 +851,12 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
 
     # make graph
     sb.set(style="ticks")
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
+    plt.close()
+
     _, ax = plt.subplots(figsize=(7.45,6))
     plt.text(0.5, 1.08, f'y-values distribution (train+valid.) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
     fontsize=14, fontweight='bold', transform = ax.transAxes)
@@ -873,7 +892,9 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
     final_distrib_file = f'{os.path.dirname(path_n_suffix)}/y_distribution_{os.path.basename(path_n_suffix)}.png'
     shutil.move(orig_distrib_file, final_distrib_file)
 
-    plt.clf()
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
     plt.close()
 
     path_reduced = '/'.join(f'{final_distrib_file}'.replace('\\','/').split('/')[-2:])
@@ -883,7 +904,7 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
     if params_dict['type'].lower() == 'reg':
         print_distrib += f"\n      Ideally, the number of datapoints in the four quartiles of the y-range should be uniform (25% population in each quartile) to have similar confidence intervals in the predictions across the y-range"
         quartile_pops = [len(y_dist_dict['q1_points']),len(y_dist_dict['q2_points']),len(y_dist_dict['q3_points']),len(y_dist_dict['q4_points'])]
-        print_distrib += f"\n      - The number of points in each quartile is Q1: {quartile_pops[0]}, Q2: {quartile_pops[1]}, Q3: {quartile_pops[2]}, Q4: {quartile_pops[3]}"
+        print_distrib += f"\n      -  The number of points in each quartile is Q1: {quartile_pops[0]}, Q2: {quartile_pops[1]}, Q3: {quartile_pops[2]}, Q4: {quartile_pops[3]}"
         quartile_min_idx = quartile_pops.index(min(quartile_pops))
         quartile_max_idx = quartile_pops.index(max(quartile_pops))
         if 4*min(quartile_pops) < max(quartile_pops):
@@ -916,7 +937,7 @@ def plot_quartiles(y_combined,ax):
     '''
     Plot histogram, quartile lines and the points in each quartile.
     '''
-    
+
     bins = max([round(len(y_combined)/5),5]) # at least 5 bins until 25 points
     # histogram
     y_hist, _, _ = ax.hist(y_combined, bins=bins,
@@ -1010,8 +1031,8 @@ def pearson_map_predict(self,Xy_data,params_dir):
         max_descp_1 = corr_dict['descp_1'][abs_r_list.index(abs_max_r)]
         max_descp_2 = corr_dict['descp_2'][abs_r_list.index(abs_max_r)]
         if abs_max_r > 0.95:
-            print_corr += f"\n      x  WARNING! Noticeable correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
-        elif abs_max_r > 0.8:
             print_corr += f"\n      x  WARNING! High correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
+        elif abs_max_r > 0.8:
+            print_corr += f"\n      x  WARNING! Noticeable correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
 
     self.args.log.write(print_corr)

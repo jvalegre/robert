@@ -333,7 +333,10 @@ class report:
         
         # tests from flawed models
         if data_score[f'flawed_mod_score_{suffix}'] < 3:
-            warnings_dict[f'severe_warnings_{suffix}'].append('Failing required tests (Section B.1)')
+            if data_score[f'failed_tests_{suffix}'] > 0:
+                warnings_dict[f'severe_warnings_{suffix}'].append('Failing required tests (Section B.1)')
+            else:
+                warnings_dict[f'moderate_warnings_{suffix}'].append('Some tests are unclear (Section B.1)')
 
         # variation in CV
         if pred_type == 'reg':

@@ -452,7 +452,7 @@ def adv_flawed(self,suffix,data_score,spacing):
     else:
         verify_image = f'{self.args.path_icons}/score_w_3_{score_flawed}.jpg'
 
-    if score_flawed <= 0:
+    if score_flawed <= 0 or data_score[f'failed_tests_{suffix}'] > 0:
        flaw_result = f'DO NOT USE THIS MODEL! It has important flaws.'
     elif score_flawed in [1,2]:
         flaw_result = f'WARNING! The model might have important flaws.'
@@ -464,7 +464,7 @@ def adv_flawed(self,suffix,data_score,spacing):
     init_spacing = f'<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}'
     column = f"""
     {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed} / 3 &nbsp;<img src="file:///{verify_image}" alt="ROBERT Score" style="width: 19%">)</p>
-    {score_adv_flawed}{flaw_result}<br>{spacing}Pass (blue): +1, Fail (red): -1. <i><a href="https://robert.readthedocs.io/en/latest/Modules/verify.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
+    {score_adv_flawed}{flaw_result}<br>{spacing}Pass: +1, Unclear: 0, Fail: -1. <i><a href="https://robert.readthedocs.io/en/latest/Modules/verify.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
     """
 
     return column
@@ -770,6 +770,7 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
     start_data = False
     cv_type = ''
     flawed_score,cv_r2 = 0,0
+    failed_tests = 0
     for i,line in enumerate(dat_verify):
         # set starting points for No PFI and PFI models
         if suffix == 'No PFI':
@@ -786,8 +787,9 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                 for j in range(i+1,i+4): # y-mean, y-shuffle and onehot tests
                     if 'PASSED' in dat_verify[j]:
                         flawed_score += 1
-                    else:
+                    elif 'FAILED' in dat_verify[j]:
                         flawed_score -= 1
+                        failed_tests += 1
                 if 'LOOCV' in dat_verify[i+4]:
                     cv_type = 'LOOCV'
                 else:
@@ -805,6 +807,7 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
     data_score[f'cv_type_{suffix}'] = cv_type
     data_score[f'cv_r2_{suffix}'] = cv_r2
     data_score[f'cv_r2_score_{suffix}'] = cv_r2_score
+    data_score[f'failed_tests_{suffix}'] = failed_tests
 
     return data_score
 

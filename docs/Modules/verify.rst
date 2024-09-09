@@ -27,7 +27,7 @@ Automated protocols
 Technical information
 +++++++++++++++++++++
 
-The test-pass threshold is established through the 'thres_test' option, determined by the percentage of error difference (RMSE or MCC by default) relative to the original model. The 'kfold' parameter adjusts the number of different splits utilized in cross-validation, and by default 'kfold' is set to 'auto' to assign LOOCV for small databases and 5-fold CV for larger databases.
+The test-pass thresholds are 10% (for unclear results) and 25% (for passed tests), determined by the percentage of error difference (RMSE or MCC by default) relative to the original model. The 'kfold' parameter adjusts the number of different splits utilized in cross-validation, and by default 'kfold' is set to 'auto' to assign LOOCV for small databases and 5-fold CV for larger databases.
 Lastly, the VERIFY module generates a donut plot summarizing the test outcomes. This visual representation distinguishes between passed and failed tests, using blue and red colors, respectively.
 
 Example

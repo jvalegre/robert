@@ -48,7 +48,6 @@ var_dict = {
     "pfi_threshold" : 0.04,
     "pfi_filter" : True,
     "pfi_max" : 0,
-    "thres_test" : 0.25,
     "kfold" : 'auto',
     "alpha" : 0.05,
     "params_dir" : '',

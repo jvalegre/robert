@@ -149,7 +149,6 @@ def command_line_args(exe_type,sys_args):
     ]
     float_args = [
         'pfi_threshold',
-        'thres_test',
         't_value',
         'thres_x',
         'thres_y',
@@ -222,7 +221,6 @@ o Other common options:
 
 * Affecting tests, VERIFY:
   --kfold INT (default='auto') : number of folds for k-fold cross-validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
-  --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
 
 * Affecting predictions, PREDICT:
   --t_value INT (default=2) : t-value threshold to identify outliers
@@ -679,11 +677,6 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
             if self.type.lower() == 'clas' and self.error_type.lower() not in ['mcc','f1','acc']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1', 'acc'")
-                curate_valid = False
-        
-        if module.lower() == 'verify':
-            if float(self.thres_test) < 0:
-                self.log.write(f"\nx  The thres_test should be higher than 0!")
                 curate_valid = False
 
         if module.lower() in ['verify','predict']:

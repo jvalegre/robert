@@ -8,10 +8,6 @@ Parameters
         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
     params_dir : str, default=''
         Folder containing the database and parameters of the ML model to analyze.
-    thres_test : float, default=0.25,
-        Threshold used to determine if a test pasess. It is determined in % units of diference between
-        the RMSE (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
-        original value).
     kfold : int, default='auto',
         Number of folds for the k-fold cross-validation. If 'auto', the program does 
         a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
@@ -52,6 +48,10 @@ from robert.utils import (load_variables,
 )
 from robert.predict_utils import graph_reg,graph_clas
 
+
+#thresholds for passing tests in VERIFY
+thres_test_pass = 0.25
+thres_test_unclear = 0.1
 
 class verify:
     """
@@ -283,34 +283,42 @@ class verify:
 
         blue_color = '#1f77b4'
         red_color = '#cd5c5c'
+        yellow_color = '#c5c57d'
         colors = [None,None,None]
         results_print = [None,None,None]
         metrics = [None,None,None]
-        thres_test = self.args.thres_test                
 
         # the threshold uses validation results to compare in the tests
-        verify_results['higher_thres'] = (1+thres_test)*verify_results['original_score_valid']
-        verify_results['lower_thres'] = (1-thres_test)*verify_results['original_score_valid']
+        verify_results['higher_thres'] = (1+thres_test_pass)*verify_results['original_score_valid']
+        verify_results['unclear_higher_thres'] = (1+thres_test_unclear)*verify_results['original_score_valid']
+        verify_results['lower_thres'] = (1-thres_test_pass)*verify_results['original_score_valid']
+        verify_results['unclear_lower_thres'] = (1-thres_test_unclear)*verify_results['original_score_valid']
 
         # determine whether the tests pass
         test_names = ['y_mean','y_shuffle','onehot']
         for i,test_ver in enumerate(test_names):
             metrics[i] = verify_results[test_ver]
             if verify_results['error_type'].lower() in ['mae','rmse']:
-                if verify_results[test_ver] <= verify_results['higher_thres']:
+                if verify_results[test_ver] <= verify_results['unclear_higher_thres']:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, lower than thres.'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, lower than threshold'
+                elif verify_results[test_ver] <= verify_results['higher_thres']:
+                        colors[i] = yellow_color
+                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, higher than original, but close to fail'
                 else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, higher than thres.'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, higher than thresholds'
 
             else:
-                if verify_results[test_ver] >= verify_results['lower_thres']:
+                if verify_results[test_ver] >= verify_results['unclear_lower_thres']:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, higher than thres.'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, higher than thresholds'
+                elif verify_results[test_ver] >= verify_results['lower_thres']:
+                        colors[i] = yellow_color
+                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, lower than original, but close to fail'
                 else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, lower than thres.'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {round(verify_results[test_ver],2)}, lower than thresholds'
 
         # store metrics and colors to represent in comparison graph, adding the metrics of the 
         # original model first
@@ -320,9 +328,10 @@ class verify:
         verify_metrics = {'test_names': test_names,
                           'colors': colors,
                           'metrics': metrics,
-                          'thres_test': thres_test,
                           'higher_thres': verify_results['higher_thres'],
                           'lower_thres': verify_results['lower_thres'],
+                          'unclear_higher_thres': verify_results['unclear_higher_thres'],
+                          'unclear_lower_thres': verify_results['unclear_lower_thres'],
                           'type_cv': type_cv
                           }        
         
@@ -367,6 +376,8 @@ class verify:
                     txt_bar = 'pass'
                 elif test_color == '#cd5c5c':
                     txt_bar = 'fail'
+                elif test_color == '#c5c57d':
+                    txt_bar = 'unclear'
                 ax.text(label_count, offset_txt, txt_bar, color=test_color, 
                         fontstyle='italic', horizontalalignment='center')
             label_count += 1
@@ -386,14 +397,17 @@ class verify:
         arrow_length = np.abs(max_lim-min_lim)/11
         
         if verify_results['error_type'].lower() in ['mae','rmse']:
-            thres_line = verify_metrics['higher_thres']            
+            thres_line = verify_metrics['higher_thres']
+            unclear_thres_line = verify_metrics['unclear_higher_thres']  
         else:
             thres_line = verify_metrics['lower_thres']
+            unclear_thres_line = verify_metrics['unclear_lower_thres']
             arrow_length = -arrow_length
 
         width = 2
         xmin = 0.237
         thres = ax.axhline(thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
+        thres = ax.axhline(unclear_thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
 
         x_arrow = 0.5
         style = ArrowStyle('simple', head_length=4.5*width, head_width=3.5*width, tail_width=width)
@@ -412,7 +426,7 @@ class verify:
             return p
 
         arrow = plt.arrow(0, 0, 0, 0, label='arrow', width=0, fc='k', ec='k') # arrow for the legend
-        plt.figlegend([thres,arrow], [f'Threshold ({verify_results["error_type"].upper()} = {round(thres_line,2)})','Passing condition'], handler_map={mpatches.FancyArrow : HandlerPatch(patch_func=make_legend_arrow),},
+        plt.figlegend([thres,arrow], [f'Limits: {round(thres_line,2)} (pass), {round(unclear_thres_line,2)} (unclear)','Pass test'], handler_map={mpatches.FancyArrow : HandlerPatch(patch_func=make_legend_arrow),},
                       loc="lower center", ncol=2, bbox_to_anchor=(0.5, -0.05),
                       fancybox=True, shadow=True, fontsize=14)
 
@@ -435,13 +449,13 @@ class verify:
         '''
         Print and store the results of VERIFY
         '''
-        
+
         print_ver += f'\n      Results of flawed models and cross-validation:'
         # the printing order should be y-mean, y-shuffle and one-hot
         if verify_results['error_type'].lower() in ['mae','rmse']:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {round(verify_results["original_score_valid"],2)} + {int(verify_metrics["thres_test"]*100)}% thres. = {round(verify_results["higher_thres"],2)}'
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {round(verify_results["original_score_valid"],2)} + {int(thres_test_unclear*100)}% & {int(thres_test_pass*100)}% threshold = {round(verify_results["unclear_higher_thres"],2)} & {round(verify_results["higher_thres"],2)}'
         else:
-            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {round(verify_results["original_score_valid"],2)} - {int(verify_metrics["thres_test"]*100)}% thres. = {round(verify_results["lower_thres"],2)}'
+            print_ver += f'\n      Original {verify_results["error_type"].upper()} (valid. set) {round(verify_results["original_score_valid"],2)} - {int(thres_test_unclear*100)}% & {int(thres_test_pass*100)}% threshold = {round(verify_results["unclear_lower_thres"],2)} & {round(verify_results["lower_thres"],2)}'
         print_ver += results_print[0]
         print_ver += results_print[1]
         print_ver += results_print[2]

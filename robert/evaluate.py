@@ -38,10 +38,6 @@ Affect VERIFY
         1. mcc (Matthew's correlation coefficient)
         2. f1 (F1 score)
         3. acc (accuracy, fraction of correct predictions)
-    thres_test : float, default=0.25,
-        Threshold used to determine if a test pasess. It is determined in % units of diference between
-        the RMSE (MCC in classificators) of the model and the test (i.e., 0.25 = 25% difference with the 
-        original value).
 
 Affect PREDICT
 ++++++++++++++

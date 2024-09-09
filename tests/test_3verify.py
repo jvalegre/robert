@@ -20,9 +20,6 @@ path_verify = path_main + "/VERIFY"
     "test_job",
     [
         (
-            "thres_test"
-        ),  # test for the thresholds used
-        (
             "kfold"
         ),  # test the kfold option
         (
@@ -69,9 +66,7 @@ def test_VERIFY(test_job):
         "--verify",
     ]
 
-    if test_job == "thres_test":
-        cmd_robert = cmd_robert + ["--thres_test", "10"]
-    elif test_job == "kfold":
+    if test_job == "kfold":
         cmd_robert = cmd_robert + ["--kfold", "10"]
 
     subprocess.run(cmd_robert)
@@ -84,11 +79,7 @@ def test_VERIFY(test_job):
     assert "ROBERT v" in outlines[0]
     for i,line in enumerate(outlines):
         if 'Results of the VERIFY tests:' in line:
-            if test_job == "thres_test":
-                assert "LOOCV: PASSED" in outlines[i+2]
-                assert "x y_mean: FAILED" in outlines[i+3]
-                assert "x y_shuffle: FAILED" in outlines[i+4]
-            elif test_job == "kfold":
+            if test_job == "kfold":
                 assert "x 10-fold CV: FAILED" in outlines[i+2]
             elif test_job == "clas":
                 assert "LOOCV: " in outlines[i+2]

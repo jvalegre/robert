@@ -198,7 +198,7 @@ class report:
         # add corresponding images
         diff_height = 25 # account for different graph sizes in reg and clas
 
-        height = 215
+        height = 221
         if pred_type == 'clas':
             if test_set:
                 height += 17 # otherwise the first graph doesn't fit
@@ -532,16 +532,7 @@ class report:
             diff_height = 25 # account for different graph sizes in reg and clas
             section_separator = f'<hr style="height: 0.5px; margin-top: 22px; margin-bottom: 0px; background-color:LightGray">'
 
-            if section == 'score_main':
-                height = 215
-                if pred_type == 'clas':
-                    if test_set:
-                        height += 17 # otherwise the first graph doesn't fit
-                    else:
-                        height += diff_height
-                adv_score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,eval_only,test_set=test_set,diff_names=True)
-
-            elif section == 'adv_flawed':
+            if section == 'adv_flawed':
                 height = 238
                 if pred_type == 'clas':
                     height -= 15
@@ -553,13 +544,13 @@ class report:
                 adv_score_dat += section_separator
 
             elif section == 'adv_cv_r2':
-                height = 215
+                height = 221
                 if pred_type == 'clas':
                     height += diff_height
                 adv_score_dat += self.print_img('CV_train_valid_predict',10,height,'VERIFY',pred_type,eval_only)
 
             elif section == 'adv_cv_sd' and pred_type == 'reg':
-                adv_score_dat += self.print_img('CV_variability',10,215,'PREDICT',pred_type,eval_only)
+                adv_score_dat += self.print_img('CV_variability',10,221,'PREDICT',pred_type,eval_only)
                 adv_score_dat += section_separator
 
             elif section == 'adv_cv_diff' and pred_type == 'clas':

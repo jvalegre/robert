@@ -494,10 +494,10 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #var
     
     discard_idx, descriptors_PFI = [],[]
     # just in case none of the descriptors passed the PFI filter
-    # select only the most important deascriptors until the pfi_max limit
+    # select only the most important descriptors until the pfi_max limit
     if n_descp_PFI == 0:
         descriptors_PFI = PFI_discard_cols[:pfi_max]
-        discard_idx = PFI_discard_cols[len(PFI_discard_cols)-pfi_max:]
+        discard_idx = PFI_discard_cols[pfi_max:]
 
     else:
         if pfi_max != 0:
@@ -513,7 +513,7 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #var
     Xy_data_PFI['X_valid'] = Xy_data['X_valid'].drop(discard_idx, axis=1)
     Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(self,Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
     PFI_dict['X_descriptors'] = descriptors_PFI
-    if 'max_features' in  PFI_dict and PFI_dict['max_features'] > len(descriptors_PFI):
+    if 'max_features' in PFI_dict and PFI_dict['max_features'] > len(descriptors_PFI):
         PFI_dict['max_features'] = len(descriptors_PFI)
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 

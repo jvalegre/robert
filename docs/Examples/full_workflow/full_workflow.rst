@@ -48,12 +48,16 @@ Executing the job
 
 * :code:`--csv_name Robert_example.csv`: CSV with the database.   
 
-Execution time
-++++++++++++++
+Execution time and versions
++++++++++++++++++++++++++++
 
-Time: ~3 min
+Time: ~1.5 min
 
 System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
+
+ROBERT version: 1.2.0
+
+scikit-learn-intelex version: 2024.5.0
 
 Results
 +++++++
@@ -64,108 +68,14 @@ Results
 
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
 
-The PDF report contains all the results of the workflow. In this case, a Neural Network (NN) model with 80% training size was the optimal model found from: 
+The PDF report contains all the results of the workflow. In this case, two Neural Network (NN) models with 80% training sizes were the optimal model found from: 
 
    * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
    * Three different partition sizes (60%, 70%, 80%) 
 
-All the results are summarized below:
+The first part of the PDF file is shown below as a preview:
 
-.. |Person_heatmap| image:: ../images/FW/Pearson_heatmap.png
+.. |pdf_preview| image:: ../images/FW/preview.png
    :width: 400
 
-.. |heatmap_no_pfi| image:: ../images/FW/heatmap_no_pfi.png
-   :width: 400
-
-.. |heatmap_pfi| image:: ../images/FW/heatmap_pfi.png
-   :width: 400
-
-.. |VERIFY_no_pfi| image:: ../images/FW/VERIFY_no_pfi.png
-   :width: 600
-
-.. |VERIFY_pfi| image:: ../images/FW/VERIFY_pfi.png
-   :width: 600
-
-.. |PREDICT_graph_no_pfi| image:: ../images/FW/PREDICT_graph_no_pfi.png
-   :width: 600
-
-.. |PREDICT_graph_pfi| image:: ../images/FW/PREDICT_graph_pfi.png
-   :width: 600
-
-.. |PREDICT_shap_no_pfi| image:: ../images/FW/PREDICT_shap_no_pfi.png
-   :width: 600
-
-.. |PREDICT_shap_pfi| image:: ../images/FW/PREDICT_shap_pfi.png
-   :width: 600
-
-.. |PREDICT_out_no_pfi| image:: ../images/FW/PREDICT_out_no_pfi.png
-   :width: 600
-
-.. |PREDICT_out_pfi| image:: ../images/FW/PREDICT_out_pfi.png
-   :width: 600
-
-.. |header| image:: ../images/FW/header.jpg
-   :width: 600
-
-.. |score| image:: ../images/FW/score.jpg
-   :width: 600
-
-.. |summary| image:: ../images/FW/summary.jpg
-   :width: 600
-
-+---------------------------------------------------------------------------------------------------+
-|  .. centered:: **SUMMARY OF RESULTS IN THE REPORT AND FOLDERS**                                   |
-+---------------------------------------------------------------------------------------------------+
-|  |                                                                                                |
-|  .. centered:: Header and ROBERT score from the PDF report                                        |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Header                                       |    |header|                         |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: ROBERT score                                 |    |score|                          |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Prediction summary                           |    |summary|                        |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /CURATE folder                                                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Person_heatmap.png                           |    |Person_heatmap|                 |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /GENERATE folder                                                                   |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap_ML_models_no                         |    |heatmap_no_pfi|                 |
-|  .. centered:: _PFI_filter.png                              |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap_ML_models_with                       |    |heatmap_pfi|                    |
-|  .. centered:: _PFI_filter.png                              |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /VERIFY folder                                                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_NN_80_No_PFI.png                |    |VERIFY_no_pfi|                  |
-|  .. centered:: *(using 12 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_NN_80_PFI.png                   |    |VERIFY_pfi|                     |
-|  .. centered:: *(PFI filter applied, using 5 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /PREDICT folder                                                                    |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_NN_80_No_PFI.png                     |    |PREDICT_graph_no_pfi|           |
-|  .. centered:: *(using 12 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_NN_80_No_PFI.png                        |    |PREDICT_shap_no_pfi|            |
-|  .. centered:: *(using 12 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_NN_80_No_PFI.png                    |    |PREDICT_out_no_pfi|             |
-|  .. centered:: *(using 12 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_NN_80_PFI.png                        |    |PREDICT_graph_pfi|              |
-|  .. centered:: *(PFI filter applied, using 5 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_NN_80_PFI.png                           |    |PREDICT_shap_pfi|               |
-|  .. centered:: *(PFI filter applied, using 5 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_NN_80_PFI.png                       |    |PREDICT_out_pfi|                |
-|  .. centered:: *(PFI filter applied, using 5 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
+|pdf_preview|

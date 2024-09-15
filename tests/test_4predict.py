@@ -67,8 +67,6 @@ def test_PREDICT(test_job):
         "-m",
         "robert",
         "--predict",
-        "--names",
-        "Name",
     ]
 
     if test_job == "t_value":
@@ -85,12 +83,13 @@ def test_PREDICT(test_job):
     outfile.close()
     assert "ROBERT v" in outlines[0]
     categor_test = False
+    y_distrib_found, pearson_found = False, False
     for i,line in enumerate(outlines):
         if 'Results saved in' in line and 'No_PFI.dat' in line:
             assert 'Points Train:Validation = ' in outlines[i+1]
         elif 'x  There are missing descriptors' in line:
             categor_test = True
-        if 'Outlier values saved in' in line and 'No_PFI' in line:
+        elif 'Outlier plot saved in' in line and 'No_PFI' in line:
             if test_job != "clas":
                 train_outliers = int(outlines[i+1].split()[1])
                 if test_job == "t_value":
@@ -102,23 +101,40 @@ def test_PREDICT(test_job):
                     assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
                 else:
                     assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
-                break
+        
+        if test_job == "clas":
+            if 'x  WARNING! High correlations observed (up to r = 1.0 or R2 = 1.0, for x1 and x3)' in line:
+                pearson_found = True
+        else:
+            if 'x  WARNING! Noticeable correlations observed (up to r = -0.92 or R2 = 0.85, for x6 and x10)' in line:
+                pearson_found = True
+        if test_job == "clas":
+            if 'o  Your data seems quite uniform' in line:
+                y_distrib_found = True
+        else:
+            if 'x  WARNING! Your data is slightly not uniform (Q4 has 4 points while Q1 has 12)' in line:
+                y_distrib_found = True
+        
+        # continues to the PFI section
+        if '-------' in line and 'with PFI filter' in line:
+            break
+
     if test_job == "csv_test":
         assert categor_test
 
+    assert y_distrib_found
+    assert pearson_found
+
     # check that all the plots, CSV and DAT files are created
     if test_job == "clas":
-        assert len(glob.glob(f'{path_predict}/*.png')) == 8
+        assert len(glob.glob(f'{path_predict}/*.png')) == 12
     else:
-        assert len(glob.glob(f'{path_predict}/*.png')) == 10
+        assert len(glob.glob(f'{path_predict}/*.png')) == 14
     if test_job == "csv_test":
-        assert len(glob.glob(f'{path_predict}/csv_test/*.png')) == 4
-    if test_job == "clas":
-        assert len(glob.glob(f'{path_predict}/*.dat')) == 7
-    else:
-        assert len(glob.glob(f'{path_predict}/*.dat')) == 9
-    if test_job == "csv_test":
+        assert len(glob.glob(f'{path_predict}/csv_test/*.png')) == 2
         assert len(glob.glob(f'{path_predict}/csv_test/*.csv')) == 2
+
+    assert len(glob.glob(f'{path_predict}/*.dat')) == 1        
     assert len(glob.glob(f'{path_predict}/*.csv')) == 4
 
     if test_job == 'clas': # rename folders back to their original names

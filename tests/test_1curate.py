@@ -38,6 +38,9 @@ path_curate = os.getcwd() + "/CURATE"
             "csv_separator"
         ),  # test to check the separator of the CSV file
         (
+            "missing_input"
+        ),  # test that if the --names, --y or --csv_name options are empty, a prompt pops up and asks for them
+        (
             "standard"
         ),  # standard test  
 
@@ -60,11 +63,13 @@ def test_CURATE(test_job):
         "-m",
         "robert",
         "--curate",
-        "--csv_name", f"{path_tests}/Robert_example.csv",
-        '--y', 'Target_values',
-        "--ignore", "['Name']",
         "--discard", "['xtest']"
     ]
+
+    if test_job != 'missing_input':
+        cmd_robert = cmd_robert + ['--y','Target_values',
+                                   "--csv_name", f"{path_tests}/Robert_example.csv",
+                                   "--names","Name"]
 
     if test_job == "standard":
         subprocess.run(cmd_robert)
@@ -134,7 +139,7 @@ def test_CURATE(test_job):
             "--curate",
             "--csv_name", f"{path_tests}/Robert_example_NaNs.csv",
             '--y', 'Target_values',
-            "--ignore", "['Name']",
+            "--names", "Name",
             "--discard", "['xtest']"
         ]
         subprocess.run(cmd_robert)
@@ -153,7 +158,7 @@ def test_CURATE(test_job):
             "--curate",
             "--csv_name", f"{path_tests}/Robert_example.csv",
             '--y', 'Target_values',
-            "--ignore", "['Name']",
+            "--names", 'Name',
             "--discard", "['xtest']",
             "--corr_filter", "False"
         ]
@@ -174,7 +179,7 @@ def test_CURATE(test_job):
                 "--curate",
                 "--csv_name", f"{path_tests}/Robert_example.csv",
                 '--y', 'Target_values',
-                "--ignore", "['Name']",
+                "--name", "Name",
                 "--discard", "['xtest']",
                 "--thres_x", "0.999",
                 "--thres_y", "0.000001"
@@ -197,6 +202,13 @@ def test_CURATE(test_job):
         assert 'ynoise' in db_final.columns
 
     elif test_job == 'csv_separator':
+
+        # restore original files
+        if os.path.exists(f"{path_tests}/Robert_example_separator_original.csv"):
+            if os.path.exists(f"{path_tests}/Robert_example_separator.csv"):
+                os.remove(f"{path_tests}/Robert_example_separator.csv")
+                shutil.move(f"{path_tests}/Robert_example_separator_original.csv",f"{path_tests}/Robert_example_separator.csv")
+
         # Test to check if the separator of the CSV file is correctly read
         cmd_robert = [
             "python",
@@ -205,7 +217,7 @@ def test_CURATE(test_job):
             "--curate",
             "--csv_name", f"{path_tests}/Robert_example_separator.csv",
             '--y', 'Target_values',
-            "--ignore", "['Name']",
+            "--names", "Name",
             "--discard", "['xtest']"
         ]
         subprocess.run(cmd_robert)
@@ -215,9 +227,54 @@ def test_CURATE(test_job):
         outfile = open(f"{path_curate}/CURATE_data.dat", "r")
         outlines = outfile.readlines()
         outfile.close()
-        assert "x  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?)." in outlines[8]
+        input_found = False
+        for line in outlines:
+            if "x  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?)." in line:
+                input_found = True
+        assert input_found
 
         # check that the CSV file has the correct separator
         csv_file = pd.read_csv(f"{path_tests}/Robert_example_separator_original.csv", sep=";")
         csv_file_new = pd.read_csv(f"{path_tests}/Robert_example_separator.csv", sep=",")
         assert csv_file.equals(csv_file_new)
+
+        # restore original files
+        os.remove(f"{path_tests}/Robert_example_separator.csv")
+        shutil.move(f"{path_tests}/Robert_example_separator_original.csv",f"{path_tests}/Robert_example_separator.csv")
+    
+    elif test_job == 'missing_input':
+        # since we're inputting values for input() prompts, we use command lines and provide
+        # the answers with external files using "< FILENAME_WITH_ANSWERS" in the command line
+
+        missing_options = ['csv_name', 'y', 'names']
+        for missing_option in missing_options:
+            if missing_option == 'csv_name':
+                cmd_missing = cmd_robert + ['--y','Target_values',
+                                            "--names","Name"]
+            elif missing_option == 'y':
+                cmd_missing = cmd_robert + ["--csv_name", f"{path_tests}/Robert_example.csv",
+                                            "--names","Name"]
+            elif missing_option == 'names':
+                cmd_missing = cmd_robert + ['--y','Target_values',
+                                            "--csv_name", f"{path_tests}/Robert_example.csv"]
+
+            cmd_missing = f'{" ".join(cmd_missing)} < {path_tests}/{missing_option}.txt'
+            os.system(cmd_missing)
+            outfile = open(f"{path_curate}/CURATE_data.dat", "r")
+            outlines = outfile.readlines()
+            outfile.close()
+            input_found,curate_valid = False,False
+            for line in outlines:
+                if missing_option == 'csv_name':
+                    if "-  csv_name option set to tests/Robert_example.csv by the user" in line:
+                        input_found = True
+                elif missing_option == 'y':
+                    if "-  y option set to Target_values by the user" in line:
+                        input_found = True
+                elif missing_option == 'names':
+                    if "-  names option set to Name by the user" in line:
+                        input_found = True
+                if 'o  The Pearson heatmap was stored in CURATE/Pearson_heatmap.png' in line:
+                    curate_valid = True
+            assert input_found
+            assert curate_valid

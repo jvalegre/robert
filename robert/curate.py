@@ -13,6 +13,8 @@ Parameters
         List containing the columns of the input CSV file that will be ignored during the curation process
         (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
         is automatically ignored.
+    names : str, default=''
+        Column of the names for each datapoint. Names are used to print outliers.
     destination : str, default=None,
         Directory to create the output file(s).
     varfile : str, default=None
@@ -36,6 +38,11 @@ Parameters
     thres_y : float, default=0.001
         Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
         if thres_y=0.001, variables that show R**2 < 0.001 will be discarded).
+    kfold : int, default='auto'
+        Number of random data splits for the cross-validation of the RFECV feature selector. If 'auto', the program uses 5 splits 
+    auto_type : bool, default=True
+        If there are only two y values, the program automatically changes the type of problem to classification.
+
 
 """
 #####################################################.
@@ -46,14 +53,11 @@ Parameters
 import time
 import os
 import pandas as pd
-import numpy as np
 from scipy import stats
-from matplotlib import pyplot as plt
-import seaborn as sb
-from robert.utils import load_variables, finish_print, load_database
+from robert.utils import load_variables, finish_print, load_database, pearson_map, check_clas_problem
 from sklearn.feature_selection import RFECV
 from sklearn.model_selection import KFold
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor,RandomForestClassifier
 
 
 class curate:
@@ -76,18 +80,23 @@ class curate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df = load_database(self,self.args.csv_name,"curate")
 
-        # transform categorical descriptors
-        csv_df = self.categorical_transform(csv_df,'curate')
+        # changes type to classification if there are only two different y values
+        if self.args.type.lower() == 'reg' and self.args.auto_type:
+            self = check_clas_problem(self,csv_df)
 
-        # apply duplicate filters (i.e., duplication of datapoints or descriptors)
-        csv_df = self.dup_filter(csv_df)
+        if not self.args.evaluate:
+            # transform categorical descriptors
+            csv_df = self.categorical_transform(csv_df,'curate')
 
-        # apply the correlation filters and returns the database without correlated descriptors
-        if self.args.corr_filter:
-            csv_df = self.correlation_filter(csv_df)
+            # apply duplicate filters (i.e., duplication of datapoints or descriptors)
+            csv_df = self.dup_filter(csv_df)
+
+            # apply the correlation filters and returns the database without correlated descriptors
+            if self.args.corr_filter:
+                csv_df = self.correlation_filter(csv_df)
 
         # create Pearson heatmap
-        _ = self.pearson_map(csv_df)
+        _ = pearson_map(self,csv_df,'curate')
 
         # save the curated CSV
         _ = self.save_curate(csv_df)
@@ -225,7 +234,7 @@ class curate:
         # Check if descriptors are more than one third of datapoints
         n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
         if len(csv_df[self.args.y]) > 50 and self.args.auto_test ==True:
-           datapoints= len(csv_df[self.args.y])*0.9
+           datapoints = len(csv_df[self.args.y])*0.9
         else:
             datapoints = len(csv_df[self.args.y])
         if n_descps > datapoints / 3:
@@ -233,10 +242,26 @@ class curate:
             # Avoid situations where the number of descriptors is equal to the number of datapoints/3
             if len(csv_df[self.args.y]) / 3 == num_descriptors:
                 num_descriptors -= 1
-            txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV: {num_descriptors} descriptors remaining'
-            # Use RFECV with RandomForestRegressor to select the most important descriptors
-            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
-            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=5, shuffle=True, random_state=0), n_jobs=None)
+            # Use RFECV with a simple RandomForestRegressor to select the most important descriptors
+            if self.args.type.lower() == 'reg':
+                estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+            elif self.args.type.lower() == 'clas':
+                estimator = RandomForestClassifier(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+            if self.args.kfold == 'auto':
+                # LOOCV for relatively small datasets (less than 50 datapoints)
+                if len(csv_df[self.args.y]) < 50:
+                    n_splits = len(csv_df[self.args.y])
+                    cv_type = 'LOOCV'
+                # k-fold CV with the same training/validation proportion used for fitting the model, using 5 splits
+                else:
+                    n_splits = 5
+                    cv_type = '5-fold CV'
+            else:
+                n_splits = self.args.kfold
+                cv_type = f'{n_splits}-fold CV'
+            txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV with {cv_type}: {num_descriptors} descriptors remaining'
+
+            selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=n_splits, shuffle=True, random_state=0), n_jobs=None)
             X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
             y = csv_df_filtered[self.args.y]
             # Convert column names to strings to avoid any issues
@@ -284,63 +309,3 @@ class curate:
         options_df['names'] = [self.args.names]
         options_df['csv_name'] = [csv_curate_name]
         _ = options_df.to_csv(f'{options_name}', index = None, header=True)
-
-
-    def pearson_map(self,csv_df_pearson):
-        '''
-        Creates Pearson heatmap
-        '''
-
-        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
-        corr_matrix = csv_df_pearson.corr()
-        mask = np.zeros_like(corr_matrix, dtype=bool)
-        mask[np.triu_indices_from(mask)]= True
-        
-        # these size ranges avoid matplot errors
-        if len(csv_df_pearson.columns) > 30:
-            disable_plot = True
-        else:
-            disable_plot = False
-            _, ax = plt.subplots(figsize=(7.45,6))
-            size_title = 14
-            size_font = 14-2*((len(csv_df_pearson.columns)/5))
-
-        if disable_plot:
-            self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
-        else:
-            sb.set(font_scale=1.2, style='ticks')
-
-            # determines size of the letters inside the boxes (approx.)
-            annot = True
-            if len(csv_df_pearson.columns) > 30:
-                annot = False
-
-            _ = sb.heatmap(corr_matrix,
-                            mask = mask,
-                            square = True,
-                            linewidths = .5,
-                            cmap = 'coolwarm',
-                            cbar = False,
-                            cbar_kws = {'shrink': .4,
-                                        'ticks' : [-1, -.5, 0, 0.5, 1]},
-                            vmin = -1,
-                            vmax = 1,
-                            annot = annot,
-                            annot_kws = {'size': size_font})
-
-            plt.tick_params(labelsize=size_font)
-            #add the column names as labels
-            ax.set_yticklabels(corr_matrix.columns, rotation = 0)
-            ax.set_xticklabels(corr_matrix.columns)
-
-            title_fig = 'Pearson\'s r heatmap'
-            plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
-            sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
-
-            heatmap_name = 'Pearson_heatmap.png'
-            heatmap_path = self.args.destination.joinpath(heatmap_name)
-            plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
-            plt.clf()
-            path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
-            self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
-        

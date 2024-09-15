@@ -14,6 +14,8 @@ import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
+from matplotlib import pyplot as plt
+import seaborn as sb
 from scipy import stats
 # for users with no intel architectures. This part has to be before the sklearn imports
 try:
@@ -125,7 +127,8 @@ def command_line_args(exe_type,sys_args):
         "predict",
         "aqme",
         "report",
-        "cheers"
+        "cheers",
+        "evaluate"
     ]
     list_args = [
         "discard",
@@ -146,7 +149,6 @@ def command_line_args(exe_type,sys_args):
     ]
     float_args = [
         'pfi_threshold',
-        'thres_test',
         't_value',
         'thres_x',
         'thres_y',
@@ -206,6 +208,7 @@ o Other common options:
   --discard "[COL1,COL2,etc]" (default=[]) : CSV columns that will be removed
 
 * Affecting data curation in CURATE:
+  --kfold INT (default='auto') : number of folds for k-fold cross-validation of the RFECV feature selector. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
   --categorical "onehot" or "numbers" (default="onehot") : type of conversion for categorical variables
   --corr_filter BOOL (default=True) : disable the correlation filter
 
@@ -217,8 +220,7 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default='auto') : number of random data splits for the ShuffleSplit cross-validation. If 'auto', the program does a LOOCV for databases with less than 250 points, and 5 splits during the ShuffleSplit CV for larger databases 
-  --thres_test FLOAT (default=0.25) : threshold to determine whether tests pass
+  --kfold INT (default='auto') : number of folds for k-fold cross-validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
 
 * Affecting predictions, PREDICT:
   --t_value INT (default=2) : t-value threshold to identify outliers
@@ -431,17 +433,28 @@ def load_variables(kwargs, robert_module):
                 models_gen.append(model_type.upper())
             self.model = models_gen
 
-            if self.y == '':
-                curate_folder = Path(self.initial_dir).joinpath('CURATE')
-                if os.path.exists(curate_folder):
-                    curate_csv_files = glob.glob(f'{curate_folder}/*.csv')
-                    for csv_file in curate_csv_files:
-                        if 'CURATE_options.csv' in csv_file:
-                            curate_df = pd.read_csv(csv_file, encoding='utf-8')
+            # if there are missing options, look for them from a previous CURATE job (if any)
+            options_dict = {
+                'y': self.y,
+                'names': self.names,
+                'ignore': self.ignore,
+                'csv_name': self.csv_name
+            }
+            curate_folder = Path(self.initial_dir).joinpath('CURATE')
+            curate_csv = f'{curate_folder}/CURATE_options.csv'
+            if os.path.exists(curate_csv):
+                curate_df = pd.read_csv(curate_csv, encoding='utf-8')
+
+                for option in options_dict:
+                    if options_dict[option] == '':
+                        if option == 'y':
                             self.y = curate_df['y'][0]
-                            self.ignore = curate_df['ignore'][0]
+                        elif option == 'names':
                             self.names = curate_df['names'][0]
+                        elif option == 'ignore':
+                            self.ignore = curate_df['ignore'][0]
                             self.ignore  = format_lists(self.ignore)
+                        elif option == 'csv_name':
                             self.csv_name = curate_df['csv_name'][0]
 
         elif robert_module.upper() == 'VERIFY':
@@ -519,16 +532,17 @@ def missing_inputs(self,module,print_err=False):
     """
 
     if module.lower() not in ['predict','verify','report','aqme_test']:
-        if self.csv_name == '':
-            if print_err:
-                print('\nx  Specify the name of your CSV file with the csv_name option!')
-            else:
-                self.log.write('\nx  Specify the name of your CSV file with the csv_name option!')
-            self.csv_name = input('Enter the name of your CSV file: ')
-            self.extra_cmd += f' --csv_name {self.csv_name}'
-            if not print_err:
-                self.log.write(f"   -  csv_name option set to {self.csv_name} by the user")
+        if module.lower() == 'evaluate':
+            if self.csv_train == '':
+                self = check_csv_option(self,'csv_train',print_err)
+            if self.csv_valid == '':
+                self = check_csv_option(self,'csv_valid',print_err)
 
+        else:
+            if self.csv_name == '':
+                self = check_csv_option(self,'csv_name',print_err)
+
+    if module.lower() not in ['predict','verify','report','aqme_test']:
         if self.y == '':
             if print_err:
                 print(f'\nx  Specify a y value (column name) with the y option! (i.e. y="solubility")')
@@ -539,7 +553,7 @@ def missing_inputs(self,module,print_err=False):
             if not print_err:
                 self.log.write(f"   -  y option set to {self.y} by the user")
 
-    if module.lower() in ['full_workflow','predict']:
+    if module.lower() in ['full_workflow','predict','curate','generate','evaluate']:
         if self.names == '':
             if print_err:
                 print(f'\nx  Specify the column with the entry names! (i.e. names="code_name")')
@@ -549,8 +563,42 @@ def missing_inputs(self,module,print_err=False):
             self.extra_cmd += f' --names {self.names}'
             if not print_err:
                 self.log.write(f"   -  names option set to {self.names} by the user")
+        if self.names != '' and self.names not in self.ignore:
+            self.ignore.append(self.names)
 
     return self
+
+
+def check_csv_option(self,csv_option,print_err):
+    '''
+    Checks missing values in input CSV options
+    '''
+    
+    if csv_option == 'csv_name':
+        line_print = f'\nx  Specify the CSV name for the {csv_option} option!'
+    elif csv_option == 'csv_train':
+        line_print = f'\nx  Specify the CSV name containing the TRAINING set!'
+    elif csv_option == 'csv_valid':
+        line_print = f'\nx  Specify the CSV name containing the VALIDATION set!'
+
+    if print_err:
+        print(line_print)
+    else:
+        self.log.write(line_print)
+    val_option = input('Enter the name of your CSV file: ')
+    self.extra_cmd += f' --{csv_option} {val_option}'
+    if not print_err:
+        self.log.write(f"   -  {csv_option} option set to {val_option} by the user")
+
+    if csv_option == 'csv_name':
+        self.csv_name = val_option    
+    elif csv_option == 'csv_train':
+        self.csv_train = val_option
+    elif csv_option == 'csv_valid':
+        self.csv_valid = val_option
+
+    return self
+
 
 def sanity_checks(self, type_checks, module, columns_csv):
     """
@@ -561,16 +609,23 @@ def sanity_checks(self, type_checks, module, columns_csv):
     # adds manual inputs missing from the command line
     self = missing_inputs(self,module)
 
-    if type_checks == 'initial' and module.lower() not in ['verify','predict']:
-        
-        path_csv = ''
-        if os.path.exists(f"{self.csv_name}"):
-            path_csv = self.csv_name
-        elif os.path.exists(f"{Path(os.getcwd()).joinpath(self.csv_name)}"):
-            path_csv = f"{Path(os.getcwd()).joinpath(self.csv_name)}"
-        if not os.path.exists(path_csv) or self.csv_name == '':
-            self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: {self.csv_name}')
+    if module.lower() == 'evaluate':
+        curate_valid = locate_csv(self,self.csv_train,'csv_train',curate_valid)
+        curate_valid = locate_csv(self,self.csv_valid,'csv_valid',curate_valid)
+        if self.csv_test != '':
+            curate_valid = locate_csv(self,self.csv_test,'csv_test',curate_valid)
+
+        if self.eval_model.lower() not in ['mvl']:
+            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL' (more options will be added soon)")
             curate_valid = False
+
+        if self.type.lower() not in ['reg']:
+            self.log.write(f"\nx  The type option used is not valid in EVALUATE! Options: 'reg' (the 'clas' option will be added soon)")
+            curate_valid = False
+
+    elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
+
+        curate_valid = locate_csv(self,self.csv_name,'csv_name',curate_valid)
 
         if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:
@@ -622,11 +677,6 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
             if self.type.lower() == 'clas' and self.error_type.lower() not in ['mcc','f1','acc']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for classification: 'mcc', 'f1', 'acc'")
-                curate_valid = False
-        
-        if module.lower() == 'verify':
-            if float(self.thres_test) < 0:
-                self.log.write(f"\nx  The thres_test should be higher than 0!")
                 curate_valid = False
 
         if module.lower() in ['verify','predict']:
@@ -685,6 +735,38 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
+def locate_csv(self,csv_input,csv_type,curate_valid):
+    '''
+    Assesses whether the input CSV databases can be located
+    '''
+
+    path_csv = ''
+    if os.path.exists(f"{csv_input}"):
+        path_csv = csv_input
+    elif os.path.exists(f"{Path(os.getcwd()).joinpath(csv_input)}"):
+        path_csv = f"{Path(os.getcwd()).joinpath(csv_input)}"
+    if not os.path.exists(path_csv) or csv_input == '':
+        self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: --{csv_type} {csv_input}')
+        curate_valid = False
+    
+    return curate_valid
+
+
+def check_clas_problem(self,csv_df):
+    '''
+    Changes type to classification if there are only two different y values
+    '''
+    
+    if len(set(csv_df[self.args.y])) == 2:
+        self.args.type = 'clas'
+        if self.args.error_type not in ['acc', 'mcc', 'f1']:
+            self.args.error_type = 'mcc'
+        y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
+        self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False".')
+
+    return self
+    
+
 def load_database(self,csv_load,module):
     '''
     Loads a database in CSV format
@@ -710,7 +792,7 @@ def load_database(self,csv_load,module):
     # Fill missing values with zeros
     csv_df = csv_df.fillna(0)
 
-    if module.lower() not in ['verify','no_print']:
+    if module.lower() not in ['verify','no_print','evaluate']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
         total_amount = len(csv_df.columns)
@@ -815,26 +897,8 @@ def load_model_reg(params):
 
     if params['model'].upper() in ['NN','VR']:
 
-        # correct for a problem when loading arrays in json
-        layer_arrays = []
-
-        if not isinstance(params['hidden_layer_sizes'],int):
-            if params['hidden_layer_sizes'][0] == '[':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
-            if params['hidden_layer_sizes'][-1] == ']':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
-            if not isinstance(params['hidden_layer_sizes'],list):
-                for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-            else:
-                for _,ele in enumerate(params['hidden_layer_sizes']):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-        else:
-            layer_arrays = ele
-
-        params['hidden_layer_sizes'] = (layer_arrays)
+        # correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
+        params = correct_hidden_layers(params)
 
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
@@ -912,26 +976,8 @@ def load_model_clas(params):
 
     if params['model'].upper() in ['NN','VR']:
 
-        # correct for a problem when loading arrays in json
-        layer_arrays = []
-
-        if not isinstance(params['hidden_layer_sizes'],int):
-            if params['hidden_layer_sizes'][0] == '[':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
-            if params['hidden_layer_sizes'][-1] == ']':
-                params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
-            if not isinstance(params['hidden_layer_sizes'],list):
-                for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-            else:
-                for _,ele in enumerate(params['hidden_layer_sizes']):
-                    if ele != '':
-                        layer_arrays.append(int(ele))
-        else:
-            layer_arrays = ele
-
-        params['hidden_layer_sizes'] = (layer_arrays)
+        # correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
+        params = correct_hidden_layers(params)
 
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
@@ -1010,10 +1056,10 @@ def load_n_predict(self, params, data, hyperopt=False, mapie=False):
                 if 'X_test_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'test')
                 
-                if 'X_valid_scaled' in data:
+                elif 'X_valid_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'valid')
 
-            return data
+            return data,loaded_model
 
     elif params['type'].lower() == 'clas':
         data['acc_train'], data['f1_train'], data['mcc_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
@@ -1029,8 +1075,35 @@ def load_n_predict(self, params, data, hyperopt=False, mapie=False):
             opt_target = data[f'{params["error_type"].lower()}_valid']
             return opt_target,data
         else:
-            return data
+            return data,loaded_model
 
+
+def correct_hidden_layers(params):
+    '''
+    Correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
+    '''
+    
+    layer_arrays = []
+
+    if not isinstance(params['hidden_layer_sizes'],int):
+        if params['hidden_layer_sizes'][0] == '[':
+            params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
+        if params['hidden_layer_sizes'][-1] == ']':
+            params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
+        if not isinstance(params['hidden_layer_sizes'],list):
+            for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
+                if ele != '':
+                    layer_arrays.append(int(ele))
+        else:
+            for _,ele in enumerate(params['hidden_layer_sizes']):
+                if ele != '':
+                    layer_arrays.append(int(ele))
+    else:
+        layer_arrays = ele
+
+    params['hidden_layer_sizes'] = (layer_arrays)
+
+    return params
 
 
 def calc_ci_n_sd(self,loaded_model,data,set_mapie):
@@ -1042,17 +1115,20 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     my_conformity_score = AbsoluteConformityScore()
     my_conformity_score.consistency_check = False
 
-    # LOOCV for relatively small datasets (less than 250 datapoints)
-    y_combined = pd.concat([data['y_train'],data['y_valid']], axis=0).reset_index(drop=True)
+    # LOOCV for relatively small training sets (less than 50 datapoints), 5-fold CV otherwise
     if self.args.kfold == 'auto':
-        if len(y_combined) < 250:
-            self.args.kfold = -1 # -1 for LOOCV in MAPIE
+        if len(data['X_train_scaled']) < 50:
+            cv_type = 'loocv'
+            kfold_type = -1 # -1 for Jackknife+ in MAPIE
         else:
-            self.args.kfold = 5
+            cv_type = '5_fold_cv'
+            kfold_type = 5
+    else:
+        cv_type = f'{self.args.kfold}_fold_cv'
+        kfold_type = self.args.kfold
 
-    mapie = MapieRegressor(loaded_model, method="plus", cv=self.args.kfold, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
-
-    mapie.fit(data['X_train_scaled'].values, data['y_train'].values) # .values is needed to avoid an sklearn warning
+    mapie_model = MapieRegressor(loaded_model, method="plus", cv=kfold_type, agg_function="median", conformity_score=my_conformity_score, n_jobs=-1, random_state=0)
+    mapie_model.fit(data['X_train_scaled'].values, data['y_train'].values) # .values is needed to avoid an sklearn warning
 
     # Check if 1/alpha is lower than the number of samples
     if 1 / self.args.alpha >= len(data[f'X_{set_mapie}_scaled']):
@@ -1061,25 +1137,26 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
             self.args.alpha = 0.5
     
     # Predict test set and obtain prediction intervals
-    y_pred, y_pis = mapie.predict(data[f'X_{set_mapie}_scaled'].values, alpha=[self.args.alpha]) # .values is needed to avoid an sklearn warning
-    
-    # Calculate prediction interval variability for each prediction in the test set
-    y_error = np.abs(y_pis[:, :, 0].T - y_pred)
-    
-    # Add 'y_pred_test_error' entry to data dictionary
-    data[f'y_pred_{set_mapie}_error'] = y_error
+    y_pred, y_pis = mapie_model.predict(data[f'X_{set_mapie}_scaled'].values, alpha=[self.args.alpha]) # .values is needed to avoid an sklearn warning
 
     # Calculate the width of the prediction intervals
     y_interval_width = np.abs(y_pis[:, 0, :] - y_pis[:, 1, :])
+
+    # NOTE: the middle of the prediction intervals is very close to the predicted value from
+    # the original model. Therefore, we will use the originally predicted values with the 
+    # calculated SD from the intervals
 
     # Estimate the standard deviation of the prediction intervals (assuming symmetric prediction intervals and approximately normal distribution of errors)
     # assuming normal population doesn't add very significant errors even in low-data regimes (i.e. for 20 points,
     # Student's t value is 2.086 instead of 1.96) 
     dict_alpha  = {0.05: 1.96, 0.1: 1.645, 0.5: 0.674}
-    y_test_sd = y_interval_width / (2 * dict_alpha[self.args.alpha])
+    y_pred_sd = y_interval_width / (2 * dict_alpha[self.args.alpha])
+    avg_sd = np.mean(y_pred_sd) # average SD
 
-    # Add 'y_pred_test_sd' entry to data dictionary
-    data[f'y_pred_{set_mapie}_sd'] = y_test_sd
+    # Add 'y_pred_SET_cv' and 'y_pred_SET_sd' entry to data dictionary
+    data[f'y_pred_{set_mapie}_sd'] = y_pred_sd
+    data['avg_sd'] = avg_sd
+    data['cv_type'] = cv_type
 
     return data
 
@@ -1220,3 +1297,80 @@ def get_graph_style():
         }
 
     return graph_style
+
+
+def pearson_map(self,csv_df_pearson,module,params_dir=None):
+    '''
+    Creates Pearson heatmap
+    '''
+
+    if module.lower() == 'curate': # only represent the final descriptors in CURATE
+        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
+
+    corr_matrix = csv_df_pearson.corr()
+    mask = np.zeros_like(corr_matrix, dtype=bool)
+    mask[np.triu_indices_from(mask)]= True
+    
+    # no representatoins when there are more than 30 descriptors
+    if len(csv_df_pearson.columns) > 30:
+        disable_plot = True
+    else:
+        disable_plot = False
+        _, ax = plt.subplots(figsize=(7.45,6))
+        size_title = 14
+        size_font = 14-2*((len(csv_df_pearson.columns)/5))
+
+    if disable_plot:
+        if module.lower() == 'curate':
+            self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+        if module.lower() == 'predict':
+            self.args.log.write(f'\n   x  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+
+    else:
+        sb.set(font_scale=1.2, style='ticks')
+
+        _ = sb.heatmap(corr_matrix,
+                        mask = mask,
+                        square = True,
+                        linewidths = .5,
+                        cmap = 'coolwarm',
+                        cbar = False,
+                        cbar_kws = {'shrink': .4,
+                                    'ticks' : [-1, -.5, 0, 0.5, 1]},
+                        vmin = -1,
+                        vmax = 1,
+                        annot = True,
+                        annot_kws = {'size': size_font})
+
+        plt.tick_params(labelsize=size_font)
+        #add the column names as labels
+        ax.set_yticklabels(corr_matrix.columns, rotation = 0)
+        ax.set_xticklabels(corr_matrix.columns)
+
+        title_fig = 'Pearson\'s r heatmap'
+        if module.lower() == 'predict':
+            if os.path.basename(Path(params_dir)) == 'No_PFI':
+                suffix_title = 'No_PFI'
+            elif os.path.basename(Path(params_dir)) == 'PFI':
+                suffix_title = 'PFI'
+            title_fig += f'_{suffix_title}'
+
+        plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
+        sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
+
+        if module.lower() == 'curate':
+            heatmap_name = 'Pearson_heatmap.png'
+        elif module.lower() == 'predict':
+            heatmap_name = f'Pearson_heatmap_{suffix_title}.png'
+
+        heatmap_path = self.args.destination.joinpath(heatmap_name)
+        plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
+        plt.clf()
+        plt.close()
+        path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
+        if module.lower() == 'curate':
+            self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
+        elif module.lower() == 'predict':
+            self.args.log.write(f'\n   o  The Pearson heatmap was stored in {path_reduced}.')
+
+    return corr_matrix

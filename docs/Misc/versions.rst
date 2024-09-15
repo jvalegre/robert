@@ -5,9 +5,26 @@ Versions
 ========
 
 Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
-   -  Changing cross-validation in VERIFY to LOOCV for datasets with less than 250 points
-   -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 250 points
+   -  Changing cross-validation (CV) in VERIFY to LOOCV for datasets with less than 50 points
+   -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 50 points
+   -  By default, RFECV uses LOOCV for small datasets and 5-fold CV for larger datasets
    -  The external test set is chosen more evenly along the range of y values (not fully random)
+   -  Changing the format of the VERIFY plot, from donut to bar plots
+   -  Automatic KN data splitting for databases with less than 250 datapoints
+   -  Change CV_test from ShuffleSplit to Kfold
+   -  Predictions from CV are now represented in a graph and stored in a CSV
+   -  Changing the ROBERT score to depend more heavily on results from CV
+   -  Fixing auto_test (now it works as specified in the documentation)
+   -  Adding clas predictions to report PDF
+   -  Adding new pytests that cover the ROBERT score section from the report PDF
+   -  Adding the EVALUATE module to evaluate linear models with user-defined descriptors and partitions
+   -  Adding Pearson heatmap in PREDICT for the two models, with individual variable correlation analysis
+   -  Adding y-distribution graphs and analysis of uniformity
+   -  Major changes to the report PDF file to include sections rather than modules
+   -  Improving explanation of the ROBERT score on Read The Docs
+   -  Printing coefficients in MVL models inside PREDICT.dat
+   -  Fixing bug in RFECV for classification problems, now it uses RandomForestClassifier()
+   -  Automatic recognition of classification problems
 
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs
@@ -25,7 +42,7 @@ Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
    -  Fixing a bad allocation memory issue in GENERATE
    -  Fixing bug in classification models when more than 2 classes of the target variable are present
    -  Fixing reproducibility when using a specific seed in GENERATE module
-   -  Change CV_test from Kflod to ShuffleSplit and adding a random_state to ensure reproducibility
+   -  Change CV_test from Kfold to ShuffleSplit and adding a random_state to ensure reproducibility
    -  Allows CSV inputs that use ; as separator
    -  Fixing CV_test bug in VERIFY (now it uses equal test size to the model tested)
    -  Adding variability in the prediction with MAPIE python library

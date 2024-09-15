@@ -752,6 +752,21 @@ def locate_csv(self,csv_input,csv_type,curate_valid):
     return curate_valid
 
 
+def check_clas_problem(self,csv_df):
+    '''
+    Changes type to classification if there are only two different y values
+    '''
+    
+    if len(set(csv_df[self.args.y])) == 2:
+        self.args.type = 'clas'
+        if self.args.error_type not in ['acc', 'mcc', 'f1']:
+            self.args.error_type = 'mcc'
+        y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
+        self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False".')
+
+    return self
+    
+
 def load_database(self,csv_load,module):
     '''
     Loads a database in CSV format
@@ -1044,7 +1059,7 @@ def load_n_predict(self, params, data, hyperopt=False, mapie=False):
                 elif 'X_valid_scaled' in data:
                     data = calc_ci_n_sd(self,loaded_model,data,'valid')
 
-            return data
+            return data,loaded_model
 
     elif params['type'].lower() == 'clas':
         data['acc_train'], data['f1_train'], data['mcc_train'] = get_prediction_results(params,data['y_train'],data['y_pred_train'])
@@ -1060,7 +1075,7 @@ def load_n_predict(self, params, data, hyperopt=False, mapie=False):
             opt_target = data[f'{params["error_type"].lower()}_valid']
             return opt_target,data
         else:
-            return data
+            return data,loaded_model
 
 
 def correct_hidden_layers(params):
@@ -1104,7 +1119,7 @@ def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     if self.args.kfold == 'auto':
         if len(data['X_train_scaled']) < 50:
             cv_type = 'loocv'
-            kfold_type = -1 # -1 for LOOCV in MAPIE
+            kfold_type = -1 # -1 for Jackknife+ in MAPIE
         else:
             cv_type = '5_fold_cv'
             kfold_type = 5

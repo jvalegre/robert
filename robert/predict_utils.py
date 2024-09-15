@@ -460,7 +460,7 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df,params_dict):
     return path_n_suffix, name_points, Xy_data
 
 
-def print_predict(self,Xy_data,params_dict,path_n_suffix):
+def print_predict(self,Xy_data,params_dict,path_n_suffix,loaded_model):
     '''
     Prints results of the predictions for all the sets
     '''
@@ -502,6 +502,16 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
             print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
             print_results += f"\n      -  csv_test : R2 = {Xy_data['r2_csv_test']:.2}, MAE = {Xy_data['mae_csv_test']:.2}, RMSE = {Xy_data['rmse_csv_test']:.2}"
+        # add equation for linear models
+        if params_dict['model'].upper() == 'MVL':
+            desc_mvl = ast.literal_eval(params_dict['X_descriptors'])
+            print_results += f"\n\n   o  Linear model equation, with coefficients obtained using standardized data (coefficient values/importances can be compared):"
+            print_results += f"\n      - {params_dict['y']} = {loaded_model.intercept_:.2} "
+            for i,coeff in enumerate(loaded_model.coef_):
+                if float(coeff) >= 0:
+                    print_results += f"+ {coeff:.2}·{desc_mvl[i]} "
+                else:
+                    print_results += f"- {np.abs(coeff):.2}·{desc_mvl[i]} "
 
     elif params_dict['type'].lower() == 'clas':
         print_results += f"\n      -  Train : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"

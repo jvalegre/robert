@@ -303,16 +303,16 @@ Reference
 
 If you use any of the ROBERT modules, please include this citation:  
 
-* Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h. 
+* Dalmau, D.; Alegre Requena, J. V. *ChemRxiv* **2023**, DOI: 10.26434/chemrxiv-2023-k994h. 
 
 If you use the AQME module, please include this citation:  
 
-* Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.
+* Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2023**, *13*, e1663.
 
 Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
 
-* Pedregosa et al., Scikit-learn: Machine Learning in Python, J. Mach. Learn. Res. 2011, 12, 2825-2830.  
-* Lundberg et al., From local explanations to global understanding with explainable AI for trees, Nat. Mach. Intell. 2020, 2, 56–67.  
+* Pedregosa et al., Scikit-learn: Machine Learning in Python, *J. Mach. Learn. Res.* **2011**, *12*, 2825-2830.  
+* Lundberg et al., From local explanations to global understanding with explainable AI for trees, *Nat. Mach. Intell.* **2020**, *2*, 56–67.  
 
 .. reference-end
 
@@ -324,6 +324,8 @@ Acknowledgment
 J.V.A.R. - The acronym ROBERT is dedicated to **ROBERT Paton**, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!
 
 D.D.G. - The style of the ROBERT_report.pdf file was created with the help of **Oliver Lee** (2023, Zysman-Colman group at University of St Andrews).
+
+J.V.A.R. and D.D.G. - The improvements from v1.0 to v1.2 are largely the result of insightful discussions with **Matthew Sigman** and his students, **Jamie Cadge** and **Simone Gallarati** (2024, University of Utah).
 
 We really THANK all the testers for their feedback and for participating in the reproducibility tests, including:
 

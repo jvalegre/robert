@@ -22,6 +22,8 @@ Parameters
         set proportion (i.e. 40 = 40% training data).
     auto_kn : bool, default=True
         Changes random splitting to KN splitting in databases with less than 250 datapoints.
+    auto_type : bool, default=True
+        If there are only two y values, the program automatically changes the type of problem to classification.
     filter_train : bool, default=True
         Disables the 90% training size in databases with less than 50 datapoints, and the 80% in less than 30.
     split : str, default='RND'
@@ -100,6 +102,7 @@ from robert.utils import (
     load_variables, 
     finish_print,
     load_database,
+    check_clas_problem
 )
 from robert.generate_utils import (
     prepare_sets,
@@ -130,6 +133,10 @@ class generate:
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate")
+
+        # changes type to classification if there are only two different y values
+        if self.args.type.lower() == 'reg' and self.args.auto_type:
+            self = check_clas_problem(self,csv_df)
 
         # separates an external test set (if applicable)
         csv_df, csv_X, csv_y, csv_df_test = self.separate_test(csv_df, csv_X, csv_y)
@@ -219,10 +226,10 @@ class generate:
             if self.args.test_set != 0:
                 if len(csv_df[self.args.y]) < 50:
                     self.args.test_set = 0
-                    self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split into training and validation sets with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
+                    self.args.log.write(f'\nx  WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split into training and validation sets with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
                 elif self.args.test_set < 0.1:
                     self.args.test_set = 0.1
-                    self.args.log.write(f'\nx    WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
+                    self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
             self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data was separated as test set, using an even distribution of data points across the range of y values. The remaining data points will be split into training and validation.')

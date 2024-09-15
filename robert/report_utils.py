@@ -464,7 +464,7 @@ def adv_flawed(self,suffix,data_score,spacing):
     init_spacing = f'<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}'
     column = f"""
     {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed} / 3 &nbsp;<img src="file:///{verify_image}" alt="ROBERT Score" style="width: 19%">)</p>
-    {score_adv_flawed}{flaw_result}<br>{spacing}Pass: +1, Unclear: 0, Fail: -1. <i><a href="https://robert.readthedocs.io/en/latest/Modules/verify.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
+    {score_adv_flawed}{flaw_result}<br>{spacing}Pass: +1, Unclear: 0, Fail: -1. <i><a href="https://robert.readthedocs.io/en/latest/Report/score.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
     """
 
     return column

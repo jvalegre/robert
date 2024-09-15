@@ -35,6 +35,7 @@ var_dict = {
     "auto_test" : True,
     "train" : [60,70,80,90],
     "auto_kn" : True,
+    "auto_type": True,
     "filter_train" : True,
     "split" : "RND",
     "model" : ['RF','GB','NN','MVL'],

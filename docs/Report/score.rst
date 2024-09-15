@@ -34,80 +34,153 @@ for designing robust ML models, see references [3] and [4].
    
    **We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!**
 
+|br|
+
 How is the score calculated?
 ++++++++++++++++++++++++++++
 
-**Predictive ability towards an external test set (2 points):**
+**Section B.1. Passing VERIFY tests (from -3 to 3 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The R\ :sup:`2` (for regression) or accuracy (for classification) of an external test set is employed to assess the predictive capabilities of the models found with ROBERT. These models undergo hyperoptimization using both a training set and a validation set. In cases where a test set is absent, metrics from the validation set are used instead. ROBERT, by default, allocates a sufficient number of data points in test/validation sets to ensure the generation of meaningful R\ :sup:`2`/accuracy scores. Furthermore, comparable outcomes were achieved when alternative metrics like RMSE or MAE were employed.
+The tests conducted within the VERIFY module are regarded as score indicators:
 
-====== =============================================================================
-Points Condition
-====== =============================================================================
-•• 2   R\ :sup:`2` > 0.85 (high correlation between predicted and measured y values)
-•\ 1   0.85 > R\ :sup:`2` > 0.70 (moderate correlation)
-0      R\ :sup:`2` < 0.70 (low correlation)
-====== =============================================================================
-
-**Proportion of datapoints vs descriptors (2 points):**
-
-The ratio of datapoints to descriptors used during model hyperoptimization (in the train and validation sets) stands as another crucial parameter. Lower ratios result in simpler models that are more human-interpretable. The extensive literature on ML modeling offers numerous suggested ratios, and we endeavored to select reasonable parameters in accordance with previous recommendations.
-
-====== ==========================================================================
-Points Condition
-====== ==========================================================================
-•• 2   Datapoints:descriptors ratio > 10:1 (reasonably low amount of descriptors)
-•\ 1   10:1 > ratio > 3:1 (moderate amount)
-0      Ratio < 3:1 (too many descriptors)
-====== ==========================================================================
-
-**Passing VERIFY tests (4 points):**
-
-The tests conducted within the VERIFY module are also regarded as score indicators:
-
-*  CV test: Calculates the accuracy of the model with a leave-one-out cross-validation (LOOCV, for databases with less than 50 points) or a 5-fold cross-validation (larger databases).
 *  y-mean test: Calculates the accuracy of the model when all the predicted y values are fixed to the mean of the measured y values (straight line when plotting measured vs predicted y values).  
 *  y-shuffle test: Calculates the accuracy of the model after shuffling randomly all the measured y values.
 *  onehot test: Calculates the accuracy of the model when replacing all descriptors for 0s and 1s. If the x value is 0, the value will be 0, otherwise it will be 1.
 
-The cross-validation test guarantees the meaningfulness of the chosen data partition and guards against data overfitting. 
 The y-mean and y-shuffle tests are valuable in identifying overfitted and underfitted models. 
-Finally, the one-hot test identifies models that are insensitive to specific values but instead focus 
+The one-hot test identifies models that are insensitive to specific values but instead focus 
 on the presence of such values (i.e., reaction datasets filled with 0s where compounds are not used).
 
-====== =====================================================
-Points Condition
-====== =====================================================
-•\ 1   Each of the VERIFY tests passed (up to •••• 4 points)
-====== =====================================================
+.. |space| raw:: html
 
-**Number of outliers in the validation set (only for regression, 2 points):**
+   &nbsp;
 
-The count of outliers in the validation set is determined by analyzing the prediction errors against the mean and standard deviation of errors in the training set. The formula employed to compute the errors of the validation set in terms of standard deviation (SD) units compared to the training set errors is as follows:
+============== ================================
+Points         Condition
+============== ================================
+•\ |space| 1   Each of the VERIFY tests passed
+0              Each of the unclear VERIFY tests
+-•\ |space| -1 Each of the VERIFY tests failed
+============== ================================
 
-.. code:: shell
+The following examples might help clarify these points:
 
-    SD(valid. point) = [Error(valid. point) - mean error (training set)] / SD (training set)
+.. |reg_verify| image:: images/reg_verify.jpg
+   :width: 400
 
-By default, ROBERT adopts a t-value of 2 to identify outliers, which according to Gaussian distribution principles should lead to approximately 5% of outliers. If the validation set exhibits a high number of outliers, it could indicate overfitting in the training set or an unbalanced distribution of points within the validation set.
+|reg_verify|
 
-====== ============================================================================
-Points Condition
-====== ============================================================================
-•• 2   Outliers < 7.5% (close to a normal distribution of errors in the valid. set)
-•\ 1   7.5% < outliers < 15% (not that far from a normal distribution of errors)
-0      Outliers > 15% (far from a normal distribution of errors)
-====== ============================================================================
+.. |clas_verify| image:: images/clas_verify.jpg
+   :width: 400
 
-**Extra points for VERIFY tests (only for classification, 2 points):**
+|clas_verify|
 
-As outliers are not calculated for classification models, additional points are awarded for passing the y-mean and y-shuffle VERIFY tests. These specific tests were selected due to their significance in identifying potential shortcomings in the predictive capacity of the models.
+|br|
 
-====== ==========================================================
-Points Condition
-====== ==========================================================
-•\ 1   Each y-mean and y-shuffle tests passed (up to •• 2 points)
-====== ==========================================================
+**Section B.2. Predictive ability towards an external test set (2 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The R\ :sup:`2` (for regression) or Matthew's correl. coefficient (MCC, for classification) of an external test set is employed to assess the predictive capabilities of the models found with ROBERT. In cases where a test set is absent, metrics from the validation set are used instead. ROBERT, by default, allocates a sufficient number of data points in test/validation sets to ensure the generation of meaningful R\ :sup:`2`/MCC scores.
+
+============ =======================================================
+Points       Condition
+============ =======================================================
+|br|         **Regression**
+•• 2         R\ :sup:`2` > 0.85 (high predictive ability)
+•\ |space| 1 0.85 ≥ R\ :sup:`2` ≥ 0.70 (moderate predictive ability)
+0            R\ :sup:`2` < 0.70 (low predictive ability)
+|br|         **Classification**
+•• 2         MCC > 0.75 (high predictive ability)
+•\ |space| 1 0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
+0            MCC < 0.50 (low predictive ability)
+============ =======================================================
+
+|br|
+
+**Section B.3. Cross-validation (CV) of the model (4 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The cross-validation tests guarantee the meaningfulness of the chosen data partition and guards against data overfitting. All the tests from this section use a combined dataset with training and validation sets.
+
+.. |u| raw:: html
+
+   <u>
+
+.. |/u| raw:: html
+
+   </u>
+
+|u| Section B.3a. CV predictions from training and validation (2 points) |/u|
+
+Calculates the metrics of the model with a leave-one-out CV (LOOCV, for databases with less than 50 points) or a 5-fold cross-validation (larger databases). The predictions are shown in a graph.
+
+============ =======================================================
+Points       Condition
+============ =======================================================
+|br|         **Regression**
+•• 2         R\ :sup:`2` > 0.85 (high predictive ability)
+•\ |space| 1 0.85 ≥ R\ :sup:`2` ≥ 0.70 (moderate predictive ability)
+0            R\ :sup:`2` < 0.70 (low predictive ability)
+|br|         **Classification**
+•• 2         MCC > 0.75 (high predictive ability)
+•\ |space| 1 0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
+0            MCC < 0.50 (low predictive ability)
+============ =======================================================
+
+|u| Section B.3b. Uncertainty of the model (2 points) |/u|
+
+**Regression**
+
+Calculates the uncertainty of the model using MAPIE with a Jackknife+ CV (analogous to LOCCV, for databases with less than 50 points) or a 5-fold CV+ (larger databases). ROBERT then calculates an averaged SD using the SD of all the predictions, then multiplies it by 4 to approximate the 95% confidence interval (CI) of a normally distributed population. The score obtained depends on the uncertainty of the MAPIE results, measured by the width of the 95% CI across the range of y values.
+
+============ ======================================================================
+Points       Condition
+============ ======================================================================
+•• 2         95% CI (or 4*SD) spans less than 25% of the y range (low uncertainty)
+•\ |space| 1 95% CI spans between 25% and 50% of the y range (moderate uncertainty)
+0            95% CI spans more than 50% of the y range (high uncertainty)
+============ ======================================================================
+
+The following examples might help clarify these points:
+
+.. |sd_explain| image:: images/sd_explain.jpg
+   :width: 400
+
+|sd_explain|
+
+.. |sd_examples| image:: images/sd_examples.jpg
+   :width: 400
+
+|sd_examples|
+
+**Classification**
+
+Calculates the model's uncertainty by comparing the MCC obtained from the model with the MCC of the CV from Section 3a.
+
+============ ==============================================
+Points       Condition
+============ ==============================================
+•• 2         MCC difference (ΔMCC) < 0.15 (low uncertainty)
+•\ |space| 1 0.15 ≤ ΔMCC ≤ 0.30 (moderate uncertainty)
+0            ΔMCC > 0.30 (high uncertainty)
+============ ==============================================
+
+|br|
+
+**Section B.4. Proportion of datapoints vs descriptors (1 point):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ratio of datapoints to descriptors of the model (in the train and validation sets) stands as another crucial parameter. Lower ratios result in simpler models that are more human-interpretable. The extensive literature on ML modeling offers numerous suggested ratios, and we endeavored to select a reasonable threshold in accordance with previous recommendations.
+
+============ ==============================================================
+Points       Condition
+============ ==============================================================
+•\ |space| 1 Ratio datapoints:descriptors ≥ 5:1 (low amount of descriptors)
+0            Ratio < 5:1 (potentially, too many descriptors)
+============ ==============================================================
+
+|br|
 
 Score ranges
 ++++++++++++

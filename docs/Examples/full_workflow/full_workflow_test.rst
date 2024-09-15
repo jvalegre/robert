@@ -46,12 +46,16 @@ Executing the job
 
 * :code:`--csv_test Robert_example_test.csv`: CSV with the external test set.  
 
-Execution time
-++++++++++++++
+Execution time and versions
++++++++++++++++++++++++++++
 
-Time: ~5 sec
+Time: ~10 sec
 
 System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
+
+ROBERT version: 1.2.0
+
+scikit-learn-intelex version: 2024.5.0
 
 Results
 +++++++

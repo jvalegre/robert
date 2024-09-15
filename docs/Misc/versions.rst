@@ -21,6 +21,10 @@ Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
    -  Adding Pearson heatmap in PREDICT for the two models, with individual variable correlation analysis
    -  Adding y-distribution graphs and analysis of uniformity
    -  Major changes to the report PDF file to include sections rather than modules
+   -  Improving explanation of the ROBERT score on Read The Docs
+   -  Printing coefficients in MVL models inside PREDICT.dat
+   -  Fixing bug in RFECV for classification problems, now it uses RandomForestClassifier()
+   -  Automatic recognition of classification problems
 
 Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
    -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs

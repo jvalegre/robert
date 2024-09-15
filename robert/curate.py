@@ -40,6 +40,8 @@ Parameters
         if thres_y=0.001, variables that show R**2 < 0.001 will be discarded).
     kfold : int, default='auto'
         Number of random data splits for the cross-validation of the RFECV feature selector. If 'auto', the program uses 5 splits 
+    auto_type : bool, default=True
+        If there are only two y values, the program automatically changes the type of problem to classification.
 
 
 """
@@ -52,10 +54,10 @@ import time
 import os
 import pandas as pd
 from scipy import stats
-from robert.utils import load_variables, finish_print, load_database, pearson_map
+from robert.utils import load_variables, finish_print, load_database, pearson_map, check_clas_problem
 from sklearn.feature_selection import RFECV
 from sklearn.model_selection import KFold
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor,RandomForestClassifier
 
 
 class curate:
@@ -77,6 +79,10 @@ class curate:
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df = load_database(self,self.args.csv_name,"curate")
+
+        # changes type to classification if there are only two different y values
+        if self.args.type.lower() == 'reg' and self.args.auto_type:
+            self = check_clas_problem(self,csv_df)
 
         if not self.args.evaluate:
             # transform categorical descriptors
@@ -237,7 +243,10 @@ class curate:
             if len(csv_df[self.args.y]) / 3 == num_descriptors:
                 num_descriptors -= 1
             # Use RFECV with a simple RandomForestRegressor to select the most important descriptors
-            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+            if self.args.type.lower() == 'reg':
+                estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+            elif self.args.type.lower() == 'clas':
+                estimator = RandomForestClassifier(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
             if self.args.kfold == 'auto':
                 # LOOCV for relatively small datasets (less than 50 datapoints)
                 if len(csv_df[self.args.y]) < 50:

@@ -127,12 +127,20 @@ By default, the workflow sets:
 
 * :code:`--names code_name` (name of the column containing the names of the datapoints)  
 
-Execution time
-++++++++++++++
+Execution time and versions
++++++++++++++++++++++++++++
 
-Time: ~25 min
+Time: ~3 min
 
 System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
+
+ROBERT version: 1.2.0
+
+scikit-learn-intelex version: 2024.5.0
+
+AQME version: 1.6.1
+
+xTB version: 6.6.1
 
 Results
 +++++++
@@ -159,100 +167,14 @@ file can be downloaded here: |csv_report_vaska|
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF 
 file can be visualized here: |pdf_report_vaska|
 
-The PDF report contains all the results of the workflow. In this case, two Random Forest (RF) models with 70% and 60% training sizes were the optimal models found from: 
+The PDF report contains all the results of the workflow. In this case, a Random Forest (RF) model with 60% training size and a Neural Network (NN) with 70% training size were the optimal models found from: 
 
   * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
   * Two different partition sizes (60%, 70%) 
 
-All the results are summarized below:
+The first part of the PDF file is shown below as a preview:
 
-.. |heatmap_no_pfi| image:: ../images/FW_vaska/heatmap_no_pfi.png
+.. |pdf_preview| image:: ../images/FW_vaska/preview_vaska.png
    :width: 400
 
-.. |heatmap_pfi| image:: ../images/FW_vaska/heatmap_pfi.png
-   :width: 400
-
-.. |VERIFY_no_pfi| image:: ../images/FW_vaska/VERIFY_no_pfi.png
-   :width: 600
-
-.. |VERIFY_pfi| image:: ../images/FW_vaska/VERIFY_pfi.png
-   :width: 600
-
-.. |PREDICT_graph_no_pfi| image:: ../images/FW_vaska/PREDICT_graph_no_pfi.png
-   :width: 600
-
-.. |PREDICT_graph_pfi| image:: ../images/FW_vaska/PREDICT_graph_pfi.png
-   :width: 600
-
-.. |PREDICT_shap_no_pfi| image:: ../images/FW_vaska/PREDICT_shap_no_pfi.png
-   :width: 600
-
-.. |PREDICT_shap_pfi| image:: ../images/FW_vaska/PREDICT_shap_pfi.png
-   :width: 600
-
-.. |PREDICT_out_no_pfi| image:: ../images/FW_vaska/PREDICT_out_no_pfi.png
-   :width: 600
-
-.. |PREDICT_out_pfi| image:: ../images/FW_vaska/PREDICT_out_pfi.png
-   :width: 600
-
-.. |header| image:: ../images/FW_vaska/header_smiles.jpg
-   :width: 600
-
-.. |score| image:: ../images/FW_vaska/score_smiles.jpg
-   :width: 600
-
-.. |summary| image:: ../images/FW_vaska/summary_smiles.jpg
-   :width: 600
-
-+---------------------------------------------------------------------------------------------------+
-|                         .. centered:: **RESULTS**                                                 |
-+---------------------------------------------------------------------------------------------------+
-|  |                                                                                                |
-|  .. centered:: Header and ROBERT score from the PDF report                                        |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Header                                       |    |header|                         |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: ROBERT score                                 |    |score|                          |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Prediction summary                           |    |summary|                        |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /GENERATE folder                                                                   |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap_ML_models_no                         |    |heatmap_no_pfi|                 |
-|  .. centered:: _PFI_filter.png                              |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Heatmap_ML_models_with                       |    |heatmap_pfi|                    |
-|  .. centered:: _PFI_filter.png                              |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /VERIFY folder                                                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_RF_70_No_PFI.png                |    |VERIFY_no_pfi|                  |
-|  .. centered:: *(using 91 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: VERIFY_tests_RF_60_PFI.png                   |    |VERIFY_pfi|                     |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  |                                                                                                |
-|  .. centered:: /PREDICT folder                                                                    |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_RF_70_No_PFI.png                     |    |PREDICT_graph_no_pfi|           |
-|  .. centered:: *(using 91 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_RF_70_No_PFI.png                        |    |PREDICT_shap_no_pfi|            |
-|  .. centered:: *(using 91 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_RF_70_No_PFI.png                    |    |PREDICT_out_no_pfi|             |
-|  .. centered:: *(using 91 descriptors)*                     |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Results_RF_60_PFI.png                        |    |PREDICT_graph_pfi|              |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: SHAP_RF_60_PFI.png                           |    |PREDICT_shap_pfi|               |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
-|  .. centered:: Outliers_RF_60_PFI.png                       |    |PREDICT_out_pfi|                |
-|  .. centered:: *(PFI filter applied, using 3 descriptors)*  |                                     |
-+-------------------------------------------------------------+-------------------------------------+
+|pdf_preview|

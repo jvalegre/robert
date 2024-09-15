@@ -94,16 +94,16 @@ class predict:
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
                 
                 # get results from training, validation and test (if any)
-                Xy_data = load_n_predict(self, params_dict, Xy_data, mapie=True)
+                Xy_data,loaded_model = load_n_predict(self, params_dict, Xy_data, mapie=True)
 
                 # save predictions for all sets
                 path_n_suffix, name_points, Xy_data = save_predictions(self,Xy_data,params_dir,Xy_test_df,params_dict)
 
                 # represent y vs predicted y
-                colors = plot_predictions(self, params_dict, Xy_data, path_n_suffix)
+                colors = plot_predictions(self,params_dict,Xy_data,path_n_suffix)
 
                 # print results
-                _ = print_predict(self,Xy_data,params_dict,path_n_suffix)  
+                _ = print_predict(self,Xy_data,params_dict,path_n_suffix,loaded_model)  
 
                 # print CV variation (for regression)
                 if params_dict['type'].lower() == 'reg':

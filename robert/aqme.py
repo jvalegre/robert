@@ -226,7 +226,7 @@ class aqme:
         try:
             from aqme.qprep import qprep
         except ModuleNotFoundError:
-            self.args.log.write("x  AQME is not installed (required for the --aqme option)! The program is typically installed within 2-5 minutes (https://aqme.readthedocs.io, see the Installation section)")
+            self.args.log.write("x  AQME is not installed (required for the --aqme option)! You can install the program with 'conda install -c conda-forge aqme'")
             sys.exit()
 
 

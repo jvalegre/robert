@@ -13,7 +13,6 @@
    :end-before: checkboxes-end
 
 ==================================
-
 Welcome to ROBERT's documentation!
 ==================================
 

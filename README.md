@@ -8,6 +8,10 @@
 [![Downloads](https://img.shields.io/pepy/dt/robert?label=Downloads&logo=pypi)](https://www.pepy.tech/projects/robert)
 [![Read the Docs](https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs)](https://robert.readthedocs.io/)
 
+ROBERT is an ensemble of automated machine learning protocols that can be run sequentially 
+through a single command line or a graphical user interface. The program works for **regression and classification problems**.
+Comprehensive workflows have been designed to meet state-of-the-art standards for cheminformatics studies, including:
+
 ## Documentation  
 Full documentation with installation instructions, technical details and examples can be found in [Read the Docs](https://robert.readthedocs.io).  
 
@@ -40,11 +44,11 @@ We really THANK all the testers for their feedback and for participating in the 
 
 ## How to cite ROBERT
 If you use any of the ROBERT modules, please include this citation:  
-* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *accepted*. DOI: 10.1002/WCMS.1733.  
+* Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h.  
 
 If you use the AQME module, please include this citation:  
-* Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2023**, *13*, e1663.
+* Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.
 
 Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
-* Pedregosa et al., Scikit-learn: Machine Learning in Python. *J. Mach. Learn. Res.* **2011**, *12*, 2825-2830.  
-* Lundberg et al., From local explanations to global understanding with explainable AI for trees. *Nat. Mach. Intell.* **2020**, *2*, 56–67.  
+* Pedregosa et al., Scikit-learn: Machine Learning in Python, J. Mach. Learn. Res. 2011, 12, 2825-2830.  
+* Lundberg et al., From local explanations to global understanding with explainable AI for trees, Nat. Mach. Intell. 2020, 2, 56–67.  

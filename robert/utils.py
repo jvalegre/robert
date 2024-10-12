@@ -46,7 +46,7 @@ warnings.filterwarnings("ignore")
 
 robert_version = "1.2.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2024, accepted. DOI: 10.1002/WCMS.1733"
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
 
 
 # load paramters from yaml file
@@ -281,7 +281,7 @@ def format_lists(value):
             value = ast.literal_eval(value)
         except (SyntaxError, ValueError):
             # this line fixes issues when using "[X]" or ["X"] instead of "['X']" when using lists
-            value = value.replace('[',']').replace(',',']').replace(', ',']').replace(',  ',']').replace("'",']').split(']')
+            value = value.replace('[',']').replace(',',']').replace("'",']').split(']')
             while('' in value):
                 value.remove('')
     return value

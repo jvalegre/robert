@@ -117,7 +117,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
 .. code-block:: shell 
    
-   conda install -c conda-forge -y glib gtk3 pango mscorefonts
+   conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
 .. warning::
 
@@ -127,10 +127,10 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
 .. code-block:: shell
 
-   conda install -c conda-forge robert
+   conda install -y -c conda-forge robert
    pip install robert --upgrade
    pip install scikit-learn-intelex
-   conda install -c conda-forge -y glib gtk3 pango mscorefonts
+   conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
 .. installation-end 
 
@@ -170,7 +170,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
 
 
-**7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -c conda-forge -y glib gtk3 pango mscorefonts`).
+**7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -y -c conda-forge glib gtk3 pango mscorefonts`).
 
 
 **8.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
@@ -303,7 +303,7 @@ Reference
 
 If you use any of the ROBERT modules, please include this citation:  
 
-* Dalmau, D.; Alegre Requena, J. V. *ChemRxiv* **2023**, DOI: 10.26434/chemrxiv-2023-k994h. 
+* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *accepted*. DOI: 10.1002/WCMS.1733. 
 
 If you use the AQME module, please include this citation:  
 
@@ -311,7 +311,7 @@ If you use the AQME module, please include this citation:
 
 Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
 
-* Pedregosa et al., Scikit-learn: Machine Learning in Python, *J. Mach. Learn. Res.* **2011**, *12*, 2825-2830.  
+* Pedregosa et al., Scikit-learn: Machine Learning in Python. *J. Mach. Learn. Res.* **2011**, *12*, 2825-2830.  
 * Lundberg et al., From local explanations to global understanding with explainable AI for trees, *Nat. Mach. Intell.* **2020**, *2*, 56–67.  
 
 .. reference-end

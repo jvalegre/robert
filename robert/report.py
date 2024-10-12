@@ -68,7 +68,7 @@ class report:
         try:
             from weasyprint import HTML
         except (OSError, ModuleNotFoundError):
-            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -c conda-forge robert'")
+            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -y -c conda-forge robert'")
             sys.exit()
 
         # load default and user-specified variables
@@ -855,7 +855,7 @@ class report:
             repro_dat += f"""<p style="text-align: justify; margin-top: -44px;"><br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
         else:
             repro_dat += f"""{first_line}<br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
-        repro_dat += f"""{reduced_line}{space}- Install ROBERT and its dependencies: conda install -c conda-forge robert</p>"""
+        repro_dat += f"""{reduced_line}{space}- Install ROBERT and its dependencies: conda install -y -c conda-forge robert</p>"""
         repro_dat += f"""{reduced_line}{space}- Adjust ROBERT version: pip install robert=={robert_version}</p>"""
 
         if intelex_version != 'not installed':
@@ -868,7 +868,7 @@ class report:
         if aqme_workflow:
             if not find_aqme:
                 repro_dat += f"""{reduced_line}{space}- AQME is required, but no version was found:</p>"""
-            repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -c conda-forge aqme</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -y -c conda-forge aqme</p>"""
             if find_aqme:
                 repro_dat += f"""{reduced_line}{space}- Adjust AQME version: pip install aqme=={aqme_version}</p>"""
 
@@ -884,9 +884,9 @@ class report:
                 find_xtb = False
             if not find_xtb:
                 repro_dat += f"""{reduced_line}{space}- xTB is required, but no version was found:</p>"""
-            repro_dat += f"""{reduced_line}{space}- Install xTB: conda install -c conda-forge xtb</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install xTB: conda install -y -c conda-forge xtb</p>"""
             if find_xtb:
-                repro_dat += f"""{reduced_line}{space}- Adjust xTB version (if possible): conda install -c conda-forge xtb={xtb_version}</p>"""
+                repro_dat += f"""{reduced_line}{space}- Adjust xTB version (if possible): conda install -y -c conda-forge xtb={xtb_version}</p>"""
 
         if crest_workflow:
             try:
@@ -897,9 +897,9 @@ class report:
                 find_crest = False
             if not find_crest:
                 repro_dat += f"""{reduced_line}{space}- CREST is required, but no version was found:</p>"""
-            repro_dat += f"""{reduced_line}{space}- Install CREST: conda install -c conda-forge crest</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install CREST: conda install -y -c conda-forge crest</p>"""
             if find_crest:
-                repro_dat += f"""{reduced_line}{space}- Adjust CREST version: conda install -c conda-forge crest={crest_version})</p>"""
+                repro_dat += f"""{reduced_line}{space}- Adjust CREST version: conda install -y -c conda-forge crest={crest_version})</p>"""
 
         character_line = ''
         if self.args.csv_test != '':

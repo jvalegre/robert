@@ -47,14 +47,14 @@ Required packages
 
 .. code:: shell
 
-    conda install -c conda-forge aqme
+    conda install -y -c conda-forge aqme
     pip install aqme --upgrade      (if AQME was previously installed)
 
 * **xTB:** Install xTB with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
 
 .. code:: shell
 
-    conda install -c conda-forge xtb
+    conda install -y -c conda-forge xtb
 
 .. warning::
 

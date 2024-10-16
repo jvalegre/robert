@@ -4,6 +4,14 @@
 Versions
 ========
 
+Version 1.2.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.1>`__]
+   -  NN solver are now set to 'lbfgs' by default in the MLPRegressor to work with small datasets
+   -  Thres_x is now set to 0.7 by default in the CURATE module
+   -  Fixing bug in the PREDICT module when using EVALUATE module (it was not showing the linear model equation)
+   -  Adding linear model equation in the REPORT module
+   -  Changing the threshold for correlated features in predict_utils to adjust to the new thres_x
+   -  Changing the way missing values are treated (previously filled with 0s, now using KNN imputer)
+
 Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
    -  Changing cross-validation (CV) in VERIFY to LOOCV for datasets with less than 50 points
    -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 50 points

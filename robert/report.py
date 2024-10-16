@@ -68,7 +68,7 @@ class report:
         try:
             from weasyprint import HTML
         except (OSError, ModuleNotFoundError):
-            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -c conda-forge robert'")
+            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -y -c conda-forge robert'")
             sys.exit()
 
         # load default and user-specified variables
@@ -676,8 +676,27 @@ class report:
         
         # starts with the icon of feature importances
         feature_dat = ''
-        feature_dat = self.module_lines('features',feature_dat) 
+        feature_dat = self.module_lines('features',feature_dat)
         
+        # Add linear model equations
+        spacing = get_spacing_col('PFI',spacing_PFI)
+        with open(f'{os.getcwd()}/PREDICT/PREDICT_data.dat', 'r') as file:
+            lines = file.readlines()
+            linear_model_eqs = [lines[i + 1].strip().lstrip('- ') for i, line in enumerate(lines) if 'o  Linear model equation' in line]
+
+        if linear_model_eqs:
+            feature_dat += "<p style='margin-top:-5px; margin-bottom:-6px'><span style='font-weight:bold;'>Linear model equation_No_PFI</span></p>"
+            if len(linear_model_eqs) == 1:
+                feature_dat += f"<p style='margin-top:10px; margin-bottom:35px'>{linear_model_eqs[0]}</p>"
+            else:
+                columns_eq = []
+                for i, eq in enumerate(linear_model_eqs):
+                    if i == 0:
+                        columns_eq.append(f"<p style='margin-top:10px; margin-bottom:35px'>{eq}</p>")
+                    else:
+                        columns_eq.append(f"<p style='margin-top:-5px; margin-bottom:-6px'><span style='font-weight:bold;'>{spacing*3}Linear model equation_PFI</span></p><p style='margin-top:10px; margin-bottom:35px'>{spacing*3}{eq}</p>")
+                feature_dat += combine_cols(columns_eq)
+
         # add corresponding images
         module_path = Path(f'{os.getcwd()}/PREDICT')
                 
@@ -855,7 +874,7 @@ class report:
             repro_dat += f"""<p style="text-align: justify; margin-top: -44px;"><br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
         else:
             repro_dat += f"""{first_line}<br><strong>2. Install and adjust the versions of the following Python modules:</strong></p>"""
-        repro_dat += f"""{reduced_line}{space}- Install ROBERT and its dependencies: conda install -c conda-forge robert</p>"""
+        repro_dat += f"""{reduced_line}{space}- Install ROBERT and its dependencies: conda install -y -c conda-forge robert</p>"""
         repro_dat += f"""{reduced_line}{space}- Adjust ROBERT version: pip install robert=={robert_version}</p>"""
 
         if intelex_version != 'not installed':
@@ -868,7 +887,7 @@ class report:
         if aqme_workflow:
             if not find_aqme:
                 repro_dat += f"""{reduced_line}{space}- AQME is required, but no version was found:</p>"""
-            repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -c conda-forge aqme</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -y -c conda-forge aqme</p>"""
             if find_aqme:
                 repro_dat += f"""{reduced_line}{space}- Adjust AQME version: pip install aqme=={aqme_version}</p>"""
 
@@ -884,9 +903,9 @@ class report:
                 find_xtb = False
             if not find_xtb:
                 repro_dat += f"""{reduced_line}{space}- xTB is required, but no version was found:</p>"""
-            repro_dat += f"""{reduced_line}{space}- Install xTB: conda install -c conda-forge xtb</p>"""
+            repro_dat += f"""{reduced_line}{space}- Install xTB: conda install -y -c conda-forge xtb</p>"""
             if find_xtb:
-                repro_dat += f"""{reduced_line}{space}- Adjust xTB version (if possible): conda install -c conda-forge xtb={xtb_version}</p>"""
+                repro_dat += f"""{reduced_line}{space}- Adjust xTB version (if possible): conda install -y -c conda-forge xtb={xtb_version}</p>"""
 
         if crest_workflow:
             try:

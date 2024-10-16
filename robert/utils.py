@@ -39,6 +39,7 @@ from sklearn.ensemble import (
 from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
+from sklearn.impute import KNNImputer
 from mapie.regression import MapieRegressor
 from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
@@ -46,7 +47,7 @@ warnings.filterwarnings("ignore")
 
 robert_version = "1.2.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, DOI: 10.1002/WCMS.1733"
 
 
 # load paramters from yaml file
@@ -789,8 +790,10 @@ def load_database(self,csv_load,module):
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
-    # Fill missing values with zeros
-    csv_df = csv_df.fillna(0)
+    # Fill missing values using KNN imputer
+    numeric_columns = csv_df.select_dtypes(include=[np.number]).columns
+    imputer = KNNImputer(n_neighbors=5)
+    csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns)
 
     if module.lower() not in ['verify','no_print','evaluate']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
@@ -901,6 +904,7 @@ def load_model_reg(params):
         params = correct_hidden_layers(params)
 
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
+                                solver='lbfgs',
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
@@ -980,6 +984,7 @@ def load_model_clas(params):
         params = correct_hidden_layers(params)
 
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
+                                solver='lbfgs',
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],

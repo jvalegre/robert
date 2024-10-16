@@ -791,9 +791,12 @@ def load_database(self,csv_load,module):
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
     # Fill missing values using KNN imputer
-    numeric_columns = csv_df.select_dtypes(include=[np.number]).columns
+    csv_df = csv_df.dropna(axis=1, thresh=int(0.7 * len(csv_df))) # Remove columns with less than 70% of the data
+    int_columns = csv_df.select_dtypes(include=['int']).columns
+    numeric_columns = csv_df.select_dtypes(include=['float']).columns
     imputer = KNNImputer(n_neighbors=5)
     csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns)
+    csv_df[int_columns] = csv_df[int_columns]
 
     if module.lower() not in ['verify','no_print','evaluate']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)

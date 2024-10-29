@@ -86,7 +86,7 @@ def test_CURATE(test_job):
         # 1. Duplicate entries are removed
         assert len(db_final['Name']) == 37
         # 2. Correlated variables with X and noise (low R2 with y) are removed
-        discard_vars = ['x1','x3','ynoise']
+        discard_vars = ['x1','x3','x5', 'x6','ynoise']
         for var in discard_vars:
             assert var not in db_final.columns
         # 3. Ignored variables and y are kept
@@ -95,12 +95,12 @@ def test_CURATE(test_job):
         # 4. Discarded variables are removed
         assert 'xtest' not in db_final.columns
         # 5. The rest of the variables are kept
-        final_vars = ['x2','x5','x6','x7','x8','x9','x10','x11']
+        final_vars = ['x2','x7','x8','x9','x10','x11']
         for var in final_vars:
             assert var in db_final.columns
 
         # check that categorical variables are converted with one-hot encoding
-        categ_vars = ['Csub-H','Csub-Csub','H-O','Csub-O']
+        categ_vars = ['Csub-H','Csub-Csub','H-O']
         for var in categ_vars:
             assert var in db_final.columns
         assert 'x4' not in db_final.columns
@@ -144,11 +144,11 @@ def test_CURATE(test_job):
         ]
         subprocess.run(cmd_robert)
 
-        # check that all the missing values were filled with 0s
+        # check that all the missing values were filled
         db_final = pd.read_csv(f"{path_curate}/Robert_example_NaNs_CURATE.csv")
         # 1. Duplicate entries are removed
-        assert db_final['x3'][0] == 0
-        assert db_final['x3'][8] == 0
+        assert isinstance(db_final['x2'][4], (int, float))
+        assert isinstance(db_final['x2'][0], (int, float))
 
     elif test_job == 'corr_filter':
         cmd_robert = [

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 ######################################################.
-# 	          Testing AQME with pytest   	         #
+# 	          Testing EVALUATE with pytest   	     #
 ######################################################.
 
 import os
@@ -32,7 +32,7 @@ path_tests = os.getcwd() + "/tests"
         ),  # test that if the --csv_train or --csv_valid options are empty, a prompt pops up and asks for them 
     ],
 )
-def test_eval(test_job):
+def test_EVALUATE(test_job):
 
     # reset the folders (to avoid interferences with previous failed tests)
     folders = ['CURATE','GENERATE','GENERATE_reg','GENERATE_clas','PREDICT','VERIFY','AQME','EVALUATE']

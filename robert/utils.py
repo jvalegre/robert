@@ -129,7 +129,7 @@ def command_line_args(exe_type,sys_args):
         "aqme",
         "report",
         "cheers",
-        "evaluate"
+        "evaluate",
     ]
     list_args = [
         "discard",
@@ -137,7 +137,8 @@ def command_line_args(exe_type,sys_args):
         "train",
         "model",
         "report_modules",
-        "seed"
+        "seed",
+        "descriptor_type",
     ]
     int_args = [
         'pfi_epochs',
@@ -304,6 +305,10 @@ def load_variables(kwargs, robert_module):
     # check if user used .csv in csv_name
     if not os.path.exists(f"{self.csv_name}") and os.path.exists(f'{self.csv_name}.csv'):
         self.csv_name = f'{self.csv_name}.csv'
+
+    # check if user used .csv in csv_test
+    if self.csv_test and not os.path.exists(f"{self.csv_test}") and os.path.exists(f'{self.csv_test}.csv'):
+        self.csv_test = f'{self.csv_test}.csv'
 
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
@@ -567,6 +572,15 @@ def missing_inputs(self,module,print_err=False):
         if self.names != '' and self.names not in self.ignore:
             self.ignore.append(self.names)
 
+    if module.lower() == 'aqme':
+        if self.descriptor_type == '':
+            if print_err:
+                print(f'\nx  Specify a descriptor type with the descr_type option! Options: "interpret", "denovo", "full"')
+            else:
+                self.log.write(f'\nx  Specify a descriptor type with the descriptor_type option! Options: "interpret", "denovo", "full"')
+            self.descriptor_type = input('Enter the descriptor type: ')
+            self.extra_cmd += f' --descriptor_type {self.descriptor_type}'
+
     return self
 
 
@@ -795,7 +809,8 @@ def load_database(self,csv_load,module):
     int_columns = csv_df.select_dtypes(include=['int']).columns
     numeric_columns = csv_df.select_dtypes(include=['float']).columns
     imputer = KNNImputer(n_neighbors=5)
-    csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns)
+    if csv_df[numeric_columns].isna().any().any(): 
+        csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns)
     csv_df[int_columns] = csv_df[int_columns]
 
     if module.lower() not in ['verify','no_print','evaluate']:

@@ -434,6 +434,7 @@ def get_col_score(score_info,data_score,suffix,spacing,eval_only):
     column = f"""<p style="margin-top:-18px;"><span style="font-weight:bold;">{title_line}</span></p>
     {ML_line_format}Model = {data_score['ML_model']}&nbsp;&nbsp;·&nbsp;&nbsp;{partitions_ratio}</p>
     {part_line_format}Points(train+valid.):descriptors = {data_score[f'points_descp_ratio_{suffix}']}</p>
+    {part_line_format}Score = {data_score[f'robert_score_{suffix}']} / 10</p>
     <p style="margin-top: 4px;">{score_info}
     <p style="margin-bottom: 18px;"></p>
     """

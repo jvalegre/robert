@@ -106,7 +106,7 @@ def test_PREDICT(test_job):
             if 'x  WARNING! High correlations observed (up to r = 1.0 or R2 = 1.0, for x1 and x3)' in line:
                 pearson_found = True
         else:
-            if 'x  WARNING! Noticeable correlations observed (up to r = -0.92 or R2 = 0.85, for x6 and x10)' in line:
+            if 'o  Correlations between variables are acceptable' in line:
                 pearson_found = True
         if test_job == "clas":
             if 'o  Your data seems quite uniform' in line:

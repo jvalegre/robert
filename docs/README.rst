@@ -20,6 +20,7 @@
 .. |ReadtheDocs| image:: https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs
    :target: https://robert.readthedocs.io
    :alt: Documentation Status
+   
 .. |PyPI| image:: https://img.shields.io/pypi/v/robert
    :target: https://pypi.org/project/robert/
 

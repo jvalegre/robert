@@ -143,7 +143,7 @@ def test_GENERATE(test_job):
         assert "ROBERT v" in outlines[0]
         assert "- 37 datapoints" in outlines[9]
         if test_job != 'reduced_clas':
-            assert "- 12 accepted descriptors" in outlines[10]
+            assert "- 9 accepted descriptors" in outlines[10]
         else:
             assert "- 9 accepted descriptors" in outlines[10]
         assert "- 1 ignored descriptors" in outlines[11]
@@ -185,26 +185,26 @@ def test_GENERATE(test_job):
             if test_job in ['reduced','reduced_PFImax','reduced_rnd']:
                 if folder == 'No_PFI':
                     if test_job != 'reduced_clas':
-                        desc_list = ['x2', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'Csub-O', 'H-O']
+                        desc_list = ['x2', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'H-O']
                     else:
                         desc_list = ['x1', 'x2', 'x3', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10']
                 elif folder == 'PFI':
                     if test_job == 'reduced':
-                        desc_list = ['x6', 'x7', 'x10']
+                        desc_list = ['x7', 'x9', 'x10']
                     elif test_job == 'reduced_rnd':
-                        desc_list = ['x6', 'x7', 'x9', 'x10']
+                        desc_list = ['x7', 'x9', 'x10']
                     elif test_job =='reduced_PFImax':
-                        desc_list = ['x6', 'x7']
+                        desc_list = ['x7', 'x9']
 
                 if test_job in ['reduced','reduced_rnd']:    
                     sum_split = 0
                     if db_best['Set'][0] == 'Training':
                         sum_split += 1
-                    if db_best['Set'][1] == 'Training':
+                    if db_best['Set'][1] == 'Validation':
                         sum_split += 1
                     if db_best['Set'][2] == 'Training':
                         sum_split += 1
-                    if db_best['Set'][3] == 'Validation':
+                    if db_best['Set'][3] == 'Training':
                         sum_split += 1
                     if test_job == 'reduced':
                         assert sum_split == 4

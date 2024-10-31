@@ -80,7 +80,7 @@ def test_AQME(test_job):
         "--epochs", "5",
         "--seed", "[0]",
         "--model", "['RF']",
-        "--train", "[60]",
+        "--train", "[70]",
         "--pfi_epochs", "1",
         "--debug_report", "True"
     ]
@@ -150,9 +150,9 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
 
     if test_job == 'aqme':
-        assert os.path.exists(f'{path_main}/AQME-ROBERT_solubility.csv')
-        db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_solubility.csv')
-        descps = ['code_name','solub','C_FUKUI+','MolLogP']
+        assert os.path.exists(f'{path_main}/AQME-ROBERT_interpret_solubility.csv')
+        db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_interpret_solubility.csv')
+        descps = ['code_name','solub','HOMO','Total charge']
         for descp in descps:
             assert descp in db_aqme.columns
         assert 'smiles' in db_aqme.columns
@@ -164,12 +164,12 @@ def test_AQME(test_job):
         assert "ROBERT v" in outlines[0]
         assert os.path.exists(f'{path_aqme}/CSEARCH')
         assert os.path.exists(f'{path_aqme}/QDESCP')
-        assert len(glob.glob(f'{path_aqme}/*.csv')) == 1
+        assert len(glob.glob(f'{path_aqme}/*.csv')) == 0
         assert len(glob.glob(f'{path_aqme}/*.dat')) == 3
 
     if test_job == '2smiles_columns':
-        assert os.path.exists(f'{path_main}/AQME-ROBERT_solubility_solvent.csv')
-        db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_solubility_solvent.csv')
+        assert os.path.exists(f'{path_main}/AQME-ROBERT_interpret_solubility_solvent.csv')
+        db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_interpret_solubility_solvent.csv')
         assert 'smiles_sub' and 'smiles_solvent' in db_aqme.columns
 
     # find important parts in ROBERT_report
@@ -185,19 +185,19 @@ def test_AQME(test_job):
     for line in outlines:
         if 'Heatmap_ML_models_No_PFI.png' in line:
             find_heatmap += 1
-        if 'VERIFY_tests_RF_60_PFI.png' in line:
+        if 'VERIFY_tests_RF_70_PFI.png' in line:
             find_verify += 1
-        if 'SHAP_RF_60_PFI.png' in line:
+        if 'SHAP_RF_70_PFI.png' in line:
             find_shap += 1
-        if 'PFI_RF_60_PFI.png' in line:
+        if 'PFI_RF_70_PFI.png' in line:
             find_pfi += 1
-        if 'Outliers_RF_60_No_PFI.png' in line:
+        if 'Outliers_RF_70_No_PFI.png' in line:
             find_outliers += 1
-        if 'Results_RF_60_No_PFI.png' in line:
+        if 'Results_RF_70_No_PFI.png' in line:
             find_results_reg += 1
-        if 'Results_RF_60_No_PFI_valid.png' in line:
+        if 'Results_RF_70_No_PFI_valid.png' in line:
             find_results_valid_clas += 1
-        if 'Results_RF_60_No_PFI_csv_test.png' in line:
+        if 'Results_RF_70_No_PFI_csv_test.png' in line:
             find_results_test_clas += 1
         if 'csv_test :' in line:
             find_test += 1
@@ -210,7 +210,7 @@ def test_AQME(test_job):
         predict_graphs,flawed_image,cv_r2_image,cv_sd_image = False,False,False,False
         y_distrib_image,pearson_pred_image = False,False
         find_severe_red,find_severe_blue = False,False
-        find_moder_pred,find_moder_y_dist,find_moder_corr = False,False,False
+        find_moder_pred,find_moder_y_dist,unclear_test = False,False,False
         find_assess_yellow,find_assess_red = False,False
 
         for i,line in enumerate(outlines):
@@ -218,31 +218,31 @@ def test_AQME(test_job):
                 robert_score.append(line.split('robert/report/score_')[1][0])
             if 'Model = RF' in line:
                 ml_model_count += 1
-            if 'Train:Validation = 59:41' in line:
+            if 'Train:Validation = 68:32' in line:
                 partition_count += 1
             if 'Points(train+valid.):descriptors = ' in line:
                 points_desc.append(line.split('Points(train+valid.):descriptors = ')[1].split('</p>')[0])
-            if 'Results_RF_60_No_PFI.png' in line:
+            if 'Results_RF_70_No_PFI.png' in line:
                 predict_graphs = True
             if 'Train : R<sup>2</sup> = ' in line:
                 metrics_count += 1
             if '1. Model vs "flawed" models' in line:
                 flawed_models.append(line)
-            if 'VERIFY/VERIFY_tests_RF_60_No_PFI.png' in line:
+            if 'VERIFY/VERIFY_tests_RF_70_No_PFI.png' in line:
                 flawed_image = True
             if '2. Predictive ability of the model' in line:
                 pred_ability.append(line)
             if '3a. CV predictions train + valid.' in line:
                 cv_r2_models.append(line)
-            if 'VERIFY/CV_train_valid_predict_RF_60_No_PFI.png' in line:
+            if 'VERIFY/CV_train_valid_predict_RF_70_No_PFI.png' in line:
                 cv_r2_image = True
             if '3b. Avg. standard deviation (SD)' in line:
                 cv_sd_models.append(line)
-            if 'PREDICT/CV_variability_RF_60_No_PFI.png' in line:
+            if 'PREDICT/CV_variability_RF_70_No_PFI.png' in line:
                 cv_sd_image = True
             if '4. Points(train+valid.):descriptors' in line:
                 points_descp.append(line)
-            if 'y_distribution_RF_60_No_PFI.png' in line:
+            if 'y_distribution_RF_70_No_PFI.png' in line:
                 y_distrib_image = True
             if 'Pearson_heatmap_No_PFI.png' in line:
                 pearson_pred_image = True
@@ -254,8 +254,8 @@ def test_AQME(test_job):
                 find_moder_pred = True
             if 'Slightly uneven y distribution (Section C)' in line and 'color: #c5c57d' in outlines[i-1]:
                 find_moder_y_dist = True
-            if 'Moderately correlated features (Section D)' in line and 'color: #c5c57d' in outlines[i-1]:
-                find_moder_corr = True
+            if 'Some tests are unclear (Section B.1)' in line and 'color: #c5c57d' in outlines[i-1]:
+                unclear_test = True
             if 'Decent model, but it has limitations' in line and 'color: #c5c57d' in outlines[i-1]:
                 find_assess_yellow = True
             if 'The model is unreliable' in line and 'color: #c56666' in outlines[i-1]:
@@ -264,23 +264,23 @@ def test_AQME(test_job):
                 break
 
         # model summary, robert score, predict graphs and model metrics
-        assert robert_score[0] == '3'
-        assert robert_score[1] == '8'
+        assert robert_score[0] == '4'
+        assert robert_score[1] == '7'
         assert ml_model_count == 2
         assert partition_count == 2
-        assert points_desc[0] == '37:12'
+        assert points_desc[0] == '37:9'
         assert points_desc[1] == '37:3'
         assert predict_graphs
         assert metrics_count == 2
         # advanced analysis, flawed models section 1
         assert '1 / 3' in flawed_models[0]
         assert 'robert/report/score_w_3_1.jpg' in flawed_models[0]
-        assert '3 / 3' in flawed_models[1]
-        assert 'robert/report/score_w_3_3.jpg' in flawed_models[1]
+        assert '2 / 3' in flawed_models[1]
+        assert 'robert/report/score_w_3_2.jpg' in flawed_models[1]
         assert flawed_image
         # advanced analysis, predictive ability section 2
-        assert '1 / 2' in pred_ability[0]
-        assert 'robert/report/score_w_2_1.jpg' in pred_ability[0]
+        assert '2 / 2' in pred_ability[0]
+        assert 'robert/report/score_w_2_2.jpg' in pred_ability[0]
         assert '2 / 2' in pred_ability[1]
         assert 'robert/report/score_w_2_2.jpg' in pred_ability[1]
         # advanced analysis, CV predictive ability section 3a
@@ -308,7 +308,7 @@ def test_AQME(test_job):
         assert find_severe_blue
         assert find_moder_pred
         assert find_moder_y_dist
-        assert find_moder_corr
+        assert unclear_test
         assert find_assess_yellow
         assert find_assess_red
 

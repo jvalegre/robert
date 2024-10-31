@@ -39,14 +39,15 @@ from sklearn.ensemble import (
 from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
+from sklearn.impute import KNNImputer
 from mapie.regression import MapieRegressor
 from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.2.0"
+robert_version = "1.2.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. ChemRxiv, 2023, DOI: 10.26434/chemrxiv-2023-k994h"
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, DOI: 10.1002/WCMS.1733"
 
 
 # load paramters from yaml file
@@ -128,7 +129,7 @@ def command_line_args(exe_type,sys_args):
         "aqme",
         "report",
         "cheers",
-        "evaluate"
+        "evaluate",
     ]
     list_args = [
         "discard",
@@ -136,7 +137,7 @@ def command_line_args(exe_type,sys_args):
         "train",
         "model",
         "report_modules",
-        "seed"
+        "seed",
     ]
     int_args = [
         'pfi_epochs',
@@ -229,6 +230,7 @@ o Other common options:
 * Affecting SMILES workflows, AQME:
   --qdescp_keywords STR (default="") : extra keywords in QDESCP (i.e. "--qdescp_atoms [Ir] --alpb h2o") 
   --csearch_keywords STR (default="--sample 50") : extra keywords in CSEARCH
+  --descp_lvl (default="interpret") "interpret", "denovo" or "full" : type of descriptor calculation
 
 
 o How to cite ROBERT:
@@ -303,6 +305,10 @@ def load_variables(kwargs, robert_module):
     # check if user used .csv in csv_name
     if not os.path.exists(f"{self.csv_name}") and os.path.exists(f'{self.csv_name}.csv'):
         self.csv_name = f'{self.csv_name}.csv'
+
+    # check if user used .csv in csv_test
+    if self.csv_test and not os.path.exists(f"{self.csv_test}") and os.path.exists(f'{self.csv_test}.csv'):
+        self.csv_test = f'{self.csv_test}.csv'
 
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
@@ -789,8 +795,14 @@ def load_database(self,csv_load,module):
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
-    # Fill missing values with zeros
-    csv_df = csv_df.fillna(0)
+    # Fill missing values using KNN imputer
+    csv_df = csv_df.dropna(axis=1, thresh=int(0.7 * len(csv_df))) # Remove columns with less than 70% of the data
+    int_columns = csv_df.select_dtypes(include=['int']).columns
+    numeric_columns = csv_df.select_dtypes(include=['float']).columns
+    imputer = KNNImputer(n_neighbors=5)
+    if csv_df[numeric_columns].isna().any().any(): 
+        csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns)
+    csv_df[int_columns] = csv_df[int_columns]
 
     if module.lower() not in ['verify','no_print','evaluate']:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
@@ -901,6 +913,7 @@ def load_model_reg(params):
         params = correct_hidden_layers(params)
 
         loaded_model = MLPRegressor(batch_size=params['batch_size'],
+                                solver='lbfgs',
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],
@@ -980,6 +993,7 @@ def load_model_clas(params):
         params = correct_hidden_layers(params)
 
         loaded_model = MLPClassifier(batch_size=params['batch_size'],
+                                solver='lbfgs',
                                 hidden_layer_sizes=params['hidden_layer_sizes'],
                                 learning_rate_init=params['learning_rate_init'],
                                 max_iter=params['max_iter'],

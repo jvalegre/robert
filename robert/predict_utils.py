@@ -503,15 +503,15 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix,loaded_model):
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
             print_results += f"\n      -  csv_test : R2 = {Xy_data['r2_csv_test']:.2}, MAE = {Xy_data['mae_csv_test']:.2}, RMSE = {Xy_data['rmse_csv_test']:.2}"
         # add equation for linear models
-        if params_dict['model'].upper() == 'MVL':
+        if params_dict['model'].upper() == 'MVL' or self.args.evaluate == 'True':
             desc_mvl = ast.literal_eval(params_dict['X_descriptors'])
             print_results += f"\n\n   o  Linear model equation, with coefficients obtained using standardized data (coefficient values/importances can be compared):"
             print_results += f"\n      - {params_dict['y']} = {loaded_model.intercept_:.2} "
-            for i,coeff in enumerate(loaded_model.coef_):
+            for i, coeff in enumerate(loaded_model.coef_):
                 if float(coeff) >= 0:
-                    print_results += f"+ {coeff:.2}·{desc_mvl[i]} "
+                    print_results += f"+ ({coeff:.2} * {desc_mvl[i]}) "
                 else:
-                    print_results += f"- {np.abs(coeff):.2}·{desc_mvl[i]} "
+                    print_results += f"- ({np.abs(coeff):.2} * {desc_mvl[i]}) "
 
     elif params_dict['type'].lower() == 'clas':
         print_results += f"\n      -  Train : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
@@ -1040,9 +1040,9 @@ def pearson_map_predict(self,Xy_data,params_dir):
         max_r = corr_dict['r'][abs_r_list.index(abs_max_r)]
         max_descp_1 = corr_dict['descp_1'][abs_r_list.index(abs_max_r)]
         max_descp_2 = corr_dict['descp_2'][abs_r_list.index(abs_max_r)]
-        if abs_max_r > 0.95:
+        if abs_max_r > 0.84:
             print_corr += f"\n      x  WARNING! High correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
-        elif abs_max_r > 0.8:
+        elif abs_max_r > 0.71:
             print_corr += f"\n      x  WARNING! Noticeable correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
 
     self.args.log.write(print_corr)

@@ -30,7 +30,7 @@ var_dict = {
     "corr_filter" : True,
     "desc_thres" : 25,
     "thres_y" : 0.001,
-    "thres_x" : 0.9,
+    "thres_x" : 0.7,
     "test_set" : 0.1,
     "auto_test" : True,
     "train" : [60,70,80,90],
@@ -58,6 +58,7 @@ var_dict = {
     "pfi_show" : 10,
     "names" : '',
     "qdescp_keywords" : '',
+    "descp_lvl": "interpret",
     "csearch_keywords": '--sample 10',
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
     "debug_report": False

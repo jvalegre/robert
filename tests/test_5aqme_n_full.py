@@ -103,10 +103,10 @@ def test_AQME(test_job):
     if test_job == 'aqme':
         cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 1", 
                     "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal",
-                    "--alpha", "0.5", "--descriptor_type", "interpret"]
+                    "--alpha", "0.5"]
 
     if test_job == '2smiles_columns':
-        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 1", "--alpha", "0.5", "--descriptor_type", "interpret"]
+        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 1", "--alpha", "0.5"]
 
     subprocess.run(cmd_robert)
 

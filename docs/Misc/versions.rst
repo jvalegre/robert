@@ -12,9 +12,9 @@ Version 1.2.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.1>`__]
    -  Changing the threshold for correlated features in predict_utils to adjust to the new thres_x
    -  Changing the way missing values are treated (previously filled with 0s, now using KNN imputer)
    -  Adding .csv in --csv_test in case the user forgets to add it
-   -  The AQME-ROBERT workflow now uses interpretable descriptors by default
    -  Adding ROBERT score number in the REPORT module
-   -  Creating --descriptor_type to select which descriptors to use in the AQME-ROBERT workflow (interpret by default)
+   -  Creating --descp_lvl to select which descriptors to use in the AQME-ROBERT workflow (interpret/denovo/full)
+   -  The AQME-ROBERT workflow now uses interpretable descriptors by default (--descp_lvl interpret)
 
 Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
    -  Changing cross-validation (CV) in VERIFY to LOOCV for datasets with less than 50 points

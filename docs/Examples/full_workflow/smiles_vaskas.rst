@@ -134,7 +134,7 @@ Time: ~3 min
 
 System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
 
-ROBERT version: 1.2.0
+ROBERT version: 1.2.1
 
 scikit-learn-intelex version: 2024.5.0
 

@@ -45,7 +45,7 @@ from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.2.0"
+robert_version = "1.2.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, DOI: 10.1002/WCMS.1733"
 
@@ -138,7 +138,6 @@ def command_line_args(exe_type,sys_args):
         "model",
         "report_modules",
         "seed",
-        "descriptor_type",
     ]
     int_args = [
         'pfi_epochs',
@@ -231,6 +230,7 @@ o Other common options:
 * Affecting SMILES workflows, AQME:
   --qdescp_keywords STR (default="") : extra keywords in QDESCP (i.e. "--qdescp_atoms [Ir] --alpb h2o") 
   --csearch_keywords STR (default="--sample 50") : extra keywords in CSEARCH
+  --descp_lvl (default="interpret") "interpret", "denovo" or "full" : type of descriptor calculation
 
 
 o How to cite ROBERT:
@@ -571,15 +571,6 @@ def missing_inputs(self,module,print_err=False):
                 self.log.write(f"   -  names option set to {self.names} by the user")
         if self.names != '' and self.names not in self.ignore:
             self.ignore.append(self.names)
-
-    if module.lower() == 'aqme':
-        if self.descriptor_type == '':
-            if print_err:
-                print(f'\nx  Specify a descriptor type with the descr_type option! Options: "interpret", "denovo", "full"')
-            else:
-                self.log.write(f'\nx  Specify a descriptor type with the descriptor_type option! Options: "interpret", "denovo", "full"')
-            self.descriptor_type = input('Enter the descriptor type: ')
-            self.extra_cmd += f' --descriptor_type {self.descriptor_type}'
 
     return self
 

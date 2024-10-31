@@ -1042,7 +1042,7 @@ def pearson_map_predict(self,Xy_data,params_dir):
         max_descp_2 = corr_dict['descp_2'][abs_r_list.index(abs_max_r)]
         if abs_max_r > 0.84:
             print_corr += f"\n      x  WARNING! High correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
-        elif abs_max_r > 0.75:
+        elif abs_max_r > 0.71:
             print_corr += f"\n      x  WARNING! Noticeable correlations observed (up to r = {round(max_r,2)} or R2 = {round(max_r*max_r,2)}, for {max_descp_1} and {max_descp_2})"
 
     self.args.log.write(print_corr)

@@ -15,7 +15,7 @@ Parameters
     csearch_keywords : str, default='--sample 50'
         Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10'). CREST can be
         used instead of RDKit by adding "--program crest".
-    descriptor_type : str, default='interpret'
+    descp_lvl : str, default='interpret'
         Type of descriptor to be used in the AQME-ROBERT workflow. Options are 'interpret', 'denovo' or 'full'.
 
 """
@@ -139,29 +139,29 @@ class aqme:
                 if smi_suffix is not None:
                     # Change column names by adding suffix
                     try:
-                        df_temp = pd.read_csv(f'AQME-ROBERT_{self.args.descriptor_type[0]}_{aqme_indv_name}.csv', encoding='utf-8')
+                        df_temp = pd.read_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', encoding='utf-8')
                     except FileNotFoundError:
                         self.args.log.write("x  WARNING! ROBERT stopped due to a problem with the AQME job. Please, check the previous AQME warnings.")
                         sys.exit()
                     df_temp.columns = [f'{col}_{smi_suffix}' if col not in ['code_name','SMILES'] and col not in aqme_args else col for col in df_temp.columns]
-                    df_temp.to_csv(f'AQME-ROBERT_{self.args.descriptor_type[0]}_{aqme_indv_name}.csv', index=False)
+                    df_temp.to_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', index=False)
 
                     # Check if there are missing rows in the AQME-ROBERT_{aqme_indv_name}.csv
                     if len(df_temp) < len(csv_temp):
                         missing_rows = csv_temp.loc[~csv_temp['code_name'].isin(df_temp['code_name'])]
-                        missing_rows[['code_name', 'SMILES']].to_csv(f'AQME-ROBERT_{self.args.descriptor_type[0]}_{aqme_indv_name}.csv', mode='a', header=False, index=False)
+                        missing_rows[['code_name', 'SMILES']].to_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', mode='a', header=False, index=False)
 
                     # Get the order of code_name in aqme_indv_name
                     order = csv_temp['code_name'].tolist()
 
                     # Sort the rows in 'AQME-ROBERT_{aqme_indv_name}.csv' based on the order
-                    df_temp = pd.read_csv(f'AQME-ROBERT_{self.args.descriptor_type[0]}_{aqme_indv_name}.csv', encoding='utf-8')
+                    df_temp = pd.read_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', encoding='utf-8')
                     df_temp = df_temp.sort_values(by='code_name', key=lambda x: x.map({v: i for i, v in enumerate(order)}))
 
                     # Fill missing values with corresponding SMILES row
                     df_temp = df_temp.fillna(df_temp.groupby('SMILES').transform('first'))
 
-                    df_temp.to_csv(f'AQME-ROBERT_{self.args.descriptor_type[0]}_{aqme_indv_name}.csv', index=False)
+                    df_temp.to_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', index=False)
 
                 # return SDF files after csv_test
                 if aqme_test:
@@ -171,23 +171,23 @@ class aqme:
                         shutil.rmtree(path_sdf)
 
         # if AQME-ROBERT_AQME_indiv_n.csv >0 in folder:
-        if len(glob.glob(f'AQME-ROBERT_{self.args.descriptor_type[0]}_AQME_indiv*.csv')) > 0:
+        if len(glob.glob(f'AQME-ROBERT_{self.args.descp_lvl}_AQME_indiv*.csv')) > 0:
 
             df_concat = pd.DataFrame()
 
             # Read and concatenate CSV files 
-            for file in sorted(glob.glob(f'AQME-ROBERT_{self.args.descriptor_type[0]}_AQME_indiv*.csv'), key=os.path.getmtime,reverse=True):
+            for file in sorted(glob.glob(f'AQME-ROBERT_{self.args.descp_lvl}_AQME_indiv*.csv'), key=os.path.getmtime,reverse=True):
                 columns_to_drop = ['code_name', 'SMILES'] + aqme_args
                 df_temp = pd.read_csv(file, encoding='utf-8')
                 columns_to_drop = [col for col in columns_to_drop if col in df_temp.columns]
                 df_temp = df_temp.drop(columns=columns_to_drop)
                 df_concat = pd.concat([df_temp, df_concat], axis=1)
             df_concat = pd.concat([csv_df, df_concat], axis=1)
-            df_concat.to_csv(f'AQME-ROBERT_{self.args.descriptor_type[0]}_{csv_target}', index=False)
+            df_concat.to_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{csv_target}', index=False)
 
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
-        aqme_db = f'AQME-ROBERT_{self.args.descriptor_type[0]}_{csv_target}'
+        aqme_db = f'AQME-ROBERT_{self.args.descp_lvl}_{csv_target}'
 
         # ensure that the AQME database was successfully created
         if not os.path.exists(aqme_db):

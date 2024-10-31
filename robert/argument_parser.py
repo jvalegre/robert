@@ -58,7 +58,7 @@ var_dict = {
     "pfi_show" : 10,
     "names" : '',
     "qdescp_keywords" : '',
-    "descriptor_type": "",
+    "descp_lvl": "interpret",
     "csearch_keywords": '--sample 10',
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
     "debug_report": False

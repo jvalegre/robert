@@ -80,9 +80,8 @@ class curate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df = load_database(self,self.args.csv_name,"curate")
 
-        # changes type to classification if there are only two different y values
-        if self.args.type.lower() == 'reg' and self.args.auto_type:
-            self = check_clas_problem(self,csv_df)
+        # adjust options of classification problems and detects whether the right type of problem was used
+        self = check_clas_problem(self,csv_df)
 
         if not self.args.evaluate:
             # transform categorical descriptors

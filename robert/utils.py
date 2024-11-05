@@ -45,7 +45,7 @@ from mapie.conformity_scores import AbsoluteConformityScore
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.2.1"
+robert_version = "1.2.2"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -431,8 +431,8 @@ def load_variables(kwargs, robert_module):
                     self.epochs = 100
         
             if self.type.lower() == 'clas':
-                if self.model == ['RF','GB','NN','MVL']:
-                    self.model = ['RF','GB','NN','AdaB']
+                if ('MVL' or 'mvl') in self.model:
+                    self.model = [x if x.upper() != 'MVL' else 'AdaB' for x in self.model]
             
             models_gen = [] # use capital letters in all the models
             for model_type in self.model:
@@ -762,13 +762,32 @@ def check_clas_problem(self,csv_df):
     '''
     Changes type to classification if there are only two different y values
     '''
-    
-    if len(set(csv_df[self.args.y])) == 2:
-        self.args.type = 'clas'
-        if self.args.error_type not in ['acc', 'mcc', 'f1']:
-            self.args.error_type = 'mcc'
-        y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
-        self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False".')
+
+    # changes type to classification if there are only two different y values
+    if self.args.type.lower() == 'reg' and self.args.auto_type:
+        if len(set(csv_df[self.args.y])) in [1,2,3,4]:
+            self.args.type = 'clas'
+            if self.args.error_type not in ['acc', 'mcc', 'f1']:
+                self.args.error_type = 'mcc'
+            if ('MVL' or 'mvl') in self.args.model:
+                self.args.model = [x if x.upper() != 'MVL' else 'AdaB' for x in self.args.model]
+
+            y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
+            self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
+
+    if self.args.type.lower() == 'clas':
+        if len(set(csv_df[self.args.y])) == 2:
+            for target_val in set(csv_df[self.args.y]):
+                if target_val not in [0,'0',1,'1']:
+                    y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
+                    self.args.log.write(f'\nx  Only 0s and 1s values are currently allowed for classification problems! {y_val_detect} were used as values')
+                    self.args.log.finalize()
+                    sys.exit()
+
+        if len(set(csv_df[self.args.y])) != 2:
+            self.args.log.write(f'\nx  Only two different y values are currently allowed! {len(set(csv_df[self.args.y]))} different values were used {set(csv_df[self.args.y])}')
+            self.args.log.finalize()
+            sys.exit()
 
     return self
     

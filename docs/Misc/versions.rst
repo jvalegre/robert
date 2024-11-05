@@ -4,6 +4,12 @@
 Versions
 ========
 
+Version 1.2.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.2>`__]
+   -  MVL is replaced with AdaB when ROBERT assigns automated classification problems
+   -  Adding automatic checks to ensure compatible classification problems
+   -  ROBERT score is printed in the section title in the report to save space
+   -  Kmeans clustering is applied individually to the different target values in classification problems to allow for a more compensated training selection
+
 Version 1.2.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.1>`__]
    -  NN solver are now set to 'lbfgs' by default in the MLPRegressor to work with small datasets
    -  Thres_x is now set to 0.7 by default in the CURATE module

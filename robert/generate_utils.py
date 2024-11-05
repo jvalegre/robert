@@ -395,7 +395,21 @@ def data_split(self,csv_X,csv_y,size,seed):
                 if X_scaled[column].isnull().values.any():
                     X_scaled = X_scaled.drop(column, axis=1)
 
-            training_points = k_means(self,X_scaled,csv_y,size,seed)
+            # selects representative training points for each target value in classification problems
+            if self.args.type == 'clas':
+                class_0_idx = list(csv_y[csv_y == 0].index)
+                class_1_idx = list(csv_y[csv_y == 1].index)
+                class_0_size = int(len(class_0_idx)/len(csv_y)*size)
+                class_1_size = size-class_0_size
+
+                train_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_size,seed,class_0_idx)
+                train_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_size,seed,class_1_idx)
+                training_points = train_class_0+train_class_1
+                training_points.sort()
+
+            else:
+                idx_list = csv_y.index
+                training_points = k_means(self,X_scaled,csv_y,size,seed,idx_list)
 
         elif self.args.split.upper() == 'RND':
             X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
@@ -421,7 +435,7 @@ def Xy_split(csv_X,csv_y,training_points):
     return Xy_data
 
 
-def k_means(self,X_scaled,csv_y,size,seed):
+def k_means(self,X_scaled,csv_y,size,seed,idx_list):
     '''
     Returns the data points that will be used as training set based on the k-means clustering
     '''
@@ -429,12 +443,17 @@ def k_means(self,X_scaled,csv_y,size,seed):
     # number of clusters in the training set from the k-means clustering (based on the
     # training set size specified above)
     X_scaled_array = np.asarray(X_scaled)
-    number_of_clusters = int(len(X_scaled)*(size/100))
+    number_of_clusters = int(len(csv_y)*(size/100))
 
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
-    training_points = [csv_y.idxmin(),csv_y.idxmax()]
-    number_of_clusters -= 2
+    if self.args.type.lower() == 'reg':
+        training_points = [csv_y.idxmin(),csv_y.idxmax()]
+        training_idx = [csv_y.idxmin(),csv_y.idxmax()]
+        number_of_clusters -= 2
+    else:
+        training_points = []
+        training_idx = []
     
     # runs the k-means algorithm and keeps the closest point to the center of each cluster
     kmeans = KMeans(n_clusters=number_of_clusters,random_state=seed)
@@ -447,7 +466,7 @@ def k_means(self,X_scaled,csv_y,size,seed):
     for i in range(number_of_clusters):
         results_cluster = 1000000
         for k in range(len(X_scaled_array[:, 0])):
-            if k not in training_points:
+            if k not in training_idx:
                 # calculate the Euclidean distance in n-dimensions
                 points_sum = 0
                 for l in range(len(X_scaled_array[0])):
@@ -455,8 +474,9 @@ def k_means(self,X_scaled,csv_y,size,seed):
                 if np.sqrt(points_sum) < results_cluster:
                     results_cluster = np.sqrt(points_sum)
                     training_point = k
-        
-        training_points.append(training_point)
+        training_idx.append(training_point)
+        training_points.append(idx_list[training_point])
+    
     training_points.sort()
 
     return training_points

@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 title_no_pfi = 'No PFI (standard descriptor filter):'
-title_pfi = 'PFI (only most important descriptors):'
+title_pfi = 'PFI (only important descriptors):'
 
 def get_csv_names(self,command_line):
     """
@@ -418,11 +418,12 @@ def get_col_score(score_info,data_score,suffix,spacing,eval_only):
     ML_line_format = f'<p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;">{spacing}'
     part_line_format = f'<p style="text-align: justify; margin-top: 1px; margin-bottom: 0px;">{spacing}'
 
+    score_title = f'''&nbsp;&nbsp;·&nbsp;&nbsp;Score  {data_score[f'robert_score_{suffix}']}'''
     if suffix == 'No PFI':
-        caption = f'{spacing}{title_no_pfi}'
+        caption = f'{spacing}{title_no_pfi.replace(":",score_title)}'
 
     elif suffix == 'PFI':
-        caption = f'{spacing}{title_pfi}'
+        caption = f'{spacing}{title_pfi.replace(":",score_title)}'
 
     partitions_ratio = data_score['proportion_ratio_print'].split('-  Proportion ')[1]
 
@@ -433,8 +434,7 @@ def get_col_score(score_info,data_score,suffix,spacing,eval_only):
 
     column = f"""<p style="margin-top:-18px;"><span style="font-weight:bold;">{title_line}</span></p>
     {ML_line_format}Model = {data_score['ML_model']}&nbsp;&nbsp;·&nbsp;&nbsp;{partitions_ratio}</p>
-    {part_line_format}Points(train+valid.):descriptors = {data_score[f'points_descp_ratio_{suffix}']}</p>
-    {part_line_format}Score = {data_score[f'robert_score_{suffix}']} / 10</p>
+    {part_line_format}Points(train+validation):descriptors = {data_score[f'points_descp_ratio_{suffix}']}</p>
     <p style="margin-top: 4px;">{score_info}
     <p style="margin-bottom: 18px;"></p>
     """
@@ -492,7 +492,7 @@ def adv_predict(self,suffix,data_score,spacing,test_set,pred_type):
     if score_predict == 0:
         predict_result = f'Low predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
     elif score_predict == 1:
-        predict_result = f'Moderate predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
+        predict_result = f'Moderate predict. ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
     elif score_predict == 2:
         predict_result = f'Good predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
     
@@ -527,7 +527,7 @@ def adv_cv_r2(self,suffix,data_score,spacing,pred_type):
     if score_cv_r2 == 0:
         cv_result = f'Low predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
     elif score_cv_r2 == 1:
-        cv_result = f'Moderate predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
+        cv_result = f'Moderate predict. ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
     elif score_cv_r2 == 2:
         cv_result = f'Good predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
 

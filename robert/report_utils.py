@@ -309,7 +309,7 @@ def detect_predictions(module_file):
         lines = datfile.readlines()
         for _,line in enumerate(lines):
             if '- Target value:' in line:
-                y_value = line.split()[-1]
+                y_value = ' '.join(line.split(':')[1:]).strip()
             elif '- Names:' in line:
                 names = line.split()[-1]
             elif 'External set with predicted results:' in line:

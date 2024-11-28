@@ -99,6 +99,12 @@ class aqme:
                       
         # Load database
         csv_df = load_database(self,csv_target,job_type)
+         # avoid running calcs with special signs (i.e. *)
+        for name_csv_indiv in csv_df['code_name']:
+            if '*' in f'{name_csv_indiv}':
+                self.args.log.write(f"\nx  WARNING! The names provided in the CSV contain * (i.e. {name_csv_indiv}). Please, remove all the * characters.")
+                self.args.log.finalize()
+                sys.exit()
 
         # find if there is more than one SMILES column in the CSV file
         for column in csv_df.columns:

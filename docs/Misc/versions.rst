@@ -4,6 +4,11 @@
 Versions
 ========
 
+Version 1.2.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.2>`__]
+   - Fixing bug (ROBERT was not reading some CSV files correctly when saved as UTF-8)
+   - LOOCV is now performed for datasets with up to 100 points (previously: 50 points)
+   - Fixed bug in the report module when the Target_values had spaces
+
 Version 1.2.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.1>`__]
    -  NN solver are now set to 'lbfgs' by default in the MLPRegressor to work with small datasets
    -  Thres_x is now set to 0.7 by default in the CURATE module

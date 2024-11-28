@@ -89,7 +89,7 @@ class Logger:
 
     # Class Logger to writargs.input.split('.')[0] output to a file
     def __init__(self, filein, append, suffix="dat"):
-        self.log = open(f"{filein}_{append}.{suffix}", "w")
+        self.log = open(f"{filein}_{append}.{suffix}", "w", encoding="utf-8")
 
     def write(self, message):
         """

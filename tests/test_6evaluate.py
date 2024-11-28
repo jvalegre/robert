@@ -152,8 +152,8 @@ def test_EVALUATE(test_job):
         else:
             if 'Train:Validation:Test = 47:32:21' in line:
                 partition_count_test += 1
-        if 'Points(train+valid.):descriptors = ' in line:
-            points_desc.append(line.split('Points(train+valid.):descriptors = ')[1].split('</p>')[0])
+        if 'Points(train+validation):descriptors = ' in line:
+            points_desc.append(line.split('Points(train+validation):descriptors = ')[1].split('</p>')[0])
         if 'Results_MVL_59_No_PFI.png' in line:
             predict_graphs = True
         if 'Train : R<sup>2</sup> = ' in line:

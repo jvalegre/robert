@@ -5,8 +5,10 @@ Versions
 ========
 
 Version 1.2.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.2>`__]
+   -  Auto_test is now done by default if the database has more than 100 datapoints
+   -  90% training size disables for datasets with less than 100 datapoints and 80% for less than 50 datapoints
+   -  Changing models paramaters to avoid overgitting in small datasets
    -  Fixing bug (ROBERT was not reading some CSV files correctly when saved as UTF-8)
-   -  LOOCV is now performed for datasets with up to 100 points (previously: 50 points)
    -  Fixed bug in the report module when the Target_values had spaces
    -  MVL is replaced with AdaB when ROBERT assigns automated classification problems
    -  Adding automatic checks to ensure compatible classification problems

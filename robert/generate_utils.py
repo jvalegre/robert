@@ -232,7 +232,8 @@ def f(params):
                         'y': hyperopt_data['y'],
                         'names': hyperopt_data['names'],
                         'error_type': hyperopt_data['error_type'],
-                        'X_descriptors': hyperopt_data['X_descriptors']}
+                        'X_descriptors': hyperopt_data['X_descriptors'],
+                        'error_train': data[f'{hyperopt_data["error_type"]}_train']}
 
         if hyperopt_data['model'].upper() in ['RF','GB','VR']:
             csv_hyperopt['n_estimators'] = params['n_estimators']
@@ -293,14 +294,11 @@ def avoid_overfit(data,opt_target):
     Removes models with clear overfitting
     '''
 
-    if data['r2_train'] > 0.99:
-        if data['r2_valid'] < 0.99:
-            opt_target = float('inf')
-        elif data['rmse_valid'] > 2*data['rmse_train']:
-            opt_target = float('inf')
-    if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
+    if data['r2_train'] > 0.99 and (data['r2_valid'] < 0.99 or data['rmse_valid'] > 2 * data['rmse_train']):
         opt_target = float('inf')
-    if data['r2_valid'] - data['r2_train'] > 0.2:
+    elif data['r2_valid'] - data['r2_train'] > 0.2:
+        opt_target = float('inf')
+    elif data['r2_train'] - data['r2_valid'] > 0.35 or data['r2_train'] < 0.4 or data['r2_valid'] < 0.2:
         opt_target = float('inf')
 
     return opt_target
@@ -617,7 +615,7 @@ def filter_seed(self, name_csv):
     Check which seed led to the best results
     '''
 
-    # track errors fo all seeds
+    # track errors for all seeds
     errors = []
     for seed in self.args.seed:
         if 'No_PFI' in f'{name_csv}':
@@ -693,10 +691,13 @@ def detect_best(folder):
     for file in file_list:
         if '_db' not in file:
             results_model = pd.read_csv(f'{file}', encoding='utf-8')
-            errors.append(results_model[results_model['error_type'][0]][0])
+            validation_error = results_model[results_model['error_type'][0]][0]
+            training_error = results_model['error_train'][0]
+            combined_error = validation_error * training_error
+            errors.append(combined_error)
         else:
             errors.append(np.nan)
-
+    print(errors)
     # detect best result and copy files to the Best_model folder
     if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
         min_idx = errors.index(np.nanmin(errors))

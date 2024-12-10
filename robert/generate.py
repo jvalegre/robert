@@ -25,7 +25,7 @@ Parameters
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
     filter_train : bool, default=True
-        Disables the 90% training size in databases with less than 50 datapoints, and the 80% in less than 30.
+        Disables the 90% training size in databases with less than 100 datapoints, and the 80% in less than 50.
     split : str, default='RND'
         Mode for splitting data. Options: 
         1. 'KN' (k-neighbours clustering-based splitting)
@@ -86,7 +86,7 @@ Parameters
         hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select
         --test_set 0 to use only training and validation.
     auto_test : bool, default=True
-        Removes test sets in databases with less than 50 datapoints and raises % of test points to 10% if 
+        Removes test sets in databases with less than 100 datapoints and raises % of test points to 10% if 
         test_set is lower than that.
         
 """
@@ -197,6 +197,7 @@ class generate:
                     pass
 
         # detects best combinations
+        
         dir_csv = self.args.destination.joinpath(f"Raw_data")
         _ = detect_best(f'{dir_csv}/No_PFI')
         if self.args.pfi_filter:
@@ -224,7 +225,7 @@ class generate:
         
         if self.args.auto_test:
             if self.args.test_set != 0:
-                if len(csv_df[self.args.y]) < 50:
+                if len(csv_df[self.args.y]) < 100:
                     self.args.test_set = 0
                     self.args.log.write(f'\nx  WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split into training and validation sets with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
                 elif self.args.test_set < 0.1:
@@ -307,10 +308,10 @@ class generate:
         '''
         
         removed = []
-        if len(csv_df[self.args.y]) < 50 and 90 in self.args.train:
+        if len(csv_df[self.args.y]) < 100 and 90 in self.args.train:
             self.args.train.remove(90)
             removed.append('90%')
-        if len(csv_df[self.args.y]) < 30 and 80 in self.args.train:
+        if len(csv_df[self.args.y]) < 50 and 80 in self.args.train:
             self.args.train.remove(80)
             removed.append('80%')
         if len(removed) > 0:
@@ -320,7 +321,7 @@ class generate:
         if len(self.args.train) == 0:
             # For example: If the user only specifies 90% in a database of 20 datapoints, by default that training size is going to be eliminated
             self.args.train = [60, 70]
-            if 30 < len(csv_df[self.args.y]) < 50:
+            if 50 < len(csv_df[self.args.y]) < 100:
                 self.args.train.append(80)
             self.args.log.write(f'\nx    WARNING! The specified training size is not suitable for the size of your database. Training sizes have been changed to {self.args.train}.')
         

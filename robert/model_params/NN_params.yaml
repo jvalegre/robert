@@ -1,32 +1,32 @@
 # size of minibatches for stochastic optimizers
-batch_size : [4,8,16,32,64]
+batch_size : [16, 32, 64]
 
 # the ith element represents the number of neurons in the ith hidden layer
-hidden_layer_sizes : ["16","32","16,16","8,8,8"]
+hidden_layer_sizes : ["16", "32", "64", "16,16", "32,16"]
 
 # initial learning rate used
-learning_rate_init : [0.001,0.01]
+learning_rate_init : [0.001, 0.005]
 
 # maximum number of iterations
-max_iter : [50,200]
+max_iter : [100, 200, 300]
 
 # proportion of training data to set aside as validation set for early stopping
-validation_fraction : [0.1,0.2,0.3]
+validation_fraction : [0.2, 0.3]
 
 # L2 regularization term
-alpha : [0.0001]
+alpha : [0.0001, 0.001, 0.01]
 
 # shuffle samples
-shuffle : [True,False]
+shuffle : [True]
 
 # tolerance for opt
 tol : [0.0001]
 
 # enable early stop
-early_stopping : [False]
+early_stopping : [True]
 
 # decay rate of first momentum moment
-beta_1 : [0.999,0.9,0.8]
+beta_1 : [0.9, 0.8]
 
 # decay rate of second momentum moment
 beta_2 : [0.999]

@@ -232,7 +232,7 @@ class curate:
 
         # Check if descriptors are more than one third of datapoints
         n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
-        if len(csv_df[self.args.y]) > 50 and self.args.auto_test ==True:
+        if len(csv_df[self.args.y]) > 100 and self.args.auto_test ==True:
            datapoints = len(csv_df[self.args.y])*0.9
         else:
             datapoints = len(csv_df[self.args.y])

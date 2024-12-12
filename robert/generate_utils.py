@@ -294,11 +294,11 @@ def avoid_overfit(data,opt_target):
     Removes models with clear overfitting
     '''
 
-    if data['r2_train'] > 0.99 and (data['r2_valid'] < 0.99 or data['rmse_valid'] > 2 * data['rmse_train']):
+    if data[f'rmse_valid'] > 2 * data[f'rmse_train']:
         opt_target = float('inf')
     elif data['r2_valid'] - data['r2_train'] > 0.2:
         opt_target = float('inf')
-    elif data['r2_train'] - data['r2_valid'] > 0.35 or data['r2_train'] < 0.4 or data['r2_valid'] < 0.2:
+    elif data['r2_train'] < 0.4 or data['r2_valid'] < 0.2:
         opt_target = float('inf')
 
     return opt_target
@@ -693,11 +693,11 @@ def detect_best(folder):
             results_model = pd.read_csv(f'{file}', encoding='utf-8')
             validation_error = results_model[results_model['error_type'][0]][0]
             training_error = results_model['error_train'][0]
-            combined_error = validation_error * training_error
+            cv_error = results_model['cv_error'][0]
+            combined_error = validation_error * training_error * cv_error
             errors.append(combined_error)
         else:
             errors.append(np.nan)
-    print(errors)
     # detect best result and copy files to the Best_model folder
     if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
         min_idx = errors.index(np.nanmin(errors))
@@ -728,7 +728,7 @@ def heatmap_workflow(self,folder_hm):
             if csv_model not in size_list:
                 size_list.append(csv_size)
             csv_value = pd.read_csv(csv_file, encoding='utf-8')
-            csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0]
+            csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0] * csv_value['error_train'][0] * csv_value['cv_error'][0]
     
     # fill missing values with NaN
     models, train_sizes = [],[]
@@ -746,7 +746,6 @@ def heatmap_workflow(self,folder_hm):
     csv_df = pd.DataFrame()
     for csv_model in sorted([key for key in csv_data]):
         csv_df[csv_model] = csv_data[csv_model]
-
     # plot heatmap
     if folder_hm == "No_PFI":
         suffix = 'No PFI'
@@ -764,7 +763,9 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     sb.set(font_scale=1.2, style='ticks')
     _, ax = plt.subplots(figsize=(7.45,6))
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} validation set'},mask=csv_df.isnull())
+    # Replace inf values with NaN for proper heatmap visualization
+    csv_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'Combined error'}, mask=csv_df.isnull())
     fontsize = 14
     ax.set_xlabel("ML Model",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)

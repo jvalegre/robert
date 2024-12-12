@@ -397,6 +397,8 @@ def save_predictions(self,Xy_data,params_dir,Xy_test_df,params_dict):
     '''
 
     Xy_orig_df, Xy_path, params_df, _, _, suffix_title = load_dfs(self,params_dir,'no_print')
+    Xy_orig_df = Xy_orig_df[0] # Now Xy_orig_df is a list because we do CV after GENERATE (to select the best model) but in this case we only have one element
+    params_df = params_df[0] # Now params_df is a list because we do CV after GENERATE (to select the best model) but in this case we only have one element
     base_csv_name = '_'.join(os.path.basename(Path(Xy_path)).replace('.csv','_').split('_')[0:2])
     base_csv_name = f'PREDICT/{base_csv_name}'
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"

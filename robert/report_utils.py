@@ -689,7 +689,7 @@ def get_col_transpa(params_dict,suffix,section,spacing):
     elif suffix == 'PFI':
         caption = f'{title_pfi}'
 
-    excluded_params = [params_dict['error_type'],'train','y']
+    excluded_params = [params_dict['error_type'], 'train', 'y', 'error_train', 'cv_error', 'names']
     misc_params = ['split','type','error_type']
     if params_dict['type'] == 'reg':
         model_type = 'Regressor'

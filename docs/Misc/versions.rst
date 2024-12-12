@@ -4,7 +4,9 @@
 Versions
 ========
 
-Version 1.2.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.2>`__]
+Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
+   -  Changing the way of selecting the best model (now using a combined error metric, not only the validation error)
+   -  Fixing bug in GENERATE when plotting the models' heatmap in case the model had infinite values
    -  Auto_test is now done by default if the database has more than 100 datapoints
    -  90% training size disables for datasets with less than 100 datapoints and 80% for less than 50 datapoints
    -  Changing models paramaters to avoid overgitting in small datasets

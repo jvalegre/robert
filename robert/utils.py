@@ -42,10 +42,11 @@ from sklearn.linear_model import LinearRegression
 from sklearn.impute import KNNImputer
 from mapie.regression import MapieRegressor
 from mapie.conformity_scores import AbsoluteConformityScore
+from sklearn.model_selection import KFold
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
-robert_version = "1.2.2"
+robert_version = "1.3.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -1225,31 +1226,64 @@ def load_db_n_params(self,folder_model,module,print_load):
 
     Xy_data_df, _, params_df, params_path, suffix, suffix_title = load_dfs(self,folder_model,module)
 
-    # load only the descriptors used in the model and standardize X
-    Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training'].reset_index(drop=True)
-    Xy_valid_df = Xy_data_df[Xy_data_df.Set == 'Validation'].reset_index(drop=True)
-    Xy_test_df = Xy_data_df[Xy_data_df.Set == 'Test'].reset_index(drop=True)
+    if len(Xy_data_df) == 1:
+        Xy_data_df = Xy_data_df[0]
+        params_df = params_df[0]
+        # load only the descriptors used in the model and standardize X
+        Xy_train_df = Xy_data_df[Xy_data_df.Set == 'Training'].reset_index(drop=True)
+        Xy_valid_df = Xy_data_df[Xy_data_df.Set == 'Validation'].reset_index(drop=True)
+        Xy_test_df = Xy_data_df[Xy_data_df.Set == 'Test'].reset_index(drop=True)
 
-    Xy_data = {} # (using a dict to keep the same format of load_model() )
-    descs_model = ast.literal_eval(params_df['X_descriptors'][0])
-    Xy_data['X_train'] = Xy_train_df[descs_model]
-    Xy_data['X_valid'] = Xy_valid_df[descs_model]
-    Xy_data['y_train'] = Xy_train_df[params_df['y'][0]]
-    Xy_data['y_valid'] = Xy_valid_df[params_df['y'][0]]
-    Xy_data['X_train_scaled'], Xy_data['X_valid_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_valid'])
-    # test sets are scaled later in PREDICT
+        Xy_data = {} # (using a dict to keep the same format of load_model() )
+        descs_model = ast.literal_eval(params_df['X_descriptors'][0])
+        Xy_data['X_train'] = Xy_train_df[descs_model]
+        Xy_data['X_valid'] = Xy_valid_df[descs_model]
+        Xy_data['y_train'] = Xy_train_df[params_df['y'][0]]
+        Xy_data['y_valid'] = Xy_valid_df[params_df['y'][0]]
+        Xy_data['X_train_scaled'], Xy_data['X_valid_scaled'] = standardize(self,Xy_data['X_train'],Xy_data['X_valid'])
+        # test sets are scaled later in PREDICT
 
-    Xy_data['X_test'] = Xy_test_df[descs_model]
-    Xy_data['y_test'] = Xy_test_df[params_df['y'][0]]
+        Xy_data['X_test'] = Xy_test_df[descs_model]
+        Xy_data['y_test'] = Xy_test_df[params_df['y'][0]]
 
-    point_count = {}
-    point_count['train'] = len(Xy_data['X_train_scaled'])
-    point_count['valid'] = len(Xy_data['X_valid_scaled'])
-    point_count['test'] = len(Xy_data['X_test'])
+        point_count = {}
+        point_count['train'] = len(Xy_data['X_train_scaled'])
+        point_count['valid'] = len(Xy_data['X_valid_scaled'])
+        point_count['test'] = len(Xy_data['X_test'])
 
-    params_name = os.path.basename(params_path)
-    if print_load:
-        _ = load_print(self,params_name,suffix,params_df,point_count)
+        params_name = os.path.basename(params_path)
+        if print_load:
+            _ = load_print(self,params_name,suffix,params_df,point_count)
+    else:
+        Xy_data = []
+        for i in range(len(Xy_data_df)):
+            Xy_data_df_i = Xy_data_df[i]
+            params_df_i = params_df[i]
+            # load only the descriptors used in the model and standardize X
+            Xy_train_df = Xy_data_df_i[Xy_data_df_i.Set == 'Training'].reset_index(drop=True)
+            Xy_valid_df = Xy_data_df_i[Xy_data_df_i.Set == 'Validation'].reset_index(drop=True)
+            Xy_test_df = Xy_data_df_i[Xy_data_df_i.Set == 'Test'].reset_index(drop=True)
+
+            descs_model = ast.literal_eval(params_df_i['X_descriptors'][0])
+            Xy_data_i = {}
+            Xy_data_i['X_train'] = Xy_train_df[descs_model]
+            Xy_data_i['X_valid'] = Xy_valid_df[descs_model]
+            Xy_data_i['y_train'] = Xy_train_df[params_df_i['y'][0]]
+            Xy_data_i['y_valid'] = Xy_valid_df[params_df_i['y'][0]]
+            Xy_data_i['X_train_scaled'], Xy_data_i['X_valid_scaled'] = standardize(self, Xy_data_i['X_train'], Xy_data_i['X_valid'])
+            # test sets are scaled later in PREDICT
+
+            Xy_data_i['X_test'] = Xy_test_df[descs_model]
+            Xy_data_i['y_test'] = Xy_test_df[params_df_i['y'][0]]
+
+            point_count = {}
+            point_count['train'] = len(Xy_data_i['X_train_scaled'])
+            point_count['valid'] = len(Xy_data_i['X_valid_scaled'])
+            point_count['test'] = len(Xy_data_i['X_test'])
+
+            Xy_data.append(Xy_data_i)
+
+            params_name = os.path.basename(params_path)
 
     return Xy_data, params_df, params_path, suffix_title, Xy_test_df
 
@@ -1267,25 +1301,25 @@ def load_dfs(self,folder_model,module):
     suffix_title = 'No_PFI'
     if os.path.exists(path_db):
         csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
-        if len(csv_files) != 2:
-            self.args.log.write(f"\nx  There are not two CSV files in the {path_db} folder! Only two CSV files should be there, one with the model parameters and the other with the Xy database.")
-            self.args.log.finalize()
-            sys.exit()
+        Xy_data_dfs = []
+        params_dfs = []
         for csv_file in csv_files:
             if 'PFI' in os.path.basename(csv_file).replace('.csv','_').split('_'):
                 suffix = '(with PFI filter)'
                 suffix_title = 'PFI'
             if '_db' in csv_file:
                 Xy_data_df = load_database(self,csv_file,module)
+                Xy_data_dfs.append(Xy_data_df)
                 Xy_path = csv_file
             else:
                 params_df = load_database(self,csv_file,module)
+                params_dfs.append(params_df)
                 params_path = csv_file
     else:
         self.args.log.write(f"\nx  The folder with the model and database ({path_db}) does not exist! Did you use the destination=PATH option in the other modules?")
         sys.exit()
 
-    return Xy_data_df, Xy_path, params_df, params_path, suffix, suffix_title
+    return Xy_data_dfs, Xy_path, params_dfs, params_path, suffix, suffix_title
 
 
 def load_print(self,params_name,suffix,params_df,point_count):
@@ -1407,3 +1441,60 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
             self.args.log.write(f'\n   o  The Pearson heatmap was stored in {path_reduced}.')
 
     return corr_matrix
+
+def cv_test(self,verify_results,Xy_data,params_dict):
+    '''
+    Performs a cross-validation on the training+validation dataset.
+    '''      
+
+    # Fit the original model with the training set
+    loaded_model = load_model(params_dict)
+    loaded_model.fit(np.asarray(Xy_data['X_train_scaled']).tolist(), np.asarray(Xy_data['y_train']).tolist())
+    data_cv,_ = load_n_predict(self, params_dict, Xy_data)
+    
+    cv_y_list,cv_y_pred_list = [],[]
+    data_cv = {}
+    # combine training and validation for CV
+    X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
+    y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
+
+    if self.args.kfold == 'auto':
+        # LOOCV for relatively small datasets (less than 50 datapoints)
+        if len(y_combined) < 50:
+            type_cv = f'LOOCV'
+            kf = KFold(n_splits=len(y_combined))
+        # k-fold CV with the same training/validation proportion used for fitting the model, using 5 splits
+        else:
+            type_cv = '5-fold CV'
+            kf = KFold(n_splits=5, shuffle=True, random_state=params_dict['seed'])
+    # k-fold CV with the same training/validation proportion used for fitting the model, with k different data splits
+    else:
+        type_cv = f'{self.args.kfold}-fold CV'
+        kf = KFold(n_splits=self.args.kfold, shuffle=True, random_state=params_dict['seed'])
+
+    # separate into folds, then store the predictions
+    for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
+        XY_cv = {}
+        XY_cv['X_train_scaled'] = X_combined.loc[train_index]
+        XY_cv['y_train'] = y_combined.loc[train_index]
+        XY_cv['X_valid_scaled'] = X_combined.loc[valid_index]
+        XY_cv['y_valid'] = y_combined.loc[valid_index]
+        data_cv,_ = load_n_predict(self, params_dict, XY_cv)
+
+        for y_cv,y_pred_cv in zip(data_cv['y_valid'],data_cv['y_pred_valid']):
+            cv_y_list.append(y_cv)
+            cv_y_pred_list.append(y_pred_cv)
+
+    # calculate metrics
+    Xy_data["y_cv_valid"] = cv_y_list
+    Xy_data["y_pred_cv_valid"] = cv_y_pred_list
+
+    if params_dict['type'].lower() == 'reg':
+        verify_results['cv_r2'], verify_results['cv_mae'], verify_results['cv_rmse'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
+
+    elif params_dict['type'].lower() == 'clas':
+        verify_results['cv_acc'], verify_results['cv_f1'], verify_results['cv_mcc'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
+
+    verify_results['cv_score'] = verify_results[f'cv_{verify_results["error_type"].lower()}']
+
+    return verify_results,type_cv

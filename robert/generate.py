@@ -96,13 +96,17 @@ Parameters
 #####################################################.
 
 import time
+import os
 import pandas as pd
 import random
 from robert.utils import (
     load_variables, 
     finish_print,
     load_database,
-    check_clas_problem
+    check_clas_problem,
+    pd_to_dict,
+    load_db_n_params,
+    cv_test
 )
 from robert.generate_utils import (
     prepare_sets,
@@ -196,8 +200,57 @@ class generate:
                 except UnboundLocalError:
                     pass
 
+        # Cross-validation error calculation for selecting the best model
+        dir_csv = self.args.destination.joinpath(f"Raw_data")
+        params_dirs = [f'{dir_csv}/No_PFI']
+        if self.args.pfi_filter:
+            params_dirs.append(f'{dir_csv}/PFI')
+        all_verify_results = []
+        for params_dir in params_dirs:
+            if os.path.exists(params_dir):
+                # Load database and parameters for CV
+                Xy_data, params_df, _, _, _= load_db_n_params(self, params_dir, "verify", True)
+                
+                if len(Xy_data) == 1:
+                    Xy_data = Xy_data[0]
+                    params_df = params_df[0]
+                    params_dict = pd_to_dict(params_df)
+                    # this dictionary will keep the results of the tests
+                    verify_results = {'error_type': params_df['error_type'][0], 'cv_rmse': [], 'cv_mcc': [], 'model': params_df['model'][0], 'train': params_df['train'][0], 'PFI': params_dir.split('/')[-1]}
+                    # Perform cross-validation
+                    verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data, params_dict=params_dict)  
+                    all_verify_results.append(verify_results)   
+                else:
+                    for i in range(len(Xy_data)):
+                        Xy_data_i = Xy_data[i]
+                        params_df_i = params_df[i]
+                        params_dict_i = pd_to_dict(params_df_i)
+                        # this dictionary will keep the results of the tests
+                        verify_results = {'error_type': params_df_i['error_type'][0], 'model': params_df_i['model'][0], 'train': params_df_i['train'][0], 'PFI': params_dir.split('/')[-1]}
+                        # Perform cross-validation
+                        verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data_i, params_dict=params_dict_i)
+                        all_verify_results.append(verify_results)
+
+        # Add cv_error to the CSV files
+        for verify_result in all_verify_results:
+            model = verify_result[0]['model']
+            train = verify_result[0]['train']
+            pfi = verify_result[0]['PFI']
+            cv_error = verify_result[0][f'cv_{verify_result[0]["error_type"]}']
+
+            if pfi == 'No_PFI':
+                file_name = f"{model}_{train}.csv"
+                file_path = os.path.join(self.args.destination, "Raw_data", "No_PFI", file_name)
+            else:
+                file_name = f"{model}_{train}_{pfi}.csv"
+                file_path = os.path.join(self.args.destination, "Raw_data", "PFI", file_name)
+
+            if os.path.exists(file_path):
+                df = pd.read_csv(file_path)
+                df['cv_error'] = cv_error
+                df.to_csv(file_path, index=False)
+
         # detects best combinations
-        
         dir_csv = self.args.destination.joinpath(f"Raw_data")
         _ = detect_best(f'{dir_csv}/No_PFI')
         if self.args.pfi_filter:

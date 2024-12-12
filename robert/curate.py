@@ -80,9 +80,8 @@ class curate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df = load_database(self,self.args.csv_name,"curate")
 
-        # changes type to classification if there are only two different y values
-        if self.args.type.lower() == 'reg' and self.args.auto_type:
-            self = check_clas_problem(self,csv_df)
+        # adjust options of classification problems and detects whether the right type of problem was used
+        self = check_clas_problem(self,csv_df)
 
         if not self.args.evaluate:
             # transform categorical descriptors
@@ -233,7 +232,7 @@ class curate:
 
         # Check if descriptors are more than one third of datapoints
         n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
-        if len(csv_df[self.args.y]) > 50 and self.args.auto_test ==True:
+        if len(csv_df[self.args.y]) > 100 and self.args.auto_test ==True:
            datapoints = len(csv_df[self.args.y])*0.9
         else:
             datapoints = len(csv_df[self.args.y])

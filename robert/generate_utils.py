@@ -232,7 +232,8 @@ def f(params):
                         'y': hyperopt_data['y'],
                         'names': hyperopt_data['names'],
                         'error_type': hyperopt_data['error_type'],
-                        'X_descriptors': hyperopt_data['X_descriptors']}
+                        'X_descriptors': hyperopt_data['X_descriptors'],
+                        'error_train': data[f'{hyperopt_data["error_type"]}_train']}
 
         if hyperopt_data['model'].upper() in ['RF','GB','VR']:
             csv_hyperopt['n_estimators'] = params['n_estimators']
@@ -293,14 +294,11 @@ def avoid_overfit(data,opt_target):
     Removes models with clear overfitting
     '''
 
-    if data['r2_train'] > 0.99:
-        if data['r2_valid'] < 0.99:
-            opt_target = float('inf')
-        elif data['rmse_valid'] > 2*data['rmse_train']:
-            opt_target = float('inf')
-    if data['r2_train'] < 0.2 or data['r2_valid'] < 0.2:
+    if data[f'rmse_valid'] > 2 * data[f'rmse_train']:
         opt_target = float('inf')
-    if data['r2_valid'] - data['r2_train'] > 0.2:
+    elif data['r2_valid'] - data['r2_train'] > 0.2:
+        opt_target = float('inf')
+    elif data['r2_train'] < 0.4 or data['r2_valid'] < 0.2:
         opt_target = float('inf')
 
     return opt_target
@@ -395,7 +393,21 @@ def data_split(self,csv_X,csv_y,size,seed):
                 if X_scaled[column].isnull().values.any():
                     X_scaled = X_scaled.drop(column, axis=1)
 
-            training_points = k_means(self,X_scaled,csv_y,size,seed)
+            # selects representative training points for each target value in classification problems
+            if self.args.type == 'clas':
+                class_0_idx = list(csv_y[csv_y == 0].index)
+                class_1_idx = list(csv_y[csv_y == 1].index)
+                class_0_size = int(len(class_0_idx)/len(csv_y)*size)
+                class_1_size = size-class_0_size
+
+                train_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_size,seed,class_0_idx)
+                train_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_size,seed,class_1_idx)
+                training_points = train_class_0+train_class_1
+                training_points.sort()
+
+            else:
+                idx_list = csv_y.index
+                training_points = k_means(self,X_scaled,csv_y,size,seed,idx_list)
 
         elif self.args.split.upper() == 'RND':
             X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
@@ -421,7 +433,7 @@ def Xy_split(csv_X,csv_y,training_points):
     return Xy_data
 
 
-def k_means(self,X_scaled,csv_y,size,seed):
+def k_means(self,X_scaled,csv_y,size,seed,idx_list):
     '''
     Returns the data points that will be used as training set based on the k-means clustering
     '''
@@ -429,12 +441,17 @@ def k_means(self,X_scaled,csv_y,size,seed):
     # number of clusters in the training set from the k-means clustering (based on the
     # training set size specified above)
     X_scaled_array = np.asarray(X_scaled)
-    number_of_clusters = int(len(X_scaled)*(size/100))
+    number_of_clusters = int(len(csv_y)*(size/100))
 
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
-    training_points = [csv_y.idxmin(),csv_y.idxmax()]
-    number_of_clusters -= 2
+    if self.args.type.lower() == 'reg':
+        training_points = [csv_y.idxmin(),csv_y.idxmax()]
+        training_idx = [csv_y.idxmin(),csv_y.idxmax()]
+        number_of_clusters -= 2
+    else:
+        training_points = []
+        training_idx = []
     
     # runs the k-means algorithm and keeps the closest point to the center of each cluster
     kmeans = KMeans(n_clusters=number_of_clusters,random_state=seed)
@@ -447,7 +464,7 @@ def k_means(self,X_scaled,csv_y,size,seed):
     for i in range(number_of_clusters):
         results_cluster = 1000000
         for k in range(len(X_scaled_array[:, 0])):
-            if k not in training_points:
+            if k not in training_idx:
                 # calculate the Euclidean distance in n-dimensions
                 points_sum = 0
                 for l in range(len(X_scaled_array[0])):
@@ -455,8 +472,9 @@ def k_means(self,X_scaled,csv_y,size,seed):
                 if np.sqrt(points_sum) < results_cluster:
                     results_cluster = np.sqrt(points_sum)
                     training_point = k
-        
-        training_points.append(training_point)
+        training_idx.append(training_point)
+        training_points.append(idx_list[training_point])
+    
     training_points.sort()
 
     return training_points
@@ -597,7 +615,7 @@ def filter_seed(self, name_csv):
     Check which seed led to the best results
     '''
 
-    # track errors fo all seeds
+    # track errors for all seeds
     errors = []
     for seed in self.args.seed:
         if 'No_PFI' in f'{name_csv}':
@@ -673,10 +691,13 @@ def detect_best(folder):
     for file in file_list:
         if '_db' not in file:
             results_model = pd.read_csv(f'{file}', encoding='utf-8')
-            errors.append(results_model[results_model['error_type'][0]][0])
+            validation_error = results_model[results_model['error_type'][0]][0]
+            training_error = results_model['error_train'][0]
+            cv_error = results_model['cv_error'][0]
+            combined_error = validation_error * training_error * cv_error
+            errors.append(combined_error)
         else:
             errors.append(np.nan)
-
     # detect best result and copy files to the Best_model folder
     if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
         min_idx = errors.index(np.nanmin(errors))
@@ -707,7 +728,7 @@ def heatmap_workflow(self,folder_hm):
             if csv_model not in size_list:
                 size_list.append(csv_size)
             csv_value = pd.read_csv(csv_file, encoding='utf-8')
-            csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0]
+            csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0] * csv_value['error_train'][0] * csv_value['cv_error'][0]
     
     # fill missing values with NaN
     models, train_sizes = [],[]
@@ -725,7 +746,6 @@ def heatmap_workflow(self,folder_hm):
     csv_df = pd.DataFrame()
     for csv_model in sorted([key for key in csv_data]):
         csv_df[csv_model] = csv_data[csv_model]
-
     # plot heatmap
     if folder_hm == "No_PFI":
         suffix = 'No PFI'
@@ -743,7 +763,9 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     sb.set(font_scale=1.2, style='ticks')
     _, ax = plt.subplots(figsize=(7.45,6))
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'{self.args.error_type.upper()} validation set'},mask=csv_df.isnull())
+    # Replace inf values with NaN for proper heatmap visualization
+    csv_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'Combined error'}, mask=csv_df.isnull())
     fontsize = 14
     ax.set_xlabel("ML Model",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)

@@ -220,8 +220,8 @@ def test_AQME(test_job):
                 ml_model_count += 1
             if 'Train:Validation = 68:32' in line:
                 partition_count += 1
-            if 'Points(train+valid.):descriptors = ' in line:
-                points_desc.append(line.split('Points(train+valid.):descriptors = ')[1].split('</p>')[0])
+            if 'Points(train+validation):descriptors = ' in line:
+                points_desc.append(line.split('Points(train+validation):descriptors = ')[1].split('</p>')[0])
             if 'Results_RF_70_No_PFI.png' in line:
                 predict_graphs = True
             if 'Train : R<sup>2</sup> = ' in line:

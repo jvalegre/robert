@@ -25,7 +25,7 @@ Parameters
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
     filter_train : bool, default=True
-        Disables the 90% training size in databases with less than 50 datapoints, and the 80% in less than 30.
+        Disables the 90% training size in databases with less than 100 datapoints, and the 80% in less than 50.
     split : str, default='RND'
         Mode for splitting data. Options: 
         1. 'KN' (k-neighbours clustering-based splitting)
@@ -86,7 +86,7 @@ Parameters
         hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select
         --test_set 0 to use only training and validation.
     auto_test : bool, default=True
-        Removes test sets in databases with less than 50 datapoints and raises % of test points to 10% if 
+        Removes test sets in databases with less than 100 datapoints and raises % of test points to 10% if 
         test_set is lower than that.
         
 """
@@ -96,13 +96,17 @@ Parameters
 #####################################################.
 
 import time
+import os
 import pandas as pd
 import random
 from robert.utils import (
     load_variables, 
     finish_print,
     load_database,
-    check_clas_problem
+    check_clas_problem,
+    pd_to_dict,
+    load_db_n_params,
+    cv_test
 )
 from robert.generate_utils import (
     prepare_sets,
@@ -196,6 +200,56 @@ class generate:
                 except UnboundLocalError:
                     pass
 
+        # Cross-validation error calculation for selecting the best model
+        dir_csv = self.args.destination.joinpath(f"Raw_data")
+        params_dirs = [f'{dir_csv}/No_PFI']
+        if self.args.pfi_filter:
+            params_dirs.append(f'{dir_csv}/PFI')
+        all_verify_results = []
+        for params_dir in params_dirs:
+            if os.path.exists(params_dir):
+                # Load database and parameters for CV
+                Xy_data, params_df, _, _, _= load_db_n_params(self, params_dir, "verify", True)
+                
+                if len(Xy_data) == 1:
+                    Xy_data = Xy_data[0]
+                    params_df = params_df[0]
+                    params_dict = pd_to_dict(params_df)
+                    # this dictionary will keep the results of the tests
+                    verify_results = {'error_type': params_df['error_type'][0], 'cv_rmse': [], 'cv_mcc': [], 'model': params_df['model'][0], 'train': params_df['train'][0], 'PFI': params_dir.split('/')[-1]}
+                    # Perform cross-validation
+                    verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data, params_dict=params_dict)  
+                    all_verify_results.append(verify_results)   
+                else:
+                    for i in range(len(Xy_data)):
+                        Xy_data_i = Xy_data[i]
+                        params_df_i = params_df[i]
+                        params_dict_i = pd_to_dict(params_df_i)
+                        # this dictionary will keep the results of the tests
+                        verify_results = {'error_type': params_df_i['error_type'][0], 'model': params_df_i['model'][0], 'train': params_df_i['train'][0], 'PFI': params_dir.split('/')[-1]}
+                        # Perform cross-validation
+                        verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data_i, params_dict=params_dict_i)
+                        all_verify_results.append(verify_results)
+
+        # Add cv_error to the CSV files
+        for verify_result in all_verify_results:
+            model = verify_result[0]['model']
+            train = verify_result[0]['train']
+            pfi = verify_result[0]['PFI']
+            cv_error = verify_result[0][f'cv_{verify_result[0]["error_type"]}']
+
+            if pfi == 'No_PFI':
+                file_name = f"{model}_{train}.csv"
+                file_path = os.path.join(self.args.destination, "Raw_data", "No_PFI", file_name)
+            else:
+                file_name = f"{model}_{train}_{pfi}.csv"
+                file_path = os.path.join(self.args.destination, "Raw_data", "PFI", file_name)
+
+            if os.path.exists(file_path):
+                df = pd.read_csv(file_path)
+                df['cv_error'] = cv_error
+                df.to_csv(file_path, index=False)
+
         # detects best combinations
         dir_csv = self.args.destination.joinpath(f"Raw_data")
         _ = detect_best(f'{dir_csv}/No_PFI')
@@ -224,7 +278,7 @@ class generate:
         
         if self.args.auto_test:
             if self.args.test_set != 0:
-                if len(csv_df[self.args.y]) < 50:
+                if len(csv_df[self.args.y]) < 100:
                     self.args.test_set = 0
                     self.args.log.write(f'\nx  WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split into training and validation sets with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
                 elif self.args.test_set < 0.1:
@@ -307,10 +361,10 @@ class generate:
         '''
         
         removed = []
-        if len(csv_df[self.args.y]) < 50 and 90 in self.args.train:
+        if len(csv_df[self.args.y]) < 100 and 90 in self.args.train:
             self.args.train.remove(90)
             removed.append('90%')
-        if len(csv_df[self.args.y]) < 30 and 80 in self.args.train:
+        if len(csv_df[self.args.y]) < 50 and 80 in self.args.train:
             self.args.train.remove(80)
             removed.append('80%')
         if len(removed) > 0:
@@ -320,7 +374,7 @@ class generate:
         if len(self.args.train) == 0:
             # For example: If the user only specifies 90% in a database of 20 datapoints, by default that training size is going to be eliminated
             self.args.train = [60, 70]
-            if 30 < len(csv_df[self.args.y]) < 50:
+            if 50 < len(csv_df[self.args.y]) < 100:
                 self.args.train.append(80)
             self.args.log.write(f'\nx    WARNING! The specified training size is not suitable for the size of your database. Training sizes have been changed to {self.args.train}.')
         

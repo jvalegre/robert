@@ -20,6 +20,9 @@
 .. |ReadtheDocs| image:: https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs
    :target: https://robert.readthedocs.io
    :alt: Documentation Status
+   
+.. |PyPI| image:: https://img.shields.io/pypi/v/robert
+   :target: https://pypi.org/project/robert/
 
 |CircleCI|
 |Codecov|
@@ -303,7 +306,7 @@ Reference
 
 If you use any of the ROBERT modules, please include this citation:  
 
-* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *accepted*. DOI: 10.1002/WCMS.1733. 
+* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *14*, e1733. 
 
 If you use the AQME module, please include this citation:  
 

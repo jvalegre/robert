@@ -25,7 +25,7 @@ Parameters
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
     filter_train : bool, default=True
-        Disables the 90% training size in databases with less than 100 datapoints, and the 80% in less than 50.
+        Disables the 90% training size in databases with less than 100 datapoints, and the 80% in less than 40.
     split : str, default='RND'
         Mode for splitting data. Options: 
         1. 'KN' (k-neighbours clustering-based splitting)
@@ -149,7 +149,7 @@ class generate:
         if self.args.auto_kn:
             self = self.adjust_split(csv_df)
 
-        # if there are less than 50 and 30 datapoints, the 90% and 80% training sizes are disabled by default
+        # if there are less than 100 and 40 datapoints, the 90% and 80% training sizes are disabled by default
         if self.args.filter_train:
             self = self.adjust_train(csv_df)
         
@@ -210,26 +210,14 @@ class generate:
             if os.path.exists(params_dir):
                 # Load database and parameters for CV
                 Xy_data, params_df, _, _, _= load_db_n_params(self, params_dir, "verify", True)
-                
-                if len(Xy_data) == 1:
-                    Xy_data = Xy_data[0]
-                    params_df = params_df[0]
-                    params_dict = pd_to_dict(params_df)
-                    # this dictionary will keep the results of the tests
-                    verify_results = {'error_type': params_df['error_type'][0], 'cv_rmse': [], 'cv_mcc': [], 'model': params_df['model'][0], 'train': params_df['train'][0], 'PFI': params_dir.split('/')[-1]}
-                    # Perform cross-validation
-                    verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data, params_dict=params_dict)  
-                    all_verify_results.append(verify_results)   
-                else:
-                    for i in range(len(Xy_data)):
-                        Xy_data_i = Xy_data[i]
-                        params_df_i = params_df[i]
-                        params_dict_i = pd_to_dict(params_df_i)
-                        # this dictionary will keep the results of the tests
-                        verify_results = {'error_type': params_df_i['error_type'][0], 'model': params_df_i['model'][0], 'train': params_df_i['train'][0], 'PFI': params_dir.split('/')[-1]}
-                        # Perform cross-validation
-                        verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data_i, params_dict=params_dict_i)
-                        all_verify_results.append(verify_results)
+
+                for i in range(len(Xy_data) if len(params_df) > 1 else 1):
+                    Xy_data_i = Xy_data[i] if len(params_df) > 1 else Xy_data
+                    params_df_i = params_df[i] if len(params_df) > 1 else params_df
+                    params_dict_i = pd_to_dict(params_df_i)
+                    verify_results = {'error_type': params_df_i['error_type'][0],'model': params_df_i['model'][0],'train': params_df_i['train'][0],'PFI': params_dir.split('/')[-1]}
+                    verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data_i, params_dict=params_dict_i)
+                    all_verify_results.append(verify_results)
 
         # Add cv_error to the CSV files
         for verify_result in all_verify_results:
@@ -344,7 +332,7 @@ class generate:
         low_vals = len([i for i in csv_df[self.args.y] if i < mid_value])
         imb_ratio_high = high_vals/low_vals
         imb_ratio_low = low_vals/high_vals
-        if max(imb_ratio_high,imb_ratio_low) > 10:
+        if max(imb_ratio_high,imb_ratio_low) > 10 and self.args.split.lower() == 'rnd':
             self.args.split = 'KN'
             if imb_ratio_high > 10:
                 range_type = 'high'
@@ -364,7 +352,7 @@ class generate:
         if len(csv_df[self.args.y]) < 100 and 90 in self.args.train:
             self.args.train.remove(90)
             removed.append('90%')
-        if len(csv_df[self.args.y]) < 50 and 80 in self.args.train:
+        if len(csv_df[self.args.y]) < 40 and 80 in self.args.train:
             self.args.train.remove(80)
             removed.append('80%')
         if len(removed) > 0:
@@ -374,7 +362,7 @@ class generate:
         if len(self.args.train) == 0:
             # For example: If the user only specifies 90% in a database of 20 datapoints, by default that training size is going to be eliminated
             self.args.train = [60, 70]
-            if 50 < len(csv_df[self.args.y]) < 100:
+            if 40 < len(csv_df[self.args.y]) < 100:
                 self.args.train.append(80)
             self.args.log.write(f'\nx    WARNING! The specified training size is not suitable for the size of your database. Training sizes have been changed to {self.args.train}.')
         

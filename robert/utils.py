@@ -287,6 +287,10 @@ def format_lists(value):
             value = value.replace('[',']').replace(',',']').replace("'",']').split(']')
             while('' in value):
                 value.remove('')
+
+    # remove extra spaces that sometimes are included by mistake
+    value = [ele.strip() if isinstance(ele, str) else ele for ele in value]
+
     return value
 
 
@@ -645,7 +649,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     curate_valid = False
         
         elif module.lower() == 'generate':
-            if self.split.lower() not in ['kn','rnd']:
+            if self.split.lower() not in ['kn','rnd','stratified']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
 

@@ -25,6 +25,7 @@ from pkg_resources import resource_filename
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import matthews_corrcoef, make_scorer
 from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedShuffleSplit
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from robert.utils import (
     load_model,
@@ -413,6 +414,29 @@ def data_split(self,csv_X,csv_y,size,seed):
             X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
             training_points = X_train.index.tolist()
 
+        elif self.args.split.upper() == 'STRATIFIED':
+            # Calculate the number of bins based on the validation size
+            stratified_quantiles = max(2, round(len(csv_y) * (1 - (size / 100))))
+            y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+            
+            # Adjust the number of bins until each class has at least 2 members
+            while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
+                stratified_quantiles -= 1
+                y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+            splitter = StratifiedShuffleSplit(n_splits=1, test_size=(100 - size) / 100, random_state=seed)
+            for train_idx, _ in splitter.split(csv_X, y_binned):
+                training_points = train_idx.tolist()
+
+            # Ensure the extremes are in the training set
+            for idx in [csv_y.idxmin(), csv_y.idxmax()]:
+                if idx not in training_points:
+                    training_points.append(idx)
+
+            # Ensure the second smallest and second largest are not in the training set
+            for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
+                if idx in training_points:
+                    training_points.remove(idx)
+        
     Xy_data = Xy_split(csv_X,csv_y,training_points)
 
     return Xy_data
@@ -765,7 +789,7 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
     # Replace inf values with NaN for proper heatmap visualization
     csv_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'Combined error'}, mask=csv_df.isnull())
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'Combined {self.args.error_type.upper()}'}, mask=csv_df.isnull())
     fontsize = 14
     ax.set_xlabel("ML Model",fontsize=fontsize)
     ax.set_ylabel("Training Size",fontsize=fontsize)

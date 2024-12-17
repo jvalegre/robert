@@ -5,6 +5,8 @@ Versions
 ========
 
 Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
+   -  Adding a new way of splitting data (stratified) to ensure that the validation points are taken throughout the range of the target values
+   -  Fixing bug to work with spaces in descriptor names
    -  Changing the way of selecting the best model (now using a combined error metric, not only the validation error)
    -  Fixing bug in GENERATE when plotting the models' heatmap in case the model had infinite values
    -  Auto_test is now done by default if the database has more than 100 datapoints

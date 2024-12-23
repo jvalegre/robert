@@ -26,10 +26,11 @@ Parameters
         If there are only two y values, the program automatically changes the type of problem to classification.
     filter_train : bool, default=True
         Disables the 90% training size in databases with less than 100 datapoints, and the 80% in less than 40.
-    split : str, default='RND'
+    split : str, default='stratified'
         Mode for splitting data. Options: 
-        1. 'KN' (k-neighbours clustering-based splitting)
-        2. 'RND' (random splitting).  
+        1. 'stratified (evenly distributed along the y axis or categorical target values)
+        2. 'KN' (k-neighbours clustering-based splitting)
+        3. 'RND' (random splitting).  
     model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) 
         ML models available: 
         1. 'RF' (Random forest)
@@ -144,7 +145,7 @@ class generate:
 
         # separates an external test set (if applicable)
         csv_df, csv_X, csv_y, csv_df_test = self.separate_test(csv_df, csv_X, csv_y)
-  
+
         # changes from random to KN data splitting in some cases
         if self.args.auto_kn:
             self = self.adjust_split(csv_df)

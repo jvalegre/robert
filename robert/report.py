@@ -68,7 +68,7 @@ class report:
         try:
             from weasyprint import HTML
         except (OSError, ModuleNotFoundError):
-            print(f"\n  x The REPORT module requires weasyprint but this module is missing, the PDF with the summary of the results has not been created. Try installing ROBERT with 'conda install -y -c conda-forge robert'")
+            print(f"\n  x The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'")
             sys.exit()
 
         # load default and user-specified variables

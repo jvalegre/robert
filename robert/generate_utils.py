@@ -436,7 +436,7 @@ def data_split(self,csv_X,csv_y,size,seed):
             for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
                 if idx in training_points:
                     training_points.remove(idx)
-        
+
     Xy_data = Xy_split(csv_X,csv_y,training_points)
 
     return Xy_data

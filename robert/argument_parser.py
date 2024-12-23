@@ -37,7 +37,7 @@ var_dict = {
     "auto_kn" : True,
     "auto_type": True,
     "filter_train" : True,
-    "split" : "RND",
+    "split" : "stratified",
     "model" : ['RF','GB','NN','MVL'],
     "eval_model" : 'MVL',
     "custom_params" : None,

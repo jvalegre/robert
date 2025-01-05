@@ -114,7 +114,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 .. code-block:: shell 
    
    pip install robert
-   pip install scikit-learn-intelex
+   pip install scikit-learn-intelex==2025.0.1
 
 **3.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:  
 
@@ -132,7 +132,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
    conda install -c conda-forge robert
    pip install robert --upgrade
-   pip install scikit-learn-intelex
+   pip install scikit-learn-intelex==2025.0.1
    conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
 .. installation-end 
@@ -170,7 +170,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **5.** Install ROBERT as defined in the "Installation" section (:code:`pip install robert`).
 
 
-**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
+**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex==2025.0.1`).
 
 
 **7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -y -c conda-forge glib gtk3 pango mscorefonts`).

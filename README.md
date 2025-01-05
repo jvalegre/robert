@@ -19,7 +19,7 @@ Don't miss out the latest hands-on tutorials from our [YouTube channel](https://
 2. Activate conda environment: `conda activate robert`  
 3. Install ROBERT using pip: `pip install robert` 
 4. Install libraries for the PDF report `conda install -y -c conda-forge glib gtk3 pango mscorefonts`
-5. (Only for compatible devices) Install Intelex accelerator: `pip install scikit-learn-intelex`  
+5. (Only for compatible devices) Install Intelex accelerator: `pip install scikit-learn-intelex==2025.0.1`  
 * Inexperienced users should visit the *Users with no Python experience* section in [Read the Docs](https://robert.readthedocs.io).
 ## Update the program
 1. Update to the latest version: `pip install robert --upgrade`  

@@ -11,12 +11,6 @@ import numpy as np
 import seaborn as sb
 from matplotlib import pyplot as plt
 import matplotlib.colors as mcolor
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
 from sklearn.cluster import KMeans
 import yaml
 import json
@@ -32,7 +26,12 @@ from robert.utils import (
     load_n_predict,
     standardize,
     pd_to_dict)
-
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 
 # hyperopt workflow
 def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed, csv_df_test):
@@ -404,7 +403,6 @@ def data_split(self,csv_X,csv_y,size,seed):
                 train_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_size,seed,class_0_idx)
                 train_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_size,seed,class_1_idx)
                 training_points = train_class_0+train_class_1
-                training_points.sort()
 
             else:
                 idx_list = csv_y.index
@@ -467,6 +465,7 @@ def data_split(self,csv_X,csv_y,size,seed):
                 if idx in training_points:
                     training_points.remove(idx)
 
+    training_points.sort()
     Xy_data = Xy_split(csv_X,csv_y,training_points)
 
     return Xy_data
@@ -476,7 +475,7 @@ def Xy_split(csv_X,csv_y,training_points):
     '''
     Returns a dictionary with the database divided into train and validation
     '''
-    
+
     Xy_data =  {}
     Xy_data['X_train'] = csv_X.iloc[training_points]
     Xy_data['y_train'] = csv_y.iloc[training_points]
@@ -591,11 +590,10 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #var
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
     opt_target,data = load_n_predict(None, PFI_dict, Xy_data_PFI, hyperopt=True)
-    valid_PFI_model = True
     if PFI_dict['type'].lower() == 'reg':
         opt_target = avoid_overfit(data,opt_target)
 
-    if valid_PFI_model:
+    if opt_target != float('inf'):
         PFI_dict[PFI_dict['error_type']] = opt_target
 
         # save CSV file

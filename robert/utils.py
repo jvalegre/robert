@@ -17,12 +17,6 @@ import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sb
 from scipy import stats
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
 from pkg_resources import resource_filename
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
@@ -45,8 +39,15 @@ from mapie.conformity_scores import AbsoluteConformityScore
 from sklearn.model_selection import KFold
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 
-robert_version = "1.3.0"
+
+robert_version = "1.3.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -1295,7 +1296,7 @@ def load_db_n_params(self,folder_model,module,print_load):
 
 def load_dfs(self,folder_model,module):
     '''
-    Loads the parameters and Xy databases from a folder as dataframes
+    Loads the parameters and Xy databases from the GENERATE folder as dataframes
     '''
     
     if os.getcwd() in f"{folder_model}":
@@ -1312,7 +1313,7 @@ def load_dfs(self,folder_model,module):
             if 'PFI' in os.path.basename(csv_file).replace('.csv','_').split('_'):
                 suffix = '(with PFI filter)'
                 suffix_title = 'PFI'
-            if '_db' in csv_file:
+            if csv_file.endswith('_db.csv'):
                 Xy_data_df = load_database(self,csv_file,module)
                 Xy_data_dfs.append(Xy_data_df)
                 Xy_path = csv_file

@@ -12,12 +12,6 @@ import numpy as np
 import seaborn as sb
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import matthews_corrcoef, make_scorer
@@ -31,6 +25,12 @@ from robert.utils import (
     get_graph_style,
     pearson_map
     )
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 
 
 def load_test(self, Xy_data, params_df, Xy_test_df):

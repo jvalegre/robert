@@ -101,6 +101,7 @@ import time
 import os
 import pandas as pd
 import random
+import sys
 from robert.utils import (
     load_variables, 
     finish_print,
@@ -211,7 +212,12 @@ class generate:
         for params_dir in params_dirs:
             if os.path.exists(params_dir):
                 # Load database and parameters for CV
-                Xy_data, params_df, _, _, _= load_db_n_params(self, params_dir, "verify", False)
+                try:
+                    Xy_data, params_df, _, _, _= load_db_n_params(self, params_dir, "verify", False)
+                except UnboundLocalError:
+                    self.args.log.write(f'\nx  WARNING! The GENERATE module did not find any suitable {os.path.basename(params_dir)} model for your database.')
+                    if params_dir.endswith('/No_PFI'):
+                        sys.exit()
 
                 for i in range(len(Xy_data) if len(params_df) > 1 else 1):
                     Xy_data_i = Xy_data[i] if len(params_df) > 1 else Xy_data
@@ -243,14 +249,17 @@ class generate:
         # detects best combinations
         dir_csv = self.args.destination.joinpath(f"Raw_data")
         _ = detect_best(f'{dir_csv}/No_PFI')
-        if self.args.pfi_filter:
-            _ = detect_best(f'{dir_csv}/PFI')
 
         # create heatmap plot(s)
         _ = heatmap_workflow(self,"No_PFI")
 
+        # detect best and create heatmap for PFI models
         if self.args.pfi_filter:
-            _ = heatmap_workflow(self,"PFI")
+            try: # if no models were found
+                _ = detect_best(f'{dir_csv}/PFI')
+                _ = heatmap_workflow(self,"PFI")
+            except UnboundLocalError:
+                pass
 
         _ = finish_print(self,start_time,'GENERATE')
 

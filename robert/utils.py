@@ -649,7 +649,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     curate_valid = False
         
         elif module.lower() == 'generate':
-            if self.split.lower() not in ['kn','rnd','stratified']:
+            if self.split.lower() not in ['kn','rnd','stratified','even']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
 
@@ -819,12 +819,13 @@ def load_database(self,csv_load,module):
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
-    # Fill missing values using KNN imputer
-    csv_df = csv_df.dropna(axis=1, thresh=int(0.7 * len(csv_df))) # Remove columns with less than 70% of the data
-    int_columns = csv_df.select_dtypes(include=['int']).columns
-    numeric_columns = csv_df.select_dtypes(include=['float']).columns
+    # Fill missing values using KNN imputer, excluding target column
+    csv_df = csv_df.dropna(axis=1, thresh=int(0.7 * len(csv_df)))  # Remove columns with <70% data
+    target_col = self.args.y
+    int_columns = csv_df.select_dtypes(include=['int']).columns.drop(target_col, errors='ignore')
+    numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(target_col, errors='ignore')
     imputer = KNNImputer(n_neighbors=5)
-    if csv_df[numeric_columns].isna().any().any(): 
+    if csv_df[numeric_columns].isna().any().any():
         csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns)
     csv_df[int_columns] = csv_df[int_columns]
 
@@ -1459,7 +1460,7 @@ def cv_test(self,verify_results,Xy_data,params_dict):
     cv_y_list,cv_y_pred_list = [],[]
     data_cv = {}
     # combine training and validation for CV
-    X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
+    X_combined = pd.concat([Xy_data['X_train'],Xy_data['X_valid']], axis=0).reset_index(drop=True)
     y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
 
     if self.args.kfold == 'auto':
@@ -1479,9 +1480,8 @@ def cv_test(self,verify_results,Xy_data,params_dict):
     # separate into folds, then store the predictions
     for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
         XY_cv = {}
-        XY_cv['X_train_scaled'] = X_combined.loc[train_index]
+        XY_cv['X_train_scaled'], XY_cv['X_valid_scaled'] = standardize(self,X_combined.loc[train_index],X_combined.loc[valid_index])
         XY_cv['y_train'] = y_combined.loc[train_index]
-        XY_cv['X_valid_scaled'] = X_combined.loc[valid_index]
         XY_cv['y_valid'] = y_combined.loc[valid_index]
         data_cv,_ = load_n_predict(self, params_dict, XY_cv)
 

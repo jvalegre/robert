@@ -28,9 +28,10 @@ Parameters
         Disables the 90% training size in databases with less than 100 datapoints, and the 80% in less than 40.
     split : str, default='stratified'
         Mode for splitting data. Options: 
-        1. 'stratified (evenly distributed along the y axis or categorical target values)
-        2. 'KN' (k-neighbours clustering-based splitting)
-        3. 'RND' (random splitting).  
+        1. 'stratified' (stratified splitting along the y axis or categorical target values)
+        2. 'even' (evenly distributed along the y axis or categorical target values)
+        3. 'KN' (k-neighbours clustering-based splitting)
+        4. 'RND' (random splitting).  
     model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) 
         ML models available: 
         1. 'RF' (Random forest)
@@ -210,7 +211,7 @@ class generate:
         for params_dir in params_dirs:
             if os.path.exists(params_dir):
                 # Load database and parameters for CV
-                Xy_data, params_df, _, _, _= load_db_n_params(self, params_dir, "verify", True)
+                Xy_data, params_df, _, _, _= load_db_n_params(self, params_dir, "verify", False)
 
                 for i in range(len(Xy_data) if len(params_df) > 1 else 1):
                     Xy_data_i = Xy_data[i] if len(params_df) > 1 else Xy_data

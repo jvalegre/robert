@@ -86,6 +86,7 @@ class verify:
                 
                 # set the parameters for each ML model of the hyperopt optimization
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
+                print(params_dict)
 
                 # this dictionary will keep the results of the tests
                 verify_results = {'error_type': params_df['error_type'][0]}
@@ -95,6 +96,9 @@ class verify:
                 Xy_orig,_ = load_n_predict(self, params_dict, Xy_orig)  
                 verify_results['original_score_train'] = Xy_orig[f'{verify_results["error_type"]}_train']
                 verify_results['original_score_valid'] = Xy_orig[f'{verify_results["error_type"]}_valid']
+
+                print (verify_results['original_score_train'])
+                print (verify_results['original_score_valid'])
 
                 # calculate cross-validation
                 verify_results,type_cv,path_n_suffix = self.cv_test(verify_results,Xy_data,params_dict,params_path,suffix_title)

@@ -5,6 +5,7 @@ Versions
 ========
 
 Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
+   -  Fixing a bug in the KNN imputer (it was incorrectly placing values in the target variable)
    -  Adding a new way of splitting data (stratified) to ensure that the validation points are taken throughout the range of the target values
    -  Fixing bug to work with spaces in descriptor names
    -  Changing the way of selecting the best model (now using a combined error metric, not only the validation error)

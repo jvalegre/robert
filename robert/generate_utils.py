@@ -219,6 +219,8 @@ def f(params):
             json.dump(hyperopt_data, outfile)
 
         best = opt_target
+        print(best)
+        print(f"RMSE Train: {data['rmse_train']}, RMSE Validation: {data['rmse_valid']}")
 
         # returns values to normal if inverted during hyperoptimization
         if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
@@ -433,6 +435,36 @@ def data_split(self,csv_X,csv_y,size,seed):
                     training_points.append(idx)
 
             # Ensure the second smallest and second largest are not in the training set
+            for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
+                if idx in training_points:
+                    training_points.remove(idx)
+
+        elif self.args.split.upper() == 'EVEN':
+            # Number of bins based on validation size
+            stratified_quantiles = max(2, round(len(csv_y) * (1 - (size / 100))))
+            y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+
+            # Adjust bin count if any bin has fewer than two elements
+            while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
+                stratified_quantiles -= 1
+                y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+
+            # Determine central validation points for each bin
+            training_points = []
+            for bin_label in y_binned.unique():
+                bin_indices = y_binned[y_binned == bin_label].index
+                sorted_indices = sorted(bin_indices, key=lambda idx: csv_y[idx])
+                n_excluded = int(round(len(sorted_indices) * (100 - size) / 100))
+                mid = len(sorted_indices) // 2
+                excluded_points = sorted_indices[mid - n_excluded // 2 : mid + (n_excluded + 1) // 2]
+                training_points.extend(idx for idx in sorted_indices if idx not in excluded_points)
+
+            # Ensure extremes are in the training set
+            for idx in [csv_y.idxmin(), csv_y.idxmax()]:
+                if idx not in training_points:
+                    training_points.append(idx)
+
+            # Remove second smallest and second largest from training
             for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
                 if idx in training_points:
                     training_points.remove(idx)

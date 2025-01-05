@@ -44,6 +44,7 @@ from robert.utils import (load_variables,
     finish_print,
     get_prediction_results,
     print_pfi,
+    standardize,
     get_graph_style
 )
 from robert.predict_utils import graph_reg,graph_clas
@@ -86,7 +87,6 @@ class verify:
                 
                 # set the parameters for each ML model of the hyperopt optimization
                 params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
-                print(params_dict)
 
                 # this dictionary will keep the results of the tests
                 verify_results = {'error_type': params_df['error_type'][0]}
@@ -96,9 +96,6 @@ class verify:
                 Xy_orig,_ = load_n_predict(self, params_dict, Xy_orig)  
                 verify_results['original_score_train'] = Xy_orig[f'{verify_results["error_type"]}_train']
                 verify_results['original_score_valid'] = Xy_orig[f'{verify_results["error_type"]}_valid']
-
-                print (verify_results['original_score_train'])
-                print (verify_results['original_score_valid'])
 
                 # calculate cross-validation
                 verify_results,type_cv,path_n_suffix = self.cv_test(verify_results,Xy_data,params_dict,params_path,suffix_title)
@@ -155,7 +152,7 @@ class verify:
         cv_y_list,cv_y_pred_list = [],[]
         data_cv = {}
         # combine training and validation for CV
-        X_combined = pd.concat([Xy_data['X_train_scaled'],Xy_data['X_valid_scaled']], axis=0).reset_index(drop=True)
+        X_combined = pd.concat([Xy_data['X_train'],Xy_data['X_valid']], axis=0).reset_index(drop=True)
         y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
 
         if self.args.kfold == 'auto':
@@ -175,9 +172,8 @@ class verify:
         # separate into folds, then store the predictions
         for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
             XY_cv = {}
-            XY_cv['X_train_scaled'] = X_combined.loc[train_index]
+            XY_cv['X_train_scaled'], XY_cv['X_valid_scaled'] = standardize(self,X_combined.loc[train_index],X_combined.loc[valid_index])
             XY_cv['y_train'] = y_combined.loc[train_index]
-            XY_cv['X_valid_scaled'] = X_combined.loc[valid_index]
             XY_cv['y_valid'] = y_combined.loc[valid_index]
             data_cv,_ = load_n_predict(self, params_dict, XY_cv)
 

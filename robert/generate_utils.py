@@ -219,8 +219,6 @@ def f(params):
             json.dump(hyperopt_data, outfile)
 
         best = opt_target
-        print(best)
-        print(f"RMSE Train: {data['rmse_train']}, RMSE Validation: {data['rmse_valid']}")
 
         # returns values to normal if inverted during hyperoptimization
         if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:

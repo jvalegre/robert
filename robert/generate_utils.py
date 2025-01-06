@@ -11,11 +11,17 @@ import numpy as np
 import seaborn as sb
 from matplotlib import pyplot as plt
 import matplotlib.colors as mcolor
-from sklearn.cluster import KMeans
 import yaml
 import json
 import glob
 from pkg_resources import resource_filename
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
+from sklearn.cluster import KMeans
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import matthews_corrcoef, make_scorer
 from sklearn.model_selection import train_test_split
@@ -26,12 +32,7 @@ from robert.utils import (
     load_n_predict,
     standardize,
     pd_to_dict)
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
+
 
 # hyperopt workflow
 def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed, csv_df_test):

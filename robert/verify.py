@@ -29,6 +29,12 @@ import pandas as pd
 from pathlib import Path
 import seaborn as sb
 from statistics import mode
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 from sklearn.model_selection import KFold
 from robert.utils import (load_variables,
     load_db_n_params,
@@ -42,12 +48,6 @@ from robert.utils import (load_variables,
     get_graph_style
 )
 from robert.predict_utils import graph_reg,graph_clas
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
 
 
 #thresholds for passing tests in VERIFY

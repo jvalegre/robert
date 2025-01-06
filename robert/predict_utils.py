@@ -12,6 +12,12 @@ import numpy as np
 import seaborn as sb
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 from sklearn.metrics import ConfusionMatrixDisplay
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import matthews_corrcoef, make_scorer
@@ -25,12 +31,6 @@ from robert.utils import (
     get_graph_style,
     pearson_map
     )
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
 
 
 def load_test(self, Xy_data, params_df, Xy_test_df):
@@ -123,11 +123,6 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
     # Create graph
     sb.set(style="ticks")
-
-    # clean all the information and style from previous plots
-    plt.gcf()
-    plt.cla()
-    plt.close()
 
     _, ax = plt.subplots(figsize=(7.45,6))
 
@@ -337,11 +332,6 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
     '''
     Plot a confusion matrix with the prediction vs actual values
     '''
-    
-    # clean all the information and style from previous plots
-    plt.gcf()
-    plt.cla()
-    plt.close()
 
     # get confusion matrix
     if 'CV' in set_type: # CV graphs
@@ -558,11 +548,6 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
     loaded_model = load_model(params_dict)
     loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
-    # clean all the information and style from previous plots
-    plt.gcf()
-    plt.cla()
-    plt.close()
-
     # run the SHAP analysis and save the plot
     explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=params_dict['seed'])
     try:
@@ -579,17 +564,6 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
 
     # set title
     plt.title(f'SHAP analysis of {os.path.basename(path_n_suffix)}', fontsize = 14, fontweight="bold")
-
-    # adjust width of the colorbar
-    plt.gcf().axes[-1].set_aspect(aspect_shap)
-    plt.gcf().axes[-1].set_box_aspect(aspect_shap)
-    
-    plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
-
-    # clean all the information and style from previous plots
-    plt.gcf()
-    plt.cla()
-    plt.close()
 
     path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
     print_shap = f"\n   o  SHAP plot saved in {path_reduced}"
@@ -615,6 +589,17 @@ def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
         print_shap += f"\n      -  {desc} = min: {min_list[i]:.2}, max: {max_list[i]:.2}"
 
     self.args.log.write(print_shap)
+
+    # adjust width of the colorbar
+    plt.gcf().axes[-1].set_aspect(aspect_shap)
+    plt.gcf().axes[-1].set_box_aspect(aspect_shap)
+    
+    plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
+
+    # clean all the information and style from previous plots
+    plt.gcf()
+    plt.cla()
+    plt.close()
 
 
 def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
@@ -659,11 +644,6 @@ def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
     PFI_values_plot = PFI_values[:self.args.pfi_show][::-1]
     desc_list_plot = desc_list[:self.args.pfi_show][::-1]
 
-    # clean all the information and style from previous plots
-    plt.gcf()
-    plt.cla()
-    plt.close()
-
     # plot and print results
     _, ax = plt.subplots(figsize=(7.45,6))
     y_ticks = np.arange(0, len(desc_list_plot))
@@ -704,11 +684,6 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
 
     # plot data in SD units
     sb.set(style="ticks")
-    
-    # clean all the information and style from previous plots
-    plt.gcf()
-    plt.cla()
-    plt.close()
 
     _, ax = plt.subplots(figsize=(7.45,6))
     plt.text(0.5, 1.08, f'Outlier analysis of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
@@ -863,11 +838,6 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
 
     # make graph
     sb.set(style="ticks")
-
-    # clean all the information and style from previous plots
-    plt.gcf()
-    plt.cla()
-    plt.close()
 
     _, ax = plt.subplots(figsize=(7.45,6))
     plt.text(0.5, 1.08, f'y-values distribution (train+valid.) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',

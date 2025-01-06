@@ -53,6 +53,7 @@ from robert.report_utils import (
     get_csv_pred
 )
 
+
 class report:
     """
     Class containing all the functions from the REPORT module.
@@ -68,7 +69,7 @@ class report:
         try:
             from weasyprint import HTML
         except (OSError, ModuleNotFoundError):
-            print(f"\n  x The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'")
+            print(f"\nx The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'")
             sys.exit()
 
         # load default and user-specified variables

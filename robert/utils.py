@@ -18,9 +18,14 @@ from matplotlib import pyplot as plt
 import seaborn as sb
 from scipy import stats
 from pkg_resources import resource_filename
+# for users with no intel architectures. This part has to be before the sklearn imports
+try:
+    from sklearnex import patch_sklearn
+    patch_sklearn(verbose=False)
+except (ModuleNotFoundError,ImportError):
+    pass
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
-from robert.argument_parser import set_options, var_dict
 from sklearn.ensemble import (
     RandomForestRegressor,
     GradientBoostingRegressor,
@@ -34,17 +39,12 @@ from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessCl
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
 from sklearn.impute import KNNImputer
+from sklearn.model_selection import KFold
 from mapie.regression import MapieRegressor
 from mapie.conformity_scores import AbsoluteConformityScore
-from sklearn.model_selection import KFold
+from robert.argument_parser import set_options, var_dict
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
 
 
 robert_version = "1.3.1"
@@ -391,7 +391,7 @@ def load_variables(kwargs, robert_module):
                 from sklearnex import patch_sklearn
                 pass
             except (ModuleNotFoundError,ImportError):
-                self.log.write(f"\nWARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
+                self.log.write(f"\nx  WARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification

@@ -20,34 +20,18 @@ Parameters
 
 import os
 import time
-from matplotlib import pyplot as plt
-from matplotlib.legend_handler import HandlerPatch
-import matplotlib.patches as mpatches
-from matplotlib.patches import FancyArrowPatch, ArrowStyle
 import numpy as np
-import pandas as pd
-from pathlib import Path
-import seaborn as sb
 from statistics import mode
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
-from sklearn.model_selection import KFold
 from robert.utils import (load_variables,
     load_db_n_params,
-    load_model,
+    cv_test,
     pd_to_dict,
     load_n_predict,
     finish_print,
     get_prediction_results,
     print_pfi,
-    standardize,
-    get_graph_style
+    plot_metrics
 )
-from robert.predict_utils import graph_reg,graph_clas
 
 
 #thresholds for passing tests in VERIFY
@@ -98,7 +82,7 @@ class verify:
                 verify_results['original_score_valid'] = Xy_orig[f'{verify_results["error_type"]}_valid']
 
                 # calculate cross-validation
-                verify_results,type_cv,path_n_suffix = self.cv_test(verify_results,Xy_data,params_dict,params_path,suffix_title)
+                verify_results,type_cv,path_n_suffix = cv_test(self,verify_results,Xy_data,params_dict,params_path,suffix_title,'verify')
 
                 # calculate scores for the y-mean test
                 verify_results = self.ymean_test(verify_results,Xy_data,params_dict)
@@ -125,87 +109,12 @@ class verify:
                 results_print,verify_results,verify_metrics = self.analyze_tests(verify_results,type_cv)
 
                 # plot a bar graph with the results
-                print_ver = self.plot_metrics(path_n_suffix,verify_metrics,verify_results)
+                print_ver = plot_metrics(path_n_suffix,verify_metrics,verify_results)
 
                 # print and save results
                 _ = self.print_verify(results_print,verify_results,print_ver,path_n_suffix,verify_metrics,params_dict)
 
         _ = finish_print(self,start_time,'VERIFY')
-
-
-    def cv_test(self,verify_results,Xy_data,params_dict,params_path,suffix_title):
-        '''
-        Performs a cross-validation on the training+validation dataset.
-        '''      
-
-        # set PATH names and plot
-        base_csv_name = '_'.join(os.path.basename(params_path).replace('.csv','_').split('_')[0:2])
-        base_csv_name = f'VERIFY/{base_csv_name}'
-        base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
-        path_n_suffix = f'{base_csv_path}_{suffix_title}'
-
-        # Fit the original model with the training set
-        loaded_model = load_model(params_dict)
-        loaded_model.fit(np.asarray(Xy_data['X_train_scaled']).tolist(), np.asarray(Xy_data['y_train']).tolist())
-        data_cv,_ = load_n_predict(self, params_dict, Xy_data)
-        
-        cv_y_list,cv_y_pred_list = [],[]
-        data_cv = {}
-        # combine training and validation for CV
-        X_combined = pd.concat([Xy_data['X_train'],Xy_data['X_valid']], axis=0).reset_index(drop=True)
-        y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
-
-        if self.args.kfold == 'auto':
-            # LOOCV for relatively small datasets (less than 50 datapoints)
-            if len(y_combined) < 50:
-                type_cv = f'LOOCV'
-                kf = KFold(n_splits=len(y_combined))
-            # k-fold CV with the same training/validation proportion used for fitting the model, using 5 splits
-            else:
-                type_cv = '5-fold CV'
-                kf = KFold(n_splits=5, shuffle=True, random_state=params_dict['seed'])
-        # k-fold CV with the same training/validation proportion used for fitting the model, with k different data splits
-        else:
-            type_cv = f'{self.args.kfold}-fold CV'
-            kf = KFold(n_splits=self.args.kfold, shuffle=True, random_state=params_dict['seed'])
-
-        # separate into folds, then store the predictions
-        for _, (train_index, valid_index) in enumerate(kf.split(X_combined)):
-            XY_cv = {}
-            XY_cv['X_train_scaled'], XY_cv['X_valid_scaled'] = standardize(self,X_combined.loc[train_index],X_combined.loc[valid_index])
-            XY_cv['y_train'] = y_combined.loc[train_index]
-            XY_cv['y_valid'] = y_combined.loc[valid_index]
-            data_cv,_ = load_n_predict(self, params_dict, XY_cv)
-
-            for y_cv,y_pred_cv in zip(data_cv['y_valid'],data_cv['y_pred_valid']):
-                cv_y_list.append(y_cv)
-                cv_y_pred_list.append(y_pred_cv)
-
-        # calculate metrics and plot graphs
-        graph_style = get_graph_style()
-        Xy_data["y_cv_valid"] = cv_y_list
-        Xy_data["y_pred_cv_valid"] = cv_y_pred_list
-
-        if params_dict['type'].lower() == 'reg':
-            verify_results['cv_r2'], verify_results['cv_mae'], verify_results['cv_rmse'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
-            set_types = [type_cv]
-            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
-
-        elif params_dict['type'].lower() == 'clas':
-            verify_results['cv_acc'], verify_results['cv_f1'], verify_results['cv_mcc'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
-            set_type = f'{type_cv} train+valid.'
-            _ = graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix)
-
-        verify_results['cv_score'] = verify_results[f'cv_{verify_results["error_type"].lower()}']
-
-        # save CSV with results
-        Xy_cv_df = pd.DataFrame()
-        Xy_cv_df[f'{params_dict["y"]}'] = Xy_data["y_cv_valid"]
-        Xy_cv_df[f'{params_dict["y"]}_pred'] = Xy_data["y_pred_cv_valid"]
-        csv_test_path = f'{os.path.dirname(path_n_suffix)}/CV_predictions_{os.path.basename(path_n_suffix)}.csv'
-        _ = Xy_cv_df.to_csv(csv_test_path, index = None, header=True)
-
-        return verify_results,type_cv,path_n_suffix
 
 
     def ymean_test(self,verify_results,Xy_data,params_dict):
@@ -336,113 +245,6 @@ class verify:
                           }        
         
         return results_print,verify_results,verify_metrics
-
-
-    def plot_metrics(self,path_n_suffix,verify_metrics,verify_results):
-        '''
-        Creates a plot with the results of the flawed models in VERIFY
-        '''
-
-        sb.reset_defaults()
-        sb.set(style="ticks")
-        _, ax = plt.subplots(figsize=(7.45,6))
-
-        # axis limits
-        max_val = max(verify_metrics['metrics'])
-        min_val = min(verify_metrics['metrics'])
-        range_vals = np.abs(max_val - min_val)
-        if verify_results['error_type'].lower() in ['mae','rmse']:
-            max_lim = 1.2*max_val
-            min_lim = 0
-        else:
-            max_lim = max_val + (0.2*range_vals)
-            min_lim = min_val - (0.1*range_vals)
-        plt.ylim(min_lim, max_lim)
-        plt.ylim(min_lim, max_lim)
-
-        width_bar = 0.55
-        label_count = 0
-        for test_metric,test_name,test_color in zip(verify_metrics['metrics'],verify_metrics['test_names'],verify_metrics['colors']):
-            rects = ax.bar(test_name, round(test_metric,2), label=test_name, 
-                   width=width_bar, linewidth=1, edgecolor='k', 
-                   color=test_color, zorder=2)
-            # plot whether the tests pass or fail
-            if test_name != 'Model':
-                if test_metric >= 0:
-                    offset_txt = test_metric+(0.05*range_vals)
-                else:
-                    offset_txt = test_metric-(0.05*range_vals)
-                if test_color == '#1f77b4':
-                    txt_bar = 'pass'
-                elif test_color == '#cd5c5c':
-                    txt_bar = 'fail'
-                elif test_color == '#c5c57d':
-                    txt_bar = 'unclear'
-                ax.text(label_count, offset_txt, txt_bar, color=test_color, 
-                        fontstyle='italic', horizontalalignment='center')
-            label_count += 1
-
-        # Set tick sizes
-        plt.xticks(fontsize=14)
-        plt.yticks(fontsize=14)
-
-        # title and labels of the axis
-        plt.ylabel(f'{verify_results["error_type"].upper()}', fontsize=14)
-
-        title_graph = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
-        plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
-            fontsize=14, fontweight='bold', transform = ax.transAxes)
-
-        # add threshold line and arrow indicating passed test direction
-        arrow_length = np.abs(max_lim-min_lim)/11
-        
-        if verify_results['error_type'].lower() in ['mae','rmse']:
-            thres_line = verify_metrics['higher_thres']
-            unclear_thres_line = verify_metrics['unclear_higher_thres']  
-        else:
-            thres_line = verify_metrics['lower_thres']
-            unclear_thres_line = verify_metrics['unclear_lower_thres']
-            arrow_length = -arrow_length
-
-        width = 2
-        xmin = 0.237
-        thres = ax.axhline(thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
-        thres = ax.axhline(unclear_thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
-
-        x_arrow = 0.5
-        style = ArrowStyle('simple', head_length=4.5*width, head_width=3.5*width, tail_width=width)
-        arrow = FancyArrowPatch((x_arrow, thres_line), (x_arrow, thres_line+arrow_length), 
-                                arrowstyle=style, color='k')  # (x1,y1), (x2,y2) vector direction                   
-        ax.add_patch(arrow)
-
-        # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
-        ax.arrow(x_arrow, thres_line, 0, 0, width=0, fc='k', ec='k') # x,y,dx,dy format
-
-        # legend and regression line with 95% CI considering all possible lines (not CI of the points)
-        def make_legend_arrow(legend, orig_handle,
-                            xdescent, ydescent,
-                            width, height, fontsize):
-            p = mpatches.FancyArrow(0, 0.5*height, width, 0, width=1.5, length_includes_head=True, head_width=0.58*height )
-            return p
-
-        arrow = plt.arrow(0, 0, 0, 0, label='arrow', width=0, fc='k', ec='k') # arrow for the legend
-        plt.figlegend([thres,arrow], [f'Limits: {round(thres_line,2)} (pass), {round(unclear_thres_line,2)} (unclear)','Pass test'], handler_map={mpatches.FancyArrow : HandlerPatch(patch_func=make_legend_arrow),},
-                      loc="lower center", ncol=2, bbox_to_anchor=(0.5, -0.05),
-                      fancybox=True, shadow=True, fontsize=14)
-
-        # Add gridlines
-        ax.grid(linestyle='--', linewidth=1)
-
-        # save plot
-        verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
-        plt.savefig(verify_plot_file, dpi=300, bbox_inches='tight')
-        plt.clf()
-        plt.close()
-
-        path_reduced = '/'.join(f'{verify_plot_file}'.replace('\\','/').split('/')[-2:])
-        print_ver = f"\n   o  VERIFY plot saved in {path_reduced}"
-
-        return print_ver
 
 
     def print_verify(self,results_print,verify_results,print_ver,path_n_suffix,verify_metrics,params_dict):

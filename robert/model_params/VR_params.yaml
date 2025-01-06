@@ -1,6 +1,6 @@
 # options for GB and RF models
-max_depth : [5, 20, 40, 60]
-n_estimators : [20, 50, 100]
+max_depth : [5, 10, 20]
+n_estimators : [10, 20, 50, 100]
 max_features : [1.0, 0.75, 0.5]
 min_samples_split : [2, 5]
 min_samples_leaf : [1, 2]
@@ -16,7 +16,7 @@ validation_fraction : [0.1, 0.2]
 
 # options for NN
 batch_size : [8, 16, 32, 64]
-hidden_layer_sizes : ["16", "64", "128", "32,32", "64,64"]
+hidden_layer_sizes : ["16", "64", "16,16", "32,16"]
 learning_rate_init : [0.001, 0.01]
 max_iter : [100, 200]
 alpha : [0.0001, 0.001]

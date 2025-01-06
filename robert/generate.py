@@ -224,15 +224,15 @@ class generate:
                     params_df_i = params_df[i] if len(params_df) > 1 else params_df
                     params_dict_i = pd_to_dict(params_df_i)
                     verify_results = {'error_type': params_df_i['error_type'][0],'model': params_df_i['model'][0],'train': params_df_i['train'][0],'PFI': params_dir.split('/')[-1]}
-                    verify_results = cv_test(self, verify_results=verify_results, Xy_data=Xy_data_i, params_dict=params_dict_i)
+                    verify_results,_,_ = cv_test(self, verify_results, Xy_data_i, params_dict_i, None, None, 'generate')
                     all_verify_results.append(verify_results)
 
         # Add cv_error to the CSV files
         for verify_result in all_verify_results:
-            model = verify_result[0]['model']
-            train = verify_result[0]['train']
-            pfi = verify_result[0]['PFI']
-            cv_error = verify_result[0][f'cv_{verify_result[0]["error_type"]}']
+            model = verify_result['model']
+            train = verify_result['train']
+            pfi = verify_result['PFI']
+            cv_error = verify_result[f'cv_{verify_result["error_type"]}']
 
             if pfi == 'No_PFI':
                 file_name = f"{model}_{train}.csv"

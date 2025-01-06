@@ -15,6 +15,11 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+import importlib
+import matplotlib.patches as mpatches
+import matplotlib.colors as mcolor
+from matplotlib.legend_handler import HandlerPatch
+import shap
 import seaborn as sb
 from scipy import stats
 from pkg_resources import resource_filename
@@ -24,8 +29,9 @@ try:
     patch_sklearn(verbose=False)
 except (ModuleNotFoundError,ImportError):
     pass
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
+from sklearn.metrics import (mean_absolute_error, mean_squared_error,
+                             matthews_corrcoef, accuracy_score, f1_score, make_scorer, ConfusionMatrixDisplay)
+from sklearn.feature_selection import RFECV
 from sklearn.ensemble import (
     RandomForestRegressor,
     GradientBoostingRegressor,
@@ -39,7 +45,9 @@ from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessCl
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
 from sklearn.impute import KNNImputer
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split, StratifiedShuffleSplit
+from sklearn.cluster import KMeans
+from sklearn.inspection import permutation_importance
 from mapie.regression import MapieRegressor
 from mapie.conformity_scores import AbsoluteConformityScore
 from robert.argument_parser import set_options, var_dict
@@ -519,6 +527,7 @@ def load_variables(kwargs, robert_module):
 
     return self
 
+
 def destination_folder(self,dest_module):
     if self.destination is None:
         self.destination = Path(self.initial_dir).joinpath(dest_module.upper())
@@ -579,6 +588,114 @@ def missing_inputs(self,module,print_err=False):
             self.ignore.append(self.names)
 
     return self
+
+
+def correlation_filter(self, csv_df):
+    """
+    Discards a) correlated variables and b) variables that do not correlate with the y values, based
+    on R**2 values c) reduces the number of descriptors to one third of the datapoints using RFECV.
+    """
+
+    txt_corr = ''
+
+    # loosen correlation filters if there are too few descriptors
+    n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
+    if self.args.desc_thres and n_descps*self.args.desc_thres < len(csv_df[self.args.y]):
+        self.args.thres_x = 0.95
+        self.args.thres_y = 0.0001
+        txt_corr += f'\nx  WARNING! The number of descriptors ({n_descps}) is {self.args.desc_thres} times lower than the number of datapoints ({len(csv_df[self.args.y])}), the correlation filters are loosen to thres_x = 0.95 and thres_y = 0.0001! Default thresholds (0.9 and 0.001) can be used with "--desc_thres False"'
+
+    txt_corr += f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}, thres_y = {self.args.thres_y}'
+
+    descriptors_drop = []
+    txt_corr += f'\n   Excluded descriptors:'
+    for i,column in enumerate(csv_df.columns):
+        if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
+            # finds the descriptors with low correlation to the response values
+            try:
+                res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
+                rsquared_y = res_y.rvalue**2
+                if rsquared_y < self.args.thres_y:
+                    descriptors_drop.append(column)
+                    txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
+            except ValueError: # this avoids X descriptors where the majority of the values are the same
+                descriptors_drop.append(column)
+                txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
+
+            # finds correlated descriptors
+            if column != csv_df.columns[-1] and column not in descriptors_drop:
+                for j,column2 in enumerate(csv_df.columns):
+                    if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
+                        res_x = stats.linregress(csv_df[column],csv_df[column2])
+                        rsquared_x = res_x.rvalue**2
+                        if rsquared_x > self.args.thres_x:
+                            # discard the column with less correlation with the y values
+                            res_xy = stats.linregress(csv_df[column2],csv_df[self.args.y])
+                            rsquared_y2 = res_xy.rvalue**2
+                            if rsquared_y >= rsquared_y2:
+                                descriptors_drop.append(column2)
+                                txt_corr += f'\n   - {column2}: R**2 = {round(rsquared_x,2)} with {column}'
+                            else:
+                                descriptors_drop.append(column)
+                                txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
+    
+    # drop descriptors that did not pass the filters
+    csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
+
+    # Check if descriptors are more than one third of datapoints
+    n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
+    if len(csv_df[self.args.y]) > 100 and self.args.auto_test ==True:
+        datapoints = len(csv_df[self.args.y])*0.9
+    else:
+        datapoints = len(csv_df[self.args.y])
+    if n_descps > datapoints / 3:
+        num_descriptors = int(datapoints / 3)
+        # Avoid situations where the number of descriptors is equal to the number of datapoints/3
+        if len(csv_df[self.args.y]) / 3 == num_descriptors:
+            num_descriptors -= 1
+        # Use RFECV with a simple RandomForestRegressor to select the most important descriptors
+        if self.args.type.lower() == 'reg':
+            estimator = RandomForestRegressor(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+        elif self.args.type.lower() == 'clas':
+            estimator = RandomForestClassifier(random_state=0, n_estimators=30, max_depth=10,  n_jobs=None)
+        if self.args.kfold == 'auto':
+            # LOOCV for relatively small datasets (less than 50 datapoints)
+            if len(csv_df[self.args.y]) < 50:
+                n_splits = len(csv_df[self.args.y])
+                cv_type = 'LOOCV'
+            # k-fold CV with the same training/validation proportion used for fitting the model, using 5 splits
+            else:
+                n_splits = 5
+                cv_type = '5-fold CV'
+        else:
+            n_splits = self.args.kfold
+            cv_type = f'{n_splits}-fold CV'
+        txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV with {cv_type}: {num_descriptors} descriptors remaining'
+
+        selector = RFECV(estimator, min_features_to_select=num_descriptors, cv=KFold(n_splits=n_splits, shuffle=True, random_state=0), n_jobs=None)
+        X = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+        y = csv_df_filtered[self.args.y]
+        # Convert column names to strings to avoid any issues
+        X.columns = X.columns.astype(str)
+        selector.fit(X, y)
+        # Sort the descriptors by their importance scores
+        descriptors_importances = list(zip(X.columns, selector.estimator_.feature_importances_))
+        sorted_descriptors = sorted(descriptors_importances, key=lambda x: x[1], reverse=True)
+        selected_descriptors = [descriptor for descriptor, _ in sorted_descriptors[:num_descriptors]]
+        # Find the descriptors to drop
+        descriptors_drop = [descriptor for descriptor in csv_df_filtered.columns if descriptor not in selected_descriptors and descriptor not in self.args.ignore and descriptor != self.args.y]
+        csv_df_filtered = csv_df_filtered.drop(descriptors_drop, axis=1)
+
+    if len(descriptors_drop) == 0:
+        txt_corr += f'\n   -  No descriptors were removed'
+
+    self.args.log.write(txt_corr)
+
+    txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate, correlation filters and RFECV:\n'
+    txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
+    self.args.log.write(txt_csv)
+
+    return csv_df_filtered
 
 
 def check_csv_option(self,csv_option,print_err):
@@ -857,6 +974,54 @@ def load_database(self,csv_load,module):
         csv_X = csv_df_ignore.drop([self.args.y], axis=1)
         csv_y = csv_df_ignore[self.args.y]
         return csv_df,csv_X,csv_y
+
+
+def categorical_transform(self,csv_df,module):
+    ''' converts all columns with strings into categorical values (one hot encoding
+    by default, can be set to numerical 1,2,3... with categorical = True).
+    Troubleshooting! For one-hot encoding, don't use variable names that are
+    also column headers! i.e. DESCRIPTOR "C_atom" contain C2 as a value,
+    but C2 is already a header of a different column in the database. Same applies
+    for multiple columns containing the same variable names.
+    '''
+
+    if module.lower() == 'curate':
+        txt_categor = f'\no  Analyzing categorical variables'
+
+    descriptors_to_drop, categorical_vars, new_categor_desc = [],[],[]
+    for column in csv_df.columns:
+        if column not in self.args.ignore and column != self.args.y:
+            if(csv_df[column].dtype == 'object'):
+                descriptors_to_drop.append(column)
+                categorical_vars.append(column)
+                if self.args.categorical.lower() == 'numbers':
+                    csv_df[column] = csv_df[column].astype('category')
+                    csv_df[column] = csv_df[column].cat.codes
+                else:
+                    _ = csv_df[column].unique() # is this necessary?
+                    categor_descs = pd.get_dummies(csv_df[column])
+                    csv_df = csv_df.drop(column, axis=1)
+                    csv_df = pd.concat([csv_df, categor_descs], axis=1)
+                    for desc in categor_descs:
+                        new_categor_desc.append(desc)
+
+    if module.lower() == 'curate':
+        if len(categorical_vars) == 0:
+            txt_categor += f'\n   - No categorical variables were found'
+        else:
+            if self.args.categorical.lower() == 'numbers':
+                txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option:\n'
+                txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
+            else:
+                txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option'
+                txt_categor += f'\n   Initial descriptors:\n'
+                txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
+                txt_categor += f'\n   Generated descriptors:\n'
+                txt_categor += '\n'.join(f'   - {var}' for var in new_categor_desc)
+
+        self.args.log.write(f'{txt_categor}')
+
+    return csv_df
 
 
 def create_folders(folder_names):
@@ -1146,6 +1311,932 @@ def correct_hidden_layers(params):
     return params
 
 
+def k_means(self,X_scaled,csv_y,size,seed,idx_list):
+    '''
+    Returns the data points that will be used as training set based on the k-means clustering
+    '''
+    
+    # number of clusters in the training set from the k-means clustering (based on the
+    # training set size specified above)
+    X_scaled_array = np.asarray(X_scaled)
+    number_of_clusters = int(len(csv_y)*(size/100))
+
+    # to avoid points from the validation set outside the training set, the 2 first training
+    # points are automatically set as the 2 points with minimum/maximum response value
+    if self.args.type.lower() == 'reg':
+        training_points = [csv_y.idxmin(),csv_y.idxmax()]
+        training_idx = [csv_y.idxmin(),csv_y.idxmax()]
+        number_of_clusters -= 2
+    else:
+        training_points = []
+        training_idx = []
+    
+    # runs the k-means algorithm and keeps the closest point to the center of each cluster
+    kmeans = KMeans(n_clusters=number_of_clusters,random_state=seed)
+    try:
+        kmeans.fit(X_scaled_array)
+    except ValueError:
+        self.args.log.write("\nx  The K-means clustering process failed! This might be due to having NaN or strings as descriptors (curate the data first with CURATE) or having too few datapoints!")
+        sys.exit()
+    centers = kmeans.cluster_centers_
+    for i in range(number_of_clusters):
+        results_cluster = 1000000
+        for k in range(len(X_scaled_array[:, 0])):
+            if k not in training_idx:
+                # calculate the Euclidean distance in n-dimensions
+                points_sum = 0
+                for l in range(len(X_scaled_array[0])):
+                    points_sum += (X_scaled_array[:, l][k]-centers[:, l][i])**2
+                if np.sqrt(points_sum) < results_cluster:
+                    results_cluster = np.sqrt(points_sum)
+                    training_point = k
+        training_idx.append(training_point)
+        training_points.append(idx_list[training_point])
+    
+    training_points.sort()
+
+    return training_points
+
+
+def PFI_filter(self,Xy_data,PFI_dict,seed):
+    '''
+    Performs the PFI calculation and returns a list of the descriptors that are not important
+    '''
+
+    # load and fit model
+    loaded_model = load_model(PFI_dict)
+    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])
+
+    # we use the validation set during PFI as suggested by the sklearn team:
+    # "Using a held-out set makes it possible to highlight which features contribute the most to the 
+    # generalization power of the inspected model. Features that are important on the training set 
+    # but not on the held-out set might cause the model to overfit."
+    score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
+    error_type = PFI_dict['error_type'].lower()
+    
+    if PFI_dict['type'].lower() == 'reg':
+        scoring = {
+            'rmse': 'neg_root_mean_squared_error',
+            'mae': 'neg_median_absolute_error',
+            'r2': 'r2'
+        }.get(error_type)
+    else:
+        scoring = {
+            'mcc': make_scorer(matthews_corrcoef),
+            'f1': 'f1',
+            'acc': 'accuracy'
+        }.get(error_type)
+
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=seed)
+            
+    # transforms the values into a list and sort the PFI values with the descriptor names
+    descp_cols, PFI_values, PFI_sd = [],[],[]
+    for i,desc in enumerate(Xy_data['X_train'].columns):
+        descp_cols.append(desc) # includes lists of descriptors not column names!
+        PFI_values.append(perm_importance.importances_mean[i])
+        PFI_sd.append(perm_importance.importances_std[i])
+  
+    PFI_values, PFI_sd, descp_cols = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, descp_cols), reverse=True)))
+    #Esto hay que hacerlo cuando init_curate =False, sino hay que hacer PFI_discard_cols=descp_cols.
+    # PFI filter
+    PFI_discard_cols = []
+    PFI_thres = abs(self.args.pfi_threshold*score_model)
+    for i in range(len(PFI_values)):
+        if PFI_values[i] < PFI_thres:
+            PFI_discard_cols.append(descp_cols[i])
+
+    return PFI_discard_cols
+
+
+def data_split(self,csv_X,csv_y,size,seed):
+
+    if size == 100:
+        # if there is no validation set, use all the points
+        training_points = np.arange(0,len(csv_X),1)
+    else:
+        if self.args.split.upper() == 'KN':
+            # k-neighbours data split
+            # standardize the data before k-neighbours-based data splitting
+            Xmeans = csv_X.mean(axis=0)
+            Xstds = csv_X.std(axis=0)
+            X_scaled = (csv_X - Xmeans) / Xstds
+
+            # removes NaN missing values after standardization
+            for column in X_scaled.columns:
+                if X_scaled[column].isnull().values.any():
+                    X_scaled = X_scaled.drop(column, axis=1)
+
+            # selects representative training points for each target value in classification problems
+            if self.args.type == 'clas':
+                class_0_idx = list(csv_y[csv_y == 0].index)
+                class_1_idx = list(csv_y[csv_y == 1].index)
+                class_0_size = int(len(class_0_idx)/len(csv_y)*size)
+                class_1_size = size-class_0_size
+
+                train_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_size,seed,class_0_idx)
+                train_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_size,seed,class_1_idx)
+                training_points = train_class_0+train_class_1
+
+            else:
+                idx_list = csv_y.index
+                training_points = k_means(self,X_scaled,csv_y,size,seed,idx_list)
+
+        elif self.args.split.upper() == 'RND':
+            X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
+            training_points = X_train.index.tolist()
+
+        elif self.args.split.upper() == 'STRATIFIED':
+            # Calculate the number of bins based on the validation size
+            stratified_quantiles = max(2, round(len(csv_y) * (1 - (size / 100))))
+            y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+            
+            # Adjust the number of bins until each class has at least 2 members
+            while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
+                stratified_quantiles -= 1
+                y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+            splitter = StratifiedShuffleSplit(n_splits=1, test_size=(100 - size) / 100, random_state=seed)
+            for train_idx, _ in splitter.split(csv_X, y_binned):
+                training_points = train_idx.tolist()
+
+            # Ensure the extremes are in the training set
+            for idx in [csv_y.idxmin(), csv_y.idxmax()]:
+                if idx not in training_points:
+                    training_points.append(idx)
+
+            # Ensure the second smallest and second largest are not in the training set
+            for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
+                if idx in training_points:
+                    training_points.remove(idx)
+
+        elif self.args.split.upper() == 'EVEN':
+            # Number of bins based on validation size
+            stratified_quantiles = max(2, round(len(csv_y) * (1 - (size / 100))))
+            y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+
+            # Adjust bin count if any bin has fewer than two elements
+            while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
+                stratified_quantiles -= 1
+                y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+
+            # Determine central validation points for each bin
+            training_points = []
+            for bin_label in y_binned.unique():
+                bin_indices = y_binned[y_binned == bin_label].index
+                sorted_indices = sorted(bin_indices, key=lambda idx: csv_y[idx])
+                n_excluded = int(round(len(sorted_indices) * (100 - size) / 100))
+                mid = len(sorted_indices) // 2
+                excluded_points = sorted_indices[mid - n_excluded // 2 : mid + (n_excluded + 1) // 2]
+                training_points.extend(idx for idx in sorted_indices if idx not in excluded_points)
+
+            # Ensure extremes are in the training set
+            for idx in [csv_y.idxmin(), csv_y.idxmax()]:
+                if idx not in training_points:
+                    training_points.append(idx)
+
+            # Remove second smallest and second largest from training
+            for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
+                if idx in training_points:
+                    training_points.remove(idx)
+
+    training_points.sort()
+    Xy_data = Xy_split(csv_X,csv_y,training_points)
+
+    return Xy_data
+
+
+def Xy_split(csv_X,csv_y,training_points):
+    '''
+    Returns a dictionary with the database divided into train and validation
+    '''
+
+    Xy_data =  {}
+    Xy_data['X_train'] = csv_X.iloc[training_points]
+    Xy_data['y_train'] = csv_y.iloc[training_points]
+    Xy_data['X_valid'] = csv_X.drop(training_points)
+    Xy_data['y_valid'] = csv_y.drop(training_points)
+    Xy_data['training_points'] = training_points
+
+    return Xy_data
+
+
+def create_heatmap(self,csv_df,suffix,path_raw):
+    """
+    Graph the heatmap
+    """
+
+    importlib.reload(plt) # needed to avoid threading issues
+    csv_df = csv_df.sort_index(ascending=False)
+    sb.set(font_scale=1.2, style='ticks')
+    _, ax = plt.subplots(figsize=(7.45,6))
+    cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
+    # Replace inf values with NaN for proper heatmap visualization
+    csv_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'Combined {self.args.error_type.upper()}'}, mask=csv_df.isnull())
+    fontsize = 14
+    ax.set_xlabel("ML Model",fontsize=fontsize)
+    ax.set_ylabel("Training Size",fontsize=fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+    title_fig = f'Heatmap ML models {suffix}'
+    plt.title(title_fig, y=1.04, fontsize = fontsize, fontweight="bold")
+    sb.despine(top=False, right=False)
+    name_fig = '_'.join(title_fig.split())
+    plt.savefig(f'{path_raw.joinpath(name_fig)}.png', dpi=300, bbox_inches='tight')
+
+    path_reduced = '/'.join(f'{path_raw}'.replace('\\','/').split('/')[-2:])
+    self.args.log.write(f'\no  {name_fig} succesfully created in {path_reduced}')
+
+
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,cv_mapie_graph=False):
+    '''
+    Plot regression graphs of predicted vs actual values for train, validation and test sets
+    '''
+
+    # Create graph
+    importlib.reload(plt) # needed to avoid threading issues
+    sb.set(style="ticks")
+
+    _, ax = plt.subplots(figsize=(7.45,6))
+
+    # Set tick sizes
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # Title and labels of the axis
+    plt.ylabel(f'Predicted {params_dict["y"]}', fontsize=14)
+    plt.xlabel(f'{params_dict["y"]}', fontsize=14)
+    
+    error_bars = "valid"
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        error_bars = "test"
+
+    title_graph = graph_title(self,csv_test,set_types,cv_mapie_graph,error_bars,Xy_data)
+
+    if print_fun:
+        plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    # Plot the data
+    # CV graphs from VERIFY
+    if 'CV' in set_types[0]:
+        _ = ax.scatter(Xy_data["y_cv_valid"], Xy_data["y_pred_cv_valid"],
+                    c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+
+    # other graphs
+    elif not csv_test:
+        if not cv_mapie_graph:
+            _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
+                        c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)   
+                    
+        if not cv_mapie_graph or error_bars == 'valid':
+            _ = ax.scatter(Xy_data["y_valid"], Xy_data["y_pred_valid"],
+                        c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+
+        if error_bars == 'test':
+            _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
+                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
+
+    else:
+        error_bars = "test"
+        _ = ax.scatter(Xy_data["y_csv_test"], Xy_data["y_pred_csv_test"],
+                        c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+
+    # average CV (MAPIE) ± SD graphs 
+    if cv_mapie_graph:
+        if not csv_test:   
+            # Plot the data with the error bars
+            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
+            # Adjust labels from legend
+            set_types=[error_bars,f'± SD']
+
+        else:
+            _ = ax.errorbar(Xy_data[f"y_csv_{error_bars}"], Xy_data[f"y_pred_csv_{error_bars}"], yerr=Xy_data[f"y_pred_csv_{error_bars}_sd"].flatten(), fmt='none', ecolor="gray", capsize=3, zorder=1)
+            set_types=['External test',f'± SD']
+
+    # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+    if 'CV' in set_types[0]: # CV in VERIFY
+        if 'LOOCV' in set_types[0]:
+            legend_coords = (0.835, 0.15) # LOOCV
+        else:
+            if len(set_types[0].split('-')[0]) == 1: # 1- to 9-fold CV
+                legend_coords = (0.82, 0.15)
+            elif len(set_types[0].split('-')[0]) == 2: # => 10-fold CV
+                legend_coords = (0.807, 0.15)
+    elif len(set_types) == 3: # train + valid + test
+        legend_coords = (0.63, 0.15)
+    elif len(set_types) == 2: # train + valid (or sets with ± SD)
+        if 'External test' in set_types:
+            legend_coords = (0.66, 0.15)
+        else:
+            legend_coords = (0.735, 0.15)
+    ax.legend(loc='upper center', bbox_to_anchor=legend_coords,
+            fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
+
+    Xy_data_df = pd.DataFrame()
+    if 'CV' in set_types[0]:
+        line_suff = 'cv_valid'
+    elif not csv_test:
+        line_suff = 'train'
+    else:
+        line_suff = 'csv_test'
+
+    Xy_data_df[f"y_{line_suff}"] = Xy_data[f"y_{line_suff}"]
+    Xy_data_df[f"y_pred_{line_suff}"] = Xy_data[f"y_pred_{line_suff}"]
+    if len(Xy_data_df[f"y_pred_{line_suff}"]) >= 10:
+        _ = sb.regplot(x=f"y_{line_suff}", y=f"y_pred_{line_suff}", data=Xy_data_df, scatter=False, color=".1", 
+                        truncate = True, ax=ax, seed=params_dict['seed'])
+
+    # set axis limits and graph PATH
+    min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_mapie_graph)
+
+    # track the range of predictions (used in ROBERT score)
+    pred_min = min(min(Xy_data["y_train"]),min(Xy_data["y_valid"]))
+    pred_max = max(max(Xy_data["y_train"]),max(Xy_data["y_valid"]))
+    pred_range = np.abs(pred_max-pred_min)
+    Xy_data['pred_min'] = pred_min
+    Xy_data['pred_max'] = pred_max
+    Xy_data['pred_range'] = pred_range
+
+    # Add gridlines
+    ax.grid(linestyle='--', linewidth=1)
+
+    # set axis limits
+    plt.xlim(min_value_graph, max_value_graph)
+    plt.ylim(min_value_graph, max_value_graph)
+
+    # save graph
+    plt.savefig(f'{reg_plot_file}', dpi=300, bbox_inches='tight')
+    if print_fun:
+        self.args.log.write(f"      -  Graph in: {path_reduced}")
+
+
+def graph_title(self,csv_test,set_types,cv_mapie_graph,error_bars,Xy_data):
+    '''
+    Retrieves the corresponding graph title.
+    '''
+
+    # set title for regular graphs
+    if not cv_mapie_graph:
+        # title for k-fold CV graphs
+        if 'CV' in set_types[0]:
+            title_graph = f'{set_types[0]} for train+valid. sets'
+        elif not csv_test:
+            # regular graphs
+            title_graph = f'Predictions_train_valid'
+            if 'test' in set_types:
+                title_graph += '_test'
+        else:
+            title_graph = f'{os.path.basename(self.args.csv_test)}'
+            if len(title_graph) > 30:
+                title_graph = f'{title_graph[:27]}...'
+
+    # set title for averaged CV ± SD graphs
+    else:
+        if not csv_test:
+            sets_title = error_bars
+        else:
+            sets_title = 'external test'
+        if Xy_data['cv_type'] == 'loocv':
+            title_graph = f'{sets_title} set ± SD (LOOCV)'
+        else:
+            kfold = Xy_data['cv_type'].split('_')[-3]
+            title_graph = f'{sets_title} set ± SD ({kfold}-fold CV)'
+
+    return title_graph
+
+
+def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,cv_mapie_graph):
+    '''
+    Set axis limits for regression plots and PATH to save the graphs
+    '''
+
+    # x and y axis limits for graphs with multiple sets
+    if not csv_test and 'CV' not in set_types[0]:
+        size_space = 0.1*abs(min(Xy_data["y_train"])-max(Xy_data["y_train"]))
+        min_value_graph = min(min(Xy_data["y_train"]),min(Xy_data["y_pred_train"]),min(Xy_data["y_valid"]),min(Xy_data["y_pred_valid"]))
+        if 'test' in set_types:
+            min_value_graph = min(min_value_graph,min(Xy_data["y_test"]),min(Xy_data["y_pred_test"]))
+        min_value_graph = min_value_graph-size_space
+            
+        max_value_graph = max(max(Xy_data["y_train"]),max(Xy_data["y_pred_train"]),max(Xy_data["y_valid"]),max(Xy_data["y_pred_valid"]))
+        if 'test' in set_types:
+            max_value_graph = max(max_value_graph,max(Xy_data["y_test"]),max(Xy_data["y_pred_test"]))
+        max_value_graph = max_value_graph+size_space
+
+    else: # limits for graphs with only one set
+        if 'CV' in set_types[0]: # for CV graphs
+            set_type = 'cv_valid'
+        else: # for external test sets
+            set_type = 'csv_test'
+        size_space = 0.1*abs(min(Xy_data[f'y_{set_type}'])-max(Xy_data[f'y_{set_type}']))
+        min_value_graph = min(min(Xy_data[f'y_{set_type}']),min(Xy_data[f'y_pred_{set_type}']))
+        min_value_graph = min_value_graph-size_space
+        max_value_graph = max(max(Xy_data[f'y_{set_type}']),max(Xy_data[f'y_pred_{set_type}']))
+        max_value_graph = max_value_graph+size_space
+
+    # PATH of the graph
+    if not csv_test:
+        if 'CV' in set_types[0]:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_train_valid_predict_{os.path.basename(path_n_suffix)}.png'
+        elif not cv_mapie_graph:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+        else:
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.png'
+        path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
+
+    else:
+        folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
+        if not cv_mapie_graph:
+            reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
+        else:
+            reg_plot_file = f'{folder_graph}/CV_variability_{os.path.basename(path_n_suffix)}.png'
+        path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-3:])
+    
+    return min_value_graph,max_value_graph,reg_plot_file,path_reduced
+
+
+def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,print_fun=True):
+    '''
+    Plot a confusion matrix with the prediction vs actual values
+    '''
+
+    # get confusion matrix
+    importlib.reload(plt) # needed to avoid threading issues
+    if 'CV' in set_type: # CV graphs
+        matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_cv_valid'], Xy_data[f'y_pred_cv_valid'], normalize=None, cmap='Blues') 
+    else: # other graphs
+        matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_{set_type}'], Xy_data[f'y_pred_{set_type}'], normalize=None, cmap='Blues') 
+
+    # transfer it to the same format and size used in reg graphs
+    _, ax = plt.subplots(figsize=(7.45,6))
+    matrix.plot(ax=ax, cmap='Blues')
+
+    if print_fun:
+        if 'CV' not in set_type:
+            title_set = f'{set_type} set'
+        else:
+            title_set = set_type
+        plt.text(0.5, 1.08, f'{title_set} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    plt.xlabel(f'Predicted {params_dict["y"]}', fontsize=14)
+    plt.ylabel(f'{params_dict["y"]}', fontsize=14)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # save fig
+    if 'CV' in set_type: # CV graphs
+        clas_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_train_valid_predict_{os.path.basename(path_n_suffix)}.png'
+        path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-2:])
+
+    elif not csv_test:
+        clas_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
+        path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-2:])
+
+    else:
+        folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
+        clas_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
+        path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-3:])
+
+    plt.savefig(f'{clas_plot_file}', dpi=300, bbox_inches='tight')
+
+    if print_fun:
+        self.args.log.write(f"      -  Graph in: {path_reduced}")
+
+
+def shap_analysis(self,Xy_data,params_dict,path_n_suffix):
+    '''
+    Plots and prints the results of the SHAP analysis
+    '''
+
+    importlib.reload(plt) # needed to avoid threading issues
+    _, _ = plt.subplots(figsize=(7.45,6))
+
+    shap_plot_file = f'{os.path.dirname(path_n_suffix)}/SHAP_{os.path.basename(path_n_suffix)}.png'
+
+    # load and fit the ML model
+    loaded_model = load_model(params_dict)
+    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
+
+    # run the SHAP analysis and save the plot
+    explainer = shap.Explainer(loaded_model.predict, Xy_data['X_valid_scaled'], seed=params_dict['seed'])
+    try:
+        shap_values = explainer(Xy_data['X_valid_scaled'])
+    except ValueError:
+        shap_values = explainer(Xy_data['X_valid_scaled'],max_evals=(2*len(Xy_data['X_valid_scaled'].columns))+1)
+
+    shap_show = [self.args.shap_show,len(Xy_data['X_valid_scaled'].columns)]
+    aspect_shap = 25+((min(shap_show)-2)*5)
+    height_shap = 1.2+min(shap_show)/4
+
+    # explainer = shap.TreeExplainer(loaded_model) # in case the standard version doesn't work
+    _ = shap.summary_plot(shap_values, Xy_data['X_valid_scaled'], max_display=self.args.shap_show,show=False, plot_size=[7.45,height_shap])
+
+    # set title
+    plt.title(f'SHAP analysis of {os.path.basename(path_n_suffix)}', fontsize = 14, fontweight="bold")
+
+    path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
+    print_shap = f"\n   o  SHAP plot saved in {path_reduced}"
+
+    # collect SHAP values and print
+    desc_list, min_list, max_list = [],[],[]
+    for i,desc in enumerate(Xy_data['X_train_scaled']):
+        desc_list.append(desc)
+        val_list_indiv= []
+        for _,val in enumerate(shap_values.values):
+            val_list_indiv.append(val[i])
+        min_indiv = min(val_list_indiv)
+        max_indiv = max(val_list_indiv)
+        min_list.append(min_indiv)
+        max_list.append(max_indiv)
+    
+    if max(max_list, key=abs) > max(min_list, key=abs):
+        max_list, min_list, desc_list = (list(t) for t in zip(*sorted(zip(max_list, min_list, desc_list), reverse=True)))
+    else:
+        min_list, max_list, desc_list = (list(t) for t in zip(*sorted(zip(min_list, max_list, desc_list), reverse=False)))
+
+    for i,desc in enumerate(desc_list):
+        print_shap += f"\n      -  {desc} = min: {min_list[i]:.2}, max: {max_list[i]:.2}"
+
+    self.args.log.write(print_shap)
+
+    # adjust width of the colorbar
+    plt.gcf().axes[-1].set_aspect(aspect_shap)
+    plt.gcf().axes[-1].set_box_aspect(aspect_shap)
+    
+    plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
+
+
+def PFI_plot(self,Xy_data,params_dict,path_n_suffix):
+    '''
+    Plots and prints the results of the PFI analysis
+    '''
+
+    importlib.reload(plt) # needed to avoid threading issues
+    pfi_plot_file = f'{os.path.dirname(path_n_suffix)}/PFI_{os.path.basename(path_n_suffix)}.png'
+
+    # load and fit the ML model
+    loaded_model = load_model(params_dict)
+    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
+
+    score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
+    error_type = params_dict['error_type'].lower()
+    
+    # select scoring function for PFI analysis based on the error type
+    if params_dict['type'].lower() == 'reg':
+        scoring = {
+            'rmse': 'neg_root_mean_squared_error',
+            'mae': 'neg_median_absolute_error',
+            'r2': 'r2'
+        }.get(error_type)
+    else:
+        scoring = {
+            'mcc': make_scorer(matthews_corrcoef),
+            'f1': 'f1',
+            'acc': 'accuracy'
+        }.get(error_type)
+
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=params_dict['seed'])
+
+    # sort descriptors and results from PFI
+    desc_list, PFI_values, PFI_sd = [],[],[]
+    for i,desc in enumerate(Xy_data['X_train_scaled']):
+        desc_list.append(desc)
+        PFI_values.append(perm_importance.importances_mean[i])
+        PFI_sd.append(perm_importance.importances_std[i])
+
+    # sort from higher to lower values and keep only the top self.args.pfi_show descriptors
+    PFI_values, PFI_sd, desc_list = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, desc_list), reverse=True)))
+    PFI_values_plot = PFI_values[:self.args.pfi_show][::-1]
+    desc_list_plot = desc_list[:self.args.pfi_show][::-1]
+
+    # plot and print results
+    _, ax = plt.subplots(figsize=(7.45,6))
+    y_ticks = np.arange(0, len(desc_list_plot))
+    ax.barh(desc_list_plot, PFI_values_plot)
+    ax.set_yticks(y_ticks,labels=desc_list_plot,fontsize=14)
+    plt.text(0.5, 1.08, f'Permutation feature importances (PFIs) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+        fontsize=14, fontweight='bold', transform = ax.transAxes)
+    ax.set(ylabel=None, xlabel='PFI')
+
+    plt.savefig(f'{pfi_plot_file}', dpi=300, bbox_inches='tight')
+
+    path_reduced = '/'.join(f'{pfi_plot_file}'.replace('\\','/').split('/')[-2:])
+    print_PFI = f"\n   o  PFI plot saved in {path_reduced}"
+
+    if params_dict['type'].lower() == 'reg':
+        print_PFI += f'\n      Original score (from model.score, R2) = {score_model:.2}'
+    elif params_dict['type'].lower() == 'clas':
+        print_PFI += f'\n      Original score (from model.score, MCC) = {score_model:.2}'
+
+    for i,desc in enumerate(desc_list):
+        print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} ± {PFI_sd[i]:.2}"
+    
+    self.args.log.write(print_PFI)
+
+
+def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
+    '''
+    Plots and prints the results of the outlier analysis
+    '''
+
+    importlib.reload(plt) # needed to avoid threading issues
+    # detect outliers
+    outliers_data, print_outliers = outlier_filter(self, Xy_data, name_points)
+
+    # plot data in SD units
+    sb.set(style="ticks")
+
+    _, ax = plt.subplots(figsize=(7.45,6))
+    plt.text(0.5, 1.08, f'Outlier analysis of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+    fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    plt.grid(linestyle='--', linewidth=1)
+    _ = ax.scatter(outliers_data['train_scaled'], outliers_data['train_scaled'],
+            c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    _ = ax.scatter(outliers_data['valid_scaled'], outliers_data['valid_scaled'],
+            c = graph_style['color_valid'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    if 'test_scaled' in outliers_data:
+        _ = ax.scatter(outliers_data['test_scaled'], outliers_data['test_scaled'],
+            c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    
+    # Set styling preferences and graph limits
+    plt.xlabel('SD of the errors',fontsize=14)
+    plt.xticks(fontsize=14)
+    plt.ylabel('SD of the errors',fontsize=14)
+    plt.yticks(fontsize=14)
+    
+    axis_limit = max(outliers_data['train_scaled'], key=abs)
+    if max(outliers_data['valid_scaled'], key=abs) > axis_limit:
+        axis_limit = max(outliers_data['valid_scaled'], key=abs)
+    if 'test_scaled' in outliers_data:
+        if max(outliers_data['test_scaled'], key=abs) > axis_limit:
+            axis_limit = max(outliers_data['test_scaled'], key=abs)
+    axis_limit = axis_limit+0.5
+    if axis_limit < 2.5: # this fixes a problem when representing rectangles in graphs with low SDs
+        axis_limit = 2.5
+    plt.ylim(-axis_limit, axis_limit)
+    plt.xlim(-axis_limit, axis_limit)
+
+    # plot rectangles in corners
+    diff_tvalue = axis_limit - self.args.t_value
+    Rectangle_top = mpatches.Rectangle(xy=(axis_limit, axis_limit), width=-diff_tvalue, height=-diff_tvalue, facecolor='grey', alpha=0.3)
+    Rectangle_bottom = mpatches.Rectangle(xy=(-(axis_limit), -(axis_limit)), width=diff_tvalue, height=diff_tvalue, facecolor='grey', alpha=0.3)
+    ax.add_patch(Rectangle_top)
+    ax.add_patch(Rectangle_bottom)
+
+    # save plot and print results
+    outliers_plot_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png'
+    plt.savefig(f'{outliers_plot_file}', dpi=300, bbox_inches='tight')
+    
+    path_reduced = '/'.join(f'{outliers_plot_file}'.replace('\\','/').split('/')[-2:])
+    print_outliers += f"\n   o  Outliers plot saved in {path_reduced}"
+
+    if 'train' not in name_points:
+        print_outliers += f'\n      x  No names option (or var missing in CSV file)! Outlier names will not be shown'
+    else:
+        if 'test_scaled' in outliers_data and 'test' not in name_points:
+            print_outliers += f'\n      x  No names option (or var missing in CSV file in the test file)! Outlier names will not be shown'
+
+    print_outliers = outlier_analysis(print_outliers,outliers_data,'train')
+    print_outliers = outlier_analysis(print_outliers,outliers_data,'valid')
+    if 'test_scaled' in outliers_data:
+        print_outliers = outlier_analysis(print_outliers,outliers_data,'test')
+    
+    self.args.log.write(print_outliers)
+
+
+def outlier_analysis(print_outliers,outliers_data,outliers_set):
+    '''
+    Analyzes the outlier results
+    '''
+    
+    if outliers_set == 'train':
+        label_set = 'Train'
+        outliers_label = 'outliers_train'
+        n_points_label = 'train_scaled'
+        outliers_name = 'names_train'
+    elif outliers_set == 'valid':
+        label_set = 'Validation'
+        outliers_label = 'outliers_valid'
+        n_points_label = 'valid_scaled'
+        outliers_name = 'names_valid'
+    elif outliers_set == 'test':
+        label_set = 'Test'
+        outliers_label = 'outliers_test'
+        n_points_label = 'test_scaled'
+        outliers_name = 'names_test'
+
+    per_cent = (len(outliers_data[outliers_label])/len(outliers_data[n_points_label]))*100
+    print_outliers += f"\n      {label_set}: {len(outliers_data[outliers_label])} outliers out of {len(outliers_data[n_points_label])} datapoints ({per_cent:.1f}%)"
+    for val,name in zip(outliers_data[outliers_label], outliers_data[outliers_name]):
+        print_outliers += f"\n      -  {name} ({val:.2} SDs)"
+    return print_outliers
+
+
+def outlier_filter(self, Xy_data, name_points):
+    '''
+    Calculates and stores absolute errors in SD units for all the sets
+    '''
+    
+    # calculate absolute errors between predicted y and actual values
+    outliers_train = [abs(x-y) for x,y in zip(Xy_data['y_train'],Xy_data['y_pred_train'])]
+    outliers_valid = [abs(x-y) for x,y in zip(Xy_data['y_valid'],Xy_data['y_pred_valid'])]
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        outliers_test = [abs(x-y) for x,y in zip(Xy_data['y_test'],Xy_data['y_pred_test'])]
+
+    # the errors are scaled using standard deviation units. When the absolute
+    # error is larger than the t-value, the point is considered an outlier. All the sets
+    # use the mean and SD of the train set
+    outliers_mean = np.mean(outliers_train)
+    outliers_sd = np.std(outliers_train)
+
+    outliers_data = {}
+    outliers_data['train_scaled'] = (outliers_train-outliers_mean)/outliers_sd
+    outliers_data['valid_scaled'] = (outliers_valid-outliers_mean)/outliers_sd
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        outliers_data['test_scaled'] = (outliers_test-outliers_mean)/outliers_sd
+
+    print_outliers, naming, naming_test = '', False, False
+    if 'train' in name_points:
+        naming = True
+        if 'test' in name_points:
+            naming_test = True
+
+    outliers_data['outliers_train'], outliers_data['names_train'] = detect_outliers(self, outliers_data['train_scaled'], name_points, naming, 'train')
+    outliers_data['outliers_valid'], outliers_data['names_valid'] = detect_outliers(self, outliers_data['valid_scaled'], name_points, naming, 'valid')
+    if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
+        outliers_data['outliers_test'], outliers_data['names_test'] = detect_outliers(self, outliers_data['test_scaled'], name_points, naming_test, 'test')
+    
+    return outliers_data, print_outliers
+
+
+def detect_outliers(self, outliers_scaled, name_points, naming_detect, set_type):
+    '''
+    Detects and store outliers with their corresponding datapoint names
+    '''
+
+    val_outliers = []
+    name_outliers = []
+    if naming_detect:
+        name_points_list = name_points[set_type].to_list()
+    for i,val in enumerate(outliers_scaled):
+        if val > self.args.t_value or val < -self.args.t_value:
+            val_outliers.append(val)
+            if naming_detect:
+                name_outliers.append(name_points_list[i])
+
+    return val_outliers, name_outliers
+
+
+def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
+    '''
+    Plots histogram (reg) or bin plot (clas).
+    '''
+
+    # make graph
+    importlib.reload(plt) # needed to avoid threading issues
+    sb.set(style="ticks")
+
+    _, ax = plt.subplots(figsize=(7.45,6))
+    plt.text(0.5, 1.08, f'y-values distribution (train+valid.) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+    fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    plt.grid(linestyle='--', linewidth=1)
+
+    # combine train and validation sets
+    y_combined = pd.concat([Xy_data['y_train'],Xy_data['y_valid']], axis=0).reset_index(drop=True)
+
+    # plot histogram, quartile lines and the points in each quartile
+    if params_dict['type'].lower() == 'reg':
+        y_dist_dict,ax = plot_quartiles(y_combined,ax)
+    
+    # plot a bar plot with the count of each y type
+    elif params_dict['type'].lower() == 'clas':
+        y_dist_dict,ax = plot_y_count(y_combined,ax)
+
+    # set styling preferences and graph limits
+    plt.xlabel(f'{params_dict["y"]} values',fontsize=14)
+    plt.xticks(fontsize=14)
+    plt.ylabel('Frequency',fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # set limits
+    if params_dict['type'].lower() == 'reg':
+        border_y_range = 0.1*np.abs(max(y_combined)-min(y_combined))
+        plt.xlim(min(y_combined)-border_y_range, max(y_combined)+border_y_range)
+
+    # save plot and print results
+    orig_distrib_file = f'y_distribution_{os.path.basename(path_n_suffix)}.png'
+    plt.savefig(f'{orig_distrib_file}', dpi=300, bbox_inches='tight')
+    # for a VERY weird reason, I need to save the figure in the working directory and then move it into PREDICT
+    final_distrib_file = f'{os.path.dirname(path_n_suffix)}/y_distribution_{os.path.basename(path_n_suffix)}.png'
+    shutil.move(orig_distrib_file, final_distrib_file)
+
+    path_reduced = '/'.join(f'{final_distrib_file}'.replace('\\','/').split('/')[-2:])
+    print_distrib = f"\n   o  y-values distribution plot saved in {path_reduced}"
+
+    # print the quartile results
+    if params_dict['type'].lower() == 'reg':
+        print_distrib += f"\n      Ideally, the number of datapoints in the four quartiles of the y-range should be uniform (25% population in each quartile) to have similar confidence intervals in the predictions across the y-range"
+        quartile_pops = [len(y_dist_dict['q1_points']),len(y_dist_dict['q2_points']),len(y_dist_dict['q3_points']),len(y_dist_dict['q4_points'])]
+        print_distrib += f"\n      -  The number of points in each quartile is Q1: {quartile_pops[0]}, Q2: {quartile_pops[1]}, Q3: {quartile_pops[2]}, Q4: {quartile_pops[3]}"
+        quartile_min_idx = quartile_pops.index(min(quartile_pops))
+        quartile_max_idx = quartile_pops.index(max(quartile_pops))
+        if 4*min(quartile_pops) < max(quartile_pops):
+            print_distrib += f"\n      x  WARNING! Your data is not uniform (Q{quartile_min_idx+1} has {min(quartile_pops)} points while Q{quartile_max_idx+1} has {max(quartile_pops)})"
+        elif 2*min(quartile_pops) < max(quartile_pops):
+            print_distrib += f"\n      x  WARNING! Your data is slightly not uniform (Q{quartile_min_idx+1} has {min(quartile_pops)} points while Q{quartile_max_idx+1} has {max(quartile_pops)})"
+        else:
+            print_distrib += f"\n      o  Your data seems quite uniform"
+
+    elif params_dict['type'].lower() == 'clas':
+        if len(y_dist_dict['count_labels']) > 2:
+            self.args.log.write(f"\n      ADAPT THIS PART for 3+ prediction classes!!")
+            sys.exit()
+        print_distrib += f"\n      Ideally, the number of datapoints in each prediction class should be uniform (50% population per class) to have similar reliability in the predictions across classes"
+        distrib_counts = [y_dist_dict['count_labels'][0],y_dist_dict['count_labels'][1]]
+        print_distrib += f"\n      - The number of points in each class is {y_dist_dict['type_labels'][0]}: {y_dist_dict['count_labels'][0]}, {y_dist_dict['type_labels'][1]}: {y_dist_dict['count_labels'][1]}"
+        class_min_idx = distrib_counts.index(min(distrib_counts))
+        class_max_idx = distrib_counts.index(max(distrib_counts))
+        if 3*min(distrib_counts) < max(distrib_counts):
+            print_distrib += f"\n      x  WARNING! Your data is not uniform (class {y_dist_dict['type_labels'][class_min_idx]} has {min(distrib_counts)} points while class {y_dist_dict['type_labels'][class_max_idx]} has {max(distrib_counts)})"
+        elif 1.5*min(distrib_counts) < max(distrib_counts):
+            print_distrib += f"\n      x  WARNING! Your data is slightly not uniform (class {y_dist_dict['type_labels'][class_min_idx]} has {min(distrib_counts)} points while class {y_dist_dict['type_labels'][class_max_idx]} has {max(distrib_counts)})"
+        else:
+            print_distrib += f"\n      o  Your data seems quite uniform"
+
+    self.args.log.write(print_distrib)
+
+
+def plot_quartiles(y_combined,ax):
+    '''
+    Plot histogram, quartile lines and the points in each quartile.
+    '''
+
+    bins = max([round(len(y_combined)/5),5]) # at least 5 bins until 25 points
+    # histogram
+    y_hist, _, _ = ax.hist(y_combined, bins=bins,
+                color='#1f77b4', edgecolor='k', linewidth=1, alpha=1)
+
+    # uniformity lines to plot
+    separation_range = np.abs(max(y_combined)-min(y_combined))/4
+    quart_dict = {'line_1': min(y_combined),
+                    'line_2': min(y_combined) + separation_range,
+                    'line_3': min(y_combined) + (2*separation_range),
+                    'line_4': min(y_combined) + (3*separation_range),
+                    'line_5': max(y_combined)}
+
+    lines_plot = [quart_dict[line] for line in quart_dict]
+    ax.vlines([lines_plot], ymin=max(y_hist)*1.05, ymax=max(y_hist)*1.3, colors='crimson', linestyles='--')
+
+    # points in each quartile
+    quart_dict['q1_points'] = []
+    quart_dict['q2_points'] = []
+    quart_dict['q3_points'] = []
+    quart_dict['q4_points'] = []
+
+    for val in y_combined:
+        if val < quart_dict['line_2']:
+            quart_dict['q1_points'].append(val)
+        elif quart_dict['line_2'] < val < quart_dict['line_3']:
+            quart_dict['q2_points'].append(val)
+        elif quart_dict['line_3'] < val < quart_dict['line_4']:
+            quart_dict['q3_points'].append(val)
+        elif val >= quart_dict['line_4']:
+            quart_dict['q4_points'].append(val)
+
+    x_quart = 0.185
+    for quart in quart_dict:
+        if 'points' in quart:
+            plt.text(x_quart, 0.845, f'Q{quart[1]}\n{len(quart_dict[quart])} points', horizontalalignment='center',
+                    fontsize=12, transform = ax.transAxes, backgroundcolor='w')
+            x_quart += 0.209
+
+    return quart_dict,ax
+
+
+def plot_y_count(y_combined,ax):
+    '''
+    Plot a bar plot with the count of each y type.
+    '''
+
+    # get the number of times that each y type is included
+    labels_used = set(y_combined)
+    type_labels,count_labels = [],[]
+    for label in labels_used:
+        type_labels.append(label)
+        count_labels.append(len(y_combined[y_combined == label]))
+
+    _ = ax.bar(type_labels, count_labels, tick_label=type_labels,
+                color='#1f77b4', edgecolor='k', linewidth=1, alpha=1,
+                width=0.4)
+
+    y_dist_dict = {'type_labels': type_labels,
+                   'count_labels': count_labels}
+
+    return y_dist_dict,ax
+
+
 def calc_ci_n_sd(self,loaded_model,data,set_mapie):
     """
     Calculate confidence intervals and standard deviations of each datapoint with MAPIE.
@@ -1377,6 +2468,7 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
     Creates Pearson heatmap
     '''
 
+    importlib.reload(plt) # needed to avoid threading issues
     if module.lower() == 'curate': # only represent the final descriptors in CURATE
         csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
 
@@ -1438,8 +2530,7 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
 
         heatmap_path = self.args.destination.joinpath(heatmap_name)
         plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
-        plt.clf()
-        plt.close()
+
         path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
         if module.lower() == 'curate':
             self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
@@ -1448,10 +2539,17 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
 
     return corr_matrix
 
-def cv_test(self,verify_results,Xy_data,params_dict):
+def cv_test(self,verify_results,Xy_data,params_dict,params_path,suffix_title,module):
     '''
     Performs a cross-validation on the training+validation dataset.
     '''      
+
+    if module.lower() == 'verify':
+        # set PATH names and plot
+        base_csv_name = '_'.join(os.path.basename(params_path).replace('.csv','_').split('_')[0:2])
+        base_csv_name = f'VERIFY/{base_csv_name}'
+        base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
+        path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
     # Fit the original model with the training set
     loaded_model = load_model(params_dict)
@@ -1490,16 +2588,142 @@ def cv_test(self,verify_results,Xy_data,params_dict):
             cv_y_list.append(y_cv)
             cv_y_pred_list.append(y_pred_cv)
 
-    # calculate metrics
+    # calculate metrics (and plot graphs for VERIFY)
+    if module.lower() == 'verify':
+        graph_style = get_graph_style()
     Xy_data["y_cv_valid"] = cv_y_list
     Xy_data["y_pred_cv_valid"] = cv_y_pred_list
 
     if params_dict['type'].lower() == 'reg':
         verify_results['cv_r2'], verify_results['cv_mae'], verify_results['cv_rmse'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
+        if module.lower() == 'verify':
+            set_types = [type_cv]
+            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
 
     elif params_dict['type'].lower() == 'clas':
         verify_results['cv_acc'], verify_results['cv_f1'], verify_results['cv_mcc'] = get_prediction_results(params_dict,cv_y_list,cv_y_pred_list)
+        if module.lower() == 'verify':
+            set_type = f'{type_cv} train+valid.'
+            _ = graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix)
 
     verify_results['cv_score'] = verify_results[f'cv_{verify_results["error_type"].lower()}']
 
-    return verify_results,type_cv
+    if module.lower() == 'verify':
+        # save CSV with results
+        Xy_cv_df = pd.DataFrame()
+        Xy_cv_df[f'{params_dict["y"]}'] = Xy_data["y_cv_valid"]
+        Xy_cv_df[f'{params_dict["y"]}_pred'] = Xy_data["y_pred_cv_valid"]
+        csv_test_path = f'{os.path.dirname(path_n_suffix)}/CV_predictions_{os.path.basename(path_n_suffix)}.csv'
+        _ = Xy_cv_df.to_csv(csv_test_path, index = None, header=True)
+
+    else:
+        path_n_suffix,type_cv = None,None
+
+    return verify_results,type_cv,path_n_suffix
+
+
+def plot_metrics(path_n_suffix,verify_metrics,verify_results):
+    '''
+    Creates a plot with the results of the flawed models in VERIFY
+    '''
+
+    importlib.reload(plt) # needed to avoid threading issues
+    sb.reset_defaults()
+    sb.set(style="ticks")
+    _, ax = plt.subplots(figsize=(7.45,6))
+
+    # axis limits
+    max_val = max(verify_metrics['metrics'])
+    min_val = min(verify_metrics['metrics'])
+    range_vals = np.abs(max_val - min_val)
+    if verify_results['error_type'].lower() in ['mae','rmse']:
+        max_lim = 1.2*max_val
+        min_lim = 0
+    else:
+        max_lim = max_val + (0.2*range_vals)
+        min_lim = min_val - (0.1*range_vals)
+    plt.ylim(min_lim, max_lim)
+    plt.ylim(min_lim, max_lim)
+
+    width_bar = 0.55
+    label_count = 0
+    for test_metric,test_name,test_color in zip(verify_metrics['metrics'],verify_metrics['test_names'],verify_metrics['colors']):
+        rects = ax.bar(test_name, round(test_metric,2), label=test_name, 
+                width=width_bar, linewidth=1, edgecolor='k', 
+                color=test_color, zorder=2)
+        # plot whether the tests pass or fail
+        if test_name != 'Model':
+            if test_metric >= 0:
+                offset_txt = test_metric+(0.05*range_vals)
+            else:
+                offset_txt = test_metric-(0.05*range_vals)
+            if test_color == '#1f77b4':
+                txt_bar = 'pass'
+            elif test_color == '#cd5c5c':
+                txt_bar = 'fail'
+            elif test_color == '#c5c57d':
+                txt_bar = 'unclear'
+            ax.text(label_count, offset_txt, txt_bar, color=test_color, 
+                    fontstyle='italic', horizontalalignment='center')
+        label_count += 1
+
+    # Set tick sizes
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # title and labels of the axis
+    plt.ylabel(f'{verify_results["error_type"].upper()}', fontsize=14)
+
+    title_graph = f"VERIFY tests of {os.path.basename(path_n_suffix)}"
+    plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+        fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    # add threshold line and arrow indicating passed test direction
+    arrow_length = np.abs(max_lim-min_lim)/11
+    
+    if verify_results['error_type'].lower() in ['mae','rmse']:
+        thres_line = verify_metrics['higher_thres']
+        unclear_thres_line = verify_metrics['unclear_higher_thres']  
+    else:
+        thres_line = verify_metrics['lower_thres']
+        unclear_thres_line = verify_metrics['unclear_lower_thres']
+        arrow_length = -arrow_length
+
+    width = 2
+    xmin = 0.237
+    thres = ax.axhline(thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
+    thres = ax.axhline(unclear_thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
+
+    x_arrow = 0.5
+    style = mpatches.ArrowStyle('simple', head_length=4.5*width, head_width=3.5*width, tail_width=width)
+    arrow = mpatches.FancyArrowPatch((x_arrow, thres_line), (x_arrow, thres_line+arrow_length), 
+                            arrowstyle=style, color='k')  # (x1,y1), (x2,y2) vector direction                   
+    ax.add_patch(arrow)
+
+    # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
+    ax.arrow(x_arrow, thres_line, 0, 0, width=0, fc='k', ec='k') # x,y,dx,dy format
+
+    # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+    def make_legend_arrow(legend, orig_handle,
+                        xdescent, ydescent,
+                        width, height, fontsize):
+        p = mpatches.FancyArrow(0, 0.5*height, width, 0, width=1.5, length_includes_head=True, head_width=0.58*height )
+        return p
+
+    arrow = plt.arrow(0, 0, 0, 0, label='arrow', width=0, fc='k', ec='k') # arrow for the legend
+    plt.figlegend([thres,arrow], [f'Limits: {round(thres_line,2)} (pass), {round(unclear_thres_line,2)} (unclear)','Pass test'], handler_map={mpatches.FancyArrow : HandlerPatch(patch_func=make_legend_arrow),},
+                    loc="lower center", ncol=2, bbox_to_anchor=(0.5, -0.05),
+                    fancybox=True, shadow=True, fontsize=14)
+
+    # Add gridlines
+    ax.grid(linestyle='--', linewidth=1)
+
+    # save plot
+    verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
+    plt.savefig(verify_plot_file, dpi=300, bbox_inches='tight')
+
+    path_reduced = '/'.join(f'{verify_plot_file}'.replace('\\','/').split('/')[-2:])
+    print_ver = f"\n   o  VERIFY plot saved in {path_reduced}"
+
+    return print_ver
+

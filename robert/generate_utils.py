@@ -8,30 +8,18 @@ import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
-import seaborn as sb
-from matplotlib import pyplot as plt
-import matplotlib.colors as mcolor
 import yaml
 import json
 import glob
 from pkg_resources import resource_filename
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
-from sklearn.cluster import KMeans
-from sklearn.inspection import permutation_importance
-from sklearn.metrics import matthews_corrcoef, make_scorer
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedShuffleSplit
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from robert.utils import (
-    load_model,
     load_n_predict,
     standardize,
-    pd_to_dict)
+    pd_to_dict,
+    data_split,
+    PFI_filter,
+    create_heatmap)
 
 
 # hyperopt workflow
@@ -175,6 +163,7 @@ def hyperopt_params(self, model_type):
                 'epsilon': hp.choice('epsilon', params['epsilon'])}  
 
     elif model_type.upper() == 'MVL':
+        # this is a dummy dict, MVL always uses all the descriptors
         space4rf_hyperopt = {'max_features': hp.choice('max_features', params['max_features'])}
 
     return space4rf_hyperopt
@@ -376,164 +365,6 @@ def prepare_sets(self,csv_X,csv_y,size,seed):
     return Xy_data
 
 
-def data_split(self,csv_X,csv_y,size,seed):
-
-    if size == 100:
-        # if there is no validation set, use all the points
-        training_points = np.arange(0,len(csv_X),1)
-    else:
-        if self.args.split.upper() == 'KN':
-            # k-neighbours data split
-            # standardize the data before k-neighbours-based data splitting
-            Xmeans = csv_X.mean(axis=0)
-            Xstds = csv_X.std(axis=0)
-            X_scaled = (csv_X - Xmeans) / Xstds
-
-            # removes NaN missing values after standardization
-            for column in X_scaled.columns:
-                if X_scaled[column].isnull().values.any():
-                    X_scaled = X_scaled.drop(column, axis=1)
-
-            # selects representative training points for each target value in classification problems
-            if self.args.type == 'clas':
-                class_0_idx = list(csv_y[csv_y == 0].index)
-                class_1_idx = list(csv_y[csv_y == 1].index)
-                class_0_size = int(len(class_0_idx)/len(csv_y)*size)
-                class_1_size = size-class_0_size
-
-                train_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_size,seed,class_0_idx)
-                train_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_size,seed,class_1_idx)
-                training_points = train_class_0+train_class_1
-
-            else:
-                idx_list = csv_y.index
-                training_points = k_means(self,X_scaled,csv_y,size,seed,idx_list)
-
-        elif self.args.split.upper() == 'RND':
-            X_train, _, _, _ = train_test_split(csv_X, csv_y, train_size=size/100, random_state=seed)
-            training_points = X_train.index.tolist()
-
-        elif self.args.split.upper() == 'STRATIFIED':
-            # Calculate the number of bins based on the validation size
-            stratified_quantiles = max(2, round(len(csv_y) * (1 - (size / 100))))
-            y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
-            
-            # Adjust the number of bins until each class has at least 2 members
-            while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
-                stratified_quantiles -= 1
-                y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
-            splitter = StratifiedShuffleSplit(n_splits=1, test_size=(100 - size) / 100, random_state=seed)
-            for train_idx, _ in splitter.split(csv_X, y_binned):
-                training_points = train_idx.tolist()
-
-            # Ensure the extremes are in the training set
-            for idx in [csv_y.idxmin(), csv_y.idxmax()]:
-                if idx not in training_points:
-                    training_points.append(idx)
-
-            # Ensure the second smallest and second largest are not in the training set
-            for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
-                if idx in training_points:
-                    training_points.remove(idx)
-
-        elif self.args.split.upper() == 'EVEN':
-            # Number of bins based on validation size
-            stratified_quantiles = max(2, round(len(csv_y) * (1 - (size / 100))))
-            y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
-
-            # Adjust bin count if any bin has fewer than two elements
-            while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
-                stratified_quantiles -= 1
-                y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
-
-            # Determine central validation points for each bin
-            training_points = []
-            for bin_label in y_binned.unique():
-                bin_indices = y_binned[y_binned == bin_label].index
-                sorted_indices = sorted(bin_indices, key=lambda idx: csv_y[idx])
-                n_excluded = int(round(len(sorted_indices) * (100 - size) / 100))
-                mid = len(sorted_indices) // 2
-                excluded_points = sorted_indices[mid - n_excluded // 2 : mid + (n_excluded + 1) // 2]
-                training_points.extend(idx for idx in sorted_indices if idx not in excluded_points)
-
-            # Ensure extremes are in the training set
-            for idx in [csv_y.idxmin(), csv_y.idxmax()]:
-                if idx not in training_points:
-                    training_points.append(idx)
-
-            # Remove second smallest and second largest from training
-            for idx in [csv_y.nsmallest(2).index[1], csv_y.nlargest(2).index[1]]:
-                if idx in training_points:
-                    training_points.remove(idx)
-
-    training_points.sort()
-    Xy_data = Xy_split(csv_X,csv_y,training_points)
-
-    return Xy_data
-
-
-def Xy_split(csv_X,csv_y,training_points):
-    '''
-    Returns a dictionary with the database divided into train and validation
-    '''
-
-    Xy_data =  {}
-    Xy_data['X_train'] = csv_X.iloc[training_points]
-    Xy_data['y_train'] = csv_y.iloc[training_points]
-    Xy_data['X_valid'] = csv_X.drop(training_points)
-    Xy_data['y_valid'] = csv_y.drop(training_points)
-    Xy_data['training_points'] = training_points
-
-    return Xy_data
-
-
-def k_means(self,X_scaled,csv_y,size,seed,idx_list):
-    '''
-    Returns the data points that will be used as training set based on the k-means clustering
-    '''
-    
-    # number of clusters in the training set from the k-means clustering (based on the
-    # training set size specified above)
-    X_scaled_array = np.asarray(X_scaled)
-    number_of_clusters = int(len(csv_y)*(size/100))
-
-    # to avoid points from the validation set outside the training set, the 2 first training
-    # points are automatically set as the 2 points with minimum/maximum response value
-    if self.args.type.lower() == 'reg':
-        training_points = [csv_y.idxmin(),csv_y.idxmax()]
-        training_idx = [csv_y.idxmin(),csv_y.idxmax()]
-        number_of_clusters -= 2
-    else:
-        training_points = []
-        training_idx = []
-    
-    # runs the k-means algorithm and keeps the closest point to the center of each cluster
-    kmeans = KMeans(n_clusters=number_of_clusters,random_state=seed)
-    try:
-        kmeans.fit(X_scaled_array)
-    except ValueError:
-        self.args.log.write("\nx  The K-means clustering process failed! This might be due to having NaN or strings as descriptors (curate the data first with CURATE) or having too few datapoints!")
-        sys.exit()
-    centers = kmeans.cluster_centers_
-    for i in range(number_of_clusters):
-        results_cluster = 1000000
-        for k in range(len(X_scaled_array[:, 0])):
-            if k not in training_idx:
-                # calculate the Euclidean distance in n-dimensions
-                points_sum = 0
-                for l in range(len(X_scaled_array[0])):
-                    points_sum += (X_scaled_array[:, l][k]-centers[:, l][i])**2
-                if np.sqrt(points_sum) < results_cluster:
-                    results_cluster = np.sqrt(points_sum)
-                    training_point = k
-        training_idx.append(training_point)
-        training_points.append(idx_list[training_point])
-    
-    training_points.sort()
-
-    return training_points
-
-
 def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #variable init_curate =False
     '''
     Filters off parameters with low PFI (not relevant in the model)
@@ -611,56 +442,6 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #var
         if os.path.exists(self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI.csv")):
             db_name = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI_db")
             _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
-
-
-def PFI_filter(self,Xy_data,PFI_dict,seed):
-    '''
-    Performs the PFI calculation and returns a list of the descriptors that are not important
-    '''
-
-    # load and fit model
-    loaded_model = load_model(PFI_dict)
-    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])
-
-    # we use the validation set during PFI as suggested by the sklearn team:
-    # "Using a held-out set makes it possible to highlight which features contribute the most to the 
-    # generalization power of the inspected model. Features that are important on the training set 
-    # but not on the held-out set might cause the model to overfit."
-    score_model = loaded_model.score(Xy_data['X_valid_scaled'], Xy_data['y_valid'])
-    error_type = PFI_dict['error_type'].lower()
-    
-    if PFI_dict['type'].lower() == 'reg':
-        scoring = {
-            'rmse': 'neg_root_mean_squared_error',
-            'mae': 'neg_median_absolute_error',
-            'r2': 'r2'
-        }.get(error_type)
-    else:
-        scoring = {
-            'mcc': make_scorer(matthews_corrcoef),
-            'f1': 'f1',
-            'acc': 'accuracy'
-        }.get(error_type)
-
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_valid_scaled'], Xy_data['y_valid'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=seed)
-            
-    # transforms the values into a list and sort the PFI values with the descriptor names
-    descp_cols, PFI_values, PFI_sd = [],[],[]
-    for i,desc in enumerate(Xy_data['X_train'].columns):
-        descp_cols.append(desc) # includes lists of descriptors not column names!
-        PFI_values.append(perm_importance.importances_mean[i])
-        PFI_sd.append(perm_importance.importances_std[i])
-  
-    PFI_values, PFI_sd, descp_cols = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, descp_cols), reverse=True)))
-    #Esto hay que hacerlo cuando init_curate =False, sino hay que hacer PFI_discard_cols=descp_cols.
-    # PFI filter
-    PFI_discard_cols = []
-    PFI_thres = abs(self.args.pfi_threshold*score_model)
-    for i in range(len(PFI_values)):
-        if PFI_values[i] < PFI_thres:
-            PFI_discard_cols.append(descp_cols[i])
-
-    return PFI_discard_cols
 
 
 def filter_seed(self, name_csv):
@@ -806,29 +587,3 @@ def heatmap_workflow(self,folder_hm):
         suffix = 'PFI'
     _ = create_heatmap(self,csv_df,suffix,path_raw)
 
-
-def create_heatmap(self,csv_df,suffix,path_raw):
-    """
-    Graph the heatmap
-    """
-    
-    csv_df = csv_df.sort_index(ascending=False)
-    sb.set(font_scale=1.2, style='ticks')
-    _, ax = plt.subplots(figsize=(7.45,6))
-    cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    # Replace inf values with NaN for proper heatmap visualization
-    csv_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'Combined {self.args.error_type.upper()}'}, mask=csv_df.isnull())
-    fontsize = 14
-    ax.set_xlabel("ML Model",fontsize=fontsize)
-    ax.set_ylabel("Training Size",fontsize=fontsize)
-    ax.tick_params(axis='both', which='major', labelsize=fontsize)
-    title_fig = f'Heatmap ML models {suffix}'
-    plt.title(title_fig, y=1.04, fontsize = fontsize, fontweight="bold")
-    sb.despine(top=False, right=False)
-    name_fig = '_'.join(title_fig.split())
-    plt.savefig(f'{path_raw.joinpath(name_fig)}.png', dpi=300, bbox_inches='tight')
-    plt.clf()
-    plt.close()
-    path_reduced = '/'.join(f'{path_raw}'.replace('\\','/').split('/')[-2:])
-    self.args.log.write(f'\no  {name_fig} succesfully created in {path_reduced}')

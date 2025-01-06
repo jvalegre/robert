@@ -41,11 +41,7 @@ from robert.predict_utils import (plot_predictions,
     load_test,
     save_predictions,
     print_predict,
-    shap_analysis,
-    PFI_plot,
-    outlier_plot,
     print_cv_var,
-    distribution_plot,
     pearson_map_predict
     )
 from robert.utils import (load_variables,
@@ -53,7 +49,11 @@ from robert.utils import (load_variables,
     pd_to_dict,
     load_n_predict,
     finish_print,
-    print_pfi
+    print_pfi,
+    PFI_plot,
+    shap_analysis,
+    outlier_plot,
+    distribution_plot,
 )
 
 class predict:

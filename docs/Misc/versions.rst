@@ -4,6 +4,11 @@
 Versions
 ========
 
+Version 1.3.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.1>`__]
+   -  Fixing a bug with the sklearn-intelex accelerator
+   -  Fixing a threading bug with matplotlib in SHAP
+   -  Sorting the training points when using all the split methods to match GENERATE models with PREDICT/VERIFY
+
 Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
    -  Fixing a bug in the KNN imputer (it was incorrectly placing values in the target variable)
    -  Adding a new way of splitting data (stratified) to ensure that the validation points are taken throughout the range of the target values

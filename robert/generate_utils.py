@@ -117,18 +117,11 @@ def hyperopt_params(self, model_type):
                 'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha'])}
 
     elif model_type.upper() == 'NN':
-        space4rf_hyperopt = {'batch_size': hp.choice('batch_size', params['batch_size']),
-                'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
-                'learning_rate_init': hp.choice('learning_rate_init', params['learning_rate_init']),
-                'max_iter': hp.choice('max_iter', params['max_iter']),
-                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction']),
-                'alpha': hp.choice('alpha', params['alpha']),
-                'shuffle': hp.choice('shuffle', params['shuffle']),
-                'tol': hp.choice('tol', params['tol']),
-                'early_stopping': hp.choice('early_stopping', params['early_stopping']),
-                'beta_1': hp.choice('beta_1', params['beta_1']),
-                'beta_2': hp.choice('beta_2', params['beta_2']),
-                'epsilon': hp.choice('epsilon', params['epsilon'])}
+        space4rf_hyperopt = {
+            'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
+            'max_iter': hp.choice('max_iter', params['max_iter']),
+            'alpha': hp.choice('alpha', params['alpha']),
+            'tol': hp.choice('tol', params['tol'])}
 
     elif model_type.upper() == 'ADAB':
         space4rf_hyperopt = {'n_estimators': hp.choice('n_estimators', params['n_estimators']),
@@ -245,19 +238,18 @@ def f(params):
             if hyperopt_data['model'].upper() == 'GB':
                 csv_hyperopt['validation_fraction'] = params['validation_fraction']
 
-        if hyperopt_data['model'].upper() in ['NN','VR']:
-                csv_hyperopt['batch_size'] = params['batch_size']
+        if hyperopt_data['model'].upper() in ['NN']:
                 csv_hyperopt['hidden_layer_sizes'] = params['hidden_layer_sizes']
-                csv_hyperopt['learning_rate_init'] = params['learning_rate_init']
                 csv_hyperopt['max_iter'] = params['max_iter']
-                csv_hyperopt['validation_fraction'] = params['validation_fraction']
                 csv_hyperopt['alpha'] = params['alpha']
-                csv_hyperopt['shuffle'] = params['shuffle']
                 csv_hyperopt['tol'] = params['tol']
-                csv_hyperopt['early_stopping'] = params['early_stopping']
-                csv_hyperopt['beta_1'] = params['beta_1']
-                csv_hyperopt['beta_2'] = params['beta_2']
-                csv_hyperopt['epsilon'] = params['epsilon']
+
+        elif hyperopt_data['model'].upper() in ['VR']:
+                csv_hyperopt['validation_fraction'] = params['validation_fraction']
+                csv_hyperopt['hidden_layer_sizes'] = params['hidden_layer_sizes']
+                csv_hyperopt['max_iter'] = params['max_iter']
+                csv_hyperopt['alpha'] = params['alpha']
+                csv_hyperopt['tol'] = params['tol']
     
         elif hyperopt_data['model'].upper() == 'ADAB':
                 csv_hyperopt['n_estimators'] = params['n_estimators']

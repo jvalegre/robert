@@ -1036,18 +1036,21 @@ def finish_print(self,start_time,module):
     self.args.log.write(f"\nTime {module.upper()}: {elapsed_time} seconds\n")
     self.args.log.finalize()
 
-
-def standardize(self,X_train,X_valid):
-    
-    # standardizes the data sets using the mean and standard dev from the train set
-    try: # this fails if there are strings as values
-        Xmean = X_train.mean(axis=0)
-        Xstd = X_train.std(axis=0)
-        X_train_scaled = (X_train - Xmean) / Xstd
-        X_valid_scaled = (X_valid - Xmean) / Xstd
-    except TypeError:
-        self.args.log.write(f'   x The standardization process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
-        sys.exit()
+def standardize(self, X_train, X_valid):
+    if self.args.std:
+        # standardizes the data sets using the mean and standard dev from the train set
+        try: # this fails if there are strings as values
+            Xmean = X_train.mean(axis=0)
+            Xstd = X_train.std(axis=0)
+            X_train_scaled = (X_train - Xmean) / Xstd
+            X_valid_scaled = (X_valid - Xmean) / Xstd
+        except TypeError:
+            self.args.log.write(f'   x The standardization process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
+            sys.exit()
+    else:
+        # if standardization is disabled, return the data as is
+        X_train_scaled = X_train
+        X_valid_scaled = X_valid
 
     return X_train_scaled, X_valid_scaled
 
@@ -1103,20 +1106,12 @@ def load_model_reg(params):
         # correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
         params = correct_hidden_layers(params)
 
-        loaded_model = MLPRegressor(batch_size=params['batch_size'],
-                                solver='lbfgs',
-                                hidden_layer_sizes=params['hidden_layer_sizes'],
-                                learning_rate_init=params['learning_rate_init'],
-                                max_iter=params['max_iter'],
-                                validation_fraction=params['validation_fraction'],
-                                alpha=params['alpha'],
-                                shuffle=params['shuffle'],
-                                tol=params['tol'],
-                                early_stopping=params['early_stopping'],
-                                beta_1=params['beta_1'],
-                                beta_2=params['beta_2'],
-                                epsilon=params['epsilon'],
-                                random_state=params['seed'])  
+        loaded_model = MLPRegressor(hidden_layer_sizes=params['hidden_layer_sizes'],
+                                    solver='lbfgs',
+                                    max_iter=params['max_iter'],
+                                    alpha=params['alpha'],
+                                    tol=params['tol'],
+                                    random_state=params['seed'])
 
         if params['model'].upper() == 'VR':
             r3 = loaded_model      
@@ -1183,20 +1178,13 @@ def load_model_clas(params):
         # correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
         params = correct_hidden_layers(params)
 
-        loaded_model = MLPClassifier(batch_size=params['batch_size'],
-                                solver='lbfgs',
-                                hidden_layer_sizes=params['hidden_layer_sizes'],
-                                learning_rate_init=params['learning_rate_init'],
-                                max_iter=params['max_iter'],
-                                validation_fraction=params['validation_fraction'],
-                                alpha=params['alpha'],
-                                shuffle=params['shuffle'],
-                                tol=params['tol'],
-                                early_stopping=params['early_stopping'],
-                                beta_1=params['beta_1'],
-                                beta_2=params['beta_2'],
-                                epsilon=params['epsilon'],
-                                random_state=params['seed'])
+        loaded_model = MLPClassifier(hidden_layer_sizes=params['hidden_layer_sizes'],
+                                    solver='lbfgs',
+                                    max_iter=params['max_iter'],
+                                    alpha=params['alpha'],
+                                    tol=params['tol'],
+                                    random_state=params['seed'])
+
 
         if params['model'].upper() == 'VR':
             r3 = loaded_model

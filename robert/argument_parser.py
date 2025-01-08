@@ -28,6 +28,7 @@ var_dict = {
     "ignore" : [],
     "categorical" : "onehot",
     "corr_filter" : True,
+    "std" : True,
     "desc_thres" : 25,
     "thres_y" : 0.001,
     "thres_x" : 0.7,

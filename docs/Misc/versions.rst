@@ -5,6 +5,9 @@ Versions
 ========
 
 Version 1.3.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.1>`__]
+   -  Fixed a bug in one-hot encoding in the one-hot test
+   -  Adding the possibility to disable the automatic standarization of descriptors (--std False)
+   -  Changing CV_test (now it standardizes the descriptors in each fold)
    -  Fixing a bug with the sklearn-intelex accelerator
    -  Fixing a threading bug with matplotlib in SHAP
    -  Sorting the training points when using all the split methods to match GENERATE models with PREDICT/VERIFY

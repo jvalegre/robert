@@ -162,7 +162,7 @@ class verify:
         for desc in Xy_onehot['X_train']:
             new_vals = []
             for val in Xy_onehot['X_train'][desc]:
-                if int(val) == 0:
+                if val == 0:
                     new_vals.append(0)
                 else:
                     new_vals.append(1)
@@ -171,7 +171,7 @@ class verify:
         for desc in Xy_onehot['X_valid']:
             new_vals = []
             for val in Xy_onehot['X_valid'][desc]:
-                if int(val) == 0:
+                if val == 0:
                     new_vals.append(0)
                 else:
                     new_vals.append(1)
@@ -179,7 +179,6 @@ class verify:
 
         Xy_onehot,_ = load_n_predict(self, params_dict, Xy_onehot)  
         verify_results['onehot'] = Xy_onehot[f'{verify_results["error_type"]}_valid']
-
         return verify_results
 
 

@@ -3,387 +3,91 @@
 #####################################################.
 
 import os
-import sys
 import shutil
-from pathlib import Path
 import pandas as pd
 import numpy as np
-import yaml
-import json
 import glob
-from pkg_resources import resource_filename
-from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 from robert.utils import (
-    load_n_predict,
-    standardize,
-    pd_to_dict,
-    data_split,
+    load_params,
     PFI_filter,
-    create_heatmap)
+    create_heatmap,
+    BO_optimizer,
+    adjust_repeat_kfolds,
+    BO_metrics,
+    model_adjust_params
+    )
 
 
 # hyperopt workflow
-def hyperopt_workflow(self, csv_df, ML_model, size, Xy_data_hp, seed, csv_df_test):
+def BO_workflow(self, Xy_data, csv_df, ML_model):
+    '''
+    Load hyperparameter space and perform a Bayesian optimization
+    '''
 
-    # edit this function to modify the hyperopt parameter optimization (i.e. the 
-    # lists represent values to include in the grid search)
-    space4rf = hyperopt_params(self, ML_model)
+    repeat_kfolds = adjust_repeat_kfolds(self,len(csv_df[self.args.y]))
 
-    # Run hyperopt
-    trials = Trials()
-
-    # This best high initial number is a dummy value used as the start of the optimization
-    # (otherwise it does not run more than once since best becomes a dictionary)
-    best = float('inf')
-
-    hyperopt_data = {'best': best, 'model': ML_model.upper(),
+    bo_data = {'model': ML_model.upper(),
                 'type': self.args.type.lower(),
-                'split': self.args.split.upper(),
-                'train': size, 
-                'seed': seed,
+                'kfold': self.args.kfold,
+                'repeat_kfolds': repeat_kfolds,
+                'seed': self.args.seed,
                 'error_type': self.args.error_type.lower(),
                 'y': self.args.y,
                 'names': self.args.names,
-                'X_descriptors': Xy_data_hp['X_descriptors'],
-                'destination': self.args.destination.as_posix()}
+                'X_descriptors': Xy_data['X_descriptors']}
 
-    # adjust the format for the sklearn models and add the data to the dict
-    for desc in ['X_train_scaled','y_train','X_valid_scaled','y_valid']:
-        Xy_data_hp[desc] = np.asarray(Xy_data_hp[desc]).tolist()
-        hyperopt_data[desc] = Xy_data_hp[desc]
+    if ML_model.upper() != 'MVL':
+        bo_data['params'], bo_data[f"combined_{bo_data['error_type']}"] = BO_optimizer(self,bo_data,Xy_data)
+        bo_data['params'] = model_adjust_params(self, bo_data['model'], bo_data['params'])
 
-    # save the initial json
-    with open('hyperopt.json', 'w') as outfile:
-        json.dump(hyperopt_data, outfile)
-
-    if ML_model.upper() == 'MVL':
-        max_evals = 1 # use all the parameters, it is not possible to adjust parameters for MVL
     else:
-        max_evals = self.args.epochs
-    try:
-        # this part allows users to modify exploitation/exploration, replaces the fmin() function below
-        # from hyperopt import partial, mix, anneal, rand
-        # best = fmin(f, space4rf, algo=partial(mix.suggest,
-        #         p_suggest=[
-        #         (.1, rand.suggest),
-        #         (.1, anneal.suggest),
-        #         (.8, tpe.suggest),]),
-        #         max_evals=max_evals, trials=trials, rstate=np.random.default_rng(hyperopt_data['seed']))
-        best = fmin(f, space4rf, algo=tpe.suggest, max_evals=max_evals, trials=trials, rstate=np.random.default_rng(hyperopt_data['seed']))
-        if os.path.exists('hyperopt.json'):
-            os.remove('hyperopt.json')
-    except (ValueError, MemoryError):
-        self.args.log.write('\nx  There is an error in the hyperopt module, 1) are you using type ="clas" for regression y values instead of type="reg"? or 2) are you using very small partition sizes for validation sets (fix with train="[60,70]" for example)? or 3) bad allocation memory issue')
+        bo_data['params'] = {} # no need to format params
+        bo_data = BO_metrics(self, bo_data, Xy_data)
+        metric_combined = bo_data[f"combined_{bo_data['error_type']}"]
+        self.args.log.write(f"   o Combined {bo_data['error_type'].upper()} for {bo_data['model']} (no BO needed) (no PFI filter): {metric_combined:.2}")
 
-    if os.path.exists('hyperopt.json'):
-        os.remove('hyperopt.json')
+    # include the Set column to differentiate between train and test sets (and external test, if any)
+    csv_df = set_sets(csv_df,Xy_data)
 
-    # create column for sets and add test set (if any)
-    csv_df = set_sets(csv_df,csv_df_test,Xy_data_hp)
+    # save csv files with model params and with Xy datapoints
+    db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_db")
+    params_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model.upper()}")
+    _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
+    bo_data_df = pd.DataFrame([bo_data])
+    _ = bo_data_df.to_csv(f'{params_name}.csv', index = None, header=True)
 
-    # save the csv file
-    if os.path.exists(self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}_{seed}.csv")):
-        db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}_{seed}_db")
-        _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
+    return bo_data
 
 
-# generates initial parameters for the hyperopt optimization
-def hyperopt_params(self, model_type):
-    # load the parameters of the models from their corresponding yaml files
-    params = load_params(self,model_type)
-
-    if model_type.upper() == 'RF':
-        space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
-                'max_features': hp.choice('max_features', params['max_features']),
-                'n_estimators': hp.choice('n_estimators', params['n_estimators']),
-                'min_samples_split': hp.choice('min_samples_split', params['min_samples_split']),
-                'min_samples_leaf': hp.choice('min_samples_leaf', params['min_samples_leaf']),
-                'min_weight_fraction_leaf': hp.choice('min_weight_fraction_leaf', params['min_weight_fraction_leaf']),
-                'oob_score': hp.choice('oob_score', params['oob_score']),
-                'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha']),
-                'max_samples': hp.choice('max_samples', params['max_samples']),
-                }  
-
-    elif model_type.upper() == 'GB':
-        space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
-                'max_features': hp.choice('max_features', params['max_features']),
-                'n_estimators': hp.choice('n_estimators', params['n_estimators']),
-                'learning_rate': hp.choice('learning_rate', params['learning_rate']),
-                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction']),
-                'subsample': hp.choice('subsample', params['subsample']),
-                'min_samples_split': hp.choice('min_samples_split', params['min_samples_split']),
-                'min_samples_leaf': hp.choice('min_samples_leaf', params['min_samples_leaf']),
-                'min_weight_fraction_leaf': hp.choice('min_weight_fraction_leaf', params['min_weight_fraction_leaf']),
-                'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha'])}
-
-    elif model_type.upper() == 'NN':
-        space4rf_hyperopt = {
-            'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
-            'max_iter': hp.choice('max_iter', params['max_iter']),
-            'alpha': hp.choice('alpha', params['alpha']),
-            'tol': hp.choice('tol', params['tol'])}
-
-    elif model_type.upper() == 'ADAB':
-        space4rf_hyperopt = {'n_estimators': hp.choice('n_estimators', params['n_estimators']),
-            'learning_rate': hp.choice('learning_rate', params['learning_rate'])}  
-
-    elif model_type.upper() == 'GP':
-        space4rf_hyperopt = {'n_restarts_optimizer': hp.choice('n_restarts_optimizer', params['n_restarts_optimizer'])}  
-
-    elif model_type.upper() == 'VR':
-        space4rf_hyperopt = {'max_depth': hp.choice('max_depth', params['max_depth']),
-                'max_features': hp.choice('max_features', params['max_features']),
-                'n_estimators': hp.choice('n_estimators', params['n_estimators']),
-                'min_samples_split': hp.choice('min_samples_split', params['min_samples_split']),
-                'min_samples_leaf': hp.choice('min_samples_leaf', params['min_samples_leaf']),
-                'min_weight_fraction_leaf': hp.choice('min_weight_fraction_leaf', params['min_weight_fraction_leaf']),
-                'oob_score': hp.choice('oob_score', params['oob_score']),
-                'ccp_alpha': hp.choice('ccp_alpha', params['ccp_alpha']),
-                'subsample': hp.choice('subsample', params['subsample']),
-                'max_samples': hp.choice('max_samples', params['max_samples']),
-                'learning_rate': hp.choice('learning_rate', params['learning_rate']),
-                'validation_fraction': hp.choice('validation_fraction', params['validation_fraction']),
-                'batch_size': hp.choice('batch_size', params['batch_size']),
-                'hidden_layer_sizes': hp.choice('hidden_layer_sizes', params['hidden_layer_sizes']),
-                'learning_rate_init': hp.choice('learning_rate_init', params['learning_rate_init']),
-                'max_iter': hp.choice('max_iter', params['max_iter']),
-                'alpha': hp.choice('alpha', params['alpha']),
-                'shuffle': hp.choice('shuffle', params['shuffle']),
-                'tol': hp.choice('tol', params['tol']),
-                'early_stopping': hp.choice('early_stopping', params['early_stopping']),
-                'beta_1': hp.choice('beta_1', params['beta_1']),
-                'beta_2': hp.choice('beta_2', params['beta_2']),
-                'epsilon': hp.choice('epsilon', params['epsilon'])}  
-
-    elif model_type.upper() == 'MVL':
-        # this is a dummy dict, MVL always uses all the descriptors
-        space4rf_hyperopt = {'max_features': hp.choice('max_features', params['max_features'])}
-
-    return space4rf_hyperopt
-
-
-# f function of hyperopt. The params variables is the space4rf used in fmin()
-def f(params):
-
-    # this json file is used to: 1) keep track of the best value, 2) store the X and y values,
-    # 3) store other general options (i.e. type, error_type, etc.) during the hyperopt process
-    with open('hyperopt.json') as json_file:
-        hyperopt_data = json.load(json_file)
-    best = hyperopt_data['best']
-
-    # complete the lsit of missing parameters
-    params['type'] = hyperopt_data['type']
-    params['model'] = hyperopt_data['model']
-    params['train'] = hyperopt_data['train']
-    params['seed'] = hyperopt_data['seed']
-    params['error_type'] = hyperopt_data['error_type']
-
-    try:
-        opt_target,data = load_n_predict(None, params, hyperopt_data, hyperopt=True)
-        # this avoids weird models with R2 very close to 1 and 0, which are selected sometimes
-        # because the errors of the validation sets are low
-        if params['type'].lower() == 'reg':
-            opt_target = avoid_overfit(data,opt_target)
-
-        # since the hyperoptimizer aims to minimize the target values, the code needs to use negative
-        # values for R2, accuracy, F1 score and MCC (these values are inverted again before storing them)
-        if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
-            opt_target = -opt_target
-    except RuntimeError:
-        opt_target = float('inf')
-
-    if opt_target < best:
-        # The "best" optimizing value is updated in an external JSON file after each hyperopt cycle
-        # (using opt_target), and the parameters of the best model found are kept in a CSV file
-        os.remove('hyperopt.json')
-        hyperopt_data['best'] = opt_target
-        with open('hyperopt.json', 'w') as outfile:
-            json.dump(hyperopt_data, outfile)
-
-        best = opt_target
-
-        # returns values to normal if inverted during hyperoptimization
-        if params['error_type'].lower() in ['r2', 'mcc', 'f1', 'acc']:
-            opt_target = -opt_target
-
-        # create csv_hyperopt dataframe
-        csv_hyperopt = {'train': hyperopt_data["train"],
-                        'split': hyperopt_data['split'],
-                        'model': hyperopt_data['model'],
-                        'type': hyperopt_data['type'],
-                        'seed': hyperopt_data['seed'],
-                        'y': hyperopt_data['y'],
-                        'names': hyperopt_data['names'],
-                        'error_type': hyperopt_data['error_type'],
-                        'X_descriptors': hyperopt_data['X_descriptors'],
-                        'error_train': data[f'{hyperopt_data["error_type"]}_train']}
-
-        if hyperopt_data['model'].upper() in ['RF','GB','VR']:
-            csv_hyperopt['n_estimators'] = params['n_estimators']
-            csv_hyperopt['max_depth'] = params['max_depth']
-            csv_hyperopt['max_features'] = params['max_features']
-            csv_hyperopt['min_samples_split'] = params['min_samples_split']
-            csv_hyperopt['min_samples_leaf'] = params['min_samples_leaf']
-            csv_hyperopt['min_weight_fraction_leaf'] = params['min_weight_fraction_leaf']
-            csv_hyperopt['ccp_alpha'] = params['ccp_alpha']
-
-            if hyperopt_data['model'].upper() in ['RF','VR']:
-                csv_hyperopt['oob_score'] = params['oob_score']
-                csv_hyperopt['max_samples'] = params['max_samples']
-
-            if hyperopt_data['model'].upper() in ['GB','VR']:
-                csv_hyperopt['learning_rate'] = params['learning_rate']
-                csv_hyperopt['subsample'] = params['subsample']
-
-            if hyperopt_data['model'].upper() == 'GB':
-                csv_hyperopt['validation_fraction'] = params['validation_fraction']
-
-        if hyperopt_data['model'].upper() in ['NN']:
-                csv_hyperopt['hidden_layer_sizes'] = params['hidden_layer_sizes']
-                csv_hyperopt['max_iter'] = params['max_iter']
-                csv_hyperopt['alpha'] = params['alpha']
-                csv_hyperopt['tol'] = params['tol']
-
-        elif hyperopt_data['model'].upper() in ['VR']:
-                csv_hyperopt['validation_fraction'] = params['validation_fraction']
-                csv_hyperopt['hidden_layer_sizes'] = params['hidden_layer_sizes']
-                csv_hyperopt['max_iter'] = params['max_iter']
-                csv_hyperopt['alpha'] = params['alpha']
-                csv_hyperopt['tol'] = params['tol']
-    
-        elif hyperopt_data['model'].upper() == 'ADAB':
-                csv_hyperopt['n_estimators'] = params['n_estimators']
-                csv_hyperopt['learning_rate'] = params['learning_rate']
-
-        elif hyperopt_data['model'].upper() == 'GP':
-                csv_hyperopt['n_restarts_optimizer'] = params['n_restarts_optimizer']
-
-        csv_hyperopt[hyperopt_data['error_type']] = opt_target
-
-        # save into a csv file
-        csv_hyperopt_df = pd.DataFrame.from_dict(csv_hyperopt, orient='index')
-        csv_hyperopt_df = csv_hyperopt_df.transpose()
-        
-        destination = Path(hyperopt_data['destination'])
-        name_csv_hyperopt = destination.joinpath(f"Raw_data/No_PFI/{hyperopt_data['model']}_{hyperopt_data['train']}_{hyperopt_data['seed']}.csv")
-        _ = csv_hyperopt_df.to_csv(name_csv_hyperopt, index = None, header=True)
- 
-    return {'loss': best, 'status': STATUS_OK}
-
-
-def avoid_overfit(data,opt_target):
+def PFI_workflow(self, csv_df, ML_model, Xy_data):
     '''
-    Removes models with clear overfitting
+    Filter off parameters with low PFI (not relevant in the model)
     '''
 
-    if data[f'rmse_valid'] > 2 * data[f'rmse_train']:
-        opt_target = float('inf')
-    elif data['r2_valid'] - data['r2_train'] > 0.2:
-        opt_target = float('inf')
-    elif data['r2_train'] < 0.4 or data['r2_valid'] < 0.2:
-        opt_target = float('inf')
-
-    return opt_target
-
-
-def load_params(self,model_type):
-    """
-    Loads the parameters for the calculation from a yaml if specified. Otherwise
-    does nothing.
-    """
-
-    # the model params are downloaded with ROBERT
-    if self.args.custom_params is None:
-        models_path = Path(resource_filename("robert", "model_params"))
-    else:
-        models_path = self.initial_dir.joinpath(self.args.custom_params)
-    varfile = models_path.joinpath(f'{model_type.upper()}_params.yaml')
-
-    # Variables will be updated from YAML file
-    with open(varfile, "r") as file:
-        try:
-            params = yaml.load(file, Loader=yaml.SafeLoader)
-        except (yaml.scanner.ScannerError,yaml.parser.ParserError):
-            self.args.log.write(f'\nx  Error while reading {varfile}. Edit the yaml file and try again (i.e. use ":" instead of "=" to specify variables)')
-            sys.exit()
-
-    for param in params:
-        if params[param] == 'True':
-            params[param] = True
-        elif params[param] == 'False':
-            params[param] = False
-
-    return params
-
-
-def prepare_sets(self,csv_X,csv_y,size,seed):
-    # split into training and validation sets
-    try:
-        Xy_data = data_split(self,csv_X,csv_y,size,seed)
-    except TypeError:
-        self.args.log.write(f'   x The data split process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
-        sys.exit()
-
-    # standardization of X values using the mean and SD of the training set
-    X_train_scaled, X_valid_scaled = standardize(self,Xy_data['X_train'],Xy_data['X_valid'])
-    Xy_data['X_train_scaled'] = X_train_scaled
-    Xy_data['X_valid_scaled'] = X_valid_scaled
-
-    # also store the descriptors used (the labels disappear after data_split() )
-    Xy_data['X_descriptors'] = csv_X.columns.tolist()
-
-    # discard descriptors with NaN values after standardization. This might happen when using descriptor
-    # columns that after the data split contain only one unique value in one of the sets (i.e., 0,0,0,0,0)
-    columns_nan = []
-    for column in Xy_data['X_train_scaled'].columns:
-        if Xy_data['X_train_scaled'][column].isnull().values.any():
-            columns_nan.append(column)
-        elif Xy_data['X_valid_scaled'][column].isnull().values.any():
-            columns_nan.append(column)
-
-    if len(columns_nan) > 0:
-        nan_print = '   x  Variables removed for having NaN values after standardization:'
-        for column_nan in columns_nan:
-            nan_print += f'\n      - {column_nan}'
-            Xy_data['X_descriptors'].remove(column_nan)
-            Xy_data['X_train_scaled'] = Xy_data['X_train_scaled'].drop(column_nan, axis=1)
-            Xy_data['X_valid_scaled'] = Xy_data['X_valid_scaled'].drop(column_nan, axis=1)
-            Xy_data['X_train'] = Xy_data['X_train'].drop(column_nan, axis=1)
-            Xy_data['X_valid'] = Xy_data['X_valid'].drop(column_nan, axis=1)
-            csv_X = csv_X.drop(column_nan, axis=1)
-
-        self.args.log.write(nan_print)
-
-    return Xy_data
-
-
-def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #variable init_curate =False
-    '''
-    Filters off parameters with low PFI (not relevant in the model)
-    '''
-
-    name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}_{size}_{seed}"
+    # convert df to dict, then adjust params to a valid format
+    name_csv_hyperopt = f"Raw_data/No_PFI/{ML_model}"
     path_csv = self.args.destination.joinpath(f'{name_csv_hyperopt}.csv')
-    PFI_df = pd.read_csv(path_csv, encoding='utf-8')
-    PFI_dict = pd_to_dict(PFI_df) # (using a dict to keep the same format of load_model)
-    PFI_discard_cols = PFI_filter(self,Xy_data,PFI_dict,seed)
+    PFI_dict = load_params(self,path_csv)
+
+    PFI_discard_cols = PFI_filter(self, Xy_data, PFI_dict)
 
     # generate new X datasets and store the descriptors used for the PFI-filtered model
-    desc_keep = len(Xy_data['X_train'].columns)
+    desc_keep = len(Xy_data['X_train_scaled'].columns)
     
     # if the filter does not remove any descriptors based on the PFI threshold, or the 
     # proportion of descriptors:total datapoints is higher than 1:3, then the filter takes
     # the minimum value of 1 and 2:
     #   1. 25% less descriptors than the No PFI original model
     #   2. Proportion of 1:3 of descriptors:total datapoints (training + validation)
-    total_points = len(Xy_data['y_train'])+len(Xy_data['y_valid'])
+    total_points = len(Xy_data['y_train'])
     n_descp_PFI = desc_keep-len(PFI_discard_cols)
     if self.args.pfi_max > 0:
         pfi_max = self.args.pfi_max
     elif n_descp_PFI > 0.2*total_points or n_descp_PFI >= (0.75*desc_keep) or n_descp_PFI == 0:
-        option_one = int(0.75*len(Xy_data['X_train'].columns))
-        option_two = int(0.2*total_points)
-        pfi_max = min(option_one,option_two)
+        option_one = round(0.75*len(Xy_data['X_train_scaled'].columns))
+        option_two = round(0.2*total_points)
+        option_three = round(len(Xy_data['X_train_scaled'].columns)-1) # for databases with two descriptors
+        pfi_max = min(option_one,option_two,option_three)
     else:
         pfi_max = 0
     
@@ -397,91 +101,39 @@ def PFI_workflow(self, csv_df, ML_model, size, Xy_data, seed, csv_df_test): #var
     else:
         if pfi_max != 0:
             desc_keep = pfi_max
-        for _,column in enumerate(Xy_data['X_train'].columns):
+        for _,column in enumerate(Xy_data['X_train_scaled'].columns):
             if column not in PFI_discard_cols and len(descriptors_PFI) < desc_keep:
                 descriptors_PFI.append(column)
             else:
                 discard_idx.append(column)
 
+    # only use the descriptors that passed the PFI filter
     Xy_data_PFI = Xy_data.copy()
-    Xy_data_PFI['X_train'] = Xy_data['X_train'].drop(discard_idx, axis=1)
-    Xy_data_PFI['X_valid'] = Xy_data['X_valid'].drop(discard_idx, axis=1)
-    Xy_data_PFI['X_train_scaled'], Xy_data_PFI['X_valid_scaled'] = standardize(self,Xy_data_PFI['X_train'],Xy_data_PFI['X_valid'])
+    Xy_data_PFI['X_train_scaled'] = Xy_data['X_train_scaled'].drop(discard_idx, axis=1)
     PFI_dict['X_descriptors'] = descriptors_PFI
-    if 'max_features' in PFI_dict and PFI_dict['max_features'] > len(descriptors_PFI):
-        PFI_dict['max_features'] = len(descriptors_PFI)
 
     # updates the model's error and descriptors used from the corresponding No_PFI CSV file 
     # (the other parameters remain the same)
-    opt_target,data = load_n_predict(None, PFI_dict, Xy_data_PFI, hyperopt=True)
-    if PFI_dict['type'].lower() == 'reg':
-        opt_target = avoid_overfit(data,opt_target)
+    PFI_dict = BO_metrics(self, PFI_dict, Xy_data_PFI)
+    metric_combined = PFI_dict[f"combined_{PFI_dict['error_type']}"]
+    self.args.log.write(f"   o Combined {PFI_dict['error_type'].upper()} for {PFI_dict['model']} (with PFI filter): {metric_combined:.2}")
 
-    if opt_target != float('inf'):
-        PFI_dict[PFI_dict['error_type']] = opt_target
+    # save CSV file
+    name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
+    path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
+    csv_PFI_df = pd.DataFrame([PFI_dict])
+    _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
 
-        # save CSV file
-        name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
-        path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
-        csv_PFI_df = pd.DataFrame.from_dict(PFI_dict, orient='index')
-        csv_PFI_df = csv_PFI_df.transpose()
-        _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
+    # include the Set column to differentiate between train and test sets (and external test, if any)
+    csv_df = set_sets(csv_df,Xy_data_PFI)
 
-        # create column for sets and add test set (if any)
-        csv_df = set_sets(csv_df,csv_df_test,Xy_data)
-
-        # save the csv file
-        if os.path.exists(self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI.csv")):
-            db_name = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}_{seed}_PFI_db")
-            _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
+    # save the csv file
+    if os.path.exists(self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_PFI.csv")):
+        db_name = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_PFI_db")
+        _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
 
 
-def filter_seed(self, name_csv):
-    '''
-    Check which seed led to the best results
-    '''
-
-    # track errors for all seeds
-    errors = []
-    for seed in self.args.seed:
-        if 'No_PFI' in f'{name_csv}':
-            file_seed = f'{name_csv}_{seed}.csv'
-        else:
-            file_seed = f'{name_csv}_{seed}_PFI.csv'
-        if os.path.exists(file_seed):
-            results_model = pd.read_csv(f'{file_seed}', encoding='utf-8')
-            errors.append(results_model[results_model['error_type'][0]][0])
-        else:
-            errors.append(np.nan)
-
-    # keep best result, take out seed from name, and delete the other CSV files
-    if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
-        min_idx = errors.index(np.nanmin(errors))
-    else:
-        min_idx = errors.index(np.nanmax(errors))
-
-    for i,seed in enumerate(self.args.seed):
-        if 'No_PFI' in f'{name_csv}':
-            file_seed = f'{name_csv}_{seed}.csv'
-            file_seed_db = f'{name_csv}_{seed}_db.csv'
-            new_file = f'{name_csv}'
-        else:
-            file_seed = f'{name_csv}_{seed}_PFI.csv'
-            file_seed_db = f'{name_csv}_{seed}_PFI_db.csv'   
-            new_file = f'{name_csv}_PFI'     
-        if os.path.exists(file_seed):
-            if i == min_idx:
-                os.rename(file_seed,f'{new_file}.csv')
-            else:
-                os.remove(file_seed)
-        if os.path.exists(file_seed_db):
-            if i == min_idx:
-                os.rename(file_seed_db,f'{new_file}_db.csv')
-            else:
-                os.remove(file_seed_db)
-
-
-def set_sets(csv_df,csv_df_test,Xy_data):
+def set_sets(csv_df,Xy_data):
     """
     Set a new column for the sets, including test set (if any)
     """
@@ -489,17 +141,10 @@ def set_sets(csv_df,csv_df_test,Xy_data):
     set_column = []
     n_points = len(csv_df[csv_df.columns[0]])
     for i in range(0,n_points):
-        if i in Xy_data['training_points']:
-            set_column.append('Training')
+        if i in Xy_data['test_points']:
+            set_column.append('Test')
         else:
-            set_column.append('Validation')
-
-    if len(csv_df_test.columns) > 0:
-        n_points_test = len(csv_df_test[csv_df_test.columns[0]])
-        if n_points_test > 0:
-            for i in range(0,n_points_test):
-                set_column.append('Test')
-            csv_df = pd.concat([csv_df, csv_df_test], axis=0)
+            set_column.append('Training')
 
     csv_df['Set'] = set_column
 
@@ -517,15 +162,12 @@ def detect_best(folder):
     for file in file_list:
         if '_db' not in file:
             results_model = pd.read_csv(f'{file}', encoding='utf-8')
-            validation_error = results_model[results_model['error_type'][0]][0]
-            training_error = results_model['error_train'][0]
-            cv_error = results_model['cv_error'][0]
-            combined_error = validation_error * training_error * cv_error
-            errors.append(combined_error)
+            training_error = results_model[f"combined_{results_model['error_type'][0]}"][0]
+            errors.append(training_error)
         else:
             errors.append(np.nan)
     # detect best result and copy files to the Best_model folder
-    if results_model['type'][0].lower() == 'reg' and results_model['error_type'][0].lower() in ['mae','rmse']:
+    if results_model['error_type'][0].lower() in ['mae','rmse']:
         min_idx = errors.index(np.nanmin(errors))
     else:
         min_idx = errors.index(np.nanmax(errors))
@@ -538,40 +180,28 @@ def detect_best(folder):
 
 def heatmap_workflow(self,folder_hm):
     """
-    Create matrix of ML models, training sizes and errors/precision (no PFI filter)
+    Create matrix of ML models, training sizes and errors/precision
     """
 
     path_raw = self.args.destination.joinpath(f"Raw_data")
-    csv_data,model_list,size_list = {},[],[]
+    csv_data, model_list = {},[]
     for csv_file in glob.glob(path_raw.joinpath(f"{folder_hm}/*.csv").as_posix()):
         if '_db' not in csv_file:
             basename = os.path.basename(csv_file)
             csv_model = basename.replace('.','_').split('_')[0]
             if csv_model not in model_list:
-                model_list.append(csv_model)
-                csv_data[csv_model] = {}
-            csv_size = basename.replace('.','_').split('_')[1]
-            if csv_model not in size_list:
-                size_list.append(csv_size)
-            csv_value = pd.read_csv(csv_file, encoding='utf-8')
-            csv_data[csv_model][csv_size] = csv_value[self.args.error_type][0] * csv_value['error_train'][0] * csv_value['cv_error'][0]
-    
-    # fill missing values with NaN
-    models, train_sizes = [],[]
-    for key in csv_data:
-        models.append(key)
-        for size in csv_data[key]:
-            if size not in train_sizes:
-                train_sizes.append(size)
-    for model in models:
-        for size in train_sizes:
-            if size not in csv_data[model]:
-                csv_data[model][size] = np.nan
+                csv_value = pd.read_csv(csv_file, encoding='utf-8')
+                csv_data[csv_model] = csv_value[f"combined_{self.args.error_type}"][0]
 
     # pass dictionary into a dataframe, and sort the models alphabetically
-    csv_df = pd.DataFrame()
-    for csv_model in sorted([key for key in csv_data]):
-        csv_df[csv_model] = csv_data[csv_model]
+    csv_df = pd.DataFrame([csv_data])
+    
+    # sort columns in the same order as the optimization
+    df_cols = []
+    for model in self.args.model:
+        df_cols.append(model.upper())
+    csv_df = csv_df[df_cols]
+
     # plot heatmap
     if folder_hm == "No_PFI":
         suffix = 'No PFI'

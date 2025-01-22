@@ -12,9 +12,6 @@ Parameters
         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
     qdescp_keywords : str, default=''    
         Add extra keywords to the AQME-QDESCP run (i.e. qdescp_keywords="--qdescp_atoms ['Ir']")
-    csearch_keywords : str, default='--sample 50'
-        Add extra keywords to the AQME-CSEARCH run (i.e. csearch_keywords='--sample 10'). CREST can be
-        used instead of RDKit by adding "--program crest".
     descp_lvl : str, default='interpret'
         Type of descriptor to be used in the AQME-ROBERT workflow. Options are 'interpret', 'denovo' or 'full'.
 
@@ -98,7 +95,8 @@ class aqme:
                 shutil.move(sdf_file, new_sdf)
                       
         # Load database
-        csv_df = load_database(self,csv_target,job_type)
+        csv_df,_,_ = load_database(self,csv_target,job_type,print=False)
+
          # avoid running calcs with special signs (i.e. *)
         for name_csv_indiv in csv_df['code_name']:
             if '*' in f'{name_csv_indiv}':
@@ -126,20 +124,8 @@ class aqme:
                     csv_temp.to_csv(f'AQME_indiv_{smi_suffix}.csv', index=False)
                     aqme_indv_name = f'AQME_indiv_{smi_suffix}'
 
-                # run the initial AQME-CSEARCH conformational search with RDKit (default) or CREST
-                if '--program crest' not in self.args.csearch_keywords.lower():
-                    cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--program', 'rdkit', '--input', f'{aqme_indv_name}.csv', '--nprocs', f'{self.args.nprocs}']
-                else:
-                    self.args.log.write(f"\no  CREST detected in the csearch_keywords option, it will be used for conformer sampling")
-                    cmd_csearch = ['python', '-m', 'aqme', '--csearch', '--input', f'{aqme_indv_name}.csv', '--nprocs', f'{self.args.nprocs}']
-                _ = self.run_aqme(cmd_csearch, self.args.csearch_keywords)
-
-                sdf_files = 'CSEARCH/*.sdf'
-                if smi_suffix is not None:
-                    sdf_files = f'CSEARCH/*_{smi_suffix}_*.sdf'
-
-                # run QDESCP to generate descriptors
-                cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--files', sdf_files, '--program', 'xtb', '--csv_name', f'{aqme_indv_name}.csv', '--nprocs', f'{self.args.nprocs}', '--robert']
+                # run AQME-QDESCP to generate descriptors
+                cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--input', f'{aqme_indv_name}.csv', '--program', 'xtb', '--csv_name', f'{aqme_indv_name}.csv', '--nprocs', f'{self.args.nprocs}', '--robert']
                 _ = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
 
                 if smi_suffix is not None:

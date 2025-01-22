@@ -38,8 +38,13 @@ Parameters
     thres_y : float, default=0.001
         Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
         if thres_y=0.001, variables that show R**2 < 0.001 will be discarded).
-    kfold : int, default='auto'
-        Number of random data splits for the cross-validation of the RFECV feature selector. If 'auto', the program uses 5 splits 
+    seed : int, default=0
+        Random seed used in RFECV feature selector and other protocols.
+    kfold : int, default=5
+        Number of random data splits for the cross-validation of the RFECV feature selector. 
+    repeat_kfolds : int, default='auto'
+        Number of repetitions for the k-fold cross-validation of the RFECV feature selector. If 'auto',
+        repeat_kfolds = 10 for <50 datapoints and 5 otherwise.
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
 
@@ -75,7 +80,7 @@ class curate:
         self.args = load_variables(kwargs, "curate")
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df = load_database(self,self.args.csv_name,"curate")
+        csv_df,_,_ = load_database(self,self.args.csv_name,"curate")
 
         # adjust options of classification problems and detects whether the right type of problem was used
         self = check_clas_problem(self,csv_df)

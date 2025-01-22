@@ -33,10 +33,11 @@ from robert.report_utils import (
     calc_score,
     adv_flawed,
     adv_predict,
-    adv_cv_r2,
+    adv_test,
+    adv_diff_test,
     adv_cv_sd,
     adv_cv_diff,
-    adv_descp,
+    adv_sorted_cv,
     get_col_text,
     repro_info,
     make_report,
@@ -96,7 +97,7 @@ class report:
         report_html = self.print_header(citation_dat)
 
         # print ROBERT score section
-        score_dat,data_score,test_set = self.print_score(dat_files,pred_type,eval_only,spacing_PFI)
+        score_dat,data_score = self.print_score(dat_files,pred_type,eval_only,spacing_PFI)
         report_html += score_dat
 
         # print warnings in ROBERT score section
@@ -104,7 +105,7 @@ class report:
         report_html += warnings_dat
 
         # print advanced score analysis
-        report_html += self.print_adv_anal(pred_type,eval_only,spacing_PFI,data_score,test_set)
+        report_html += self.print_adv_anal(pred_type,eval_only,spacing_PFI,data_score)
 
         # print y distribution
         report_html += self.print_y_distrib(pred_type,eval_only,spacing_PFI,warnings_dict)
@@ -187,7 +188,7 @@ class report:
                 columns_score.append('')
             else:
                 # calculate score
-                data_score,test_set = calc_score(dat_files,suffix,pred_type,data_score)
+                data_score = calc_score(dat_files,suffix,pred_type,data_score)
 
                 # initial two-column ROBERT score summary
                 score_info = f"""{spacing}<img src="file:///{self.args.path_icons}/score_{data_score[f'robert_score_{suffix}']}.jpg" style="width: 330px; margin-top:7px; margin-bottom:-18px;"></p>"""
@@ -201,11 +202,8 @@ class report:
 
         height = 221
         if pred_type == 'clas':
-            if test_set:
-                height += 17 # otherwise the first graph doesn't fit
-            else:
-                height += diff_height
-        score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,eval_only,test_set=test_set,diff_names=True)
+            height += diff_height
+        score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,eval_only,diff_names=True)
 
         for suffix in ['No PFI','PFI']:
             spacing = get_spacing_col(suffix,spacing_PFI)
@@ -220,7 +218,7 @@ class report:
         # Combine both columns
         score_dat += combine_cols(columns_summary)
 
-        return score_dat,data_score,test_set
+        return score_dat,data_score
 
 
     def print_warnings(self,pred_type,eval_only,data_score):
@@ -333,7 +331,7 @@ class report:
         '''
         
         # tests from flawed models
-        if data_score[f'flawed_mod_score_{suffix}'] < 3:
+        if data_score[f'flawed_mod_score_{suffix}'] < 1:
             if data_score[f'failed_tests_{suffix}'] > 0:
                 warnings_dict[f'severe_warnings_{suffix}'].append('Failing required tests (Section B.1)')
             else:
@@ -442,7 +440,7 @@ class report:
         assessment_print = f'''
 <p style="margin-bottom: -10px; margin-top: 35px;"><strong>{space}Overall assessment</strong></p>'''
 
-        if len(warnings_dict[f'severe_warnings_{suffix}']) > 0 or data_score[f'robert_score_{suffix}'] < 7:
+        if len(warnings_dict[f'severe_warnings_{suffix}']) > 0 or data_score[f'robert_score_{suffix}'] < 5:
             assessment_print += self.print_line_warning(
                 'The model is unreliable',
                 style_lines,color_dict['red'],space)
@@ -465,11 +463,16 @@ class report:
             assessment_print += self.print_line_warning(
                 'Decent model, but it has limitations',
                 style_lines,color_dict['yellow'],space)
+
+        elif data_score[f'robert_score_{suffix}'] in [5,6]:
+            assessment_print += self.print_line_warning(
+                'Moderate model, with important limitations',
+                style_lines,color_dict['yellow'],space)
         
         return assessment_print
 
 
-    def print_adv_anal(self,pred_type,eval_only,spacing_PFI,data_score,test_set):
+    def print_adv_anal(self,pred_type,eval_only,spacing_PFI,data_score):
         """
         Generates the advanced score analysis section
         """
@@ -482,10 +485,11 @@ class report:
         score_sections = ['adv_flawed']
         score_sections.append('adv_flawed_extra')
         score_sections.append('adv_predict')
-        score_sections.append('adv_cv_r2')
+        score_sections.append('adv_test')
         score_sections.append('adv_cv_sd')
+        score_sections.append('adv_diff_test')
         score_sections.append('adv_cv_diff')
-        score_sections.append('adv_descp')
+        score_sections.append('adv_sorted_cv')
 
         for section in score_sections:
             columns_score = []
@@ -508,33 +512,36 @@ class report:
 
                     elif section == 'adv_predict':
                         # advanced score analysis 2, predictive ability
-                        columns_score.append(adv_predict(self,suffix,data_score,spacing*2,test_set,pred_type))
+                        columns_score.append(adv_predict(self,suffix,data_score,spacing*2,pred_type))
 
-                    elif section == 'adv_cv_r2':
+                    elif section == 'adv_test':
                         # advanced score analysis 3 and 3a, predictive ability of CV
-                        columns_score.append(adv_cv_r2(self,suffix,data_score,spacing*2,pred_type))
+                        columns_score.append(adv_test(self,suffix,data_score,spacing*2,pred_type))
 
                     elif section == 'adv_cv_sd' and pred_type == 'reg':
                         # advanced score analysis 3b, SD of CV
-                        columns_score.append(adv_cv_sd(self,suffix,data_score,spacing*2,test_set))
+                        columns_score.append(adv_cv_sd(self,suffix,data_score,spacing*2))
+
+                    elif section == 'adv_diff_test':
+                        # advanced score analysis 3c, difference bwteen RMSE in test vs CV
+                        columns_score.append(adv_diff_test(self,suffix,data_score,spacing*2,pred_type))
+
+                    elif section == 'adv_sorted_cv':
+                        # advanced score analysis 3d, descriptor proportion
+                        columns_score.append(adv_sorted_cv(self,suffix,data_score,spacing*2))
 
                     elif section == 'adv_cv_diff' and pred_type == 'clas':
                         # advanced score analysis 3b, difference of MCC in model and CV
-                        columns_score.append(adv_cv_diff(self,suffix,data_score,spacing*2,test_set))
-
-                    elif section == 'adv_descp':
-                        # advanced score analysis 4, descriptor proportion
-                        columns_score.append(adv_descp(self,suffix,data_score,spacing*2))
+                        columns_score.append(adv_cv_diff(self,suffix,data_score,spacing*2))
 
             # Combine both columns
             adv_score_dat += combine_cols(columns_score)
 
             # add corresponding images
-            diff_height = 25 # account for different graph sizes in reg and clas
             section_separator = f'<hr style="height: 0.5px; margin-top: 22px; margin-bottom: 0px; background-color:LightGray">'
 
             if section == 'adv_flawed':
-                height = 238
+                height = 223
                 if pred_type == 'clas':
                     height -= 15
                 adv_score_dat += self.print_img('VERIFY_tests',13,height,'VERIFY',pred_type,eval_only)
@@ -544,20 +551,13 @@ class report:
             elif section == 'adv_predict':
                 adv_score_dat += section_separator
 
-            elif section == 'adv_cv_r2':
-                height = 221
-                if pred_type == 'clas':
-                    height += diff_height
-                adv_score_dat += self.print_img('CV_train_valid_predict',10,height,'VERIFY',pred_type,eval_only)
-
             elif section == 'adv_cv_sd' and pred_type == 'reg':
                 adv_score_dat += self.print_img('CV_variability',10,221,'PREDICT',pred_type,eval_only)
-                adv_score_dat += section_separator
 
             elif section == 'adv_cv_diff' and pred_type == 'clas':
                 adv_score_dat += section_separator
 
-            elif section == 'adv_descp':
+            elif section == 'adv_sorted_cv':
                 adv_score_dat += '<p style="margin-bottom: 50px;"></p>'
 
         return adv_score_dat
@@ -770,7 +770,7 @@ class report:
         
         # add corresponding images
         if not eval_only:
-            height = 217
+            height = 236
             generate_dat += self.print_img('Heatmap',-5,height,'GENERATE',pred_type,eval_only)
 
         generate_dat += '<p style="margin-bottom: 50px;"></p>'
@@ -1091,7 +1091,7 @@ class report:
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics.</i>'
         elif module == 'adv_anal':
             module_name = 'Section B. Advanced Score Analysis'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the ROBERT score.</i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the ROBERT score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'
         elif module == 'y_distrib':
             module_name = 'Section C. Distribution of y Values'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the training and validation sets.</i>'

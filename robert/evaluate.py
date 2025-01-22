@@ -22,6 +22,8 @@ GENERAL
         Type of the pedictions. Options: 
         1. 'reg' (Regressor)
         2. 'clas' (Classifier)
+    seed : int, default=0
+        Random seed used in the ML predictor models and other protocols.
     destination : str, default=None,
         Directory to create the output file(s).
     
@@ -58,9 +60,11 @@ Affect PREDICT
 Affect VERIFY and PREDICT
 +++++++++++++++++++++++++
 
-    kfold : int, default='auto',
-        Number of folds for the k-fold cross-validation. If 'auto', the program does 
-        a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
+    kfold : int, default=5
+        Number of random data splits for the cross-validation of the models. 
+    repeat_kfolds : int, default='auto'
+        Number of repetitions for the k-fold cross-validation of the models. If 'auto',
+        repeat_kfolds = 10 for <50 datapoints and 5 otherwise.
 
 """
 #####################################################.
@@ -109,12 +113,12 @@ class evaluate:
         Load databases, merge them and save CSV (tracking the test types using the Set column)
         '''
         
-        csv_df_train = load_database(self,self.args.csv_train,"evaluate")
+        csv_df_train,_,_ = load_database(self,self.args.csv_train,"evaluate",print=False)
         csv_df_train['Set'] = ['Training'] * len(csv_df_train[self.args.y])
-        csv_df_valid = load_database(self,self.args.csv_valid,"evaluate")
+        csv_df_valid,_,_ = load_database(self,self.args.csv_valid,"evaluate",print=False)
         csv_df_valid['Set'] = ['Validation'] * len(csv_df_valid[self.args.y])
         if self.args.csv_test != '':
-            csv_df_test = load_database(self,self.args.csv_test,"evaluate")
+            csv_df_test,_,_ = load_database(self,self.args.csv_test,"evaluate",print=False)
             csv_df_test['Set'] = ['Test'] * len(csv_df_test[self.args.y])
 
         self.args.ignore.append('Set')
@@ -163,12 +167,11 @@ class evaluate:
         train_points = len(csv_df_train[self.args.y])
         valid_points = len(csv_df_valid[self.args.y])
         df_params['train'] = [train_proportion]
-        df_params['split'] = ['user-defined']
+        df_params['kfold'] = [self.args.kfold]
+        df_params['repeat_kfolds'] = [self.args.repeat_kfolds]
         df_params['model'] = [self.args.eval_model]
         df_params['type'] = [self.args.type]
-        if self.args.seed == []:
-            self.args.seed = [0]
-        df_params['seed'] = [self.args.seed[0]]
+        df_params['seed'] = [self.args.seed]
         df_params['y'] = [self.args.y]
         df_params['names'] = [self.args.names]
         df_params['error_type'] = [self.args.error_type]

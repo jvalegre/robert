@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="1.3.1"
+version="2.0.0"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),

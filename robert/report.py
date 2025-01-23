@@ -486,8 +486,8 @@ class report:
         score_sections.append('adv_flawed_extra')
         score_sections.append('adv_predict')
         score_sections.append('adv_test')
-        score_sections.append('adv_cv_sd')
         score_sections.append('adv_diff_test')
+        score_sections.append('adv_cv_sd')
         score_sections.append('adv_cv_diff')
         score_sections.append('adv_sorted_cv')
 
@@ -655,6 +655,7 @@ class report:
                 column = f"""
                 <p style='margin-top:25px; margin-bottom:-6px'><span style="font-weight:bold;">{spacing*3}y distribution analysis</span></p>
                 {y_distrib_sentence}
+                <p style='margin-bottom:-15px'></p>
                 """
                 columns_y_distrib.append(column)
 

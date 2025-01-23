@@ -12,7 +12,6 @@ from robert.utils import (
     PFI_filter,
     create_heatmap,
     BO_optimizer,
-    adjust_repeat_kfolds,
     BO_metrics,
     model_adjust_params
     )
@@ -24,12 +23,10 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     Load hyperparameter space and perform a Bayesian optimization
     '''
 
-    repeat_kfolds = adjust_repeat_kfolds(self,len(csv_df[self.args.y]))
-
     bo_data = {'model': ML_model.upper(),
                 'type': self.args.type.lower(),
                 'kfold': self.args.kfold,
-                'repeat_kfolds': repeat_kfolds,
+                'repeat_kfolds': self.args.repeat_kfolds,
                 'seed': self.args.seed,
                 'error_type': self.args.error_type.lower(),
                 'y': self.args.y,

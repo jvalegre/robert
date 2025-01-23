@@ -42,9 +42,8 @@ Parameters
         Random seed used in RFECV feature selector and other protocols.
     kfold : int, default=5
         Number of random data splits for the cross-validation of the RFECV feature selector. 
-    repeat_kfolds : int, default='auto'
-        Number of repetitions for the k-fold cross-validation of the RFECV feature selector. If 'auto',
-        repeat_kfolds = 10 for <50 datapoints and 5 otherwise.
+    repeat_kfolds : int, default=10
+        Number of repetitions for the k-fold cross-validation of the RFECV feature selector.
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
 

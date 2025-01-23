@@ -649,9 +649,8 @@ def correlation_filter(self, csv_df):
             estimator = RandomForestClassifier(random_state=self.args.seed, n_estimators=30, max_depth=10,  n_jobs=None)
 
         # Repeated kfold-CV type
-        repeat_kfolds = adjust_repeat_kfolds(self,len(csv_df[self.args.y]))
-        cv_type = f'{repeat_kfolds}x {self.args.kfold}_fold_cv'
-        cv_model = RepeatedKFold(n_splits=self.args.kfold, n_repeats=repeat_kfolds, random_state=self.args.seed)
+        cv_type = f'{self.args.repeat_kfolds}x {self.args.kfold}_fold_cv'
+        cv_model = RepeatedKFold(n_splits=self.args.kfold, n_repeats=self.args.repeat_kfolds, random_state=self.args.seed)
         
         txt_corr += f'\n\no  Descriptors reduced to one third of datapoints using RFECV with {cv_type}: {num_descriptors} descriptors remaining'
 
@@ -679,23 +678,6 @@ def correlation_filter(self, csv_df):
     self.args.log.write(txt_csv)
 
     return csv_df_filtered
-
-
-def adjust_repeat_kfolds(self,total_points):
-    '''
-    Adjust the repeat_kfolds option
-    '''
-
-    # repetitions of kfold-CV: 10 times for relatively small training sets (less than 50 datapoints), 5 otherwise
-    if self.args.repeat_kfolds == 'auto':
-        if total_points < 50:
-            repeat_kfolds = 10
-        else:
-            repeat_kfolds = 5
-    else:
-        repeat_kfolds = self.args.repeat_kfolds
-
-    return repeat_kfolds
 
 
 def check_csv_option(self,csv_option,print_err):
@@ -1072,7 +1054,7 @@ def test_select(self,X_scaled,csv_y):
     '''
 
     # adjusts size of the test_set to include at least 4 points regardless of the number of datapoints
-    test_input_size = self.args.test_set * len(csv_y)
+    test_input_size = round(self.args.test_set * len(csv_y))
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
     size = np.ceil(selected_size * 100 / (len(csv_y)))
@@ -1107,9 +1089,9 @@ def test_select(self,X_scaled,csv_y):
         y_binned = pd.qcut(csv_y_capped, q=selected_size, labels=False, duplicates='drop')
         
         # Adjust the number of bins until each class has at least 2 members
-        while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
-            stratified_quantiles -= 1
-            y_binned = pd.qcut(csv_y_capped, q=stratified_quantiles, labels=False, duplicates='drop')
+        while y_binned.value_counts().min() < 2 and selected_size > 2:
+            selected_size -= 1
+            y_binned = pd.qcut(csv_y_capped, q=selected_size, labels=False, duplicates='drop')
         splitter = StratifiedShuffleSplit(n_splits=1, test_size=(100 - size) / 100, random_state=self.args.seed)
         for test_idx, _ in splitter.split(X_scaled, y_binned):
             test_points = test_idx.tolist()
@@ -1118,10 +1100,11 @@ def test_select(self,X_scaled,csv_y):
         # Calculate the number of bins based on the number of points
         y_binned = pd.qcut(csv_y, q=selected_size, labels=False, duplicates='drop')
 
-        # Adjust bin count if any bin has fewer than two elements
-        while y_binned.value_counts().min() < 2 and stratified_quantiles > 2:
-            stratified_quantiles -= 1
-            y_binned = pd.qcut(csv_y, q=stratified_quantiles, labels=False, duplicates='drop')
+        # Adjust bin count if any bin has fewer than two elements (happens in imbalanced data, see comment below)
+        temp_size = selected_size
+        while y_binned.value_counts().min() < 2 and temp_size > 2:
+            temp_size -= 1
+            y_binned = pd.qcut(csv_y, q=temp_size, labels=False, duplicates='drop')
 
         # Determine central validation points for each bin
         test_points = []
@@ -1129,6 +1112,18 @@ def test_select(self,X_scaled,csv_y):
             bin_indices = y_binned[y_binned == bin_label].index
             sorted_indices = sorted(bin_indices, key=lambda idx: csv_y[idx])
             test_points.append(sorted_indices[round(len(sorted_indices)/2)])
+
+        # in umbalanced databases, the points cannot be selected entirely even (i.e., if a database
+        # contains 10 points in th 0-10 range, and 1000 points in the 10-90 range, choosing 100
+        # points might cause that all the 10 points in the 0-10 range are selected as test)
+        # For this issue, the points discarded in pd.qcut() are selected randomly to complete the target
+        # amount of points in the test set
+        random_seed = self.args.seed
+        while len(test_points) < selected_size:
+            new_test_point = int(csv_y.sample(n=1, random_state=random_seed).index[0])
+            if new_test_point not in [csv_y.idxmin(), csv_y.idxmax()] + test_points:
+                test_points.append(new_test_point)
+            random_seed += 1
 
     test_points.sort()
 
@@ -2415,12 +2410,12 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,entry_names,BO_opt=False):
             self.args.test_set = 0
         
         if self.args.auto_test:
-            if self.args.test_set < 0.1:
-                self.args.test_set = 0.1
+            if self.args.test_set < 0.2:
+                self.args.test_set = 0.2
                 self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
-            self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data was separated as test set, using an even distribution of data points across the range of y values.')
+            self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values.')
             try:
                 test_points = test_select(self,X_scaled_df,csv_y)
             except TypeError:

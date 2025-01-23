@@ -426,25 +426,18 @@ def adv_flawed(self,suffix,data_score,spacing):
     """
 
     score_flawed = data_score[f'flawed_mod_score_{suffix}']
-    if score_flawed <= 0:
-        verify_image = f'{self.args.path_icons}/score_w_1_0.jpg'
-    else:
-        verify_image = f'{self.args.path_icons}/score_w_1_{score_flawed}.jpg'
 
-    if data_score[f'failed_tests_{suffix}'] > 0:
-        if score_flawed <= 0 :
-            flaw_result = f'Do not use this model! It has important flaws.'
-        else:
-            flaw_result = f'Warning! The model might have important flaws.'
-    elif score_flawed == 1:
+    if score_flawed == 0:
         flaw_result = f'The model predicts right for the right reasons.'
+    else:
+        flaw_result = f'Warning! The model probably has important flaws.'
 
     # adds a bit more space if there is no test set
     score_adv_flawed = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     init_spacing = f'<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}'
     column = f"""
-    {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed} / 1 &nbsp;<img src="file:///{verify_image}" alt="ROBERT Score" style="width: 6.6%">)</p>
-    {score_adv_flawed}{flaw_result}<br>{spacing}Pass: +1, Unclear: 0, Fail: -1.</p>
+    {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed} / 0)</p>
+    {score_adv_flawed}{flaw_result}<br>{spacing}<i>· Scoring from -6 to 0 ·</i><br>{spacing}Pass: 0, Unclear: -1, Fail: -2.</p>
     """
 
     return column
@@ -455,32 +448,31 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
     Gather the advanced analysis of predictive ability
     """
 
-    score_predict = data_score[f'cv_score_{suffix}']
+    score_predict = data_score[f'cv_score_combined_{suffix}']
     predict_image = f'{self.args.path_icons}/score_w_2_{score_predict}.jpg'
 
     cv_type = data_score[f"cv_type_{suffix}"]
 
     if pred_type == 'reg':
-        metric_type = 'scaled RMSE'
+        metric_type = ['Scaled RMSE','R<sup>2</sup>']
     else:
-        metric_type = 'MCC'
+        metric_type = ['MCC']
 
-    if score_predict == 0:
-        predict_result = f'High {metric_type} ({cv_type}) = {data_score[f"scaled_rmse_cv_{suffix}"]}%.'
-    elif score_predict == 1:
-        predict_result = f'Moderate {metric_type} ({cv_type}) = {data_score[f"scaled_rmse_cv_{suffix}"]}%.'
-    elif score_predict == 2:
-        predict_result = f'Low {metric_type} ({cv_type}) = {data_score[f"scaled_rmse_cv_{suffix}"]}%.'
-    
+    predict_result = f'''{metric_type[0]} ({cv_type}) = {data_score[f'scaled_rmse_cv_{suffix}']}%.'''
+    if pred_type == 'reg':
+        predict_result += f'''<br>{spacing}{metric_type[1]} ({cv_type}) = {data_score[f"r2_cv_{suffix}"]}.'''
+
+
     if pred_type == 'reg':
         thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
+        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.70: -2, R<sup>2</sup> < 0.85: -1'
     else:
         thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
 
     init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_predict} / 2 &nbsp;<img src="file:///{predict_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{predict_result}<br>{spacing}{thres_line}</p>
+    {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
 
     return column
@@ -491,30 +483,53 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
     Gather the advanced analysis of predictive ability with the test set
     """
 
-    score_test = data_score[f'test_score_{suffix}']
+    score_test = data_score[f'test_score_combined_{suffix}']
     test_image = f'{self.args.path_icons}/score_w_2_{score_test}.jpg'
 
     if pred_type == 'reg':
-        metric_type = 'scaled RMSE'
+        metric_type = ['Scaled RMSE','R<sup>2</sup>']
     else:
-        metric_type = 'MCC'
-
-    if score_test == 0:
-        predict_result = f'High {metric_type} (test set) = {data_score[f"scaled_rmse_test_{suffix}"]}%.'
-    elif score_test == 1:
-        predict_result = f'Moderate {metric_type} (test set) = {data_score[f"scaled_rmse_test_{suffix}"]}%.'
-    elif score_test == 2:
-        predict_result = f'Low {metric_type} (test set) = {data_score[f"scaled_rmse_test_{suffix}"]}%.'
+        metric_type = ['MCC']
     
+    predict_result = f'''{metric_type[0]} (test set) = {data_score[f'scaled_rmse_test_{suffix}']}%.'''
+    if pred_type == 'reg':
+        predict_result += f'''<br>{spacing}{metric_type[1]} (test set) = {data_score[f"r2_test_{suffix}"]}.'''
+
     if pred_type == 'reg':
         thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
+        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.70: -2, R<sup>2</sup> < 0.85: -1'
     else:
         thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
 
     score_adv_cv = f'<p style="text-align: justify; margin-top: 5px; margin-bottom: 0px;">{spacing}'
     column = f"""{score_adv_cv}<br>{spacing}<span style="font-weight:bold;">3. Predictive ability & overfitting</span></p>
     <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. Predictions external test</u> &nbsp;({score_test} / 2 &nbsp;<img src="file:///{test_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_cv}{predict_result}<br>{spacing}{thres_line}</p>
+    {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p><br>
+    """
+
+    return column
+
+
+def adv_diff_test(self,suffix,data_score,spacing,pred_type):
+    """
+    Gather the advanced analysis of difference in RMSE between CV and test set
+    """
+
+    score_diff_test = data_score[f'diff_scaled_rmse_score_{suffix}']
+    diff_test_image = f'{self.args.path_icons}/score_w_2_{score_diff_test}.jpg'
+
+    diff_result = f'RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)}*scaled RMSE (CV).'
+    
+    if pred_type == 'reg':
+        thres_line = 'Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV): +2.'
+        thres_line += f'<br>{spacing}Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV): +1.'
+    else:
+        thres_line = 'ΔMCC ≤ 0.25: +1'
+
+    score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. Prediction accuracy test vs CV</u> &nbsp;({score_diff_test} / 2 &nbsp;<img src="file:///{diff_test_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_diff}<i>Relative differences in values from sections 2 and 3a.</i><br>
+    {spacing}{diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p><br>
     """
 
     return column
@@ -538,35 +553,8 @@ def adv_cv_sd(self,suffix,data_score,spacing):
         cv_sd_result = f'Low variation, 4*SD = {cv_4sd} ({y_range_covered}% y-range).'
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. Avg. standard deviation (SD)</u> &nbsp;({score_cv_sd} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{cv_sd_result}<br>{spacing}4*SD ≤ 25% y-range: +2, 4*SD ≤ 50% y-range: +1.</p>
-    """
-
-    return column
-
-
-def adv_diff_test(self,suffix,data_score,spacing,pred_type):
-    """
-    Gather the advanced analysis of difference in RMSE between CV and test set
-    """
-
-    score_diff_test = data_score[f'diff_scaled_rmse_score_{suffix}']
-    diff_test_image = f'{self.args.path_icons}/score_w_1_{score_diff_test}.jpg'
-
-    if score_diff_test == 0:
-        diff_result = f'High difference: RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)} times higher.'
-    elif score_diff_test == 1:
-        diff_result = f'Low difference: RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)} times higher.'
-    
-    if pred_type == 'reg':
-        thres_line = 'If scaled RMSE (test) ≤ 1.25*scaled RMSE (CV): +1.'
-    else:
-        thres_line = 'ΔMCC ≤ 0.25: +1'
-
-    score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3c. Accuracy of predictions in test vs CV</u> &nbsp;({score_diff_test} / 1 &nbsp;<img src="file:///{diff_test_image}" alt="ROBERT Score" style="width: 6.6%">)</p>
-    {score_adv_diff}<i>Relative differences in values from sections 2 and 3a.</i><br>
-    {spacing}{diff_result}<br>{spacing}{thres_line}</p><br>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3c. Avg. standard deviation (SD)</u> &nbsp;({score_cv_sd} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}{cv_sd_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}4*SD ≤ 25% y-range: +2, 4*SD ≤ 50% y-range: +1.</p>
     """
 
     return column
@@ -594,7 +582,7 @@ def adv_cv_diff(self,suffix,data_score,spacing):
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. MCC difference (model vs CV)</u> &nbsp;({score_cv_diff} / 2 &nbsp;<img src="file:///{cv_diff_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{cv_diff_result}<br>{spacing}ΔMCC 0.15-0.30: +1, ΔMCC < 0.15: +2.<br>
+    {score_adv_pred}{cv_diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}ΔMCC 0.15-0.30: +1, ΔMCC < 0.15: +2.<br>
     """
 
     return column
@@ -608,17 +596,12 @@ def adv_sorted_cv(self,suffix,data_score,spacing):
     score_sorted = data_score[f'sorted_cv_score_{suffix}']
     sorted_cv_image = f'{self.args.path_icons}/score_w_2_{score_sorted}.jpg'
     sorted_rmse = str([f'{val}%' for val in data_score[f'scaled_rmse_sorted_{suffix}']]).replace("'",'')
-    if score_sorted == 0:
-        score_sorted_result = f'Not good for extrapolation (uneven errors in y-range).'
-    elif score_sorted == 1:
-        score_sorted_result = f'Moderate for extrapolation (uneven errors in y-range).'
-    elif score_sorted == 2:
-        score_sorted_result = f'Good for extrapolation (similar errors in y-range).'
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3d. Extrapolation (sorted CV)</u> &nbsp;({score_sorted} / 2 &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{score_sorted_result}<br>{spacing}Scaled RMSEs across 5-fold CV:
+    column = f"""<p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>3d. Extrapolation (sorted CV)</u> &nbsp;({score_sorted} / 2 &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}Scaled RMSEs across 5-fold CV:
     <br>{spacing}{sorted_rmse}
+    <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
     <br>{spacing}Every two folds with RMSEs ≤ 1.25*min RMSE: +1.</p>
     """
 
@@ -739,7 +722,9 @@ def calc_score(dat_files,suffix,pred_type,data_score):
     data_score = get_verify_scores(dat_files['VERIFY'],suffix,pred_type,data_score)
 
     if pred_type == 'reg':
-        robert_score = data_score[f'cv_score_{suffix}'] + data_score[f'test_score_{suffix}'] + data_score[f'cv_sd_score_{suffix}'] + data_score[f'diff_scaled_rmse_score_{suffix}'] + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'sorted_cv_score_{suffix}']
+        robert_score = data_score[f'cv_score_combined_{suffix}'] + data_score[f'test_score_combined_{suffix}'] \
+                    + data_score[f'cv_sd_score_{suffix}'] + data_score[f'diff_scaled_rmse_score_{suffix}'] \
+                    + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'sorted_cv_score_{suffix}']
     elif pred_type == 'clas':
         # MCC difference between model and CV (the variables say r2 for uniformity with reg)
         r2_diff = round(np.abs(data_score[f'r2_valid_{suffix}']-data_score[f'cv_r2_{suffix}']),2)
@@ -782,10 +767,10 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
         if start_data:
             if 'Original RMSE (' in line:
                 for j in range(i+1,i+4): # y-mean, y-shuffle and onehot tests
-                    if 'PASSED' in dat_verify[j]:
-                        flawed_score += 1
-                    elif 'FAILED' in dat_verify[j]:
+                    if 'UNCLEAR' in dat_verify[j]:
                         flawed_score -= 1
+                    elif 'FAILED' in dat_verify[j]:
+                        flawed_score -= 2
                         failed_tests += 1
                 if pred_type.lower() == 'reg':
                     if '- Sorted ' in dat_verify[i+4]:
@@ -852,21 +837,37 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     if '-fold CV : R2 =' in dat_predict[i+5]:
                         data_score[f'rmse_cv_{suffix}'] = float(dat_predict[i+5].split()[-1])
                         data_score[f"cv_type_{suffix}"] = ' '.join([ele for ele in dat_predict[i+5].split()[1:4]])
+                        data_score[f'r2_cv_{suffix}'] = float(dat_predict[i+5].split(',')[0].split()[-1])
                     if 'Test : R2 =' in dat_predict[i+6]:
                         data_score[f'rmse_test_{suffix}'] = float(dat_predict[i+6].split()[-1])
+                        data_score[f'r2_test_{suffix}'] = float(dat_predict[i+6].split(',')[0].split()[-1])
                     if '-  y range of dataset' in dat_predict[i+8]:
                         data_score[f'y_range_{suffix}'] = float(dat_predict[i+8].split()[-1])
 
                     data_score[f'scaled_rmse_cv_{suffix}'] = round((data_score[f'rmse_cv_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
                     data_score[f'scaled_rmse_test_{suffix}'] = round((data_score[f'rmse_test_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
 
-                    data_score[f'cv_score_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_cv_{suffix}'])
-                    data_score[f'test_score_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_test_{suffix}'])
+                    data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_cv_{suffix}'])
+                    data_score[f'test_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_test_{suffix}'])
+
+                    # get penalties for R2
+                    data_score[f'cv_penalty_r2_{suffix}'] = calc_penalty_r2(data_score[f'r2_cv_{suffix}'])
+                    data_score[f'test_penalty_r2_{suffix}'] = calc_penalty_r2(data_score[f'r2_test_{suffix}'])
+
+                    # combined scores RMSE/R2 (min 0)
+                    data_score[f'cv_score_combined_{suffix}'] = data_score[f'cv_score_rmse_{suffix}'] + data_score[f'cv_penalty_r2_{suffix}']
+                    if data_score[f'cv_score_combined_{suffix}'] < 0:
+                        data_score[f'cv_score_combined_{suffix}'] = 0
+                    data_score[f'test_score_combined_{suffix}'] = data_score[f'test_score_rmse_{suffix}'] + data_score[f'test_penalty_r2_{suffix}']
+                    if data_score[f'test_score_combined_{suffix}'] < 0:
+                        data_score[f'test_score_combined_{suffix}'] = 0
 
                     diff_score = 0
                     # relative difference between RMSE from test and CV
                     data_score[f'factor_scaled_rmse_{suffix}'] = data_score[f'scaled_rmse_test_{suffix}'] / data_score[f'scaled_rmse_cv_{suffix}']
                     if data_score[f'factor_scaled_rmse_{suffix}'] <= 1.25:
+                        diff_score += 2
+                    elif data_score[f'factor_scaled_rmse_{suffix}'] <= 1.5:
                         diff_score += 1
                     data_score[f'diff_scaled_rmse_score_{suffix}'] = diff_score
 
@@ -876,7 +877,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     elif '-  Valid. : Accuracy' in dat_predict[i+6]:
                         data_score[f'rmse_valid_{suffix}'] = float(dat_predict[i+6].split()[-1])
 
-                    data_score[f'cv_score_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'rmse_valid_{suffix}'])          
+                    data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'rmse_valid_{suffix}'])          
 
             # SD from CV
             if pred_type == 'reg':
@@ -918,6 +919,21 @@ def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
             r2_mcc_score += 1
     
     return r2_mcc_score
+
+
+def calc_penalty_r2(r2_val):
+    '''
+    Calculate scores for R2 and MCC using predetermined thresholds
+    '''
+
+    penalty_r2 = 0
+
+    if r2_val < 0.7:
+        penalty_r2 -= 2
+    elif r2_val < 0.85:
+        penalty_r2 -= 1
+    
+    return penalty_r2
 
 
 def repro_info(modules):

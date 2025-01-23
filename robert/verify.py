@@ -12,9 +12,8 @@ Parameters
         Random seed used in the ML predictor models and other protocols.
     kfold : int, default=5
         Number of random data splits for the cross-validation of the models. 
-    repeat_kfolds : int, default='auto'
-        Number of repetitions for the k-fold cross-validation of the models. If 'auto',
-        repeat_kfolds = 10 for <50 datapoints and 5 otherwise.
+    repeat_kfolds : int, default=10
+        Number of repetitions for the k-fold cross-validation of the models.
 
 """
 #####################################################.
@@ -37,7 +36,7 @@ from robert.utils import (load_variables,
 
 
 # thresholds for passing tests in VERIFY
-thres_test_pass = 0.4
+thres_test_pass = 0.5
 thres_test_unclear = 0.25
 
 class verify:

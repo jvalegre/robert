@@ -180,7 +180,7 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
         if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
             print_results += f"\n      -  csv_test : R2 = {Xy_data['r2_csv_test']:.2}, MAE = {Xy_data['mae_csv_test']:.2}, RMSE = {Xy_data['rmse_csv_test']:.2}"
         print_results += f"\n      -  Average SD in test set = {np.mean(Xy_data['y_pred_test_sd']):.2}"
-        print_results += f"\n      -  y range of dataset (train+valid.) = {Xy_data['pred_min']:.2} to {Xy_data['pred_max']:.2}, total {Xy_data['pred_range']:.2}"
+        print_results += f"\n      -  y range of dataset (train+valid.) = {float(Xy_data['pred_min']):.2} to {float(Xy_data['pred_max']):.2}, total {float(Xy_data['pred_range']):.2}"
 
     elif params_dict['type'].lower() == 'clas':
         print_results += f"\n      -  {CV_type} : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"

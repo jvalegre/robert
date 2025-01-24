@@ -331,7 +331,7 @@ class report:
         '''
         
         # tests from flawed models
-        if data_score[f'flawed_mod_score_{suffix}'] < 1:
+        if data_score[f'flawed_mod_score_{suffix}'] < 0:
             if data_score[f'failed_tests_{suffix}'] > 0:
                 warnings_dict[f'severe_warnings_{suffix}'].append('Failing required tests (Section B.1)')
             else:
@@ -380,7 +380,7 @@ class report:
 
         # get lines with warnings from PREDICT
         file_pred = f'{os.getcwd()}/PREDICT/PREDICT_data.dat'
-        with open(file_pred, 'r') as datfile:
+        with open(file_pred, 'r', encoding='utf-8') as datfile:
             lines = datfile.readlines()
             pfi_section_pearson = False # to get both No PFI and PFI information
             pfi_section_y_dist = False
@@ -682,7 +682,7 @@ class report:
         
         # Add linear model equations
         spacing = get_spacing_col('PFI',spacing_PFI)
-        with open(f'{os.getcwd()}/PREDICT/PREDICT_data.dat', 'r') as file:
+        with open(f'{os.getcwd()}/PREDICT/PREDICT_data.dat', 'r', encoding='utf-8') as file:
             lines = file.readlines()
             linear_model_eqs = [lines[i + 1].strip().lstrip('- ') for i, line in enumerate(lines) if 'o  Linear model equation' in line]
 

@@ -1381,8 +1381,8 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
             Xy_data[f'{error1}_csv_test'], Xy_data[f'{error2}_csv_test'], Xy_data[f'{error3}_csv_test'] = get_prediction_results(model_data,Xy_data['y_csv_test'],Xy_data['y_pred_csv_test'])
     if BO_opt:
         # calculate sorted CV and its metrics
-        # printea la target que es arriba del BO
-        # printea el resultado final del BO justo al final de acabar todos los iters
+        # print the target that is above the BO
+        # print the final result of the BO just after finishing all the iterations
         Xy_data = sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels)
         combined_score = (Xy_data[f'{model_data["error_type"]}_train'] + Xy_data[f'{model_data["error_type"]}_up_bottom'])/2
         if verify_job:

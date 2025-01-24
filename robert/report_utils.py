@@ -57,7 +57,7 @@ def get_outliers(file,suffix,spacing):
     Retrieve the summary of results from the PREDICT and VERIFY dat files
     """
     
-    with open(file, 'r') as datfile:
+    with open(file, 'r', encoding='utf-8') as datfile:
         lines = datfile.readlines()
         train_outliers,test_outliers = [],[]
         for i,line in enumerate(lines):
@@ -94,7 +94,7 @@ def get_metrics(file,suffix,spacing):
     Retrieve the summary of results from the PREDICT and VERIFY dat files
     """
     
-    with open(file, 'r') as datfile:
+    with open(file, 'r', encoding='utf-8') as datfile:
         lines = datfile.readlines()
         start_results,stop_results = 0,0
         for i,line in enumerate(lines):
@@ -134,7 +134,7 @@ def get_csv_metrics(file,suffix,spacing):
     """
     
     results_line = ''
-    with open(file, 'r') as datfile:
+    with open(file, 'r', encoding='utf-8') as datfile:
         lines = datfile.readlines()
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
@@ -307,7 +307,7 @@ def detect_predictions(module_file):
 
     # summary of the external CSV test set (if any)
     y_value, names, path_csv_test = '','',''
-    with open(module_file, 'r') as datfile:
+    with open(module_file, 'r', encoding= 'utf-8') as datfile:
         lines = datfile.readlines()
         for _,line in enumerate(lines):
             if '- Target value:' in line:
@@ -948,7 +948,7 @@ def repro_info(modules):
     for module in modules:
         path_file = Path(f'{os.getcwd()}/{module}/{module}_data.dat')
         if os.path.exists(path_file):
-            datfile = open(path_file, 'r', errors="replace")
+            datfile = open(path_file, 'r', encoding= 'utf-8', errors="replace")
             txt_file = []
             for line in datfile:
                 txt_file.append(line)

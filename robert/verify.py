@@ -111,7 +111,7 @@ class verify:
                 results_print,verify_results,verify_metrics = self.analyze_tests(verify_results)
 
                 # plot a bar graph with the results
-                print_ver = plot_metrics(self,suffix_title,verify_metrics,verify_results)
+                print_ver = plot_metrics(model_data,suffix_title,verify_metrics,verify_results)
 
                 # print and save results
                 _ = self.print_verify(results_print,verify_results,print_ver,model_data)

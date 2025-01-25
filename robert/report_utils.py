@@ -91,7 +91,7 @@ def get_outliers(file,suffix,spacing):
 
 def get_metrics(file,suffix,spacing):
     """
-    Retrieve the summary of results from the PREDICT and VERIFY dat files
+    Retrieve the summary of results from the PREDICT dat files
     """
     
     with open(file, 'r', encoding='utf-8') as datfile:
@@ -99,11 +99,11 @@ def get_metrics(file,suffix,spacing):
         start_results,stop_results = 0,0
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' in line:
+                if 'o  Summary of results' in line and 'No_PFI:' in line:
                     start_results = i+1
                     stop_results = i+6
             if suffix == 'PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' not in line:
+                if 'o  Summary of results' in line and 'No_PFI:' not in line:
                     start_results = i+1
                     stop_results = i+6
 
@@ -138,22 +138,22 @@ def get_csv_metrics(file,suffix,spacing):
         lines = datfile.readlines()
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' in line:
+                if 'o  Summary of results' in line and 'No_PFI:' in line:
                     for j in range(i,i+15):
                         if 'o  SHAP' in lines[j]:
                             break
-                        elif '-  csv_test : ' in lines[j]:
-                            results_line = lines[j][9:]
+                        elif '-  External test : ' in lines[j]:
+                            results_line = lines[j][25:]
             if suffix == 'PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' not in line:
+                if 'o  Summary of results' in line and 'No_PFI:' not in line:
                     for j in range(i,i+15):
                         if 'o  SHAP' in lines[j]:
                             break
-                        elif '-  csv_test : ' in lines[j]:
-                            results_line = lines[j][9:]
+                        elif '-  External test : ' in lines[j]:
+                            results_line = lines[j][25:]
 
     # start the csv_test section
-    metrics_dat = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>csv_test metrics</u></p>'
+    metrics_dat = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>External test metrics</u></p>'
 
     # add line with model metrics (if any)
     if results_line != '':
@@ -175,16 +175,16 @@ def get_csv_pred(suffix,path_csv_test,y_value,names,spacing):
     csv_test_list = glob.glob(f'{csv_test_folder}/*.csv')
     for file in csv_test_list:
         if suffix == 'No PFI':
-            if '_predicted_No_PFI' in file:
+            if '_No_PFI.csv' in file:
                 csv_test_file = file
         if suffix == 'PFI':
-            if '_predicted_PFI' in file:
+            if '_No_PFI.csv' not in file and '_PFI.csv' in file:
                 csv_test_file = file
 
     csv_test_df = pd.read_csv(csv_test_file, encoding='utf-8')
 
     # start the csv_test section
-    pred_line = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>csv_test predictions (sorted, max. 20 shown)</u></p>'
+    pred_line = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>External test predictions (sorted, max. 20 shown)</u></p>'
 
     if suffix == 'No PFI':
         pred_line += f'<p style="text-align: justify; margin-bottom: 20px;">{spacing*2}From /PREDICT/csv_test/...No_PFI.csv</p>'
@@ -465,7 +465,7 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
 
     if pred_type == 'reg':
         thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
-        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.70: -2, R<sup>2</sup> < 0.85: -1'
+        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
     else:
         thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
 
@@ -497,7 +497,7 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
 
     if pred_type == 'reg':
         thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
-        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.70: -2, R<sup>2</sup> < 0.85: -1'
+        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
     else:
         thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
 
@@ -672,8 +672,8 @@ def get_col_transpa(params_dict,suffix,section,spacing):
     elif suffix == 'PFI':
         caption = f'{title_pfi}'
 
-    excluded_params = [params_dict['error_type'], 'train', 'y', 'error_train', 'cv_error', 'names']
-    misc_params = ['split','type','error_type']
+    excluded_params = [f"combined_{params_dict['error_type']}", 'train', 'X_descriptors', 'y', 'error_train', 'cv_error', 'names']
+    misc_params = ['type','error_type','kfold','repeat_kfolds','seed']
     if params_dict['type'] == 'reg':
         model_type = 'Regressor'
     elif params_dict['type'] == 'clas':
@@ -694,11 +694,10 @@ def get_col_transpa(params_dict,suffix,section,spacing):
                 sklearn_model = models_dict[params_dict[ele].upper()]
                 sklearn_model = f"""{first_line}sklearn model: {sklearn_model}</p>"""
             elif section == 'model_section' and ele.lower() not in misc_params:
-                if ele != 'X_descriptors':
-                    if ele == 'seed':
-                        col_info += f"""{reduced_line}random_state: {params_dict[ele]}</p>"""
-                    else:
-                        col_info += f"""{reduced_line}{ele}: {params_dict[ele]}</p>"""
+                if ele == 'params':
+                    model_params = ast.literal_eval(params_dict['params'])
+                    for param in model_params:
+                        col_info += f"""{reduced_line}{param}: {model_params[param]}</p>"""
             elif section == 'misc_section' and ele.lower() in misc_params:
                 if col_info == '':
                     col_info += f"""{first_line}{ele}: {params_dict[ele]}</p>"""
@@ -828,7 +827,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
             if line.startswith('   - Model:'):
                 data_score['ML_model'] = line.split()[-1]
             # R2 and proportion
-            if 'o  Results saved in PREDICT/' in line:
+            if 'o  Summary of results' in line:
                 data_score['proportion_ratio_print'] = dat_predict[i+2]
                 data_score[f'points_descp_ratio_{suffix}'] = dat_predict[i+4].split()[-1]
 
@@ -928,9 +927,9 @@ def calc_penalty_r2(r2_val):
 
     penalty_r2 = 0
 
-    if r2_val < 0.7:
+    if r2_val < 0.5:
         penalty_r2 -= 2
-    elif r2_val < 0.85:
+    elif r2_val < 0.7:
         penalty_r2 -= 1
     
     return penalty_r2
@@ -938,7 +937,7 @@ def calc_penalty_r2(r2_val):
 
 def repro_info(modules):
     """
-    Retrieves variables used in the Reproducibility and Transparency section
+    Retrieves variables used in the Reproducibility section
     """
 
     version_n_date, citation, command_line = '','',''

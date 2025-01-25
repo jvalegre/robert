@@ -86,10 +86,6 @@ class predict:
 
                 # load the Xy databse and model parameters
                 Xy_data, model_data, suffix_title = load_db_n_params(self,params_dir,suffix,suffix_title,"verify",True) # module 'verify' since PREDICT follows similar protocols
-
-                # load external test set (if any) and add standardized descriptors
-                if self.args.csv_test != '':
-                    print('check the function above, I want to add external test inside XY_split')
                 
                 # get results from training, test and external test (if any)
                 Xy_data = load_n_predict(self, model_data, Xy_data, BO_opt=False)
@@ -101,7 +97,7 @@ class predict:
                 colors = plot_predictions(self,model_data,Xy_data,path_n_suffix)
 
                 # print results
-                _ = print_predict(self,Xy_data,model_data,path_n_suffix)  
+                _ = print_predict(self,Xy_data,model_data,suffix_title)  
 
                 # SHAP analysis
                 _ = shap_analysis(self,Xy_data,model_data,path_n_suffix)

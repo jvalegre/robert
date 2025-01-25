@@ -4,12 +4,10 @@
 
 import os
 import sys
-import ast
 from pathlib import Path
 import pandas as pd
 import numpy as np
 from robert.utils import (
-    load_database,
     categorical_transform,
     get_graph_style,
     pearson_map,
@@ -55,13 +53,14 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     
     graph_style = get_graph_style()
     
-    self.args.log.write(f"\n   o  Saving graphs and CSV databases in:")
+    self.args.log.write(f"\n   o  Saving graphs in:")
+
     if params_dict['type'].lower() == 'reg':
         # Plot graph with all sets
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
         # Plot CV average ± SD graph of validation or test set
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,sd_graph=True)
-        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
+        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
             # Plot CV average ± SD graph of validation or test set
             _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True,sd_graph=True)
 
@@ -79,10 +78,6 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     '''
     Saves CSV files with the different sets and their predicted results
     '''
-
-    csv_name = os.path.basename(self.args.csv_name).split('_db.csv')[0]
-    base_csv_name = f'PREDICT/{csv_name}'
-    base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
 
     # save CV and test results as a single df
     Xy_train, Xy_test = pd.DataFrame(Xy_data['names_train']), pd.DataFrame(Xy_data['names_test'])
@@ -106,30 +101,37 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     df_results['Set'] = col_set
 
     # save results as CSV
-    train_path = f'{base_csv_path}_{suffix_title}.csv'
-    _ = df_results.to_csv(train_path, index = None, header=True)
-    print_preds = f'      -  Predicted results of starting dataset: PREDICT/{os.path.basename(train_path)}'
+    base_csv_name = f"PREDICT/{model_data['model']}_{suffix_title}"
+    base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
+    path_n_suffix = f'{base_csv_path}'
+    _ = df_results.to_csv(f'{base_csv_path}.csv', index = None, header=True)
 
-    if self.args.csv_test != '':
-        print_preds += f'\n      -  External test set with predicted results: PREDICT/{os.path.basename(test_path)}'
-        Xy_data['csv_pred_name'] = os.path.basename(test_path)
-            
+    # prints
+    print_preds = f'   o  Saving CSV databases with predictions and their SD in:'   
+    print_preds += f'\n      -  Predicted results of starting dataset: {base_csv_name}.csv'
+
+    if self.args.csv_test != '':            
         # saves prediction for external test in --csv_test
-        Xy_test_df[f'{model_data["y"]}_pred'] = Xy_data['y_pred_csv_test']
-        if params_df['type'].values[0] == 'reg':
-            Xy_test_df[f'{model_data["y"]}_pred_sd'] = Xy_data['y_pred_csv_test_sd']
-        folder_csv = f'{os.path.dirname(base_csv_path)}/csv_test'
-        Path(folder_csv).mkdir(exist_ok=True, parents=True)
-        csv_name = f'{os.path.basename(self.args.csv_test)}'.split(".csv")[0]
-        csv_name += f'_predicted_{suffix_title}.csv'
-        csv_test_path = f'{folder_csv}/{csv_name}'
-        _ = Xy_test_df.to_csv(csv_test_path, index = None, header=True)
-        print_preds += f'\n      -  External set with predicted results: PREDICT/csv_test/{os.path.basename(csv_test_path)}'
-        Xy_data['csv_pred_name'] = f'csv_test/{os.path.basename(csv_test_path)}'
+        Xy_external = pd.DataFrame(Xy_data['names_external'])
+
+        for col in Xy_data['X_external']:
+            Xy_external[col] = Xy_data['X_external'][col].tolist()
+            Xy_external[col] = Xy_data['X_external'][col].tolist()
+
+        if 'y_external' in Xy_data:
+            Xy_external[model_data['y']] = Xy_data['y_external'].tolist()
+        Xy_external[f"{model_data['y']}_pred"] = Xy_data['y_pred_external']
+        Xy_external[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_external_sd']
+
+        path_external = Path(os.getcwd()).joinpath('PREDICT/csv_test/')
+        Path(path_external).mkdir(exist_ok=True, parents=True)
+        csv_name_external = f'{os.path.basename(self.args.csv_test).split(".csv")[0]}_{model_data["model"]}_{suffix_title}.csv'
+        name_external = f"{path_external}/{csv_name_external}"
+
+        _ = Xy_external.to_csv(name_external, index = None, header=True)
+        print_preds += f'\n      -  External set with predicted results: PREDICT/csv_test/{csv_name_external}'
 
     self.args.log.write(print_preds)
-
-    path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
     # store the names of the datapoints
     name_points = {}
@@ -145,14 +147,12 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     return path_n_suffix, name_points, Xy_data
 
 
-def print_predict(self,Xy_data,params_dict,path_n_suffix):
+def print_predict(self,Xy_data,model_data,suffix_title):
     '''
     Prints results of the predictions for all the sets
     '''
     
-    dat_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.dat'
-    path_reduced = '/'.join(f'{dat_file}'.replace('\\','/').split('/')[-2:])
-    print_results = f"\n   o  Results saved in {path_reduced}:"
+    print_results = f"\n   o  Summary of results {model_data['model']}_{suffix_title}:"
     set_print = 'CV (train+valid.):Test'
 
     # get number of points and proportions
@@ -172,17 +172,16 @@ def print_predict(self,Xy_data,params_dict,path_n_suffix):
     print_results += f"\n      -  Proportion (train+valid.) points:descriptors = {n_train}:{n_descps}"
 
     # print results and save dat file
-    CV_type = f"{params_dict['repeat_kfolds']}x {params_dict['kfold']}-fold CV"
-    if params_dict['type'].lower() == 'reg':
+    CV_type = f"{model_data['repeat_kfolds']}x {model_data['kfold']}-fold CV"
+    if model_data['type'].lower() == 'reg':
         print_results += f"\n      -  {CV_type} : R2 = {Xy_data['r2_train']:.2}, MAE = {Xy_data['mae_train']:.2}, RMSE = {Xy_data['rmse_train']:.2}"
-        if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
-            print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
-        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
-            print_results += f"\n      -  csv_test : R2 = {Xy_data['r2_csv_test']:.2}, MAE = {Xy_data['mae_csv_test']:.2}, RMSE = {Xy_data['rmse_csv_test']:.2}"
+        print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
         print_results += f"\n      -  Average SD in test set = {np.mean(Xy_data['y_pred_test_sd']):.2}"
         print_results += f"\n      -  y range of dataset (train+valid.) = {float(Xy_data['pred_min']):.2} to {float(Xy_data['pred_max']):.2}, total {float(Xy_data['pred_range']):.2}"
+        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
+            print_results += f"\n      -  External test : R2 = {Xy_data['r2_external']:.2}, MAE = {Xy_data['mae_external']:.2}, RMSE = {Xy_data['rmse_external']:.2}"
 
-    elif params_dict['type'].lower() == 'clas':
+    elif model_data['type'].lower() == 'clas':
         print_results += f"\n      -  {CV_type} : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : Accuracy = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"

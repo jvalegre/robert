@@ -883,7 +883,7 @@ def check_clas_problem(self,csv_df):
     return self
     
 
-def load_database(self,csv_load,module,print=True):
+def load_database(self,csv_load,module,print=True,external_test=False):
     '''
     Loads either a Xy (params=False) or a parameter (params=True) database from a CSV file
     '''
@@ -930,8 +930,8 @@ def load_database(self,csv_load,module,print=True):
                 txt_load += f'\n   - {ignored_descs} ignored descriptors'
                 txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
             else:
-                txt_load += f'\n   o  Test set {csv_name} loaded successfully, including:'
-                txt_load += f'\n      - {len(csv_df[csv_df.columns[0]])} datapoints'
+                txt_load += f'\no  External set {csv_name} loaded successfully, including:'
+                txt_load += f'\n   - {len(csv_df[csv_df.columns[0]])} datapoints'
             self.args.log.write(txt_load)
 
     # ignore user-defined descriptors and assign X and y values (but keeps the original database)
@@ -940,8 +940,12 @@ def load_database(self,csv_load,module,print=True):
         csv_X = csv_df_ignore.drop([self.args.y], axis=1)
         csv_y = csv_df_ignore[self.args.y]
     else:
-        csv_X = csv_df.drop([self.args.y], axis=1)
-        csv_y = csv_df[self.args.y]
+        if external_test and self.args.y not in csv_df.columns:
+            csv_X = csv_df
+            csv_y = None
+        else:
+            csv_X = csv_df.drop([self.args.y], axis=1)
+            csv_y = csv_df[self.args.y]
 
     return csv_df,csv_X,csv_y
 
@@ -1007,7 +1011,7 @@ def finish_print(self,start_time,module):
     self.args.log.finalize()
 
 
-def scale_df(csv_X):
+def scale_df(csv_X,csv_X_external):
     '''
     Scale the X matrix for the training set and the external test set (if any)
     '''
@@ -1017,10 +1021,15 @@ def scale_df(csv_X):
     X_scaled = scaler.transform(csv_X)
     X_scaled_df = pd.DataFrame(X_scaled, columns = csv_X.columns)
 
-    return X_scaled_df
+    X_scaled_external_df = None
+    if csv_X_external is not None:
+        X_scaled_external = scaler.transform(csv_X_external)
+        X_scaled_external_df = pd.DataFrame(X_scaled_external, columns = csv_X_external.columns)
+
+    return X_scaled_df,X_scaled_external_df
 
 
-def Xy_split(csv_df,csv_X,X_scaled,csv_y,test_points,entry_names):
+def Xy_split(csv_df,csv_X,X_scaled_df,csv_y,csv_external_df,csv_X_external,X_scaled_external_df,csv_y_external,test_points,column_names):
     '''
     Returns a dictionary with the database divided into train and validation
     '''
@@ -1029,21 +1038,28 @@ def Xy_split(csv_df,csv_X,X_scaled,csv_y,test_points,entry_names):
 
     if len(test_points) == 0:
         Xy_data['X_train'] = csv_X
-        Xy_data['X_train_scaled'] = X_scaled
+        Xy_data['X_train_scaled'] = X_scaled_df
         Xy_data['y_train'] = csv_y
-        Xy_data['names_train'] = csv_df[entry_names]
+        Xy_data['names_train'] = csv_df[column_names]
 
     else:
         Xy_data['X_train'] = csv_X.drop(test_points)
-        Xy_data['X_train_scaled'] = X_scaled.drop(test_points)
+        Xy_data['X_train_scaled'] = X_scaled_df.drop(test_points)
         Xy_data['y_train'] = csv_y.drop(test_points)
         Xy_data['X_test'] = csv_X.iloc[test_points]
-        Xy_data['X_test_scaled'] = X_scaled.iloc[test_points]
+        Xy_data['X_test_scaled'] = X_scaled_df.iloc[test_points]
         Xy_data['y_test'] = csv_y.iloc[test_points]
-        Xy_data['names_train'] = csv_df.drop(test_points)[entry_names]
-        Xy_data['names_test'] = csv_df.iloc[test_points][entry_names]
+        Xy_data['names_train'] = csv_df.drop(test_points)[column_names]
+        Xy_data['names_test'] = csv_df.iloc[test_points][column_names]
 
     Xy_data['test_points'] = test_points
+
+    if X_scaled_external_df is not None:
+        Xy_data['X_external'] = csv_X_external
+        Xy_data['X_external_scaled'] = X_scaled_external_df
+        if csv_y_external is not None:
+            Xy_data['y_external'] = csv_y_external 
+        Xy_data['names_external'] = csv_external_df[column_names]
 
     return Xy_data
 
@@ -1377,8 +1393,8 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
     Xy_data[f'{error1}_train'], Xy_data[f'{error2}_train'], Xy_data[f'{error3}_train'] = get_prediction_results(model_data,y_all_list,y_pred_all_list)
     if not BO_opt:
         Xy_data[f'{error1}_test'], Xy_data[f'{error2}_test'], Xy_data[f'{error3}_test'] = get_prediction_results(model_data,Xy_data['y_test'],Xy_data['y_pred_test'])
-        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
-            Xy_data[f'{error1}_csv_test'], Xy_data[f'{error2}_csv_test'], Xy_data[f'{error3}_csv_test'] = get_prediction_results(model_data,Xy_data['y_csv_test'],Xy_data['y_pred_csv_test'])
+        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
+            Xy_data[f'{error1}_external'], Xy_data[f'{error2}_external'], Xy_data[f'{error3}_external'] = get_prediction_results(model_data,Xy_data['y_external'],Xy_data['y_pred_external'])
     if BO_opt:
         # calculate sorted CV and its metrics
         # print the target that is above the BO
@@ -1406,23 +1422,23 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
         y_pred_global.append([])
         y_global.append([])
 
-    y_global_test,y_pred_global_test = [],[]
+    y_pred_global_test = []
     for _ in range(len(Xy_data['y_test'])):
         y_pred_global_test.append([])
-        y_global_test.append([])
 
-    shap_values_per_cv = dict()
-    for sample in Xy_data['X_train_scaled'].index:
-        ## Create keys for each sample
-        shap_values_per_cv[sample] = {} 
-        ## Then, keys for each CV fold within each sample
-        for CV_repeat in range(int(model_data['repeat_kfolds'])):
-            shap_values_per_cv[sample][CV_repeat] = {}
+    y_global_external,y_pred_global_external = [],[]
+    if 'X_external' in Xy_data: # if there is an external test set
+        for _ in range(len(Xy_data['X_external'])):
+            y_pred_global_external.append([])
+            y_global_external.append([])
 
     # start the repeated CV
     for CV_repeat in range(int(model_data['repeat_kfolds'])):
-        _,y_pred_global,_,y_pred_global_test = kfold_cv(y_global,y_pred_global,y_global_test,y_pred_global_test,model_data,loaded_model,
-                                   Xy_data,CV_repeat,BO_opt=BO_opt)
+        _,y_pred_global,y_pred_global_test,y_pred_global_external, = kfold_cv(y_global,y_pred_global,
+                                        y_pred_global_test,
+                                        y_pred_global_external,
+                                        model_data,loaded_model,
+                                        Xy_data,CV_repeat,BO_opt=BO_opt)
 
     y_train_pred, y_train_std = [],[]
     for y_val in y_pred_global:
@@ -1443,24 +1459,24 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
         Xy_data['y_pred_test'] = y_test_pred
         Xy_data['y_pred_test_sd'] = y_test_std
 
-    # # Establish lists to keep average Shap values, their Stds, and their min and max
-    # average_shap_values, stds, ranges = [],[],[]
+        if 'X_external' in Xy_data: # if there is an external test set
+            y_external_pred, y_external_std = [],[]
+            for y_val_external in y_pred_global_external:
+                y_external_pred.append(np.mean(y_val_external))
+                y_external_std.append(np.std(y_val_external))
 
-    # for i in range(0,len(Xy_data['X_train'])):
-    #     df_per_obs = pd.DataFrame.from_dict(shap_values_per_cv[i]) # Get all SHAP values for sample number i
-    #     # Get relevant statistics for every sample 
-    #     average_shap_values.append(df_per_obs.mean(axis=1).values) 
-    #     stds.append(df_per_obs.std(axis=1).values)
-    #     ranges.append(df_per_obs.max(axis=1).values-df_per_obs.min(axis=1).values)
-
-    # shap.summary_plot(np.array(average_shap_values), Xy_data['X_train'], show = False)
-    # plt.title('Average SHAP values after 10x cross-validation')
+            Xy_data['y_pred_external_all'] = y_pred_global_external
+            Xy_data['y_pred_external'] = y_external_pred
+            Xy_data['y_pred_external_sd'] = y_external_std
 
     return Xy_data
 
 
-def kfold_cv(y_global,y_pred_global,y_global_test,y_pred_global_test,model_data,loaded_model,Xy_data,random_state,
-             BO_opt=False,shuffle=True,kfold_cv_type='repeated',shap_analysis=False):
+def kfold_cv(y_global,y_pred_global,
+             y_pred_global_test,
+             y_pred_global_external,
+             model_data,loaded_model,Xy_data,random_state,
+             BO_opt=False,shuffle=True,kfold_cv_type='repeated'):
     '''
     Perform a k-fold CV
     '''
@@ -1477,9 +1493,10 @@ def kfold_cv(y_global,y_pred_global,y_global_test,y_pred_global_test,model_data,
         X_init = np.array(Xy_data['X_train_scaled'])
         y_init = np.array(Xy_data['y_train'])
 
-        # convert Xy values for the test set
+        # convert Xy values for the test set and external test set (if any)
         X_test = np.array(Xy_data['X_test_scaled'])
-        y_test = np.array(Xy_data['y_test'])
+        if 'X_external_scaled' in Xy_data:
+            X_external = np.array(Xy_data['X_external_scaled'])
 
     ix_training, ix_valid = [], []
     # Loop through each fold and append the training & test indices to the empty lists above
@@ -1495,36 +1512,25 @@ def kfold_cv(y_global,y_pred_global,y_global_test,y_pred_global_test,model_data,
         y_pred_valid = fit.predict(X_valid)
         if not BO_opt:
             y_pred_test = fit.predict(X_test)
+            if 'X_external_scaled' in Xy_data:
+                y_pred_external = fit.predict(X_external)
         
         if kfold_cv_type == 'repeated':
             for y_val,y_pred_val,idx in zip(y_valid,y_pred_valid,test_outer_ix):
                 y_global[idx].append(y_val)
                 y_pred_global[idx].append(y_pred_val)
             if not BO_opt:
-                for idx,(y_val_test,y_pred_val_test) in enumerate(zip(y_test,y_pred_test)):
-                    y_global_test[idx].append(y_val_test)
+                for idx,y_pred_val_test in enumerate(y_pred_test):
                     y_pred_global_test[idx].append(y_pred_val_test)
-            else:
-                y_global_test,y_pred_global_test = [], []
+                if 'X_external_scaled' in Xy_data:
+                    for idx,y_pred_val_external in enumerate(y_pred_external):
+                        y_pred_global_external[idx].append(y_pred_val_external)
 
         elif kfold_cv_type == 'sorted':
             y_global.append(y_valid)
             y_pred_global.append(y_pred_valid) 
-    
-        # if shap_analysis:
 
-        #     # Use SHAP to explain predictions
-        #     explainer = shap.Explainer(loaded_model.predict, X_init, seed=0)
-        #     try:
-        #         shap_values = explainer(X_test)
-        #     except ValueError:
-        #         shap_values = explainer(X_test,max_evals=(2*len(X_test.columns))+1)
-
-        #     # Extract SHAP information per fold per sample 
-        #     for i, test_index in enumerate(test_outer_ix):
-        #         shap_values_per_cv[test_index][CV_repeat] = shap_values[i]
-
-    return y_global,y_pred_global,y_global_test,y_pred_global_test
+    return y_global,y_pred_global,y_pred_global_test,y_pred_global_external
 
 
 def sort_n_load(Xy_data):
@@ -1550,7 +1556,9 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
 
     # perform sorted 5-fold CV
     Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'] = [],[]
-    Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],_,_ = kfold_cv(Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],None,None,
+    Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],_,_ = kfold_cv(Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],
+                                                None,
+                                                None,
                                                 model_data,loaded_model,Xy_data,None,BO_opt=True,shuffle=False,kfold_cv_type='sorted')
     error1 = error_labels[model_data['type']][0]
     error2 = error_labels[model_data['type']][1]
@@ -1714,7 +1722,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     
     error_bars = "test"
 
-    title_graph = graph_title(self,csv_test,sd_graph,error_bars,Xy_data)
+    title_graph = graph_title(self,csv_test,sd_graph,error_bars)
 
     if print_fun:
         plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
@@ -1730,8 +1738,8 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
                     c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
 
     else:
-        error_bars = "test"
-        _ = ax.scatter(Xy_data["y_csv_test"], Xy_data["y_pred_csv_test"],
+        error_bars = "external"
+        _ = ax.scatter(Xy_data["y_external"], Xy_data["y_pred_external"],
                         c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
     # average CV ± SD graphs 
@@ -1743,7 +1751,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             set_types=[error_bars,f'± SD']
 
         else:
-            _ = ax.errorbar(Xy_data[f"y_csv_{error_bars}"], Xy_data[f"y_pred_csv_{error_bars}"], yerr=Xy_data[f"y_pred_csv_{error_bars}_sd"], fmt='none', ecolor="gray", capsize=3, zorder=1)
+            _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"], fmt='none', ecolor="gray", capsize=3, zorder=1)
             set_types=['External test',f'± SD']
 
     # legend and regression line with 95% CI considering all possible lines (not CI of the points)
@@ -1764,7 +1772,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     elif not csv_test:
         line_suff = 'test'
     else:
-        line_suff = 'csv_test'
+        line_suff = 'external'
 
     Xy_data_df[f"y_{line_suff}"] = Xy_data[f"y_{line_suff}"]
     Xy_data_df[f"y_pred_{line_suff}"] = Xy_data[f"y_pred_{line_suff}"]
@@ -1800,7 +1808,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
         self.args.log.write(f"      -  Graph in: {path_reduced}")
 
 
-def graph_title(self,csv_test,sd_graph,error_bars,Xy_data):
+def graph_title(self,csv_test,sd_graph,error_bars):
     '''
     Retrieves the corresponding graph title.
     '''
@@ -1846,7 +1854,7 @@ def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph):
         max_value_graph = max_value_graph+size_space
 
     else: # limits for graphs with only one set
-        set_type = 'csv_test'
+        set_type = 'external'
         size_space = 0.1*abs(min(Xy_data[f'y_{set_type}'])-max(Xy_data[f'y_{set_type}']))
         min_value_graph = min(min(Xy_data[f'y_{set_type}']),min(Xy_data[f'y_pred_{set_type}']))
         min_value_graph = min_value_graph-size_space
@@ -2386,8 +2394,14 @@ def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):
     # keep only the descriptors used in the model
     csv_X = csv_X[model_data['X_descriptors']]
 
+    # load and adjust external set (if any)
+    csv_X_external,csv_y_external = None,None
+    if self.args.csv_test != '':
+        csv_external_df,csv_X_external,csv_y_external = load_database(self,self.args.csv_test,'predict',external_test=True)
+        csv_X_external = csv_X_external[model_data['X_descriptors']]
+
     # split tests
-    Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,test_points,model_data['names'],BO_opt=False)
+    Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,test_points,model_data['names'],csv_external_df,csv_X_external,csv_y_external,BO_opt=False)
 
     # print information of loaded database
     params_name = os.path.basename(params_dir)
@@ -2397,12 +2411,12 @@ def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):
     return Xy_data, model_data, suffix_title
 
 
-def prepare_sets(self,csv_df,csv_X,csv_y,test_points,entry_names,BO_opt=False):
+def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_df,csv_X_external,csv_y_external,BO_opt=False):
     '''
     Standardizes and separate test set
     '''
 
-    X_scaled_df = scale_df(csv_X)
+    X_scaled_df,X_scaled_external_df = scale_df(csv_X,csv_X_external)
 
     # separate test set and save it in the Xy data
     if BO_opt:
@@ -2423,7 +2437,7 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,entry_names,BO_opt=False):
                 sys.exit()
 
     # load predefined sets and save the info in Xy data
-    Xy_data = Xy_split(csv_df,csv_X,X_scaled_df,csv_y,test_points,entry_names)
+    Xy_data = Xy_split(csv_df,csv_X,X_scaled_df,csv_y,csv_external_df,csv_X_external,X_scaled_external_df,csv_y_external,test_points,column_names)
 
     # also store the descriptors used (the labels disappear after test_select() )
     Xy_data['X_descriptors'] = csv_X.columns.tolist()
@@ -2487,6 +2501,8 @@ def load_print(self,params_name,suffix,model_data,Xy_data):
     txt_load += f'\n   - Descriptors: {model_data["X_descriptors"]}'
     txt_load += f'\n   - Training points: {len(Xy_data["y_train"])}'
     txt_load += f'\n   - Test points: {len(Xy_data["y_test"])}'
+    if 'X_external' in Xy_data:
+        txt_load += f'\n   - External test points: {len(Xy_data["X_external"])}'
     self.args.log.write(txt_load)
 
 
@@ -2596,7 +2612,7 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
     return corr_matrix
 
 
-def plot_metrics(self,suffix_title,verify_metrics,verify_results):
+def plot_metrics(model_data,suffix_title,verify_metrics,verify_results):
     '''
     Creates a plot with the results of the flawed models in VERIFY
     '''
@@ -2607,7 +2623,7 @@ def plot_metrics(self,suffix_title,verify_metrics,verify_results):
     _, ax = plt.subplots(figsize=(7.45,6))
 
     # define names
-    csv_name = os.path.basename(self.args.csv_name).split('_db.csv')[0]
+    csv_name = os.path.basename(model_data['model']).split('_db.csv')[0]
     base_csv_name = f'VERIFY/{csv_name}'
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     path_n_suffix = f'{base_csv_path}_{suffix_title}'

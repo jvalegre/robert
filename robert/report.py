@@ -962,7 +962,7 @@ class report:
         transpa_dat += model_dat
 
         # add misc params
-        transpa_dat += f"""<p style="text-align: justify; margin-top: -95px; margin-bottom: 3px;"><br><strong>2. ROBERT options for data split (KN or RND), predict type (REG or CLAS) and hyperopt error (RMSE, etc.):</strong></p>"""
+        transpa_dat += f"""<p style="text-align: justify; margin-top: -95px; margin-bottom: 3px;"><br><strong>2. ROBERT options, including prediction type (REG or CLAS), folds and repeats used for CV, etc:</strong></p>"""
         
         section_dat, params_df = self.transpa_model_misc('misc_section',spacing_PFI)
         transpa_dat += section_dat

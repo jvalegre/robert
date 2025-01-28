@@ -26,9 +26,13 @@ Parameters
         1. 'onehot' (for one-hot encoding, ROBERT will create a descriptor for each type of
         C atom using 0s and 1s to indicate whether the C type is present)
         2. 'numbers' (to describe the C atoms with numbers: 1, 2, 3, 4).
-    corr_filter : bool, default=True
-        Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
-        of the descriptors with other descriptors (x filter) and the y values (y filter).
+    corr_filter_x : bool, default=True
+        Activate the correlation filters of descriptors, based on the correlation
+        of the descriptors with other descriptors (x filter).
+    corr_filter_y : bool, default=False
+        Activate the correlation filters of descriptors, based on the correlation
+        of the descriptors with the y values (y filter, for noise). This filter is only 
+        suggested for MVL.
     desc_thres : float, default=25
         Threshold for the descriptor-to-datapoints ratio to loose the correlation filter. By default,
         the correlation filter is loosen if there are 25 times more datapoints than descriptors.
@@ -92,7 +96,7 @@ class curate:
             csv_df = self.dup_filter(csv_df)
 
             # apply the correlation filters and returns the database without correlated descriptors
-            if self.args.corr_filter:
+            if self.args.corr_filter_x or self.args.corr_filter_y:
                 csv_df = correlation_filter(self,csv_df)
 
         # create Pearson heatmap

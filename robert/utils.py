@@ -227,7 +227,7 @@ o Other common options:
 * Affecting data curation in CURATE:
   --kfold INT (default='auto') : number of folds for k-fold cross-validation of the RFECV feature selector. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
   --categorical "onehot" or "numbers" (default="onehot") : type of conversion for categorical variables
-  --corr_filter BOOL (default=True) : disable the correlation filter
+  --corr_filter_x BOOL (default=True) : activate/disable the correlation filter of descriptors X
 
 * Affecting model screening in GENERATE:
   --model "[MODEL1,MODEL2,etc]" (default=["RF","GB","NN","MVL"]) : ML models to use in the ML scan (i.e., "[RF,GB]")
@@ -589,45 +589,44 @@ def correlation_filter(self, csv_df):
 
     # loosen correlation filters if there are too few descriptors
     n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
-    if self.args.desc_thres and n_descps*self.args.desc_thres < len(csv_df[self.args.y]):
-        self.args.thres_x = 0.95
-        self.args.thres_y = 0.0001
-        txt_corr += f'\nx  WARNING! The number of descriptors ({n_descps}) is {self.args.desc_thres} times lower than the number of datapoints ({len(csv_df[self.args.y])}), the correlation filters are loosen to thres_x = 0.95 and thres_y = 0.0001! Default thresholds (0.9 and 0.001) can be used with "--desc_thres False"'
-
     txt_corr += f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}, thres_y = {self.args.thres_y}'
 
     descriptors_drop = []
     txt_corr += f'\n   Excluded descriptors:'
     for i,column in enumerate(csv_df.columns):
         if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
-            # finds the descriptors with low correlation to the response values
-            try:
+            if len(set(csv_df[column])) == 1:
+                descriptors_drop.append(column)
+                txt_corr += f'\n   - {column}: all the values are the same'
+
+            if column not in descriptors_drop:
                 res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
                 rsquared_y = res_y.rvalue**2
+
+            # finds the descriptors with low correlation to the response values
+            if self.args.corr_filter_y:
                 if rsquared_y < self.args.thres_y:
                     descriptors_drop.append(column)
                     txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
-            except ValueError: # this avoids X descriptors where the majority of the values are the same
-                descriptors_drop.append(column)
-                txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
 
             # finds correlated descriptors
-            if column != csv_df.columns[-1] and column not in descriptors_drop:
-                for j,column2 in enumerate(csv_df.columns):
-                    if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
-                        res_x = stats.linregress(csv_df[column],csv_df[column2])
-                        rsquared_x = res_x.rvalue**2
-                        if rsquared_x > self.args.thres_x:
-                            # discard the column with less correlation with the y values
-                            res_xy = stats.linregress(csv_df[column2],csv_df[self.args.y])
-                            rsquared_y2 = res_xy.rvalue**2
-                            if rsquared_y >= rsquared_y2:
-                                descriptors_drop.append(column2)
-                                txt_corr += f'\n   - {column2}: R**2 = {rsquared_x:.2} with {column}'
-                            else:
-                                descriptors_drop.append(column)
-                                txt_corr += f'\n   - {column}: R**2 = {rsquared_x:.2} with {column2}'
-    
+            if self.args.corr_filter_x:
+                if column != csv_df.columns[-1] and column not in descriptors_drop:
+                    for j,column2 in enumerate(csv_df.columns):
+                        if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
+                            res_x = stats.linregress(csv_df[column],csv_df[column2])
+                            rsquared_x = res_x.rvalue**2
+                            if rsquared_x > self.args.thres_x:
+                                # discard the column with less correlation with the y values
+                                res_xy = stats.linregress(csv_df[column2],csv_df[self.args.y])
+                                rsquared_y2 = res_xy.rvalue**2
+                                if rsquared_y >= rsquared_y2:
+                                    descriptors_drop.append(column2)
+                                    txt_corr += f'\n   - {column2}: R**2 = {rsquared_x:.2} with {column}'
+                                else:
+                                    descriptors_drop.append(column)
+                                    txt_corr += f'\n   - {column}: R**2 = {rsquared_x:.2} with {column2}'
+
     # drop descriptors that did not pass the filters
     csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
 

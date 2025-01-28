@@ -36,8 +36,8 @@ from robert.utils import (load_variables,
 
 
 # thresholds for passing tests in VERIFY
-thres_test_pass = 0.5
-thres_test_unclear = 0.25
+thres_test_pass = 0.3
+thres_test_unclear = 0.15
 
 class verify:
     """

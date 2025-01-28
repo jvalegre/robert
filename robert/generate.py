@@ -143,7 +143,7 @@ class generate:
             csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print=False)
 
             # standardizes and separates an external test set
-            Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,BO_opt=True)
+            Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
 
             # hyperopt process for ML models
             _ = BO_workflow(self, Xy_data, csv_df, ML_model)
@@ -154,7 +154,7 @@ class generate:
                 csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print=False)
 
                 # standardizes and separates an external test set
-                Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,BO_opt=True)
+                Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
 
                 _ = PFI_workflow(self, csv_df, ML_model, Xy_data)
 

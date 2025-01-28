@@ -2395,7 +2395,7 @@ def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):
     csv_X = csv_X[model_data['X_descriptors']]
 
     # load and adjust external set (if any)
-    csv_X_external,csv_y_external = None,None
+    csv_external_df, csv_X_external,csv_y_external = None,None,None
     if self.args.csv_test != '':
         csv_external_df,csv_X_external,csv_y_external = load_database(self,self.args.csv_test,'predict',external_test=True)
         csv_X_external = csv_X_external[model_data['X_descriptors']]

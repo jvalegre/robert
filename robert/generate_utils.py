@@ -88,6 +88,10 @@ def PFI_workflow(self, csv_df, ML_model, Xy_data):
     else:
         pfi_max = 0
     
+    # Ensure at least one descriptor is kept
+    if desc_keep == 1:
+        pfi_max = 1
+
     discard_idx, descriptors_PFI = [],[]
     # just in case none of the descriptors passed the PFI filter
     # select only the most important descriptors until the pfi_max limit

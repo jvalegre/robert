@@ -40,10 +40,9 @@ setup(
         "seaborn==0.13.2",
         "scipy==1.15.0",
         "scikit-learn==1.6.0",
-        "hyperopt==0.2.7",
+        "bayesian-optimization==3.0.0b1",
         "numba==0.60.0",
         "shap==0.46.0",
-        "mapie==0.9.1",
         "weasyprint==63.1"
     ],
     python_requires=">=3.10",

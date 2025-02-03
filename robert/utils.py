@@ -1665,7 +1665,7 @@ def PFI_filter(self, Xy_data, model_data):
         PFI_sd.append(perm_importance.importances_std[i])
   
     PFI_values, PFI_sd, descp_cols = (list(t) for t in zip(*sorted(zip(PFI_values, PFI_sd, descp_cols), reverse=True)))
-    #Esto hay que hacerlo cuando init_curate =False, sino hay que hacer PFI_discard_cols=descp_cols.
+    # This should be done when init_curate = False, otherwise PFI_discard_cols should be set to descp_cols.
     # PFI filter
     PFI_discard_cols = []
     PFI_thres = abs(self.args.pfi_threshold*score_model)

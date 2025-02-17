@@ -43,7 +43,7 @@ var_dict = {
     "nprocs": 8,
     "error_type" : "rmse",
     "pfi_epochs" : 5,
-    "pfi_threshold" : 0.04,
+    "pfi_threshold" : 0.2,
     "pfi_filter" : True,
     "pfi_max" : 0,
     "init_points" : 10,

@@ -98,12 +98,12 @@ class curate:
             # apply the correlation filters and returns the database without correlated descriptors
             if self.args.corr_filter_x or self.args.corr_filter_y:
                 csv_df = correlation_filter(self,csv_df)
+            
+            # save the curated CSV
+            _ = self.save_curate(csv_df)
 
         # create Pearson heatmap
         _ = pearson_map(self,csv_df,'curate')
-
-        # save the curated CSV
-        _ = self.save_curate(csv_df)
 
         # finish the printing of the CURATE info file
         _ = finish_print(self,start_time,'CURATE')

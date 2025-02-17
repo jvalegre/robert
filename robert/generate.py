@@ -57,10 +57,8 @@ Parameters
     pfi_epochs : int, default=5
         Sets the number of times a feature is randomly shuffled during the PFI analysis
         (standard from sklearn webpage: 5).
-    pfi_threshold : float, default=0.04
-        The PFI filter is X% of the model's score (% adjusted, 0.04 = 4% of the total score during PFI).
-        For regression, a value of 0.04 is recommended. For classification, the filter is turned off
-        by default if pfi_threshold is 0.04.
+    pfi_threshold : float, default=0.2
+        The PFI filter is X% of the model's score (% adjusted, 0.2 = 20% of the total score during PFI).
     pfi_max : int, default=0
         Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI
         filter are used.
@@ -140,7 +138,7 @@ class generate:
             self.args.log.write(f'   - {cycle}/{len(self.args.model)} - ML model: {ML_model} ')
 
             # load database, discard user-defined descriptors and perform data checks
-            csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print=False)
+            csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
 
             # standardizes and separates an external test set
             Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
@@ -151,7 +149,7 @@ class generate:
             # apply the PFI descriptor filter if it's activated
             if self.args.pfi_filter:
                 # load database, discard user-defined descriptors and perform data checks
-                csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print=False)
+                csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
 
                 # standardizes and separates an external test set
                 Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)

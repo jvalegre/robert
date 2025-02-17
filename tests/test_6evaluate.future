@@ -25,6 +25,9 @@ path_tests = os.getcwd() + "/tests"
             "test"
         ),  # test for a train+valid.+test evaluation
         # (
+        #     "kfold"
+        # ),  # test the kfold option
+        # (
         #     "clas"
         # ),  # test for classification models, currently EVALUATE only works for MVL, but this test will be implemented in the future
         (

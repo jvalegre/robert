@@ -112,12 +112,12 @@ class evaluate:
         Load databases, merge them and save CSV (tracking the test types using the Set column)
         '''
         
-        csv_df_train,_,_ = load_database(self,self.args.csv_train,"evaluate",print=False)
+        csv_df_train,_,_ = load_database(self,self.args.csv_train,"evaluate",print_info=False)
         csv_df_train['Set'] = ['Training'] * len(csv_df_train[self.args.y])
-        csv_df_valid,_,_ = load_database(self,self.args.csv_valid,"evaluate",print=False)
+        csv_df_valid,_,_ = load_database(self,self.args.csv_valid,"evaluate",print_info=False)
         csv_df_valid['Set'] = ['Validation'] * len(csv_df_valid[self.args.y])
         if self.args.csv_test != '':
-            csv_df_test,_,_ = load_database(self,self.args.csv_test,"evaluate",print=False)
+            csv_df_test,_,_ = load_database(self,self.args.csv_test,"evaluate",print_info=False)
             csv_df_test['Set'] = ['Test'] * len(csv_df_test[self.args.y])
 
         self.args.ignore.append('Set')

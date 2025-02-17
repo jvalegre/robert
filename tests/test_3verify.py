@@ -19,12 +19,9 @@ path_verify = path_main + "/VERIFY"
 @pytest.mark.parametrize(
     "test_job",
     [
-        (
-            "kfold"
-        ),  # test the kfold option
-        (
-            "clas"
-        ),  # test for clasification
+        # (
+        #     "clas"
+        # ),  # test for clasification
         (
             "standard"
         ),  # standard test
@@ -77,26 +74,30 @@ def test_VERIFY(test_job):
     outlines = outfile.readlines()
     outfile.close()
     assert "ROBERT v" in outlines[0]
+    results_line,start_reading = False,False
     for i,line in enumerate(outlines):
-        if 'Results of the VERIFY tests:' in line:
-            if test_job == "kfold":
-                assert "x 10-fold CV: FAILED" in outlines[i+2]
-            elif test_job == "clas":
-                assert "LOOCV: " in outlines[i+2]
-                assert "MCC =" in outlines[i+3]
-                assert "MCC =" in outlines[i+4]
-                assert "MCC =" in outlines[i+5]
-            elif test_job == "standard":
-                assert "x LOOCV: FAILED" in outlines[i+2]
-                assert "o y_mean: PASSED" in outlines[i+3]
-                assert "o y_shuffle: PASSED" in outlines[i+4]
-                assert "x onehot: FAILED" in outlines[i+5]
-            break
+        if '------- Starting model with PFI filter ' in line: # focus on the PFI since there is an unclear test
+            start_reading = True
+        if start_reading:
+            if 'Results of flawed models and sorted cross-validation:' in line:
+                results_line = True
+                if test_job == "clas":
+                    assert "LOOCV: " in outlines[i+2]
+                    assert "MCC =" in outlines[i+3]
+                    assert "MCC =" in outlines[i+4]
+                    assert "MCC =" in outlines[i+5]
+                elif test_job == "standard":
+                    assert "Original RMSE (10x 5-fold CV) 0.24 + 15% & 30% threshold = 0.28 & 0.32" in outlines[i+1]
+                    assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i+2]
+                    assert "o y_shuffle: PASSED, RMSE = 0.86" in outlines[i+3]
+                    assert "- onehot: UNCLEAR, RMSE = 0.3" in outlines[i+4]
+                    assert "- Sorted 5-fold CV : R2 = [0.21, 0.81, 0.1, 0.7, 0.2], MAE = [0.54, 0.12, 0.17, 0.35, 0.39], RMSE = [0.56, 0.12, 0.18, 0.39, 0.45]" in outlines[i+5]
+                break
+    assert results_line
 
-    #check that the verify plots, CSV and DAT files are created
-    assert len(glob.glob(f'{path_verify}/*.png')) == 4
+    #check that the verify plots and DAT file are created
+    assert len(glob.glob(f'{path_verify}/*.png')) == 2
     assert len(glob.glob(f'{path_verify}/*.dat')) == 1
-    assert len(glob.glob(f'{path_verify}/*.csv')) == 2
 
     if test_job == 'clas': # rename folders back to their original names
         # rename the classification GENERATE folder

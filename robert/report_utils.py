@@ -503,7 +503,7 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
 
     score_adv_cv = f'<p style="text-align: justify; margin-top: 5px; margin-bottom: 0px;">{spacing}'
     column = f"""{score_adv_cv}<br>{spacing}<span style="font-weight:bold;">3. Predictive ability & overfitting</span></p>
-    <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. Predictions external test</u> &nbsp;({score_test} / 2 &nbsp;<img src="file:///{test_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. Predictions test set</u> &nbsp;({score_test} / 2 &nbsp;<img src="file:///{test_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p><br>
     """
 
@@ -684,7 +684,6 @@ def get_col_transpa(params_dict,suffix,section,spacing):
                     'NN': f'MLP{model_type}',
                     'GP': f'GaussianProcess{model_type}',
                     'ADAB': f'AdaBoost{model_type}',
-                    'VR': f'Voting{model_type} (combining RF, GB and NN)'
                     }
 
     col_info,sklearn_model = '',''

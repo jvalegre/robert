@@ -95,7 +95,7 @@ class aqme:
                 shutil.move(sdf_file, new_sdf)
                       
         # Load database
-        csv_df,_,_ = load_database(self,csv_target,job_type,print=False)
+        csv_df,_,_ = load_database(self,csv_target,job_type,print_info=False)
 
          # avoid running calcs with special signs (i.e. *)
         for name_csv_indiv in csv_df['code_name']:

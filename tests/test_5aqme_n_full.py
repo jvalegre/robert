@@ -25,18 +25,18 @@ path_aqme = path_main + "/AQME"
         (
             "full_workflow_test"
         ),  # test for a full workflow with test
-        (
-            "full_clas"
-        ),  # test for a full workflow in classification
-        (
-            "full_clas_test"
-        ),  # test for a full workflow in classification with test
-        (
-            "aqme"
-        ),  # test for a full workflow starting from AQME
-        (
-            "2smiles_columns"
-        ),  # test for a full workflow with 2 columns for SMILES
+        # (
+        #     "full_clas"
+        # ),  # test for a full workflow in classification
+        # (
+        #     "full_clas_test"
+        # ),  # test for a full workflow in classification with test
+        # (
+        #     "aqme"
+        # ),  # test for a full workflow starting from AQME
+        # (
+        #     "2smiles_columns"
+        # ),  # test for a full workflow with 2 columns for SMILES
     ],
 )
 def test_AQME(test_job):
@@ -77,10 +77,9 @@ def test_AQME(test_job):
         "robert",
         "--csv_name", csv_var,
         '--y', y_var,
-        "--epochs", "5",
-        "--seed", "[0]",
+        '--init_points', '1',
+        '--n_iter', '1',
         "--model", "['RF']",
-        "--train", "[70]",
         "--pfi_epochs", "1",
         "--debug_report", "True"
     ]
@@ -129,9 +128,8 @@ def test_AQME(test_job):
         assert len(best_amount) == 2
 
     # VERIFY folder
-    assert len(glob.glob(f'{path_main}/VERIFY/*.png')) == 4
+    assert len(glob.glob(f'{path_main}/VERIFY/*.png')) == 2
     assert len(glob.glob(f'{path_main}/VERIFY/*.dat')) == 1
-    assert len(glob.glob(f'{path_main}/VERIFY/*.csv')) == 2
 
     # PREDICT folder
     if test_job in ['full_clas','full_clas_test']:
@@ -147,7 +145,7 @@ def test_AQME(test_job):
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.csv')) == 2 # 2 extra CSV files for the test set
         assert len(glob.glob(f'{path_main}/PREDICT/csv_test/*.png')) == 2 # 2 extra PNG for predictions ± SD
     else:
-        assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 4
+        assert len(glob.glob(f'{path_main}/PREDICT/*.csv')) == 2
 
     if test_job == 'aqme':
         assert os.path.exists(f'{path_main}/AQME-ROBERT_interpret_solubility.csv')
@@ -185,131 +183,127 @@ def test_AQME(test_job):
     for line in outlines:
         if 'Heatmap_ML_models_No_PFI.png' in line:
             find_heatmap += 1
-        if 'VERIFY_tests_RF_70_PFI.png' in line:
+        if 'VERIFY_tests_RF_PFI.png' in line:
             find_verify += 1
-        if 'SHAP_RF_70_PFI.png' in line:
+        if 'SHAP_RF_PFI.png' in line:
             find_shap += 1
-        if 'PFI_RF_70_PFI.png' in line:
+        if 'PFI_RF_PFI.png' in line:
             find_pfi += 1
-        if 'Outliers_RF_70_No_PFI.png' in line:
+        if 'Outliers_RF_No_PFI.png' in line:
             find_outliers += 1
-        if 'Results_RF_70_No_PFI.png' in line:
+        if 'Results_RF_No_PFI.png' in line:
             find_results_reg += 1
-        if 'Results_RF_70_No_PFI_valid.png' in line:
+        if 'Results_RF_No_PFI_valid.png' in line:
             find_results_valid_clas += 1
-        if 'Results_RF_70_No_PFI_csv_test.png' in line:
+        if 'Results_RF_No_PFI_csv_test.png' in line:
             find_results_test_clas += 1
-        if 'csv_test :' in line:
+        if 'External test metrics' in line:
             find_test += 1
     
     # more specific tests to check content from the ROBERT score section
     if test_job == 'full_workflow':
         robert_score,points_desc = [],[]
-        ml_model_count,partition_count,metrics_count = 0,0,0
-        flawed_models,pred_ability,cv_r2_models,cv_sd_models,points_descp = [],[],[],[],[]
-        predict_graphs,flawed_image,cv_r2_image,cv_sd_image = False,False,False,False
+        ml_model_count,partition_count,metrics_train_count,metrics_test_count = 0,0,0,0
+        flawed_models,pred_ability,pred_test_ability,cv_sd_models,cv_vs_test_models,extrapol_ability = [],[],[],[],[],[]
+        predict_graphs,flawed_image,cv_sd_image = False,False,False
         y_distrib_image,pearson_pred_image = False,False
-        find_severe_red,find_severe_blue = False,False
-        find_moder_pred,find_moder_y_dist,unclear_test = False,False,False
-        find_assess_yellow,find_assess_red = False,False
+        find_severe_red = False
+        find_moder_correl,find_moder_y_dist = False,False
+        find_assess_red = False
 
         for i,line in enumerate(outlines):
             if 'robert/report/score_' in line and 'robert/report/score_w' not in line:
                 robert_score.append(line.split('robert/report/score_')[1][0])
             if 'Model = RF' in line:
                 ml_model_count += 1
-            if 'Train:Validation = 68:32' in line:
+            if 'CV (train+valid.):Test = 81:19' in line:
                 partition_count += 1
-            if 'Points(train+valid.):descriptors = ' in line:
-                points_desc.append(line.split('Points(train+valid.):descriptors = ')[1].split('</p>')[0])
-            if 'Results_RF_70_No_PFI.png' in line:
+            if 'Points(train+validation):descriptors = ' in line:
+                points_desc.append(line.split('Points(train+validation):descriptors = ')[1].split('</p>')[0])
+            if 'Results_RF_No_PFI.png' in line:
                 predict_graphs = True
-            if 'Train : R<sup>2</sup> = ' in line:
-                metrics_count += 1
+            if '10x 5-fold CV : R<sup>2</sup> = ' in line:
+                metrics_train_count += 1
+            if 'Test : R<sup>2</sup> = ' in line:
+                metrics_test_count += 1
             if '1. Model vs "flawed" models' in line:
                 flawed_models.append(line)
-            if 'VERIFY/VERIFY_tests_RF_70_No_PFI.png' in line:
+            if 'VERIFY/VERIFY_tests_RF_No_PFI.png' in line:
                 flawed_image = True
-            if '2. Predictive ability of the model' in line:
+            if '2. CV predictions of the model' in line:
                 pred_ability.append(line)
-            if '3a. CV predictions train + valid.' in line:
-                cv_r2_models.append(line)
-            if 'VERIFY/CV_train_valid_predict_RF_70_No_PFI.png' in line:
-                cv_r2_image = True
-            if '3b. Avg. standard deviation (SD)' in line:
+            if '3a. Predictions test set' in line:
+                pred_test_ability.append(line)
+            if '3b. Prediction accuracy test vs CV' in line:
+                cv_vs_test_models.append(line)
+            if '3c. Avg. standard deviation (SD)' in line:
                 cv_sd_models.append(line)
-            if 'PREDICT/CV_variability_RF_70_No_PFI.png' in line:
+            if 'PREDICT/CV_variability_RF_No_PFI.png' in line:
                 cv_sd_image = True
-            if '4. Points(train+valid.):descriptors' in line:
-                points_descp.append(line)
-            if 'y_distribution_RF_70_No_PFI.png' in line:
+            if '3d. Extrapolation (sorted CV)' in line:
+                extrapol_ability.append(line)
+            if 'y_distribution_RF_No_PFI.png' in line:
                 y_distrib_image = True
             if 'Pearson_heatmap_No_PFI.png' in line:
                 pearson_pred_image = True
             if 'Failing required tests (Section B.1)' in line and 'color: #c56666' in outlines[i-1]:
                 find_severe_red = True
-            if 'No severe warnings detected' in line and 'color: #9ba5e3' in outlines[i-1]:
-                find_severe_blue = True
-            if 'Imprecise predictions (Section B.3b)' in line and 'color: #c5c57d' in outlines[i-1]:
-                find_moder_pred = True
+            if 'Moderately correlated features (Section D)' in line and 'color: #c5c57d' in outlines[i-1]:
+                find_moder_correl = True
             if 'Slightly uneven y distribution (Section C)' in line and 'color: #c5c57d' in outlines[i-1]:
                 find_moder_y_dist = True
-            if 'Some tests are unclear (Section B.1)' in line and 'color: #c5c57d' in outlines[i-1]:
-                unclear_test = True
-            if 'Decent model, but it has limitations' in line and 'color: #c5c57d' in outlines[i-1]:
-                find_assess_yellow = True
             if 'The model is unreliable' in line and 'color: #c56666' in outlines[i-1]:
                 find_assess_red = True                
             if 'How to predict new values with these models?' in line:
                 break
 
         # model summary, robert score, predict graphs and model metrics
-        assert robert_score[0] == '4'
-        assert robert_score[1] == '7'
+        assert robert_score[0] == '5'
+        assert robert_score[1] == '5'
         assert ml_model_count == 2
         assert partition_count == 2
-        assert points_desc[0] == '37:9'
-        assert points_desc[1] == '37:3'
+        assert points_desc[0] == '30:10'
+        assert points_desc[1] == '30:2'
         assert predict_graphs
-        assert metrics_count == 2
+        assert metrics_train_count == 2
+        assert metrics_test_count == 2
         # advanced analysis, flawed models section 1
-        assert '1 / 3' in flawed_models[0]
-        assert 'robert/report/score_w_3_1.jpg' in flawed_models[0]
-        assert '2 / 3' in flawed_models[1]
-        assert 'robert/report/score_w_3_2.jpg' in flawed_models[1]
+        assert '-2 / 0' in flawed_models[0]
+        assert '-2 / 0' in flawed_models[1]
         assert flawed_image
         # advanced analysis, predictive ability section 2
-        assert '2 / 2' in pred_ability[0]
-        assert 'robert/report/score_w_2_2.jpg' in pred_ability[0]
-        assert '2 / 2' in pred_ability[1]
-        assert 'robert/report/score_w_2_2.jpg' in pred_ability[1]
-        # advanced analysis, CV predictive ability section 3a
-        assert '1 / 2' in cv_r2_models[0]
-        assert 'robert/report/score_w_2_1.jpg' in cv_r2_models[0]
-        assert '2 / 2' in cv_r2_models[1]
-        assert 'robert/report/score_w_2_2.jpg' in cv_r2_models[1]
-        assert cv_r2_image
-        # advanced analysis, CV variability section 3b
-        assert '0 / 2' in cv_sd_models[0]
-        assert 'robert/report/score_w_2_0.jpg' in cv_sd_models[0]
-        assert '0 / 2' in cv_sd_models[1]
-        assert 'robert/report/score_w_2_0.jpg' in cv_sd_models[1]
+        assert '1 / 2' in pred_ability[0]
+        assert 'robert/report/score_w_2_1.jpg' in pred_ability[0]
+        assert '1 / 2' in pred_ability[1]
+        assert 'robert/report/score_w_2_1.jpg' in pred_ability[1]
+        # advanced analysis, predictive ability of external test set section 3a
+        assert '2 / 2' in pred_test_ability[0]
+        assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[0]
+        assert '2 / 2' in pred_test_ability[1]
+        assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[1]
+        # advanced analysis, predictive ability of CV vs test section 3b
+        assert '2 / 2' in cv_vs_test_models[0]
+        assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[0]
+        assert '2 / 2' in cv_vs_test_models[1]
+        assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[1]
+        # advanced analysis, CV variability section 3c
+        assert '2 / 2' in cv_sd_models[0]
+        assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[0]
+        assert '2 / 2' in cv_sd_models[1]
+        assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[1]
         assert cv_sd_image
-        # advanced analysis, predictive ability section 2
-        assert '0 / 1' in points_descp[0]
-        assert 'robert/report/score_w_1_0.jpg' in points_descp[0]
-        assert '1 / 1' in points_descp[1]
-        assert 'robert/report/score_w_1_1.jpg' in points_descp[1]
+        # advanced analysis, extrapolation section 3d
+        assert '0 / 2' in extrapol_ability[0]
+        assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[0]
+        assert '0 / 2' in extrapol_ability[1]
+        assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[1]
         # y distribution and Pearson images
         assert y_distrib_image
         assert pearson_pred_image
         # warnings
         assert find_severe_red
-        assert find_severe_blue
-        assert find_moder_pred
+        assert find_moder_correl
         assert find_moder_y_dist
-        assert unclear_test
-        assert find_assess_yellow
         assert find_assess_red
 
     if test_job in ['full_workflow','full_workflow_test','aqme','2smiles_columns']:

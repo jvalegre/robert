@@ -17,19 +17,8 @@ Parameters
         Directory to create the output file(s).
     varfile : str, default=None
         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-    train : list, default=[60,70,80,90]
-        Proportions of the training set to use in the ML scan. The numbers are relative to the training 
-        set proportion (i.e. 40 = 40% training data).
-    auto_kn : bool, default=True
-        Changes random splitting to KN splitting in databases with less than 250 datapoints.
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
-    filter_train : bool, default=True
-        Disables the 90% training size in databases with less than 50 datapoints, and the 80% in less than 30.
-    split : str, default='RND'
-        Mode for splitting data. Options: 
-        1. 'KN' (k-neighbours clustering-based splitting)
-        2. 'RND' (random splitting).  
     model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) 
         ML models available: 
         1. 'RF' (Random forest)
@@ -38,7 +27,6 @@ Parameters
         4. 'NN' (MLP neural network)
         5. 'GP' (Gaussian Process)
         6. 'AdaB' (AdaBoost)
-        7. 'VR' (Voting regressor combining RF, GB and NN)
     custom_params : str, default=None
         Define new parameters for the ML models used in the hyperoptimization workflow. The path
         to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')
@@ -46,19 +34,8 @@ Parameters
         Type of the pedictions. Options: 
         1. 'reg' (Regressor)
         2. 'clas' (Classifier)
-    seed : list, default=[]
-        Random seeds used in the ML predictor models, data splitting and other protocols. If seed 
-        is not adjusted manually, the generate_acc option will set the values for seed.
-    epochs : int, default=0
-        Number of epochs for the hyperopt optimization. If epochs is not adjusted manually, the 
-        generate_acc option will set the values for epochs.
-    generate_acc : str, default='mid'
-        Accuracy of the workflow performed in GENERATE in terms of seed and epochs. Options:
-        1. 'low', fastest and least accurate protocol (seed = [0,8,19], epochs = 20)
-        2. 'mid', compromise between 'low' and 'high' accurate protocol (seed = [0,8,19,43,70,233], 
-        epochs = 40)
-        3. 'high', slowest and most accurate protocol (seed = [0,8,19,43,70,233,1989,9999,20394,3948301], 
-        epochs = 100)
+    seed : int, default=0
+        Random seed used in the ML predictor models and other protocols.
     error_type : str, default: rmse (regression), mcc (classification)
         Target value used during the hyperopt optimization. Options:
         Regression:
@@ -69,25 +46,32 @@ Parameters
         1. mcc (Matthew's correlation coefficient)
         2. f1 (F1 score)
         3. acc (accuracy, fraction of correct predictions)
+    init_points : int, default=10
+        Number of initial points for Bayesian optimization (exploration)
+    n_iter : int, default=10
+        Number of iterations for Bayesian optimization (exploitation)
+    expect_improv : int, default=0.05
+        Expected improvement for Bayesian optimization
     pfi_filter : bool, default=True
         Activate the PFI filter of descriptors.
     pfi_epochs : int, default=5
         Sets the number of times a feature is randomly shuffled during the PFI analysis
         (standard from sklearn webpage: 5).
-    pfi_threshold : float, default=0.04
-        The PFI filter is X% of the model's score (% adjusted, 0.04 = 4% of the total score during PFI).
-        For regression, a value of 0.04 is recommended. For classification, the filter is turned off
-        by default if pfi_threshold is 0.04.
+    pfi_threshold : float, default=0.2
+        The PFI filter is X% of the model's score (% adjusted, 0.2 = 20% of the total score during PFI).
     pfi_max : int, default=0
         Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI
         filter are used.
+    auto_test : bool, default=True
+        Raises % of test points to 10% if test_set is lower than that.
     test_set : float, default=0.1
-        Amount of datapoints to separate as external test set. These points will not be used during the
+        Amount of datapoints to separate as external test set (0.1 = 10%). These points will not be used during the
         hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select
         --test_set 0 to use only training and validation.
-    auto_test : bool, default=True
-        Removes test sets in databases with less than 50 datapoints and raises % of test points to 10% if 
-        test_set is lower than that.
+    kfold : int, default=5
+        Number of random data splits for the cross-validation of the models. 
+    repeat_kfolds : int, default=10
+        Number of repetitions for the k-fold cross-validation of the models.
         
 """
 #####################################################.
@@ -96,20 +80,17 @@ Parameters
 #####################################################.
 
 import time
-import pandas as pd
-import random
 from robert.utils import (
     load_variables, 
     finish_print,
     load_database,
-    check_clas_problem
+    check_clas_problem,
+    prepare_sets
 )
 from robert.generate_utils import (
-    prepare_sets,
-    hyperopt_workflow,
+    BO_workflow,
     PFI_workflow,
     heatmap_workflow,
-    filter_seed,
     detect_best
 )
 
@@ -132,196 +113,64 @@ class generate:
         self.args = load_variables(kwargs, "generate")
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate")
+        csv_df, _, _ = load_database(self,self.args.csv_name,"generate")
 
         # changes type to classification if there are only two different y values
         if self.args.type.lower() == 'reg' and self.args.auto_type:
             self = check_clas_problem(self,csv_df)
-
-        # separates an external test set (if applicable)
-        csv_df, csv_X, csv_y, csv_df_test = self.separate_test(csv_df, csv_X, csv_y)
-  
-        # changes from random to KN data splitting in some cases
-        if self.args.auto_kn:
-            self = self.adjust_split(csv_df)
-
-        # if there are less than 50 and 30 datapoints, the 90% and 80% training sizes are disabled by default
-        if self.args.filter_train:
-            self = self.adjust_train(csv_df)
         
         # scan different ML models
-        txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models ({self.args.model}) and {len(self.args.train)} training sizes ({self.args.train})."
+        txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models ({self.args.model})."
 
         # scan different training partition sizes
         cycle = 1
         txt_heatmap += f'\n   Heatmap generation:'
         self.args.log.write(txt_heatmap)
-        for size in self.args.train:
 
-            # scan different ML models
-            for ML_model in self.args.model:
+        # scan different ML models
+        self.args.log.write(f'''   o Starting BO-based hyperoptimization using the combined target:
+                    \n     1. 50% = {self.args.error_type.upper()} from a {self.args.repeat_kfolds}x repeated {self.args.kfold}-fold CV (interpoplation)
+                    \n     2. 50% = {self.args.error_type.upper()} from the bottom or top (worst performing) fold in a sorted {self.args.kfold}-fold CV (extrapolation)
+                    \n''')
 
-                for seed in self.args.seed:
-                    seed = int(seed)
+        for ML_model in self.args.model:
 
-                    self.args.log.write(f'   - {cycle}/{len(self.args.model)*len(self.args.train)*len(self.args.seed)} - Training size: {size}, ML model: {ML_model}, seed: {seed} ')
+            self.args.log.write(f'   - {cycle}/{len(self.args.model)} - ML model: {ML_model} ')
 
-                    # splits the data into training and validation sets, and standardize the X sets
-                    Xy_data = prepare_sets(self,csv_X,csv_y,size,seed)
+            # load database, discard user-defined descriptors and perform data checks
+            csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
 
-                    # restore defaults
-                    Xy_data_hyp = Xy_data.copy()
-                    csv_df_hyp = csv_df.copy()
-                    csv_df_PFI = csv_df.copy()
+            # standardizes and separates an external test set
+            Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
 
-                    # hyperopt process for ML models
-                    _ = hyperopt_workflow(self, csv_df_hyp, ML_model, size, Xy_data_hyp, seed, csv_df_test)
+            # hyperopt process for ML models
+            _ = BO_workflow(self, Xy_data, csv_df, ML_model)
 
-                    # apply the PFI descriptor filter if it is activated
-                    if self.args.pfi_filter:
-                        try:
-                            _ = PFI_workflow(self, csv_df_PFI, ML_model, size, Xy_data_hyp, seed, csv_df_test)
-                        except (FileNotFoundError,ValueError): # in case the model/train/seed combination failed
-                            pass
+            # apply the PFI descriptor filter if it's activated
+            if self.args.pfi_filter:
+                # load database, discard user-defined descriptors and perform data checks
+                csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
 
-                    cycle += 1
+                # standardizes and separates an external test set
+                Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
 
-                # only select best seed for each train/model combination
-                try: # in case there are no models passing generate
-                    name_csv = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_{size}")
-                    _ = filter_seed(self, name_csv)
-                    if self.args.pfi_filter:
-                        name_csv_pfi = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_{size}")
-                        _ = filter_seed(self, name_csv_pfi)
-                except UnboundLocalError:
-                    pass
+                _ = PFI_workflow(self, csv_df, ML_model, Xy_data)
+
+            cycle += 1
 
         # detects best combinations
         dir_csv = self.args.destination.joinpath(f"Raw_data")
         _ = detect_best(f'{dir_csv}/No_PFI')
-        if self.args.pfi_filter:
-            _ = detect_best(f'{dir_csv}/PFI')
 
         # create heatmap plot(s)
         _ = heatmap_workflow(self,"No_PFI")
 
+        # detect best and create heatmap for PFI models
         if self.args.pfi_filter:
-            _ = heatmap_workflow(self,"PFI")
+            try: # if no models were found
+                _ = detect_best(f'{dir_csv}/PFI')
+                _ = heatmap_workflow(self,"PFI")
+            except UnboundLocalError:
+                pass
 
         _ = finish_print(self,start_time,'GENERATE')
-
-
-    def separate_test(self, csv_df, csv_X, csv_y):
-        """
-        Separates (if applies) a test set from the database before the model scan
-        """
-        
-        csv_df_test = pd.DataFrame()
-        test_points = []
-
-        if self.args.csv_test != '':
-            self.args.test_set = 0
-        
-        if self.args.auto_test:
-            if self.args.test_set != 0:
-                if len(csv_df[self.args.y]) < 50:
-                    self.args.test_set = 0
-                    self.args.log.write(f'\nx  WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the data will be split into training and validation sets with no points separated as external test set (too few points to reach a reliable splitting). You can bypass this option and include test points with "--auto_test False".')
-                elif self.args.test_set < 0.1:
-                    self.args.test_set = 0.1
-                    self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.1 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
-
-        if self.args.test_set > 0:
-            self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data was separated as test set, using an even distribution of data points across the range of y values. The remaining data points will be split into training and validation.')
-
-            n_of_points = int(len(csv_X)*(self.args.test_set))
-
-            # this number must be 0 always, as it changes everything related to random seeds across the generate module
-            random.seed(0)
-            
-            # sometimes, using random selection leads to a test set with values that are not evenly
-            # distributed across the range of y values. In this part, we aim to create a test set 
-            # whose values cover a significant range of the y values
-            test_points = []
-
-            # first, we divide the y values into different sections (even separations, using the number of
-            # datapoints that go into the test set)
-            sorted_csv_y = csv_y.sort_values()
-            indexes = list(sorted_csv_y.index)
-            range_section = round(len(indexes)/n_of_points) # do not use int(), the last section might get too many numbers
-            sections = {}
-            for section in range(n_of_points):
-                if section == n_of_points-1:
-                    sections[section] = indexes[section*range_section:]
-                else:
-                    sections[section] = indexes[section*range_section:(section+1)*range_section]
-
-            while len(test_points) < n_of_points:
-                for section in sections:
-                    if len(test_points) < n_of_points:
-                        new_point = random.sample(sections[section],1)[0]
-                        sections[section].remove(new_point)
-                        test_points.append(new_point)
-
-            # separates the test set and reset_indexes
-            csv_df_test = csv_df.iloc[test_points].reset_index(drop=True)
-            csv_df = csv_df.drop(test_points, axis=0).reset_index(drop=True)
-            csv_X = csv_X.drop(test_points, axis=0).reset_index(drop=True)
-            csv_y = csv_y.drop(test_points, axis=0).reset_index(drop=True)
-    
-        return csv_df, csv_X, csv_y, csv_df_test
-
-
-    def adjust_split(self, csv_df):
-        '''
-        Changes the split to KN when small or imbalanced databases are used
-        '''
-        
-        # when using databases with a small number of points (less than 250 datapoints)
-        if len(csv_df[self.args.y]) < 250 and self.args.split.lower() == 'rnd':
-            self.args.split = 'KN'
-            self.args.log.write(f'\no  The database contains {len(csv_df[self.args.y])} datapoints, k-means data splitting will replace the default random splitting to select training and validation sets (too few points to reach a reliable splitting). You can use random splitting with "--auto_kn False".')
-        elif self.args.split.lower() == 'rnd':
-            self.args.log.write(f'\no  The database contains {len(csv_df[self.args.y])} datapoints, the default random splitting will be used to select training and validation sets.')
-
-        # when using unbalanced databases (using an arbitrary imbalance ratio of 10 with the two halves of the data)
-        mid_value = max(csv_df[self.args.y])-((max(csv_df[self.args.y])-min(csv_df[self.args.y]))/2)
-        high_vals = len([i for i in csv_df[self.args.y] if i >= mid_value])
-        low_vals = len([i for i in csv_df[self.args.y] if i < mid_value])
-        imb_ratio_high = high_vals/low_vals
-        imb_ratio_low = low_vals/high_vals
-        if max(imb_ratio_high,imb_ratio_low) > 10:
-            self.args.split = 'KN'
-            if imb_ratio_high > 10:
-                range_type = 'high'
-            elif imb_ratio_low > 10:
-                range_type = 'low'
-            self.args.log.write(f'\nx    WARNING! The database is imbalanced (imbalance ratio > 10, more values in the {range_type} half of values), KN data splitting will replace the default random splitting. You can use random splitting with "--auto_kn False".')
-        
-        return self
-
-
-    def adjust_train(self,csv_df):
-        '''
-        Removes 90% and 80% training sizes from model screenings when using small databases
-        '''
-        
-        removed = []
-        if len(csv_df[self.args.y]) < 50 and 90 in self.args.train:
-            self.args.train.remove(90)
-            removed.append('90%')
-        if len(csv_df[self.args.y]) < 30 and 80 in self.args.train:
-            self.args.train.remove(80)
-            removed.append('80%')
-        if len(removed) > 0:
-            self.args.log.write(f'\nx    WARNING! The database contains {len(csv_df[self.args.y])} datapoints, the {", ".join(removed)} training size(s) will be excluded (too few validation points to reach a reliable result). You can include this size(s) using "--filter_train False".')
-        
-        # Set default training sizes to avoid error if user only specifies 90% and 80% in small databases
-        if len(self.args.train) == 0:
-            # For example: If the user only specifies 90% in a database of 20 datapoints, by default that training size is going to be eliminated
-            self.args.train = [60, 70]
-            if 30 < len(csv_df[self.args.y]) < 50:
-                self.args.train.append(80)
-            self.args.log.write(f'\nx    WARNING! The specified training size is not suitable for the size of your database. Training sizes have been changed to {self.args.train}.')
-        
-        return self

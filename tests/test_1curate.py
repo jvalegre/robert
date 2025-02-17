@@ -26,8 +26,11 @@ path_curate = os.getcwd() + "/CURATE"
             "nan_fix"
         ),  # test that empty values are replaced by 0s
         (
-            "corr_filter"
-        ),  # test to disable the correlation filter
+            "corr_filter_x"
+        ),  # test to disable the correlation filter of X
+        (
+            "corr_filter_y"
+        ),  # test to disable the correlation filter of y
         (
             "filter_thres"
         ),  # test to check the thresholds of the correlation filters
@@ -40,6 +43,9 @@ path_curate = os.getcwd() + "/CURATE"
         (
             "missing_input"
         ),  # test that if the --names, --y or --csv_name options are empty, a prompt pops up and asks for them
+        (
+            "rfecv"
+        ),  # test for the RFECV feature, default
         (
             "standard"
         ),  # standard test  
@@ -67,8 +73,13 @@ def test_CURATE(test_job):
     ]
 
     if test_job != 'missing_input':
+        if test_job == 'rfecv':
+            csv_name = 'A_randos.csv'
+        else:
+            csv_name = 'Robert_example.csv'
+
         cmd_robert = cmd_robert + ['--y','Target_values',
-                                   "--csv_name", f"{path_tests}/Robert_example.csv",
+                                   "--csv_name", f"{path_tests}/{csv_name}",
                                    "--names","Name"]
 
     if test_job == "standard":
@@ -86,7 +97,7 @@ def test_CURATE(test_job):
         # 1. Duplicate entries are removed
         assert len(db_final['Name']) == 37
         # 2. Correlated variables with X and noise (low R2 with y) are removed
-        discard_vars = ['x1','x3','x5', 'x6','ynoise']
+        discard_vars = ['x1','x3','x5', 'x6']
         for var in discard_vars:
             assert var not in db_final.columns
         # 3. Ignored variables and y are kept
@@ -95,7 +106,7 @@ def test_CURATE(test_job):
         # 4. Discarded variables are removed
         assert 'xtest' not in db_final.columns
         # 5. The rest of the variables are kept
-        final_vars = ['x2','x7','x8','x9','x10','x11']
+        final_vars = ['x2','x7','x8','x9','x10','x11','ynoise']
         for var in final_vars:
             assert var in db_final.columns
 
@@ -150,7 +161,7 @@ def test_CURATE(test_job):
         assert isinstance(db_final['x2'][4], (int, float))
         assert isinstance(db_final['x2'][0], (int, float))
 
-    elif test_job == 'corr_filter':
+    elif test_job == 'corr_filter_x':
         cmd_robert = [
             "python",
             "-m",
@@ -160,15 +171,33 @@ def test_CURATE(test_job):
             '--y', 'Target_values',
             "--names", 'Name',
             "--discard", "['xtest']",
-            "--corr_filter", "False"
+            "--corr_filter_x", "False"
         ]
         subprocess.run(cmd_robert)
         
         # check that descriptors aren't removed 
         db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
-        discard_vars = ['x1','x3','ynoise']
+        discard_vars = ['x1','x3','x5','x6','Csub-O']
         for var in discard_vars:
             assert var in db_final.columns
+
+    elif test_job == 'corr_filter_y':
+        cmd_robert = [
+            "python",
+            "-m",
+            "robert",
+            "--curate",
+            "--csv_name", f"{path_tests}/Robert_example.csv",
+            '--y', 'Target_values',
+            "--names", 'Name',
+            "--discard", "['xtest']",
+            "--corr_filter_y", "True"
+        ]
+        subprocess.run(cmd_robert)
+        
+        # check that descriptors aren't removed 
+        db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
+        assert 'ynoise' not in db_final.columns
 
     elif test_job in ['filter_thres','filter_thres_yaml']:
         if test_job == 'filter_thres':
@@ -182,6 +211,7 @@ def test_CURATE(test_job):
                 "--name", "Name",
                 "--discard", "['xtest']",
                 "--thres_x", "0.999",
+                "--corr_filter_y", "True",
                 "--thres_y", "0.000001"
             ]
         elif test_job == 'filter_thres_yaml':
@@ -278,3 +308,14 @@ def test_CURATE(test_job):
                     curate_valid = True
             assert input_found
             assert curate_valid
+
+    elif test_job == "rfecv":
+        subprocess.run(cmd_robert)
+
+        # check if variables are discarded right with RFECV
+        db_final = pd.read_csv(f"{path_curate}/{csv_name.split('.csv')[0]}_CURATE.csv")
+        assert 'rando4' not in db_final.columns
+
+        accepted_vars = ['E_HOMO','V_Bur','dist', 'rando1', 'rando2', 'rando3']
+        for var in accepted_vars:
+            assert var in db_final.columns

@@ -19,7 +19,7 @@ Don't miss out the latest hands-on tutorials from our [YouTube channel](https://
 2. Activate conda environment: `conda activate robert`  
 3. Install ROBERT using pip: `pip install robert` 
 4. Install libraries for the PDF report `conda install -y -c conda-forge glib gtk3 pango mscorefonts`
-5. (Only for compatible devices) Install Intelex accelerator: `pip install scikit-learn-intelex`  
+5. (Only for compatible devices) Install Intelex accelerator: `pip install scikit-learn-intelex==2025.0.1`  
 * Inexperienced users should visit the *Users with no Python experience* section in [Read the Docs](https://robert.readthedocs.io).
 ## Update the program
 1. Update to the latest version: `pip install robert --upgrade`  
@@ -53,7 +53,7 @@ We really THANK all the testers for their feedback and for participating in the 
 
 ## How to cite ROBERT
 If you use any of the ROBERT modules, please include this citation:  
-* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *accepted*. DOI: 10.1002/WCMS.1733.  
+* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *14*, e1733.
 
 If you use the AQME module, please include this citation:  
 * Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2023**, *13*, e1663.

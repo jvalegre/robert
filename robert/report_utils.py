@@ -9,10 +9,11 @@ import pandas as pd
 import numpy as np
 import textwrap
 from pathlib import Path
+import ast
 
 
 title_no_pfi = 'No PFI (standard descriptor filter):'
-title_pfi = 'PFI (only most important descriptors):'
+title_pfi = 'PFI (only important descriptors):'
 
 def get_csv_names(self,command_line):
     """
@@ -56,22 +57,21 @@ def get_outliers(file,suffix,spacing):
     Retrieve the summary of results from the PREDICT and VERIFY dat files
     """
     
-    with open(file, 'r') as datfile:
+    with open(file, 'r', encoding='utf-8') as datfile:
         lines = datfile.readlines()
-        train_outliers,valid_outliers,test_outliers = [],[],[]
+        train_outliers,test_outliers = [],[]
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
                 if 'o  Outliers plot saved' in line and 'No_PFI.png' in line:
-                    train_outliers,valid_outliers,test_outliers = locate_outliers(i,lines)
+                    train_outliers,test_outliers = locate_outliers(i,lines)
             if suffix == 'PFI':
                 if 'o  Outliers plot saved' in line and 'No_PFI.png' not in line:
-                    train_outliers,valid_outliers,test_outliers = locate_outliers(i,lines)
+                    train_outliers,test_outliers = locate_outliers(i,lines)
 
         summary = []
-
         # add the outlier part
         summary.append(f'\n{spacing*2}<u>Outliers (max. 10 shown)</u>\n')
-        summary = summary + train_outliers + valid_outliers + test_outliers
+        summary = summary + train_outliers + test_outliers
 
     summary = f'{spacing*2}'.join(summary)
 
@@ -91,22 +91,24 @@ def get_outliers(file,suffix,spacing):
 
 def get_metrics(file,suffix,spacing):
     """
-    Retrieve the summary of results from the PREDICT and VERIFY dat files
+    Retrieve the summary of results from the PREDICT dat files
     """
     
-    with open(file, 'r') as datfile:
+    with open(file, 'r', encoding='utf-8') as datfile:
         lines = datfile.readlines()
         start_results,stop_results = 0,0
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' in line:
-                    start_results,stop_results = locate_results(i,lines)
+                if 'o  Summary of results' in line and 'No_PFI:' in line:
+                    start_results = i+1
+                    stop_results = i+6
             if suffix == 'PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' not in line:
-                    start_results,stop_results = locate_results(i,lines)
+                if 'o  Summary of results' in line and 'No_PFI:' not in line:
+                    start_results = i+1
+                    stop_results = i+6
 
         # add the summary of results of PREDICT
-        start_results += 4
+        start_results += 4 # skip informaton that aren't metrics
         summary = []
         for line in lines[start_results:stop_results+1]:
             if 'R2' in line:
@@ -132,26 +134,26 @@ def get_csv_metrics(file,suffix,spacing):
     """
     
     results_line = ''
-    with open(file, 'r') as datfile:
+    with open(file, 'r', encoding='utf-8') as datfile:
         lines = datfile.readlines()
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' in line:
+                if 'o  Summary of results' in line and 'No_PFI:' in line:
                     for j in range(i,i+15):
                         if 'o  SHAP' in lines[j]:
                             break
-                        elif '-  csv_test : ' in lines[j]:
-                            results_line = lines[j][9:]
+                        elif '-  External test : ' in lines[j]:
+                            results_line = lines[j][25:]
             if suffix == 'PFI':
-                if 'o  Results saved in' in line and 'No_PFI.dat' not in line:
+                if 'o  Summary of results' in line and 'No_PFI:' not in line:
                     for j in range(i,i+15):
                         if 'o  SHAP' in lines[j]:
                             break
-                        elif '-  csv_test : ' in lines[j]:
-                            results_line = lines[j][9:]
+                        elif '-  External test : ' in lines[j]:
+                            results_line = lines[j][25:]
 
     # start the csv_test section
-    metrics_dat = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>csv_test metrics</u></p>'
+    metrics_dat = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>External test metrics</u></p>'
 
     # add line with model metrics (if any)
     if results_line != '':
@@ -173,16 +175,16 @@ def get_csv_pred(suffix,path_csv_test,y_value,names,spacing):
     csv_test_list = glob.glob(f'{csv_test_folder}/*.csv')
     for file in csv_test_list:
         if suffix == 'No PFI':
-            if '_predicted_No_PFI' in file:
+            if '_No_PFI.csv' in file:
                 csv_test_file = file
         if suffix == 'PFI':
-            if '_predicted_PFI' in file:
+            if '_No_PFI.csv' not in file and '_PFI.csv' in file:
                 csv_test_file = file
 
     csv_test_df = pd.read_csv(csv_test_file, encoding='utf-8')
 
     # start the csv_test section
-    pred_line = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>csv_test predictions (sorted, max. 20 shown)</u></p>'
+    pred_line = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>External test predictions (sorted, max. 20 shown)</u></p>'
 
     if suffix == 'No PFI':
         pred_line += f'<p style="text-align: justify; margin-bottom: 20px;">{spacing*2}From /PREDICT/csv_test/...No_PFI.csv</p>'
@@ -305,11 +307,11 @@ def detect_predictions(module_file):
 
     # summary of the external CSV test set (if any)
     y_value, names, path_csv_test = '','',''
-    with open(module_file, 'r') as datfile:
+    with open(module_file, 'r', encoding= 'utf-8') as datfile:
         lines = datfile.readlines()
         for _,line in enumerate(lines):
             if '- Target value:' in line:
-                y_value = line.split()[-1]
+                y_value = ' '.join(line.split(':')[1:]).strip()
             elif '- Names:' in line:
                 names = line.split()[-1]
             elif 'External set with predicted results:' in line:
@@ -324,12 +326,12 @@ def locate_outliers(i,lines):
     Returns the start and end of the PREDICT summary in the dat file
     """
     
-    train_outliers,valid_outliers,test_outliers = [],[],[]
+    train_outliers,test_outliers = [],[]
     len_line = 54
     for j in range(i+1,len(lines)):
         if 'Train:' in lines[j]:
             for k in range(j,len(lines)):
-                if 'Validation:' in lines[k]:
+                if 'Test:' in lines[k]:
                     break
                 elif len(train_outliers) <= 10: # 10 outliers and the line with the % of outliers
                     if len(lines[k][6:]) > len_line:
@@ -337,16 +339,6 @@ def locate_outliers(i,lines):
                     else:
                         outlier_line = lines[k][6:]
                     train_outliers.append(outlier_line)
-        elif 'Validation:' in lines[j]:
-            for k in range(j,len(lines)):
-                if 'Test:' in lines[k] or len(lines[k].split()) == 0:
-                    break
-                elif len(valid_outliers) <= 10: # 10 outliers and the line with the % of outliers
-                    if len(lines[k][6:]) > len_line:
-                        outlier_line = f'{lines[k][6:len_line+6]}\n{lines[k][len_line+6:]}'
-                    else:
-                        outlier_line = lines[k][6:]
-                    valid_outliers.append(outlier_line)
         elif 'Test:' in lines[j]:
             for k in range(j,len(lines)):
                 if len(lines[k].split()) == 0:
@@ -361,21 +353,7 @@ def locate_outliers(i,lines):
         if len(lines[j].split()) == 0:
             break
 
-    return train_outliers,valid_outliers,test_outliers
-
-
-def locate_results(i,lines):
-    """
-    Returns the start and end of the outliers section in the PREDICT dat file
-    """
-    
-    start_results = i+1
-    stop_results = i+6
-    for j in range(i+1,i+10):
-        if '-  Test : ' in lines[j]:
-            stop_results = i+7
-    
-    return start_results,stop_results
+    return train_outliers,test_outliers
 
    
 def combine_cols(columns):
@@ -418,11 +396,12 @@ def get_col_score(score_info,data_score,suffix,spacing,eval_only):
     ML_line_format = f'<p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;">{spacing}'
     part_line_format = f'<p style="text-align: justify; margin-top: 1px; margin-bottom: 0px;">{spacing}'
 
+    score_title = f'''&nbsp;&nbsp;·&nbsp;&nbsp;Score  {data_score[f'robert_score_{suffix}']}'''
     if suffix == 'No PFI':
-        caption = f'{spacing}{title_no_pfi}'
+        caption = f'{spacing}{title_no_pfi.replace(":",score_title)}'
 
     elif suffix == 'PFI':
-        caption = f'{spacing}{title_pfi}'
+        caption = f'{spacing}{title_pfi.replace(":",score_title)}'
 
     partitions_ratio = data_score['proportion_ratio_print'].split('-  Proportion ')[1]
 
@@ -433,8 +412,7 @@ def get_col_score(score_info,data_score,suffix,spacing,eval_only):
 
     column = f"""<p style="margin-top:-18px;"><span style="font-weight:bold;">{title_line}</span></p>
     {ML_line_format}Model = {data_score['ML_model']}&nbsp;&nbsp;·&nbsp;&nbsp;{partitions_ratio}</p>
-    {part_line_format}Points(train+valid.):descriptors = {data_score[f'points_descp_ratio_{suffix}']}</p>
-    {part_line_format}Score = {data_score[f'robert_score_{suffix}']} / 10</p>
+    {part_line_format}Points(train+validation):descriptors = {data_score[f'points_descp_ratio_{suffix}']}</p>
     <p style="margin-top: 4px;">{score_info}
     <p style="margin-bottom: 18px;"></p>
     """
@@ -448,135 +426,141 @@ def adv_flawed(self,suffix,data_score,spacing):
     """
 
     score_flawed = data_score[f'flawed_mod_score_{suffix}']
-    if score_flawed <= 0:
-        verify_image = f'{self.args.path_icons}/score_w_3_0.jpg'
-    else:
-        verify_image = f'{self.args.path_icons}/score_w_3_{score_flawed}.jpg'
 
-    if score_flawed <= 0 or data_score[f'failed_tests_{suffix}'] > 0:
-       flaw_result = f'DO NOT USE THIS MODEL! It has important flaws.'
-    elif score_flawed in [1,2]:
-        flaw_result = f'WARNING! The model might have important flaws.'
-    elif score_flawed == 3:
+    if score_flawed == 0:
         flaw_result = f'The model predicts right for the right reasons.'
+    else:
+        flaw_result = f'Warning! The model probably has important flaws.'
 
     # adds a bit more space if there is no test set
     score_adv_flawed = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     init_spacing = f'<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}'
     column = f"""
-    {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed} / 3 &nbsp;<img src="file:///{verify_image}" alt="ROBERT Score" style="width: 19%">)</p>
-    {score_adv_flawed}{flaw_result}<br>{spacing}Pass: +1, Unclear: 0, Fail: -1. <i><a href="https://robert.readthedocs.io/en/latest/Report/score.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
+    {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed} / 0)</p>
+    {score_adv_flawed}{flaw_result}<br>{spacing}<i>· Scoring from -6 to 0 ·</i><br>{spacing}Pass: 0, Unclear: -1, Fail: -2.</p>
     """
 
     return column
 
 
-def adv_predict(self,suffix,data_score,spacing,test_set,pred_type):
+def adv_predict(self,suffix,data_score,spacing,pred_type):
     """
     Gather the advanced analysis of predictive ability
     """
 
-    score_predict = data_score[f'r2_score_{suffix}']
+    score_predict = data_score[f'cv_score_combined_{suffix}']
     predict_image = f'{self.args.path_icons}/score_w_2_{score_predict}.jpg'
 
-    if test_set:
-        r2_set = 'test'
-    else:
-        r2_set = 'valid.'
+    cv_type = data_score[f"cv_type_{suffix}"]
 
     if pred_type == 'reg':
-        metric_type = 'R<sup>2</sup>'
+        metric_type = ['Scaled RMSE','R<sup>2</sup>']
     else:
-        metric_type = 'MCC'
+        metric_type = ['MCC']
 
-    if score_predict == 0:
-        predict_result = f'Low predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
-    elif score_predict == 1:
-        predict_result = f'Moderate predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
-    elif score_predict == 2:
-        predict_result = f'Good predictive ability with {metric_type} ({r2_set}) = {data_score[f"r2_valid_{suffix}"]}.'
-    
+    predict_result = f'''{metric_type[0]} ({cv_type}) = {data_score[f'scaled_rmse_cv_{suffix}']}%.'''
     if pred_type == 'reg':
-        thres_line = 'R<sup>2</sup> 0.70-0.85: +1, R<sup>2</sup> >0.85: +2.'
+        predict_result += f'''<br>{spacing}{metric_type[1]} ({cv_type}) = {data_score[f"r2_cv_{suffix}"]}.'''
+
+
+    if pred_type == 'reg':
+        thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
+        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
     else:
         thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
 
     init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""{init_sep}<span style="font-weight:bold;">2. Predictive ability of the model</span> &nbsp;({score_predict} / 2 &nbsp;<img src="file:///{predict_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{predict_result}<br>{spacing}{thres_line}</p>
+    column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_predict} / 2 &nbsp;<img src="file:///{predict_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
 
     return column
 
 
-def adv_cv_r2(self,suffix,data_score,spacing,pred_type):
+def adv_test(self,suffix,data_score,spacing,pred_type):
     """
-    Gather the advanced analysis of cross-validation regarding predictive ability
+    Gather the advanced analysis of predictive ability with the test set
     """
 
-    score_cv_r2 = data_score[f'cv_r2_score_{suffix}']
-    cv_r2_image = f'{self.args.path_icons}/score_w_2_{score_cv_r2}.jpg'
-    cv_type = data_score[f'cv_type_{suffix}']
+    score_test = data_score[f'test_score_combined_{suffix}']
+    test_image = f'{self.args.path_icons}/score_w_2_{score_test}.jpg'
 
     if pred_type == 'reg':
-        metric_type = 'R<sup>2</sup>'
+        metric_type = ['Scaled RMSE','R<sup>2</sup>']
     else:
-        metric_type = 'MCC'
-
-    if score_cv_r2 == 0:
-        cv_result = f'Low predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
-    elif score_cv_r2 == 1:
-        cv_result = f'Moderate predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
-    elif score_cv_r2 == 2:
-        cv_result = f'Good predictive ability with {metric_type} ({cv_type}) = {data_score[f"cv_r2_{suffix}"]}.'
+        metric_type = ['MCC']
+    
+    predict_result = f'''{metric_type[0]} (test set) = {data_score[f'scaled_rmse_test_{suffix}']}%.'''
+    if pred_type == 'reg':
+        predict_result += f'''<br>{spacing}{metric_type[1]} (test set) = {data_score[f"r2_test_{suffix}"]}.'''
 
     if pred_type == 'reg':
-        thres_line = 'R<sup>2</sup> 0.70-0.85: +1, R<sup>2</sup> >0.85: +2.'
+        thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
+        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
     else:
         thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
 
     score_adv_cv = f'<p style="text-align: justify; margin-top: 5px; margin-bottom: 0px;">{spacing}'
-    column = f"""{score_adv_cv}<br>{spacing}<span style="font-weight:bold;">3. Cross-validation ({cv_type}) of the model</span></p>
-    {score_adv_cv}Overfitting analysis on the model with 3a and 3b:</p>
-    <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. CV predictions train + valid.</u> &nbsp;({score_cv_r2} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_cv}{cv_result}<br>{spacing}{thres_line}</p>
+    column = f"""{score_adv_cv}<br>{spacing}<span style="font-weight:bold;">3. Predictive ability & overfitting</span></p>
+    <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. Predictions test set</u> &nbsp;({score_test} / 2 &nbsp;<img src="file:///{test_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p><br>
     """
 
     return column
 
 
-def adv_cv_sd(self,suffix,data_score,spacing,test_set):
+def adv_diff_test(self,suffix,data_score,spacing,pred_type):
     """
-    Gather the advanced analysis of cross-validation regarding variation
+    Gather the advanced analysis of difference in RMSE between CV and test set
+    """
+
+    score_diff_test = data_score[f'diff_scaled_rmse_score_{suffix}']
+    diff_test_image = f'{self.args.path_icons}/score_w_2_{score_diff_test}.jpg'
+
+    diff_result = f'RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)}*scaled RMSE (CV).'
+    
+    if pred_type == 'reg':
+        thres_line = 'Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV): +2.'
+        thres_line += f'<br>{spacing}Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV): +1.'
+    else:
+        thres_line = 'ΔMCC ≤ 0.25: +1'
+
+    score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. Prediction accuracy test vs CV</u> &nbsp;({score_diff_test} / 2 &nbsp;<img src="file:///{diff_test_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_diff}<i>Relative differences in values from sections 2 and 3a.</i><br>
+    {spacing}{diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p><br>
+    """
+
+    return column
+
+
+def adv_cv_sd(self,suffix,data_score,spacing):
+    """
+    Gather the advanced analysis of test predictions regarding variation
     """
 
     score_cv_sd = data_score[f'cv_sd_score_{suffix}']
     cv_r2_image = f'{self.args.path_icons}/score_w_2_{score_cv_sd}.jpg'
     y_range_covered = round(data_score[f"cv_range_cov_{suffix}"]*100)
     cv_4sd = round(data_score[f"cv_4sd_{suffix}"],1)
-    if test_set:
-        sd_set = 'test'
-    else:
-        sd_set = 'valid.'
 
     if score_cv_sd == 0:
-        cv_sd_result = f'High variation, 4*SD ({sd_set}) = {cv_4sd} ({y_range_covered}% y-range).'
+        cv_sd_result = f'High variation, 4*SD = {cv_4sd} ({y_range_covered}% y-range).'
     elif score_cv_sd == 1:
-        cv_sd_result = f'Moderate variation, 4*SD ({sd_set}) = {cv_4sd} ({y_range_covered}% y-range).'
+        cv_sd_result = f'Moderate variation, 4*SD = {cv_4sd} ({y_range_covered}% y-range).'
     elif score_cv_sd == 2:
-        cv_sd_result = f'Low variation, 4*SD ({sd_set}) = {cv_4sd} ({y_range_covered}% y-range).'
+        cv_sd_result = f'Low variation, 4*SD = {cv_4sd} ({y_range_covered}% y-range).'
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. Avg. standard deviation (SD)</u> &nbsp;({score_cv_sd} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{cv_sd_result}<br>{spacing}4*SD 25-50% y-range: +1, 4*SD < 25% y-range: +2. <i>
-    <br>{spacing}<a href="https://robert.readthedocs.io/en/latest/Report/score.html" style="text-decorations:none; color:inherit; text-decoration:none;">Details here.</a></i></p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3c. Avg. standard deviation (SD)</u> &nbsp;({score_cv_sd} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}{cv_sd_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}4*SD ≤ 25% y-range: +2, 4*SD ≤ 50% y-range: +1.</p>
     """
 
     return column
 
 
-def adv_cv_diff(self,suffix,data_score,spacing,test_set):
+def adv_cv_diff(self,suffix,data_score,spacing):
     """
     Gather the advanced analysis of cross-validation regarding variation
     """
@@ -598,28 +582,27 @@ def adv_cv_diff(self,suffix,data_score,spacing,test_set):
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. MCC difference (model vs CV)</u> &nbsp;({score_cv_diff} / 2 &nbsp;<img src="file:///{cv_diff_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{cv_diff_result}<br>{spacing}ΔMCC 0.15-0.30: +1, ΔMCC < 0.15: +2.
+    {score_adv_pred}{cv_diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}ΔMCC 0.15-0.30: +1, ΔMCC < 0.15: +2.<br>
     """
 
     return column
 
 
-def adv_descp(self,suffix,data_score,spacing):
+def adv_sorted_cv(self,suffix,data_score,spacing):
     """
-    Gather the advanced analysis of predictive ability
+    Gather the advanced analysis of sorted CV (extrapolation)
     """
 
-    score_descp = data_score[f'descp_score_{suffix}']
-    points_descp_ratio = data_score[f'points_descp_ratio_{suffix}']
-    predict_image = f'{self.args.path_icons}/score_w_1_{score_descp}.jpg'
-    if score_descp == 0:
-        predict_result = f'Number of descps. could be lower (ratio {points_descp_ratio}).'
-    elif score_descp == 1:
-        predict_result = f'Decent number of descps. (ratio {points_descp_ratio}).'
+    score_sorted = data_score[f'sorted_cv_score_{suffix}']
+    sorted_cv_image = f'{self.args.path_icons}/score_w_2_{score_sorted}.jpg'
+    sorted_rmse = str([f'{val}%' for val in data_score[f'scaled_rmse_sorted_{suffix}']]).replace("'",'')
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""{score_adv_pred}<br>{spacing}<span style="font-weight:bold;">4. Points(train+valid.):descriptors</span> &nbsp;({score_descp} / 1 &nbsp;<img src="file:///{predict_image}" alt="ROBERT Score" style="width: 6.6%">)</p>
-    {score_adv_pred}{predict_result}<br>{spacing}5 or more points per descriptor: +1.</p>
+    column = f"""<p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>3d. Extrapolation (sorted CV)</u> &nbsp;({score_sorted} / 2 &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}Scaled RMSEs across 5-fold CV:
+    <br>{spacing}{sorted_rmse}
+    <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
+    <br>{spacing}Every two folds with RMSEs ≤ 1.25*min RMSE: +1.</p>
     """
 
     return column
@@ -689,8 +672,8 @@ def get_col_transpa(params_dict,suffix,section,spacing):
     elif suffix == 'PFI':
         caption = f'{title_pfi}'
 
-    excluded_params = [params_dict['error_type'],'train','y']
-    misc_params = ['split','type','error_type']
+    excluded_params = [f"combined_{params_dict['error_type']}", 'train', 'X_descriptors', 'y', 'error_train', 'cv_error', 'names']
+    misc_params = ['type','error_type','kfold','repeat_kfolds','seed']
     if params_dict['type'] == 'reg':
         model_type = 'Regressor'
     elif params_dict['type'] == 'clas':
@@ -701,7 +684,6 @@ def get_col_transpa(params_dict,suffix,section,spacing):
                     'NN': f'MLP{model_type}',
                     'GP': f'GaussianProcess{model_type}',
                     'ADAB': f'AdaBoost{model_type}',
-                    'VR': f'Voting{model_type} (combining RF, GB and NN)'
                     }
 
     col_info,sklearn_model = '',''
@@ -711,11 +693,10 @@ def get_col_transpa(params_dict,suffix,section,spacing):
                 sklearn_model = models_dict[params_dict[ele].upper()]
                 sklearn_model = f"""{first_line}sklearn model: {sklearn_model}</p>"""
             elif section == 'model_section' and ele.lower() not in misc_params:
-                if ele != 'X_descriptors':
-                    if ele == 'seed':
-                        col_info += f"""{reduced_line}random_state: {params_dict[ele]}</p>"""
-                    else:
-                        col_info += f"""{reduced_line}{ele}: {params_dict[ele]}</p>"""
+                if ele == 'params':
+                    model_params = ast.literal_eval(params_dict['params'])
+                    for param in model_params:
+                        col_info += f"""{reduced_line}{param}: {model_params[param]}</p>"""
             elif section == 'misc_section' and ele.lower() in misc_params:
                 if col_info == '':
                     col_info += f"""{first_line}{ele}: {params_dict[ele]}</p>"""
@@ -734,16 +715,14 @@ def calc_score(dat_files,suffix,pred_type,data_score):
     Calculates ROBERT score
     '''
 
-    descp_warning = 0
-    data_score,test_set = get_predict_scores(dat_files['PREDICT'],suffix,pred_type,data_score)
-
-    if data_score[f'descp_score_{suffix}'] == 0:
-        descp_warning += 1
+    data_score = get_predict_scores(dat_files['PREDICT'],suffix,pred_type,data_score)
 
     data_score = get_verify_scores(dat_files['VERIFY'],suffix,pred_type,data_score)
 
     if pred_type == 'reg':
-        robert_score = data_score[f'r2_score_{suffix}'] + data_score[f'cv_sd_score_{suffix}'] + data_score[f'cv_r2_score_{suffix}'] + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'descp_score_{suffix}']
+        robert_score = data_score[f'cv_score_combined_{suffix}'] + data_score[f'test_score_combined_{suffix}'] \
+                    + data_score[f'cv_sd_score_{suffix}'] + data_score[f'diff_scaled_rmse_score_{suffix}'] \
+                    + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'sorted_cv_score_{suffix}']
     elif pred_type == 'clas':
         # MCC difference between model and CV (the variables say r2 for uniformity with reg)
         r2_diff = round(np.abs(data_score[f'r2_valid_{suffix}']-data_score[f'cv_r2_{suffix}']),2)
@@ -760,7 +739,7 @@ def calc_score(dat_files,suffix,pred_type,data_score):
 
     data_score[f'robert_score_{suffix}'] = robert_score
 
-    return data_score,test_set
+    return data_score
     
 
 def get_verify_scores(dat_verify,suffix,pred_type,data_score):
@@ -769,9 +748,9 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
     """
 
     start_data = False
-    cv_type = ''
-    flawed_score,cv_r2 = 0,0
+    flawed_score = 0
     failed_tests = 0
+    sorted_cv_score = 0
     for i,line in enumerate(dat_verify):
         # set starting points for No PFI and PFI models
         if suffix == 'No PFI':
@@ -784,31 +763,40 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                 start_data = True
         
         if start_data:
-            if 'Original ' in line and '(valid' in line:
+            if 'Original RMSE (' in line:
                 for j in range(i+1,i+4): # y-mean, y-shuffle and onehot tests
-                    if 'PASSED' in dat_verify[j]:
-                        flawed_score += 1
-                    elif 'FAILED' in dat_verify[j]:
+                    if 'UNCLEAR' in dat_verify[j]:
                         flawed_score -= 1
+                    elif 'FAILED' in dat_verify[j]:
+                        flawed_score -= 2
                         failed_tests += 1
-                if 'LOOCV' in dat_verify[i+4]:
-                    cv_type = 'LOOCV'
-                else:
-                    cv_type = f'{dat_verify[i+4].split()[1]} CV'
-                if pred_type == 'reg':
-                    cv_r2 = float(dat_verify[i+4].split('R2 = ')[1].split(',')[0])
-                else:
-                    cv_r2 = float(dat_verify[i+4].split()[-1])
+                if pred_type.lower() == 'reg':
+                    if '- Sorted ' in dat_verify[i+4]:
+                        sorted_cv_results = dat_verify[i+4].split('RMSE = ')[-1]
+                        sorted_cv_results = ast.literal_eval(sorted_cv_results)
+                        data_score[f'scaled_rmse_sorted_{suffix}'] = [round((val/data_score[f'y_range_{suffix}'])*100,2) for val in sorted_cv_results]
+                        data_score[f'min_scaled_rmse_{suffix}'] = min(data_score[f'scaled_rmse_sorted_{suffix}'])
+                        idx_min_scaled_rmse = data_score[f'scaled_rmse_sorted_{suffix}'].index(data_score[f'min_scaled_rmse_{suffix}'])
 
-    # calculate CV scores
-    cv_r2_score = score_r2_mcc(pred_type,cv_r2)
+                        data_score[f'scaled_rmse_results_sorted_{suffix}'] = []
+                        for idx,err in enumerate(data_score[f'scaled_rmse_sorted_{suffix}']):
+                            if idx == idx_min_scaled_rmse:
+                                data_score[f'scaled_rmse_results_sorted_{suffix}'].append('min')
+                            elif err <= (data_score[f'min_scaled_rmse_{suffix}']*1.25):
+                                data_score[f'scaled_rmse_results_sorted_{suffix}'].append('pass')
+                            else:
+                                data_score[f'scaled_rmse_results_sorted_{suffix}'].append('fail')
 
+                        sorted_cv_score = int(data_score[f'scaled_rmse_results_sorted_{suffix}'].count('pass')/2)
+
+    # adjust max 1 point for flawed tests
+    if flawed_score > 1:
+        flawed_score = 1
+  
     # stores data
     data_score[f'flawed_mod_score_{suffix}'] = flawed_score
-    data_score[f'cv_type_{suffix}'] = cv_type
-    data_score[f'cv_r2_{suffix}'] = cv_r2
-    data_score[f'cv_r2_score_{suffix}'] = cv_r2_score
     data_score[f'failed_tests_{suffix}'] = failed_tests
+    data_score[f'sorted_cv_score_{suffix}'] = sorted_cv_score
 
     return data_score
 
@@ -818,9 +806,8 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
     Calculates scores that come from the PREDICT module (R2 or accuracy, datapoints:descriptors ratio, outlier proportion)
     """
 
-    start_data, test_set = False, False
-    data_score[f'r2_score_{suffix}'] = 0
-    data_score[f'descp_score_{suffix}'] = 0
+    start_data = False
+    data_score[f'rmse_score_{suffix}'] = 0
 
     for i,line in enumerate(dat_predict):
 
@@ -839,43 +826,66 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
             if line.startswith('   - Model:'):
                 data_score['ML_model'] = line.split()[-1]
             # R2 and proportion
-            if 'o  Results saved in PREDICT/' in line:
+            if 'o  Summary of results' in line:
                 data_score['proportion_ratio_print'] = dat_predict[i+2]
-                # R2/MCC from test (if any) or validation
-                if pred_type == 'reg':
-                    if '-  Test : R2' in dat_predict[i+7]:
-                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+7].split()[5].split(',')[0])
-                        test_set = True
-                    elif '-  Valid. : R2' in dat_predict[i+6]:
-                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+6].split()[5].split(',')[0])
+                data_score[f'points_descp_ratio_{suffix}'] = dat_predict[i+4].split()[-1]
 
-                    data_score[f'r2_score_{suffix}'] = score_r2_mcc(pred_type,data_score[f'r2_valid_{suffix}'])
+                # scaled RMSE/MCC from test (if any) or validation
+                if pred_type == 'reg':
+                    if '-fold CV : R2 =' in dat_predict[i+5]:
+                        data_score[f'rmse_cv_{suffix}'] = float(dat_predict[i+5].split()[-1])
+                        data_score[f"cv_type_{suffix}"] = ' '.join([ele for ele in dat_predict[i+5].split()[1:4]])
+                        data_score[f'r2_cv_{suffix}'] = float(dat_predict[i+5].split(',')[0].split()[-1])
+                    if 'Test : R2 =' in dat_predict[i+6]:
+                        data_score[f'rmse_test_{suffix}'] = float(dat_predict[i+6].split()[-1])
+                        data_score[f'r2_test_{suffix}'] = float(dat_predict[i+6].split(',')[0].split()[-1])
+                    if '-  y range of dataset' in dat_predict[i+8]:
+                        data_score[f'y_range_{suffix}'] = float(dat_predict[i+8].split()[-1])
+
+                    data_score[f'scaled_rmse_cv_{suffix}'] = round((data_score[f'rmse_cv_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
+                    data_score[f'scaled_rmse_test_{suffix}'] = round((data_score[f'rmse_test_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
+
+                    data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_cv_{suffix}'])
+                    data_score[f'test_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_test_{suffix}'])
+
+                    # get penalties for R2
+                    data_score[f'cv_penalty_r2_{suffix}'] = calc_penalty_r2(data_score[f'r2_cv_{suffix}'])
+                    data_score[f'test_penalty_r2_{suffix}'] = calc_penalty_r2(data_score[f'r2_test_{suffix}'])
+
+                    # combined scores RMSE/R2 (min 0)
+                    data_score[f'cv_score_combined_{suffix}'] = data_score[f'cv_score_rmse_{suffix}'] + data_score[f'cv_penalty_r2_{suffix}']
+                    if data_score[f'cv_score_combined_{suffix}'] < 0:
+                        data_score[f'cv_score_combined_{suffix}'] = 0
+                    data_score[f'test_score_combined_{suffix}'] = data_score[f'test_score_rmse_{suffix}'] + data_score[f'test_penalty_r2_{suffix}']
+                    if data_score[f'test_score_combined_{suffix}'] < 0:
+                        data_score[f'test_score_combined_{suffix}'] = 0
+
+                    diff_score = 0
+                    # relative difference between RMSE from test and CV
+                    data_score[f'factor_scaled_rmse_{suffix}'] = data_score[f'scaled_rmse_test_{suffix}'] / data_score[f'scaled_rmse_cv_{suffix}']
+                    if data_score[f'factor_scaled_rmse_{suffix}'] <= 1.25:
+                        diff_score += 2
+                    elif data_score[f'factor_scaled_rmse_{suffix}'] <= 1.5:
+                        diff_score += 1
+                    data_score[f'diff_scaled_rmse_score_{suffix}'] = diff_score
 
                 elif pred_type == 'clas': # it stores MCC but the label says R2 for consistency with reg
                     if '-  Test : Accuracy' in dat_predict[i+7]:
-                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+7].split()[-1])
-                        test_set = True
+                        data_score[f'rmse_valid_{suffix}'] = float(dat_predict[i+7].split()[-1])
                     elif '-  Valid. : Accuracy' in dat_predict[i+6]:
-                        data_score[f'r2_valid_{suffix}'] = float(dat_predict[i+6].split()[-1])
+                        data_score[f'rmse_valid_{suffix}'] = float(dat_predict[i+6].split()[-1])
 
-                    data_score[f'r2_score_{suffix}'] = score_r2_mcc(pred_type,data_score[f'r2_valid_{suffix}'])
-
-                # proportion of datapoints and descriptors
-                data_score[f'points_descp_ratio_{suffix}'] = dat_predict[i+4].split()[-1]
-                proportion = int(data_score[f'points_descp_ratio_{suffix}'].split(':')[0]) / int(data_score[f'points_descp_ratio_{suffix}'].split(':')[1])
-                if proportion >= 5:
-                    data_score[f'descp_score_{suffix}'] += 1            
+                    data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'rmse_valid_{suffix}'])          
 
             # SD from CV
             if pred_type == 'reg':
-                if 'o  Cross-validation variation' in line:
-                    cv_sd = float(dat_predict[i+2].split()[-1])
+                if '-  Average SD in test set' in line:
+                    cv_sd = float(line.split()[-1])
                     cv_4sd = 4*cv_sd
-                    y_range = float(dat_predict[i+3].split()[-1])
-                    y_range_covered = cv_4sd/y_range
+                    y_range_covered = cv_4sd/data_score[f'y_range_{suffix}']
 
                     cv_sd_score = 0
-                    if y_range_covered < 0.25:
+                    if y_range_covered <= 0.25:
                         cv_sd_score += 2
                     elif y_range_covered <= 0.50:
                         cv_sd_score += 1
@@ -884,34 +894,49 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     data_score[f"cv_range_cov_{suffix}"] = y_range_covered
                     data_score[f'cv_sd_score_{suffix}'] = cv_sd_score
 
-    return data_score,test_set
+    return data_score
 
 
-def score_r2_mcc(pred_type,r2_mcc_val):
+def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
     '''
     Calculate scores for R2 and MCC using predetermined thresholds
     '''
 
     r2_mcc_score = 0
 
-    if pred_type == 'reg': # R2
-        if r2_mcc_val > 0.85:
+    if pred_type == 'reg': # scaled RMSE
+        if scaledrmse_mcc_val <= 10:
             r2_mcc_score += 2
-        elif r2_mcc_val >= 0.7:
+        elif scaledrmse_mcc_val <= 20:
             r2_mcc_score += 1
 
     else: # MCC
-        if r2_mcc_val > 0.75:
+        if scaledrmse_mcc_val > 0.75:
             r2_mcc_score += 2
-        elif r2_mcc_val >= 0.5:
+        elif scaledrmse_mcc_val >= 0.5:
             r2_mcc_score += 1
     
     return r2_mcc_score
 
 
+def calc_penalty_r2(r2_val):
+    '''
+    Calculate scores for R2 and MCC using predetermined thresholds
+    '''
+
+    penalty_r2 = 0
+
+    if r2_val < 0.5:
+        penalty_r2 -= 2
+    elif r2_val < 0.7:
+        penalty_r2 -= 1
+    
+    return penalty_r2
+
+
 def repro_info(modules):
     """
-    Retrieves variables used in the Reproducibility and Transparency section
+    Retrieves variables used in the Reproducibility section
     """
 
     version_n_date, citation, command_line = '','',''
@@ -921,7 +946,7 @@ def repro_info(modules):
     for module in modules:
         path_file = Path(f'{os.getcwd()}/{module}/{module}_data.dat')
         if os.path.exists(path_file):
-            datfile = open(path_file, 'r', errors="replace")
+            datfile = open(path_file, 'r', encoding= 'utf-8', errors="replace")
             txt_file = []
             for line in datfile:
                 txt_file.append(line)

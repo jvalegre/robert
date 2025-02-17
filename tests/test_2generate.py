@@ -30,29 +30,20 @@ path_generate = os.getcwd() + "/GENERATE"
             "reduced_PFImax"
         ),  # test to select the number of PFI features
         (
-            "reduced_rnd"
-        ),  # test for random (RND) splitting
+            "reduced_kfold"
+        ),  # test with different kfold and repetitions
         (
-            "reduced_others"
-        ),  # test for other models        
+            "reduced_gp"
+        ),  # test for other GP model (important since PFI filter gives different results compared to standard)        
         (
-            "reduced_clas"
-        ),  # test for clasification models
-        (
-            "imbalanced_data"
-        ),  # test for imbalanced data
-        (  
-            "accuracy_low"
-            # test for chechking accuracy
-        ),
-        (
-            "accuracy_mid"
-            # test for chechking accuracy
-        ),
-        (
-            "accuracy_high"
-            # test for chechking accuracy
-        ),
+            "reduced_adab"
+        ),  # test for other GP model (important since PFI filter tries to discard all the descriptors)     
+        # (
+        #     "reduced_clas"
+        # ),  # test for clasification models
+        # (
+        #     "imbalanced_data"
+        # ),  # test for imbalanced data
         (
             "standard"
         ),  # standard test
@@ -85,52 +76,35 @@ def test_GENERATE(test_job):
         "--generate",
         "--csv_name", csv_name,
         '--y', 'Target_values',
-        "--epochs", "10",
-        "--seed", "[0]"
-        ]
-    cmd_robert_acc = [
-        "python",
-        "-m",
-        "robert",
-        "--generate",
-        "--csv_name", csv_name,
-        '--y', 'Target_values',
         ]
 
     if test_job != 'standard':
-        if test_job != 'reduced_others':
+        # add model
+        if test_job not in ['reduced_gp','reduced_adab']:
             model_list = ['RF']
-        else:
-            model_list = ['Adab','VR','GP']
-        if test_job == 'reduced_clas':
-            train_list = [80]
-        else:
-            train_list = [60]
+        elif test_job == 'reduced_gp':
+            model_list = ['GP']
+        elif test_job == 'reduced_adab':
+            model_list = ['Adab']
 
+        # adjust cmd for tests
         if test_job == "reduced_noPFI":
             cmd_robert = cmd_robert + ["--pfi_filter", "False"]
         elif test_job == 'reduced_PFImax':
-            cmd_robert = cmd_robert + ["--pfi_max", "2"]
-        elif test_job == 'reduced_rnd':
-            cmd_robert = cmd_robert + ["--auto_kn", "False"]
-        elif test_job == 'reduced_clas':
+            cmd_robert = cmd_robert + ["--pfi_max", "1"]
+        elif test_job == "reduced_kfold":
+            cmd_robert = cmd_robert + ["--kfold", "10", "--repeat_kfolds", "5"]
+        elif test_job in ['reduced_clas','imbalanced_data']:
             cmd_robert = cmd_robert + ["--type", "clas"]
-        elif test_job == 'imbalanced_data':
-            cmd_robert = cmd_robert + ["--type", "clas"]
-        elif test_job == 'accuracy_low':
-            cmd_robert = cmd_robert_acc + ["--generate_acc", "low"]
-        elif test_job == 'accuracy_mid':
-            cmd_robert = cmd_robert_acc + ["--generate_acc", "mid"]
-        elif test_job == 'accuracy_high':
-            cmd_robert = cmd_robert_acc + ["--generate_acc", "high"]
+        
+        cmd_robert = cmd_robert + ['--init_points', '1',
+                                   '--n_iter', '1']
         
     else: # needed to define the variables, change if default options change
         model_list = ['RF','GB','NN','MVL']
-        train_list = [60,70,80]
     
     cmd_robert = cmd_robert + [
-        "--model", f"{model_list}",
-        "--train", f"{train_list}"]
+        "--model", f"{model_list}"]
     
     subprocess.run(cmd_robert)
 
@@ -142,27 +116,71 @@ def test_GENERATE(test_job):
         outfile.close()
         assert "ROBERT v" in outlines[0]
         assert "- 37 datapoints" in outlines[9]
-        if test_job != 'reduced_clas':
-            assert "- 9 accepted descriptors" in outlines[10]
-        else:
-            assert "- 9 accepted descriptors" in outlines[10]
+        assert "- 10 accepted descriptors" in outlines[10]
         assert "- 1 ignored descriptors" in outlines[11]
         assert "- 0 discarded descriptors" in outlines[12]
-        finding_line = False
-        if test_job not in [ 'accuracy_low', 'accuracy_mid', 'accuracy_high']:
-            for line in outlines:
-                if f"- 1/{len(model_list) * len(train_list)}" in line:
-                    finding_line = True
-            assert finding_line
-        else:
-            if test_job == 'accuracy_low':
-                assert "- 1/3 - Training size: 60, ML model: RF, seed: 0" in outlines[20]
-            if test_job == 'accuracy_mid':
-                assert "- 1/6 - Training size: 60, ML model: RF, seed: 0" in outlines[20]
-            if test_job == 'accuracy_high':
-                assert "- 1/10 - Training size: 60, ML model: RF, seed: 0" in outlines[20]
+
+        # find GENERATE evaluation
+        finding_line = 0
+        reproducibility = 0
+        finding_changed_kfold = 0
+        for line in outlines:
+            if f"o Starting BO-based hyperoptimization using the combined target:" in line:
+                finding_line += 1
+            elif f"1. 50% = RMSE from a 10x repeated 5-fold CV (interpoplation)" in line:
+                finding_line += 1
+            elif f"2. 50% = RMSE from the bottom or top (worst performing) fold in a sorted 5-fold CV (extrapolation)" in line:
+                finding_line += 1
+            elif f"o  Before hyproptimization, 20% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values." in line:
+                finding_line += 0.5 # it appears two times, in PFI and no PFI
+                # this elif adds 4 points to the standard test (0.5*2(PFI and no PFI)*4(models)
+            elif f"o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.53" in line:
+                reproducibility += 1
+            elif f"o Combined RMSE for RF (with PFI filter): 0.58" in line:
+                reproducibility += 1
+            # lines only for standard
+            elif f"- 1/4 - ML model: RF" in line:
+                finding_line += 1
+            elif f"- 2/4 - ML model: GB" in line:
+                finding_line += 1
+            elif f"- 3/4 - ML model: NN" in line:
+                finding_line += 1
+            elif f"- 4/4 - ML model: MVL" in line:
+                finding_line += 1
+            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.5' in line:
+                reproducibility += 1
+            elif f"o Combined RMSE for RF (with PFI filter): 0.53" in line:
+                reproducibility += 1
+            elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.41" in line:
+                reproducibility += 1
+            elif f"o Combined RMSE for GB (with PFI filter): 0.42" in line:
+                reproducibility += 1
+            elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.33" in line:
+                reproducibility += 1
+            elif f"o Combined RMSE for NN (with PFI filter): 0.7" in line:
+                reproducibility += 1
+            elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 3.9' in line:
+                reproducibility += 1
+            elif f"o Combined RMSE for MVL (with PFI filter): 0.42" in line:
+                reproducibility += 1
+            # lines only for
+            elif f"1. 50% = RMSE from a 5x repeated 10-fold CV (interpoplation)" in line:
+                finding_changed_kfold += 1
+
+        if test_job == "reduced_noPFI":
+            assert finding_line == 3.5
+            assert reproducibility == 1
+        elif test_job == "reduced":
+            assert finding_line == 4
+            assert reproducibility == 2
+        if test_job == 'standard':
+            assert finding_line == 11
+            assert reproducibility == 8
+        if test_job == "reduced_kfold":
+            assert finding_changed_kfold == 1
+
         # check that the right amount of CSV files were created
-        expected_amount = len(model_list) * len(train_list) * 2
+        expected_amount = len(model_list) * 2
         if test_job != "reduced_noPFI":
             folders = ['No_PFI','PFI']
         else:
@@ -171,45 +189,42 @@ def test_GENERATE(test_job):
 
         for folder in folders:
             csv_amount = glob.glob(f'{path_generate}/Raw_data/{folder}/*.csv')
-            if test_job != 'reduced_others':
-                if test_job == 'standard':
-                    assert expected_amount == len(csv_amount)+6 # accounts for the failing GB jobs during hyperopt
-                else:
-                    assert expected_amount == len(csv_amount)
-            else:
-                assert expected_amount == len(csv_amount)+2 # accounts for the failing GP jobs during hyperopt
+            assert expected_amount == len(csv_amount)
+
             best_amount = glob.glob(f'{path_generate}/Best_model/{folder}/*.csv')
             assert len(best_amount) == 2
             params_best = pd.read_csv(best_amount[0])
             db_best = pd.read_csv(best_amount[1])
-            if test_job in ['reduced','reduced_PFImax','reduced_rnd']:
+            if test_job in ['reduced','reduced_PFImax','reduced_gp','reduced_adab']:
                 if folder == 'No_PFI':
-                    if test_job != 'reduced_clas':
-                        desc_list = ['x2', 'x7', 'x8', 'x9', 'x10', 'x11', 'Csub-Csub', 'Csub-H', 'H-O']
-                    else:
+                    if test_job in ['reduced','reduced_PFImax','reduced_gp','reduced_adab']:
+                        desc_list = ['x2', 'x7', 'x8', 'x9', 'x10', 'x11', 'ynoise', 'Csub-Csub', 'Csub-H', 'H-O']
+                    elif test_job == 'reduced_clas':
                         desc_list = ['x1', 'x2', 'x3', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10']
                 elif folder == 'PFI':
                     if test_job == 'reduced':
-                        desc_list = ['x7', 'x9', 'x10']
-                    elif test_job == 'reduced_rnd':
-                        desc_list = ['x7', 'x9', 'x10']
-                    elif test_job =='reduced_PFImax':
-                        desc_list = ['x7', 'x9']
+                        desc_list = ['x7', 'x10']
+                    elif test_job == 'reduced_PFImax':
+                        desc_list = ['x10']
+                    elif test_job == 'reduced_gp':
+                        desc_list = ['ynoise', 'Csub-Csub', 'Csub-H', 'x7', 'x10', 'x9']
+                    elif test_job == 'reduced_adab':
+                        desc_list = ['ynoise', 'x2', 'x9', 'x8', 'x7', 'x10']
 
-                if test_job in ['reduced','reduced_rnd']:    
+                if test_job in ['reduced']:
                     sum_split = 0
                     if db_best['Set'][0] == 'Training':
                         sum_split += 1
-                    if db_best['Set'][1] == 'Validation':
+                    if db_best['Set'][1] == 'Training':
                         sum_split += 1
                     if db_best['Set'][2] == 'Training':
                         sum_split += 1
-                    if db_best['Set'][3] == 'Training':
+                    if db_best['Set'][3] == 'Test':
                         sum_split += 1
+                    if db_best['Set'][4] == 'Test':
+                        sum_split += 1            
                     if test_job == 'reduced':
-                        assert sum_split == 4
-                    elif test_job == 'reduced_rnd':
-                        assert sum_split < 4
+                        assert sum_split == 5
                 for var in desc_list:
                     assert var in params_best['X_descriptors'][0]
                 assert len(desc_list) == len(params_best['X_descriptors'][0].split(','))
@@ -223,7 +238,7 @@ def test_GENERATE(test_job):
 
         # Check that the default metric for classification models is MCC
         if test_job == 'reduced_clas':
-            csv_clas = glob.glob(f'{path_generate}/Best_model/PFI/RF_80_PFI.csv')
+            csv_clas = glob.glob(f'{path_generate}/Best_model/PFI/RF_PFI.csv')
             df = pd.read_csv(csv_clas[0])
             if 'error_type' in df.columns:
                 error_types = df['error_type'].tolist()

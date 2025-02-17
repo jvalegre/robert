@@ -4,6 +4,30 @@
 Versions
 ========
 
+Version 1.3.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.1>`__]
+   -  Fixed a bug in one-hot encoding in the one-hot test
+   -  Adding the possibility to disable the automatic standarization of descriptors (--std False)
+   -  Changing CV_test (now it standardizes the descriptors in each fold)
+   -  Fixing a bug with the sklearn-intelex accelerator
+   -  Fixing a threading bug with matplotlib in SHAP
+   -  Sorting the training points when using all the split methods to match GENERATE models with PREDICT/VERIFY
+
+Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
+   -  Fixing a bug in the KNN imputer (it was incorrectly placing values in the target variable)
+   -  Adding a new way of splitting data (stratified) to ensure that the validation points are taken throughout the range of the target values
+   -  Fixing bug to work with spaces in descriptor names
+   -  Changing the way of selecting the best model (now using a combined error metric, not only the validation error)
+   -  Fixing bug in GENERATE when plotting the models' heatmap in case the model had infinite values
+   -  Auto_test is now done by default if the database has more than 100 datapoints
+   -  90% training size disables for datasets with less than 100 datapoints and 80% for less than 50 datapoints
+   -  Changing models paramaters to avoid overgitting in small datasets
+   -  Fixing bug (ROBERT was not reading some CSV files correctly when saved as UTF-8)
+   -  Fixed bug in the report module when the Target_values had spaces
+   -  MVL is replaced with AdaB when ROBERT assigns automated classification problems
+   -  Adding automatic checks to ensure compatible classification problems
+   -  ROBERT score is printed in the section title in the report to save space
+   -  Kmeans clustering is applied individually to the different target values in classification problems to allow for a more compensated training selection
+
 Version 1.2.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.1>`__]
    -  NN solver are now set to 'lbfgs' by default in the MLPRegressor to work with small datasets
    -  Thres_x is now set to 0.7 by default in the CURATE module

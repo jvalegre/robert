@@ -20,6 +20,9 @@
 .. |ReadtheDocs| image:: https://img.shields.io/readthedocs/robert?label=Read%20the%20Docs&logo=readthedocs
    :target: https://robert.readthedocs.io
    :alt: Documentation Status
+   
+.. |PyPI| image:: https://img.shields.io/pypi/v/robert
+   :target: https://pypi.org/project/robert/
 
 |CircleCI|
 |Codecov|
@@ -62,7 +65,7 @@ Introduction
 
 ROBERT is an ensemble of automated machine learning protocols that can be run sequentially 
 through a single command line or a graphical user interface. The program works for **regression 
-and classification problems**.Comprehensive workflows have been designed to meet state-of-the-art 
+and classification problems**. Comprehensive workflows have been designed to meet state-of-the-art 
 standards for cheminformatics studies, including:
 
    *  **Atomic and molecular descriptor generation from SMILES**, including an RDKit conformer sampling and 
@@ -111,7 +114,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 .. code-block:: shell 
    
    pip install robert
-   pip install scikit-learn-intelex
+   pip install scikit-learn-intelex==2025.0.1
 
 **3.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:  
 
@@ -129,7 +132,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
    conda install -c conda-forge robert
    pip install robert --upgrade
-   pip install scikit-learn-intelex
+   pip install scikit-learn-intelex==2025.0.1
    conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
 .. installation-end 
@@ -167,7 +170,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **5.** Install ROBERT as defined in the "Installation" section (:code:`pip install robert`).
 
 
-**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex`).
+**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex==2025.0.1`).
 
 
 **7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -y -c conda-forge glib gtk3 pango mscorefonts`).
@@ -303,7 +306,7 @@ Reference
 
 If you use any of the ROBERT modules, please include this citation:  
 
-* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *accepted*. DOI: 10.1002/WCMS.1733. 
+* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *14*, e1733. 
 
 If you use the AQME module, please include this citation:  
 

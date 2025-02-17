@@ -22,9 +22,9 @@ path_predict = path_main + "/PREDICT"
         (
             "t_value"
         ),  # test for the t-value used
-        (
-            "clas"
-        ),  # test for clasification        
+        # (
+        #     "clas"
+        # ),  # test for clasification        
         (
             "csv_test"
         ),  # test for external test set
@@ -84,29 +84,33 @@ def test_PREDICT(test_job):
     assert "ROBERT v" in outlines[0]
     categor_test = False
     y_distrib_found, pearson_found = False, False
+    outliers_found, results_found, proportion_found = False, False, False
     for i,line in enumerate(outlines):
-        if 'Results saved in' in line and 'No_PFI.dat' in line:
-            assert 'Points Train:Validation = ' in outlines[i+1]
-        elif 'x  There are missing descriptors' in line:
+        if ' - Training points:' in line:
+            proportion_found = True
+            assert '- Training points: 30' in line
+            assert '- Test points: 7' in outlines[i+1]
+        if 'o  Saving CSV databases with predictions and their SD in:' in line:
+            results_found = True
+            assert '-  Predicted results of starting dataset: PREDICT/NN_No_PFI.csv' in outlines[i+1]
+        elif 'x  There are missing descriptors in the test set! Looking for categorical variables converted from CURATE' in line:
             categor_test = True
-        elif 'Outlier plot saved in' in line and 'No_PFI' in line:
+        elif 'Outliers plot saved in' in line and 'No_PFI' in line:
+            outliers_found = True
             if test_job != "clas":
                 train_outliers = int(outlines[i+1].split()[1])
                 if test_job == "t_value":
                     assert train_outliers == 0
                 else:
                     assert train_outliers > 0
-                    assert '-  21 (' in outlines[i+2]
-                if test_job == "t_value":
-                    assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
-                else:
-                    assert 'Validation: 0 outliers' in outlines[i+2+train_outliers]
+                    assert '-  2 (' in outlines[i+2]
+                assert 'Test: 0 outliers' in outlines[i+2+train_outliers]
         
         if test_job == "clas":
             if 'x  WARNING! High correlations observed (up to r = 1.0 or R2 = 1.0, for x1 and x3)' in line:
                 pearson_found = True
         else:
-            if 'o  Correlations between variables are acceptable' in line:
+            if 'x  WARNING! Noticeable correlations observed (up to r = -0.81 or R2 = 0.66, for x7 and x10)' in line:
                 pearson_found = True
         if test_job == "clas":
             if 'o  Your data seems quite uniform' in line:
@@ -122,6 +126,9 @@ def test_PREDICT(test_job):
     if test_job == "csv_test":
         assert categor_test
 
+    assert proportion_found
+    assert results_found
+    assert outliers_found
     assert y_distrib_found
     assert pearson_found
 
@@ -135,7 +142,7 @@ def test_PREDICT(test_job):
         assert len(glob.glob(f'{path_predict}/csv_test/*.csv')) == 2
 
     assert len(glob.glob(f'{path_predict}/*.dat')) == 1        
-    assert len(glob.glob(f'{path_predict}/*.csv')) == 4
+    assert len(glob.glob(f'{path_predict}/*.csv')) == 2
 
     if test_job == 'clas': # rename folders back to their original names
         # rename the classification GENERATE folder

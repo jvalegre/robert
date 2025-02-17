@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="1.2.1"
+version="2.0.0"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
@@ -32,19 +32,18 @@ setup(
         "Programming Language :: Python :: 3.10",
     ],
     install_requires=[
-        "PyYAML==6.0.1",
-        "matplotlib==3.9.2",
-        "pandas==2.2.2",
+        "PyYAML==6.0.2",
+        "matplotlib==3.10.0",
+        "pandas==2.2.3",
         "numpy==1.26.4",
         "progress==1.6",
         "seaborn==0.13.2",
-        "scipy==1.14.0",
-        "scikit-learn==1.5.1",
-        "hyperopt==0.2.7",
+        "scipy==1.15.0",
+        "scikit-learn==1.6.0",
+        "bayesian-optimization==3.0.0b1",
         "numba==0.60.0",
-        "shap==0.45.1",
-        "mapie==0.8.6",
-        "weasyprint==62.3"
+        "shap==0.46.0",
+        "weasyprint==63.1"
     ],
     python_requires=">=3.10",
     include_package_data=True,

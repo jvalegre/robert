@@ -19,9 +19,9 @@ path_verify = path_main + "/VERIFY"
 @pytest.mark.parametrize(
     "test_job",
     [
-        # (
-        #     "clas"
-        # ),  # test for clasification
+        (
+            "clas"
+        ),  # test for clasification
         (
             "standard"
         ),  # standard test
@@ -82,16 +82,17 @@ def test_VERIFY(test_job):
             if 'Results of flawed models and sorted cross-validation:' in line:
                 results_line = True
                 if test_job == "clas":
-                    assert "LOOCV: " in outlines[i+2]
-                    assert "MCC =" in outlines[i+3]
-                    assert "MCC =" in outlines[i+4]
-                    assert "MCC =" in outlines[i+5]
+                    assert "Original MCC (10x 5-fold CV) 0.58 - 15% & 30% threshold = 0.49 & 0.4" in outlines[i+1]
+                    assert "o y_mean: PASSED, MCC = 0.0, lower than thresholds" in outlines[i+2]
+                    assert "o y_shuffle: PASSED, MCC = 0.0094, lower than thresholds" in outlines[i+3]
+                    assert "x onehot: FAILED, MCC = 0.73, higher than thresholds" in outlines[i+4]
+                    assert "- Sorted CV : Accuracy = [0.83, 0.83, 0.83, 1.0, 0.67], F1 score = [0.8, 0.86, 0.86, 1.0, 0.8], MCC = [0.71, 0.71, 0.71, 1.0, 0.0]" in outlines[i+5]
                 elif test_job == "standard":
-                    assert "Original RMSE (10x 5-fold CV) 0.24 + 15% & 30% threshold = 0.28 & 0.32" in outlines[i+1]
+                    assert "Original RMSE (10x 5-fold CV) 0.25 + 15% & 30% threshold = 0.29 & 0.33" in outlines[i+1]
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i+2]
-                    assert "o y_shuffle: PASSED, RMSE = 0.86" in outlines[i+3]
-                    assert "- onehot: UNCLEAR, RMSE = 0.3" in outlines[i+4]
-                    assert "- Sorted 5-fold CV : R2 = [0.21, 0.81, 0.1, 0.7, 0.2], MAE = [0.54, 0.12, 0.17, 0.35, 0.39], RMSE = [0.56, 0.12, 0.18, 0.39, 0.45]" in outlines[i+5]
+                    assert "o y_shuffle: PASSED, RMSE = 0.87" in outlines[i+3]
+                    assert "- onehot: UNCLEAR, RMSE = 0.31" in outlines[i+4]
+                    assert "- Sorted 5-fold CV : R2 = [0.29, 0.3, 0.08, 0.83, 0.27], MAE = [0.36, 0.21, 0.11, 0.27, 0.42], RMSE = [0.36, 0.22, 0.12, 0.3, 0.47]" in outlines[i+5]
                 break
     assert results_line
 

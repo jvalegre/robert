@@ -47,7 +47,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessCl
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
 from sklearn.impute import KNNImputer
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedShuffleSplit, RepeatedKFold, KFold
+from sklearn.model_selection import train_test_split, cross_val_score, StratifiedShuffleSplit, RepeatedKFold, KFold, StratifiedKFold
 from sklearn.cluster import KMeans
 from sklearn.inspection import permutation_importance
 from sklearn.exceptions import ConvergenceWarning
@@ -58,7 +58,7 @@ import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.0.0"
+robert_version = "2.0.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -1579,10 +1579,16 @@ def kfold_cv(y_global,y_pred_global,
              BO_opt=False,shuffle=True,kfold_cv_type='repeated'):
     '''
     Perform a k-fold CV
+    Uses StratifiedKFold for classification problems to maintain class distribution
     '''
 
     # load CV scheme
-    cv = KFold(n_splits=int(model_data['kfold']), shuffle=shuffle, random_state=random_state)
+    if model_data['type'].lower() == 'clas':
+        # Use StratifiedKFold for classification to maintain class distribution
+        from sklearn.model_selection import StratifiedKFold
+        cv = StratifiedKFold(n_splits=int(model_data['kfold']), shuffle=shuffle, random_state=random_state)
+    else:
+        cv = KFold(n_splits=int(model_data['kfold']), shuffle=shuffle, random_state=random_state)
 
     # # load Xy values and sort using y_train as the sorting reference
     if kfold_cv_type == 'sorted':
@@ -1600,8 +1606,13 @@ def kfold_cv(y_global,y_pred_global,
 
     ix_training, ix_valid = [], []
     # Loop through each fold and append the training & test indices to the empty lists above
-    for fold in cv.split(X_init):
-        ix_training.append(fold[0]), ix_valid.append(fold[1])
+    if model_data['type'].lower() == 'clas':
+        # For classification, we need to pass y values to ensure stratification
+        for fold in cv.split(X_init, y_init):
+            ix_training.append(fold[0]), ix_valid.append(fold[1])
+    else:
+        for fold in cv.split(X_init):
+            ix_training.append(fold[0]), ix_valid.append(fold[1])
 
     # Loop through each outer fold, and extract predicted vs actual values and SHAP feature analysis 
     for (train_outer_ix, test_outer_ix) in zip(ix_training, ix_valid): 
@@ -1673,9 +1684,22 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
 
         # take the worst performing predictions from the top and bottom folds
         if model_data["error_type"].lower() in ['mae','rmse']:
-            Xy_data[f'{model_data["error_type"]}_up_bottom'] = max([Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][0], Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][-1]])
-        else:
-            Xy_data[f'{model_data["error_type"]}_up_bottom'] = min([Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][0], Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][-1]])
+            Xy_data[f'{model_data["error_type"]}_up_bottom'] = max(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][0], Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][-1])
+        else:  # r2
+            Xy_data[f'{model_data["error_type"]}_up_bottom'] = min(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][0], Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][-1])
+
+    else:  # classification
+        Xy_data[f'{error1}_train_sorted_CV'], Xy_data[f'{error2}_train_sorted_CV'], Xy_data[f'{error3}_train_sorted_CV'] = [],[],[]
+        for y_cv, y_pred_cd in zip(Xy_data['y_sorted_cv'], Xy_data['y_pred_sorted_cv']):
+            acc_fold, f1_fold, mcc_fold = get_prediction_results(model_data, y_cv, y_pred_cd)
+            Xy_data[f'{error1}_train_sorted_CV'].append(acc_fold)
+            Xy_data[f'{error2}_train_sorted_CV'].append(f1_fold)
+            Xy_data[f'{error3}_train_sorted_CV'].append(mcc_fold)
+
+        # Measure fold stability by difference between best and worst fold
+        best_val = max(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'])
+        worst_val = min(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'])
+        Xy_data[f'{model_data["error_type"]}_up_bottom'] = abs(best_val - worst_val)
 
     return Xy_data
 
@@ -1989,9 +2013,13 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
     # get confusion matrix
     importlib.reload(plt) # needed to avoid threading issues
     if 'CV' in set_type: # CV graphs
-        matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_cv_valid'], Xy_data[f'y_pred_cv_valid'], normalize=None, cmap='Blues') 
+        y_train_binary = np.round(Xy_data[f'y_train']).astype(int)
+        y_pred_train_binary = np.round(Xy_data[f'y_pred_train']).astype(int)
+        matrix = ConfusionMatrixDisplay.from_predictions(y_train_binary, y_pred_train_binary, normalize=None, cmap='Blues')
     else: # other graphs
-        matrix = ConfusionMatrixDisplay.from_predictions(Xy_data[f'y_{set_type}'], Xy_data[f'y_pred_{set_type}'], normalize=None, cmap='Blues') 
+        y_binary = np.round(Xy_data[f'y_{set_type}']).astype(int)
+        y_pred_binary = np.round(Xy_data[f'y_pred_{set_type}']).astype(int)
+        matrix = ConfusionMatrixDisplay.from_predictions(y_binary, y_pred_binary, normalize=None, cmap='Blues') 
 
     # transfer it to the same format and size used in reg graphs
     _, ax = plt.subplots(figsize=(7.45,6))
@@ -2451,14 +2479,15 @@ def get_prediction_results(model_data,y,y_pred_all):
         return r2, mae, rmse
 
     elif model_data['type'].lower() == 'clas':
-        acc = accuracy_score(y,y_pred_all)
+        # ensure true and predicted labels are integers
+        acc = accuracy_score(y,np.round(y_pred_all).astype(int))
         # F1 by default uses average='binnary', to deal with predictions with more than 2 ouput values we use average='micro'
         # if len(set(y))==2:
         try:
-            f1_score_val = f1_score(y,y_pred_all)
+            f1_score_val = f1_score(y,np.round(y_pred_all).astype(int))
         except ValueError:
-            f1_score_val = f1_score(y,y_pred_all,average='micro')
-        mcc = matthews_corrcoef(y,y_pred_all)
+            f1_score_val = f1_score(y,np.round(y_pred_all).astype(int),average='micro')
+        mcc = matthews_corrcoef(y,np.round(y_pred_all).astype(int))
         return acc, f1_score_val, mcc
 
 

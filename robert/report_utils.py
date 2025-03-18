@@ -446,36 +446,57 @@ def adv_flawed(self,suffix,data_score,spacing):
 def adv_predict(self,suffix,data_score,spacing,pred_type):
     """
     Gather the advanced analysis of predictive ability
+
+    Updated for classification:
+      - Instead of awarding up to 2 points, we now award up to 3.
+      - We define new thresholds for MCC:
+            if MCC > 0.75 => 3, if 0.50 < MCC <= 0.75 => 2,
+            if 0.30 < MCC <= 0.50 => 1, else => 0
     """
 
-    score_predict = data_score[f'cv_score_combined_{suffix}']
-    predict_image = f'{self.args.path_icons}/score_w_2_{score_predict}.jpg'
-
-    cv_type = data_score[f"cv_type_{suffix}"]
+    score_predict = data_score.get(f'cv_score_combined_{suffix}', 0)
+    cv_type = data_score.get(f"cv_type_{suffix}", "10x 5-fold CV")
 
     if pred_type == 'reg':
+        predict_image = f'{self.args.path_icons}/score_w_2_{score_predict}.jpg'
         metric_type = ['Scaled RMSE','R<sup>2</sup>']
-    else:
-        metric_type = ['MCC']
+        scaled_rmse_cv = data_score.get(f'scaled_rmse_cv_{suffix}', 0)
+        r2_cv = data_score.get(f'r2_cv_{suffix}', 0)
 
-    predict_result = f'''{metric_type[0]} ({cv_type}) = {data_score[f'scaled_rmse_cv_{suffix}']}%.'''
-    if pred_type == 'reg':
-        predict_result += f'''<br>{spacing}{metric_type[1]} ({cv_type}) = {data_score[f"r2_cv_{suffix}"]}.'''
-
-
-    if pred_type == 'reg':
+        predict_result = f'{metric_type[0]} ({cv_type}) = {scaled_rmse_cv}%.'
+        predict_result += f'<br>{spacing}{metric_type[1]} ({cv_type}) = {r2_cv}.'
         thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
         thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
+        init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
+        score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
+        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_predict} / 2 &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
+        {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+        """
+        return column
     else:
-        thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
+        # Classification: award up to 3 points
+        mcc_cv = data_score.get(f'r2_cv_{suffix}', 0)
 
-    init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
-    score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_predict} / 2 &nbsp;<img src="file:///{predict_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
-    """
+        if mcc_cv > 0.75:
+            display_score = 3
+        elif mcc_cv > 0.5:  # up to 0.75
+            display_score = 2
+        elif mcc_cv > 0.3:  # up to 0.5
+            display_score = 1
+        else:
+            display_score = 0
 
-    return column
+        predict_image = f'{self.args.path_icons}/score_w_3_{display_score}.jpg'
+        metric_type = ['MCC']
+        predict_result = f'{metric_type[0]} ({cv_type}) = {mcc_cv}.'
+        thres_line = "MCC >0.75: +3; 0.50-0.75: +2; 0.30-0.50: +1"
+
+        init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
+        score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
+        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({display_score} / 3 &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
+        {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 3 ·</i><br>{spacing}{thres_line}</p>
+        """
+        return column
 
 
 def adv_test(self,suffix,data_score,spacing,pred_type):
@@ -483,48 +504,75 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
     Gather the advanced analysis of predictive ability with the test set
     """
 
-    score_test = data_score[f'test_score_combined_{suffix}']
-    test_image = f'{self.args.path_icons}/score_w_2_{score_test}.jpg'
+    score_test = data_score.get(f'test_score_combined_{suffix}', 0)
 
     if pred_type == 'reg':
+        test_image = f'{self.args.path_icons}/score_w_2_{score_test}.jpg'
         metric_type = ['Scaled RMSE','R<sup>2</sup>']
-    else:
-        metric_type = ['MCC']
-    
-    predict_result = f'''{metric_type[0]} (test set) = {data_score[f'scaled_rmse_test_{suffix}']}%.'''
-    if pred_type == 'reg':
-        predict_result += f'''<br>{spacing}{metric_type[1]} (test set) = {data_score[f"r2_test_{suffix}"]}.'''
-
-    if pred_type == 'reg':
+        predict_result = f'{metric_type[0]} (test set) = {data_score.get(f"scaled_rmse_test_{suffix}", 0)}%.'
+        predict_result += f'<br>{spacing}{metric_type[1]} (test set) = {data_score.get(f"r2_test_{suffix}", 0)}.'
         thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
         thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
+        score_adv_cv = f'<p style="text-align: justify; margin-top: 5px; margin-bottom: 0px;">{spacing}'
+        column = f"""{score_adv_cv}<br>{spacing}<span style="font-weight:bold;">3. Predictive ability & overfitting</span></p>
+        <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. Predictions test set</u> &nbsp;({score_test} / 2 &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
+        {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p><br>
+        """
+        return column
     else:
-        thres_line = 'MCC 0.50-0.75: +1, MCC >0.75: +2.'
+        # Classification: award up to 3 points
+        test_mcc = data_score.get(f"r2_test_{suffix}", 0)
 
-    score_adv_cv = f'<p style="text-align: justify; margin-top: 5px; margin-bottom: 0px;">{spacing}'
-    column = f"""{score_adv_cv}<br>{spacing}<span style="font-weight:bold;">3. Predictive ability & overfitting</span></p>
-    <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. Predictions test set</u> &nbsp;({score_test} / 2 &nbsp;<img src="file:///{test_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p><br>
-    """
+        if test_mcc > 0.75:
+            display_score = 3
+        elif test_mcc > 0.5:
+            display_score = 2
+        elif test_mcc > 0.3:
+            display_score = 1
+        else:
+            display_score = 0
 
-    return column
+        test_image = f'{self.args.path_icons}/score_w_3_{display_score}.jpg'
+        metric_type = ['MCC']
+        predict_result = f'{metric_type[0]} (test set) = {test_mcc}.'
+        thres_line = ('MCC >0.75: +3; 0.50-0.75: +2; 0.30-0.50: +1')
+
+        score_adv_cv = f'<p style="text-align: justify; margin-top: 5px; margin-bottom: 0px;">{spacing}'
+        column = f"""{score_adv_cv}<br>{spacing}<span style="font-weight:bold;">3. Predictive ability & overfitting</span></p>
+        <p style="text-align: justify; margin-top: 15px; margin-bottom: 0px;">{spacing}<u>3a. Predictions test set</u> &nbsp;({display_score} / 3 &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
+        {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 3 ·</i><br>{spacing}{thres_line}</p><br>
+        """
+        return column
 
 
 def adv_diff_test(self,suffix,data_score,spacing,pred_type):
     """
-    Gather the advanced analysis of difference in RMSE between CV and test set
+    Gather the advanced analysis of difference in model performance between CV and test set.
+    For regression, we compare scaled RMSE. For classification, we compare Δ MCC.
     """
-
-    score_diff_test = data_score[f'diff_scaled_rmse_score_{suffix}']
-    diff_test_image = f'{self.args.path_icons}/score_w_2_{score_diff_test}.jpg'
-
-    diff_result = f'RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)}*scaled RMSE (CV).'
     
     if pred_type == 'reg':
+        # Regression: use diff_scaled_rmse_score
+        score_diff_test = data_score[f'diff_scaled_rmse_score_{suffix}']
+        diff_test_image = f'{self.args.path_icons}/score_w_2_{score_diff_test}.jpg'
+        
+        diff_result = f'RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)}*scaled RMSE (CV).'
+        
         thres_line = 'Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV): +2.'
         thres_line += f'<br>{spacing}Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV): +1.'
     else:
-        thres_line = 'ΔMCC ≤ 0.25: +1'
+        # Classification: use diff_mcc_score instead
+        score_diff_test = data_score.get(f'diff_mcc_score_{suffix}', 0)
+        diff_test_image = f'{self.args.path_icons}/score_w_2_{score_diff_test}.jpg'
+        
+        # Calculate the absolute difference between CV MCC and test MCC
+        mcc_cv = data_score.get(f'r2_cv_{suffix}', 0)
+        mcc_test = data_score.get(f'r2_test_{suffix}', 0)
+        diff_mcc = round(abs(mcc_test - mcc_cv), 2)
+        
+        diff_result = f'The ΔMCC between CV and test is {diff_mcc}.'
+        
+        thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
 
     score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. Prediction accuracy test vs CV</u> &nbsp;({score_diff_test} / 2 &nbsp;<img src="file:///{diff_test_image}" alt="ROBERT Score" style="width: 13%">)</p>
@@ -560,52 +608,121 @@ def adv_cv_sd(self,suffix,data_score,spacing):
     return column
 
 
-def adv_cv_diff(self,suffix,data_score,spacing):
+def adv_cv_diff(self,suffix,data_score,spacing,pred_type,test_set=False):
     """
     Gather the advanced analysis of cross-validation regarding variation
     """
 
-    score_cv_diff = data_score[f'r2_diff_score_{suffix}']
+    if pred_type == 'clas':
+        # Skip entirely for classification
+        return ""
+
+    score_cv_diff = data_score.get(f'r2_diff_score_{suffix}', 0)
     cv_diff_image = f'{self.args.path_icons}/score_w_2_{score_cv_diff}.jpg'
-    cv_diff = round(data_score[f'r2_diff_{suffix}'],2)
+    cv_diff = round(data_score.get(f'r2_diff_{suffix}', 0), 2)
+
     if test_set:
         sd_set = 'test'
     else:
         sd_set = 'valid.'
 
+    # Build R² difference text
     if score_cv_diff == 0:
-        cv_diff_result = f'High variation ({sd_set} and CV), ΔMCC = {cv_diff}.'
+        cv_diff_result = f'High variation ({sd_set} and CV), ΔR² = {cv_diff}.'
     elif score_cv_diff == 1:
-        cv_diff_result = f'Moderate variation ({sd_set} and CV), ΔMCC = {cv_diff}.'
+        cv_diff_result = f'Moderate variation ({sd_set} and CV), ΔR² = {cv_diff}.'
     elif score_cv_diff == 2:
-        cv_diff_result = f'Low variation ({sd_set} and CV), ΔMCC = {cv_diff}.'
+        cv_diff_result = f'Low variation ({sd_set} and CV), ΔR² = {cv_diff}.'
+            
+    metric_label = "ΔR²"
+    threshold_text = f'{metric_label} 0.15-0.30: +1, {metric_label} < 0.15: +2.'
+    title = f"<u>3b. R² difference (model vs CV)</u>"
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<u>3b. MCC difference (model vs CV)</u> &nbsp;({score_cv_diff} / 2 &nbsp;<img src="file:///{cv_diff_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}{cv_diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}ΔMCC 0.15-0.30: +1, ΔMCC < 0.15: +2.<br>
-    """
-
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}{title} &nbsp;({score_cv_diff} / 2 &nbsp;<img src="file:///{cv_diff_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    {score_adv_pred}{cv_diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{threshold_text}<br>
+    """    
     return column
 
 
-def adv_sorted_cv(self,suffix,data_score,spacing):
+def adv_sorted_cv(self, suffix, data_score, spacing, pred_type):
     """
-    Gather the advanced analysis of sorted CV (extrapolation)
+    Gather the advanced analysis of sorted CV (fold-by-fold variation).
+    For regression, we look at scaled_rmse_sorted_{suffix}.
+    For classification, we look at sorted_mcc_{suffix}, awarding points
+    based on how many folds stay near the maximum, indicating consistent performance.
     """
 
-    score_sorted = data_score[f'sorted_cv_score_{suffix}']
+    score_sorted = data_score.get(f'sorted_cv_score_{suffix}', 0)
     sorted_cv_image = f'{self.args.path_icons}/score_w_2_{score_sorted}.jpg'
-    sorted_rmse = str([f'{val}%' for val in data_score[f'scaled_rmse_sorted_{suffix}']]).replace("'",'')
 
-    score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>3d. Extrapolation (sorted CV)</u> &nbsp;({score_sorted} / 2 &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    {score_adv_pred}Scaled RMSEs across 5-fold CV:
-    <br>{spacing}{sorted_rmse}
-    <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
-    <br>{spacing}Every two folds with RMSEs ≤ 1.25*min RMSE: +1.</p>
-    """
+    if pred_type == 'reg':
+        # Regression mode: "3d. Extrapolation (sorted CV)"
+        if f'scaled_rmse_sorted_{suffix}' not in data_score:
+            data_score[f'scaled_rmse_sorted_{suffix}'] = []
+            
+        sorted_rmse = [f'{val}%' for val in data_score[f'scaled_rmse_sorted_{suffix}']]
+        sorted_rmse_str = str(sorted_rmse).replace("'", '')
 
-    return column
+        column = f"""
+        <p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>3d. Extrapolation (sorted CV)</u> &nbsp;({score_sorted} / 2
+        &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
+        <p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}Scaled RMSEs across 5-fold CV:
+        <br>{spacing}{sorted_rmse_str}
+        <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
+        <br>{spacing}Every two folds with RMSEs ≤ 1.25*min RMSE: +1.</p>
+        """
+        return column
+    else:
+        # Classification mode: "3d. Consistency (sorted CV)"
+        # We'll replace "Every two folds with MCC ≥ (max MCC - 0.05) => +1"
+        # with a more flexible approach that checks how many folds are close to the max.
+        
+        if f'sorted_mcc_{suffix}' not in data_score:
+            data_score[f'sorted_mcc_{suffix}'] = []
+        sorted_mcc = data_score[f'sorted_mcc_{suffix}']
+        
+        # Convert to strings for display
+        sorted_mcc_str_list = [f'{val}' for val in sorted_mcc]
+        sorted_mcc_str = str(sorted_mcc_str_list).replace("'", '')
+
+        # Calculate how many folds are close to max
+        if len(sorted_mcc) > 0:
+            max_mcc = max(sorted_mcc)
+            near_max_list = [m for m in sorted_mcc if m >= (max_mcc - 0.05)]
+            near_ratio = len(near_max_list) / len(sorted_mcc)
+        else:
+            max_mcc = 0
+            near_ratio = 0.0
+
+        # Example new logic for awarding up to 2 points:
+        #   near_ratio >= 0.8 => +2
+        #   near_ratio >= 0.5 => +1
+        #   otherwise => 0
+        if near_ratio >= 0.8:
+            score_sorted = 2
+        elif near_ratio >= 0.5:
+            score_sorted = 1
+        else:
+            score_sorted = 0
+
+        data_score[f'sorted_cv_score_{suffix}'] = score_sorted
+        print(f"Score for sorted CV: {score_sorted}")
+        print(f'data_score.get(f"sorted_cv_score_{suffix}", 0): {data_score.get(f"sorted_cv_score_{suffix}", 0)}')
+
+        # Build the HTML
+        updated_img = f'{self.args.path_icons}/score_w_2_{score_sorted}.jpg'
+        column = f"""
+        <p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>3d. Consistency (sorted CV)</u> &nbsp;({score_sorted} / 2 
+        &nbsp;<img src="file:///{updated_img}" alt="ROBERT Score" style="width: 13%">)</p>
+        <p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">
+           {spacing}MCC across CV folds: {sorted_mcc_str}
+        <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
+        <br>{spacing}Near the maximum threshold: MCC ≥ max(MCC) - 0.05
+        <br>{spacing}Fold ratio near max: {near_ratio:.2f}  → Score = {score_sorted}
+        </p>
+        """
+        return column
 
 
 def get_col_text(type_thres):
@@ -720,24 +837,43 @@ def calc_score(dat_files,suffix,pred_type,data_score):
     data_score = get_verify_scores(dat_files['VERIFY'],suffix,pred_type,data_score)
 
     if pred_type == 'reg':
-        robert_score = data_score[f'cv_score_combined_{suffix}'] + data_score[f'test_score_combined_{suffix}'] \
-                    + data_score[f'cv_sd_score_{suffix}'] + data_score[f'diff_scaled_rmse_score_{suffix}'] \
-                    + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'sorted_cv_score_{suffix}']
-    elif pred_type == 'clas':
-        # MCC difference between model and CV (the variables say r2 for uniformity with reg)
-        r2_diff = round(np.abs(data_score[f'r2_valid_{suffix}']-data_score[f'cv_r2_{suffix}']),2)
-        data_score[f'r2_diff_{suffix}'] = r2_diff
-        data_score[f'r2_diff_score_{suffix}'] = 0
-        if r2_diff < 0.15:
-            data_score[f'r2_diff_score_{suffix}'] += 2
-        elif r2_diff <= 0.30:
-            data_score[f'r2_diff_score_{suffix}'] += 1
-        robert_score = data_score[f'r2_score_{suffix}'] + data_score[f'cv_r2_score_{suffix}'] + data_score[f'flawed_mod_score_{suffix}'] + data_score[f'r2_diff_score_{suffix}'] + data_score[f'descp_score_{suffix}']
-    
-    if robert_score < 0:
-        robert_score = 0
+        robert_score = data_score.get(f'cv_score_combined_{suffix}', 0) + data_score.get(f'test_score_combined_{suffix}', 0) \
+                + data_score.get(f'cv_sd_score_{suffix}', 0) + data_score.get(f'diff_scaled_rmse_score_{suffix}', 0) \
+                + data_score.get(f'flawed_mod_score_{suffix}', 0) + data_score.get(f'sorted_cv_score_{suffix}', 0)
+        # Adjustment to avoid negative values
+        if robert_score < 0:
+            robert_score = 0
+        # Assign the final value
+        data_score[f'robert_score_{suffix}'] = robert_score
 
-    data_score[f'robert_score_{suffix}'] = robert_score
+    elif pred_type == 'clas':
+        # Calculate the difference between CV MCC and test MCC
+        mcc_cv = data_score.get(f'r2_cv_{suffix}', 0)
+        mcc_test = data_score.get(f'r2_test_{suffix}', 0)
+        diff_mcc = round(np.abs(mcc_test - mcc_cv), 2)
+
+        # Assign a score based on the MCC gap (e.g., ±2, ±1, 0)
+        data_score[f'diff_mcc_score_{suffix}'] = 0
+        if diff_mcc < 0.15:
+            data_score[f'diff_mcc_score_{suffix}'] += 2
+        elif diff_mcc <= 0.30:
+            data_score[f'diff_mcc_score_{suffix}'] += 1
+
+        # Sum scores similarly to regression:
+        robert_score = (
+            data_score.get(f'cv_score_combined_{suffix}', 0)
+            + data_score.get(f'test_score_combined_{suffix}', 0)
+            + data_score.get(f'flawed_mod_score_{suffix}', 0)
+            + data_score.get(f'sorted_cv_score_{suffix}', 0)
+            + data_score.get(f'diff_mcc_score_{suffix}', 0)
+            + data_score.get(f'descp_score_{suffix}', 0)
+        )
+        # Adjustment to avoid negative values
+        if robert_score < 0:
+            robert_score = 0
+
+        # Assign the final value
+        data_score[f'robert_score_{suffix}'] = robert_score
 
     return data_score
     
@@ -763,7 +899,8 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                 start_data = True
         
         if start_data:
-            if 'Original RMSE (' in line:
+            error_keyword = "RMSE" if pred_type.lower() == 'reg' else "MCC"
+            if f"Original {error_keyword} (" in line:
                 for j in range(i+1,i+4): # y-mean, y-shuffle and onehot tests
                     if 'UNCLEAR' in dat_verify[j]:
                         flawed_score -= 1
@@ -789,6 +926,34 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
 
                         sorted_cv_score = int(data_score[f'scaled_rmse_results_sorted_{suffix}'].count('pass')/2)
 
+                elif pred_type.lower() == 'clas':
+                    if 'Original MCC (' in line:
+                        for j in range(i + 1, i + 4):  # y-mean, y-shuffle and onehot tests
+                            if 'UNCLEAR' in dat_verify[j]:
+                                flawed_score -= 1
+                            elif 'FAILED' in dat_verify[j]:
+                                flawed_score -= 2
+                                failed_tests += 1
+                        if '- Sorted ' in dat_verify[i + 4]:
+                            sorted_cv_results = dat_verify[i + 4].split('MCC = ')[-1]
+                            sorted_cv_results = ast.literal_eval(sorted_cv_results)
+                            data_score[f'sorted_mcc_{suffix}'] = [round(val, 2) for val in sorted_cv_results]
+
+                            sorted_mcc = data_score[f'sorted_mcc_{suffix}']
+                            if len(sorted_mcc) > 0:
+                                max_mcc = max(sorted_mcc)
+                                near_max_list = [m for m in sorted_mcc if m >= (max_mcc - 0.05)]
+                                near_ratio = len(near_max_list) / len(sorted_mcc)
+                            else:
+                                near_ratio = 0.0
+
+                            if near_ratio >= 0.8:
+                                sorted_cv_score = 2
+                            elif near_ratio >= 0.5:
+                                sorted_cv_score = 1
+                            else:
+                                sorted_cv_score = 0
+
     # adjust max 1 point for flawed tests
     if flawed_score > 1:
         flawed_score = 1
@@ -808,6 +973,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
 
     start_data = False
     data_score[f'rmse_score_{suffix}'] = 0
+    data_score[f'cv_type_{suffix}'] = "10x 5-fold CV"
 
     for i,line in enumerate(dat_predict):
 
@@ -868,14 +1034,35 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     elif data_score[f'factor_scaled_rmse_{suffix}'] <= 1.5:
                         diff_score += 1
                     data_score[f'diff_scaled_rmse_score_{suffix}'] = diff_score
-
-                elif pred_type == 'clas': # it stores MCC but the label says R2 for consistency with reg
-                    if '-  Test : Accuracy' in dat_predict[i+7]:
-                        data_score[f'rmse_valid_{suffix}'] = float(dat_predict[i+7].split()[-1])
-                    elif '-  Valid. : Accuracy' in dat_predict[i+6]:
-                        data_score[f'rmse_valid_{suffix}'] = float(dat_predict[i+6].split()[-1])
-
-                    data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'rmse_valid_{suffix}'])          
+    
+                elif pred_type == 'clas':  # Process classification: using MCC extracted from CV and Test results
+                    # Extract MCC from the 10x 5-fold CV line
+                    if '5-fold' in dat_predict[i+5]:
+                        parts = dat_predict[i+5].split(',')
+                        mcc_cv = None
+                        for part in parts:
+                            if 'MCC' in part:
+                                mcc_cv = float(part.split('=')[-1])
+                                break
+                        if mcc_cv is not None:
+                            data_score[f'r2_cv_{suffix}'] = mcc_cv  # storing MCC in a key keyed as r2_cv for consistency
+                    # Extract MCC from the Test line
+                    if '-  Test :' in dat_predict[i+6]:
+                        parts = dat_predict[i+6].split(',')
+                        mcc_test = None
+                        for part in parts:
+                            if 'MCC' in part:
+                                mcc_test = float(part.split('=')[-1])
+                                break
+                        if mcc_test is not None:
+                            data_score[f'r2_test_{suffix}'] = mcc_test
+                    # Compute CV and Test scores using the classification thresholds in score_rmse_mcc
+                    data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type, data_score.get(f'r2_cv_{suffix}', 0))
+                    data_score[f'test_score_rmse_{suffix}'] = score_rmse_mcc(pred_type, data_score.get(f'r2_test_{suffix}', 0))
+    
+                    # For classification, the combined score is simply the score from MCC (no additional penalty)
+                    data_score[f'cv_score_combined_{suffix}'] = data_score[f'cv_score_rmse_{suffix}']
+                    data_score[f'test_score_combined_{suffix}'] = data_score[f'test_score_rmse_{suffix}']
 
             # SD from CV
             if pred_type == 'reg':
@@ -900,6 +1087,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
 def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
     '''
     Calculate scores for R2 and MCC using predetermined thresholds
+    
+    For regression (scaled RMSE): 0-2 points
+    For classification (MCC): 0-3 points
     '''
 
     r2_mcc_score = 0
@@ -912,8 +1102,10 @@ def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
 
     else: # MCC
         if scaledrmse_mcc_val > 0.75:
+            r2_mcc_score += 3
+        elif scaledrmse_mcc_val > 0.5:
             r2_mcc_score += 2
-        elif scaledrmse_mcc_val >= 0.5:
+        elif scaledrmse_mcc_val > 0.3:
             r2_mcc_score += 1
     
     return r2_mcc_score

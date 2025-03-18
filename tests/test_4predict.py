@@ -22,9 +22,9 @@ path_predict = path_main + "/PREDICT"
         (
             "t_value"
         ),  # test for the t-value used
-        # (
-        #     "clas"
-        # ),  # test for clasification        
+        (
+            "clas"
+        ),  # test for clasification        
         (
             "csv_test"
         ),  # test for external test set

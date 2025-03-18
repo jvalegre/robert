@@ -38,12 +38,9 @@ path_generate = os.getcwd() + "/GENERATE"
         (
             "reduced_adab"
         ),  # test for other GP model (important since PFI filter tries to discard all the descriptors)     
-        # (
-        #     "reduced_clas"
-        # ),  # test for clasification models
-        # (
-        #     "imbalanced_data"
-        # ),  # test for imbalanced data
+        (
+            "reduced_clas"
+        ),  # test for clasification models
         (
             "standard"
         ),  # standard test
@@ -67,8 +64,7 @@ def test_GENERATE(test_job):
         csv_name = 'tests/Robert_example_clas.csv'
     else:
         csv_name = 'CURATE/Robert_example_CURATE.csv'
-    if test_job == 'imbalanced_data':
-        csv_name = 'tests/Robert_example_imbalanced.csv'
+
     cmd_robert = [
         "python",
         "-m",
@@ -94,7 +90,7 @@ def test_GENERATE(test_job):
             cmd_robert = cmd_robert + ["--pfi_max", "1"]
         elif test_job == "reduced_kfold":
             cmd_robert = cmd_robert + ["--kfold", "10", "--repeat_kfolds", "5"]
-        elif test_job in ['reduced_clas','imbalanced_data']:
+        elif test_job in ['reduced_clas']:
             cmd_robert = cmd_robert + ["--type", "clas"]
         
         cmd_robert = cmd_robert + ['--init_points', '1',
@@ -108,7 +104,7 @@ def test_GENERATE(test_job):
     
     subprocess.run(cmd_robert)
 
-    if test_job != 'imbalanced_data':
+    if test_job not in []:  
         # check that the DAT file is created
         assert not os.path.exists(f"{path_main}/GENERATE_data.dat")
         outfile = open(f"{path_generate}/GENERATE_data.dat", "r")
@@ -116,7 +112,10 @@ def test_GENERATE(test_job):
         outfile.close()
         assert "ROBERT v" in outlines[0]
         assert "- 37 datapoints" in outlines[9]
-        assert "- 10 accepted descriptors" in outlines[10]
+        if test_job == 'reduced_clas':
+            assert "- 9 accepted descriptors" in outlines[10]
+        else:
+            assert "- 10 accepted descriptors" in outlines[10]
         assert "- 1 ignored descriptors" in outlines[11]
         assert "- 0 discarded descriptors" in outlines[12]
 
@@ -147,21 +146,21 @@ def test_GENERATE(test_job):
                 finding_line += 1
             elif f"- 4/4 - ML model: MVL" in line:
                 finding_line += 1
-            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.5' in line:
+            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.52' in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for RF (with PFI filter): 0.53" in line:
+            elif f"o Combined RMSE for RF (with PFI filter): 0.54" in line:
                 reproducibility += 1
-            elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.41" in line:
+            elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.39" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for GB (with PFI filter): 0.42" in line:
+            elif f"o Combined RMSE for GB (with PFI filter): 0.35" in line:
                 reproducibility += 1
             elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.33" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for NN (with PFI filter): 0.7" in line:
+            elif f"o Combined RMSE for NN (with PFI filter): 0.38" in line:
                 reproducibility += 1
-            elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 3.9' in line:
+            elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 0.45' in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for MVL (with PFI filter): 0.42" in line:
+            elif f"o Combined RMSE for MVL (with PFI filter): 0.38" in line:
                 reproducibility += 1
             # lines only for
             elif f"1. 50% = RMSE from a 5x repeated 10-fold CV (interpoplation)" in line:
@@ -209,7 +208,7 @@ def test_GENERATE(test_job):
                     elif test_job == 'reduced_gp':
                         desc_list = ['ynoise', 'Csub-Csub', 'Csub-H', 'x7', 'x10', 'x9']
                     elif test_job == 'reduced_adab':
-                        desc_list = ['ynoise', 'x2', 'x9', 'x8', 'x7', 'x10']
+                        desc_list = ['x2', 'x7', 'x10']
 
                 if test_job in ['reduced']:
                     sum_split = 0
@@ -243,15 +242,6 @@ def test_GENERATE(test_job):
             if 'error_type' in df.columns:
                 error_types = df['error_type'].tolist()
             assert 'mcc' in error_types
-
-    if test_job == 'imbalanced_data':
-        # check that the DAT file is created
-        assert not os.path.exists(f"{path_main}/GENERATE_data.dat")
-        outfile = open(f"{path_generate}/GENERATE_data.dat", "r")
-        outlines = outfile.readlines()
-        outfile.close()
-        # check if the specified text exists in the .dat file
-        assert "x    WARNING! The database is imbalanced (imbalance ratio > 10, more values in the high half of values), KN data splitting will replace the default random splitting. You can use random splitting with \"--auto_kn False\"." in outlines[18]
 
     if test_job == 'reduced_clas':
         filepath = Path(f"{path_generate}")

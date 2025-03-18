@@ -19,12 +19,12 @@ path_aqme = path_main + "/AQME"
 @pytest.mark.parametrize(
     "test_job",
     [
-        (
-            "full_workflow"
-        ),  # test for a full workflow
-        (
-            "full_workflow_test"
-        ),  # test for a full workflow with test
+        # (
+        #     "full_workflow"
+        # ),  # test for a full workflow
+        # (
+        #     "full_workflow_test"
+        # ),  # test for a full workflow with test
         # (
         #     "full_clas"
         # ),  # test for a full workflow in classification

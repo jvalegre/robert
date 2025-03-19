@@ -707,8 +707,6 @@ def adv_sorted_cv(self, suffix, data_score, spacing, pred_type):
             score_sorted = 0
 
         data_score[f'sorted_cv_score_{suffix}'] = score_sorted
-        print(f"Score for sorted CV: {score_sorted}")
-        print(f'data_score.get(f"sorted_cv_score_{suffix}", 0): {data_score.get(f"sorted_cv_score_{suffix}", 0)}')
 
         # Build the HTML
         updated_img = f'{self.args.path_icons}/score_w_2_{score_sorted}.jpg'

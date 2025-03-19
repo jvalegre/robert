@@ -755,6 +755,12 @@ def load_minimal_model(model):
 
     return minimal_params[model]
 
+def mcc_scorer_clf(y_true,y_pred):
+    """Forces classification predictions to integer for MCC."""
+    # Even if .predict() returns floats, coerce them to integer:
+    y_pred = np.round(y_pred).astype(int)
+    
+    return matthews_corrcoef(y_true, y_pred)
 
 def get_scoring_key(problem_type,error_type):
     '''
@@ -768,12 +774,16 @@ def get_scoring_key(problem_type,error_type):
             'r2': 'r2'
         }.get(error_type)
     else:
-        scoring = {
-            'mcc': make_scorer(matthews_corrcoef),
-            'f1': 'f1',
-            'acc': 'accuracy'
-        }.get(error_type)
-    
+        # For classification
+        if error_type == 'mcc':
+            # Use the custom MCC scorer that ensures integer predictions
+            scoring = make_scorer(mcc_scorer_clf)
+        else:
+            scoring = {
+                'f1': 'f1',
+                'acc': 'accuracy'
+            }.get(error_type)
+   
     return scoring
 
 

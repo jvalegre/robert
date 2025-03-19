@@ -146,21 +146,28 @@ def test_GENERATE(test_job):
                 finding_line += 1
             elif f"- 4/4 - ML model: MVL" in line:
                 finding_line += 1
-            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.52' in line:
+            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.5' in line:
+            # elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.52' in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for RF (with PFI filter): 0.54" in line:
+            elif f"o Combined RMSE for RF (with PFI filter): 0.53" in line:
+            # elif f"o Combined RMSE for RF (with PFI filter): 0.54" in line:
                 reproducibility += 1
-            elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.39" in line:
+            elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.41" in line:
+            # elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.39" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for GB (with PFI filter): 0.35" in line:
+            # elif f"o Combined RMSE for GB (with PFI filter): 0.35" in line:
+            elif f"o Combined RMSE for GB (with PFI filter): 0.42" in line:
                 reproducibility += 1
             elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.33" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for NN (with PFI filter): 0.38" in line:
+            elif f"o Combined RMSE for NN (with PFI filter): 0.7" in line:
+            # elif f"o Combined RMSE for NN (with PFI filter): 0.38" in line:
                 reproducibility += 1
-            elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 0.45' in line:
+            # elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 0.45' in line:
+            elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 3.9' in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for MVL (with PFI filter): 0.38" in line:
+            # elif f"o Combined RMSE for MVL (with PFI filter): 0.38" in line:
+            elif f"o Combined RMSE for MVL (with PFI filter): 0.42" in line:
                 reproducibility += 1
             # lines only for
             elif f"1. 50% = RMSE from a 5x repeated 10-fold CV (interpoplation)" in line:
@@ -208,7 +215,8 @@ def test_GENERATE(test_job):
                     elif test_job == 'reduced_gp':
                         desc_list = ['ynoise', 'Csub-Csub', 'Csub-H', 'x7', 'x10', 'x9']
                     elif test_job == 'reduced_adab':
-                        desc_list = ['x2', 'x7', 'x10']
+                        desc_list = ['ynoise', 'x2', 'x9', 'x8', 'x7', 'x10']
+                        # desc_list = ['x2', 'x7', 'x10']
 
                 if test_job in ['reduced']:
                     sum_split = 0

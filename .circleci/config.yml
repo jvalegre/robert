@@ -52,7 +52,6 @@ jobs:
           conda install -y -c conda-forge pango
           pip install aqme==1.7.0
           pip install .
-          pip uninstall scikit-learn-intelex
           pip install scikit-learn-intelex==2025.2.0
           # uninstall robert to avoid codecov issues (only running from the robert folder)
           pip uninstall -y robert

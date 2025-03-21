@@ -1521,7 +1521,7 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
         return Xy_data
 
 
-def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
+def repeated_kfold_cv(self,model_data,loaded_model,Xy_data,BO_opt):
     '''
     Performs a repeated k-fold cross-validation on the Xy dataset
     '''
@@ -1548,7 +1548,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                                         y_pred_global_test,
                                         y_pred_global_external,
                                         model_data,loaded_model,
-                                        Xy_data,CV_repeat,BO_opt=BO_opt)
+                                        Xy_data,self.args.seed,CV_repeat,BO_opt=BO_opt)
 
     y_train_pred, y_train_std = [],[]
     for y_val in y_pred_global:
@@ -1595,7 +1595,6 @@ def kfold_cv(y_global,y_pred_global,
     # load CV scheme
     if model_data['type'].lower() == 'clas':
         # Use StratifiedKFold for classification to maintain class distribution
-        from sklearn.model_selection import StratifiedKFold
         cv = StratifiedKFold(n_splits=int(model_data['kfold']), shuffle=shuffle, random_state=random_state)
     else:
         cv = KFold(n_splits=int(model_data['kfold']), shuffle=shuffle, random_state=random_state)

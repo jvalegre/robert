@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent
-from PySide6.QtCore import (Qt, QProcess, Slot, QThread, Signal, QTimer, QUrl)
+from PySide6.QtCore import (Qt, QProcess, Slot, QThread, Signal, QTimer, QUrl, QObject)
 import subprocess
 import shlex
 import glob
@@ -27,8 +27,10 @@ from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D, rdDepictor
 import rdkit
 import math
+import traceback
 from robert.robert import main
-
+from multiprocessing import Process, Queue
+import shutil
 
 class AQMETab(QWidget):
     """Tab for AQME workflow with ChemDraw file import support and molecule viewer."""
@@ -923,6 +925,7 @@ class EasyROB(QMainWindow):
         self.available_list = None
         self.ignore_list = None
         self.manual_stop = False
+        self.worker = None
         self.initUI()
 
     def move_to_selected(self):
@@ -1049,7 +1052,6 @@ class EasyROB(QMainWindow):
         self.type_dropdown.addItems(["Regression", "Classification"])
         main_layout.addWidget(self.type_dropdown)
         self.type_dropdown.setStyleSheet(box_features)
-     
         
         # --- Select column for --names ---
         self.names_label = QLabel("Select name column")
@@ -1099,14 +1101,19 @@ class EasyROB(QMainWindow):
         right_layout.addWidget(self.ignored_label)
         right_layout.addWidget(self.ignore_list)
 
-        # Add layouts to the main horizontal layout
+        # Add sub-layouts to the main horizontal layout
         column_layout.addLayout(left_layout)
         column_layout.addLayout(button_layout)
         column_layout.addLayout(right_layout)
 
-        # Inserting into the main layout
-        main_layout.addLayout(column_layout)
-        main_layout.addSpacing(10)  
+        # Create a container for the column layout and resize it
+        column_container = QWidget()
+        column_container.setLayout(column_layout)
+        column_container.setFixedHeight(150) 
+
+        # Insert the column container into the main layout
+        main_layout.addWidget(column_container)
+        main_layout.addSpacing(10)
 
         # AQME Workflow Checkbox
         self.aqme_workflow = QCheckBox("Enable AQME Workflow") 
@@ -1163,7 +1170,7 @@ class EasyROB(QMainWindow):
             }
         """)
 
-        self.run_button.clicked.connect(self.run_robert_exe)
+        self.run_button.clicked.connect(self.run_robert_multiprocessing)
 
         # --- Stop Button ---
         self.stop_button = QPushButton("Stop ROBERT")
@@ -1192,7 +1199,7 @@ class EasyROB(QMainWindow):
                 border: 2px solid #600000;
             }
         """)
-        self.stop_button.clicked.connect(self.stop_robert)
+        self.stop_button.clicked.connect(self.stop_robert_multiprocessing)
 
         # # Add button layout to the main layout
         button_container = QHBoxLayout()
@@ -1205,7 +1212,7 @@ class EasyROB(QMainWindow):
         self.console_output.setReadOnly(True)
         self.console_output.setStyleSheet("background-color: black; color: white; padding: 5px; font-family: monospace;")
         self.console_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.console_output.setMinimumHeight(200) # Set minimum height
+        self.console_output.setFixedHeight(275)
 
         # Create ANSI converter to display colors in the console and special characters
         self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Preserves colors
@@ -1426,13 +1433,79 @@ class EasyROB(QMainWindow):
         new_filename = f"ROBERT_report_{index}.pdf"
         os.rename(base_filename, new_filename)
 
-    def run_robert_exe(self):
-        """Runs ROBERT using internal execution and applies variable validation before launching."""
+    # def run_robert_exe(self):
+    #     """Runs ROBERT using internal execution and applies variable validation before launching."""
+
+    #     # Validate input variables first
+    #     if not self.check_variables():
+    #         self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
+    #         return
+
+    #     # Build arguments after validation
+    #     sys_args = self.build_sys_args_from_gui()
+
+    #     # Prepare GUI elements
+    #     self.console_output.clear()
+    #     self.progress.setRange(0, 0)
+    #     self.run_button.setDisabled(True)
+    #     self.stop_button.setDisabled(False)
+        
+    #     # Check if the worker is already running and terminate it
+    #     if self.worker is not None and self.worker.isRunning():
+    #         self.console_output.append("[INFO] Terminating previous ROBERT run...")
+    #         self.worker.stop()
+    #         self.worker.wait()
+    #         self.worker.deleteLater()
+    #         self.worker = None
+
+    #     # Launch new thread for ROBERT
+    #     self.worker = RobertWorkerProcess(sys_args)
+    #     self.worker.output_received.connect(lambda text: self.console_output.append(self.ansi_converter.convert(text, full=False)))
+    #     self.worker.error_received.connect(lambda text: self.console_output.append(f'<span style="color:red;">{text}</span>'))
+    #     self.worker.process_finished.connect(self.on_process_finished)
+    #     self.worker.finished.connect(self.worker.deleteLater)
+
+    #     self.worker.start()
+
+    def run_robert_multiprocessing(self):
+        """Runs ROBERT using multiprocessing-based execution and applies variable validation before launching."""
 
         # Validate input variables first
         if not self.check_variables():
             self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
             return
+
+        # Check for leftover workflow folders
+        folders_to_check = ["CURATE", "GENERATE", "PREDICT", "VERIFY"]
+        existing_folders = [f for f in folders_to_check if os.path.exists(f)]
+
+        if existing_folders:
+            message = (
+                "ROBERT detected folders from a previous run.\n\n"
+                "These folders may cause problems if the previous run was interrupted,\n"
+                "or will be overwritten if the previous run completed successfully.\n\n"
+                "Are you sure you want to continue and delete them?"
+            )
+
+            confirmation = QMessageBox.question(
+                self,
+                "WARNING!",
+                message,
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if confirmation == QMessageBox.No:
+                return
+            
+            # Try deleting the folders
+            for folder in existing_folders:
+                try:
+                    shutil.rmtree(folder)
+                    self.console_output.append(f"[INFO] Deleted folder: {folder}")
+                except Exception as e:
+                    self.console_output.append(f"[ERROR] Could not delete folder '{folder}': {e}")
+                    return  # Prevent running ROBERT if cleanup fails
 
         # Build arguments after validation
         sys_args = self.build_sys_args_from_gui()
@@ -1443,13 +1516,23 @@ class EasyROB(QMainWindow):
         self.run_button.setDisabled(True)
         self.stop_button.setDisabled(False)
 
-        # Launch threaded worker
-        self.worker = RobertWorkerExe(sys_args)
+        # Stop any previous worker process if running
+        if self.worker is not None:
+            try:
+                self.console_output.append("[INFO] Terminating previous ROBERT process...")
+                self.worker.stop()
+            except Exception as e:
+                self.console_output.append(f"[WARNING] Could not stop previous worker: {e}")
+            self.worker = None
+
+        # Launch new ROBERT process
+        self.worker = RobertWorkerProcess(sys_args)
         self.worker.output_received.connect(lambda text: self.console_output.append(self.ansi_converter.convert(text, full=False)))
         self.worker.error_received.connect(lambda text: self.console_output.append(f'<span style="color:red;">{text}</span>'))
         self.worker.process_finished.connect(self.on_process_finished)
 
-        self.worker.start()
+        self.worker.run()
+
 
     def build_sys_args_from_gui(self):
         """Build a dictionary of parameters for ROBERT from GUI selections."""
@@ -1972,7 +2055,29 @@ class EasyROB(QMainWindow):
         #     self.stop_button.setDisabled(True)
         #     self.progress.setRange(0, 100)
         #     self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
-    def stop_robert(self):
+    # def stop_robert(self):
+    #     """Stops the ROBERT process safely after user confirmation."""
+        
+    #     confirmation = QMessageBox.question(
+    #         self, 
+    #         "WARNING!", 
+    #         "Are you sure you want to stop ROBERT?",
+    #         QMessageBox.Yes | QMessageBox.No, 
+    #         QMessageBox.No
+    #     )
+
+    #     if confirmation == QMessageBox.No:
+    #         return  
+
+    #     self.manual_stop = True
+
+    #     if self.worker and self.worker.isRunning():
+    #         self.worker.stop()  
+    #         self.worker.wait()
+    #         self.worker = None
+    #         self.on_process_finished(-1)
+
+    def stop_robert_multiprocessing(self):
         """Stops the ROBERT process safely after user confirmation."""
         
         confirmation = QMessageBox.question(
@@ -1988,9 +2093,9 @@ class EasyROB(QMainWindow):
 
         self.manual_stop = True
 
-        if self.worker and self.worker.isRunning():
-            self.worker.stop()  
-            self.worker.wait()
+        # Check and stop the multiprocessing-based worker
+        if self.worker and hasattr(self.worker, 'process') and self.worker.process.is_alive():
+            self.worker.stop()  # Calls .terminate() on the process
             self.worker = None
             self.on_process_finished(-1)
 
@@ -2029,78 +2134,149 @@ class EasyROB(QMainWindow):
     #     """ Handles the error output of the ROBERT process. """
     #     error_output = self.process.readAllStandardError().data().decode("utf-8")
     #     self.console_output.append(error_output)
-        
-    @Slot(int, QProcess.ExitStatus)
+    @Slot(int)
     def on_process_finished(self, exit_code):
         """Handles the cleanup after the ROBERT process finishes."""
 
-        # Reset the buttons and progress bar
+        # Reset buttons and progress bar
         self.run_button.setDisabled(False)
         self.stop_button.setDisabled(True)
         self.progress.setRange(0, 100)
 
-        if self.worker:  # Ensure the subprocess is properly closed
-            self.worker.quit()  # Stops the QThread
-            self.worker.wait()  # Ensures cleanup
-            self.worker = None  # Reset the worker
+        # Clean up the worker process
+        if self.worker:
+            if self.worker.process and self.worker.process.is_alive():
+                self.worker.stop()
+            self.worker = None
 
-        #Check console output for success message
-        if not self.manual_stop and self.workflow_selector.currentText() == "Full Workflow" or self.workflow_selector.currentText() == "REPORT":
-            if exit_code == 0 and "o  ROBERT_report.pdf was created successfully in the working directory!" in self.console_output.toPlainText():
+        # Handle manual stop
+        if exit_code == -1:
+            self.console_output.clear()
+            QMessageBox.information(self, "WARNING!", "ROBERT has been successfully stopped.")
+            self.manual_stop = False
+            return  # Exit early, don't evaluate further
+
+        # Workflow complete messages
+        output_text = self.console_output.toPlainText()
+        workflow = self.workflow_selector.currentText()
+
+        if not self.manual_stop and (workflow == "Full Workflow" or workflow == "REPORT"):
+            if exit_code == 0 and "ROBERT_report.pdf was created successfully" in output_text:
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Information)
                 msg_box.setWindowTitle("Success!")
                 msg_box.setText("ROBERT has completed successfully.")
 
-                # Add custom "View Report" button
                 view_report_button = QPushButton("View Report PDF")
                 with as_file(files("robert") / "icons" / "pdf_icon.png") as icon_path:
-                    view_report_button.setIcon(QIcon(str(icon_path)))             
+                    view_report_button.setIcon(QIcon(str(icon_path)))
                 msg_box.addButton(view_report_button, QMessageBox.ActionRole)
-
-                # Add "OK" button 
                 msg_box.addButton("OK", QMessageBox.AcceptRole)
-
-                # Connect view_report_button to show results tab
                 view_report_button.clicked.connect(lambda: self.tab_widget.setCurrentWidget(self.tab_widget_results))
-
                 msg_box.exec()
-
             else:
                 QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
 
-        # If the process was launched for a specific workflow, update the dropdown to the next step
-        if self.workflow_selector.currentText() == "CURATE":
-                if exit_code == 0 and "Time CURATE: " in self.console_output.toPlainText():
-                    QMessageBox.information(self, "Success", "ROBERT has successfully completed the CURATE step.")
-                else:
-                    QMessageBox.warning(self, "WARNING!","ROBERT encountered an issue while finishing. Please check the logs.")
+        elif workflow == "CURATE":
+            if exit_code == 0 and "Time CURATE: " in output_text:
+                QMessageBox.information(self, "Success", "ROBERT has successfully completed the CURATE step.")
+            else:
+                QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
 
-        if self.workflow_selector.currentText() == "GENERATE":
-            if exit_code == 0 and "Time GENERATE: " in self.console_output.toPlainText():
+        elif workflow == "GENERATE":
+            if exit_code == 0 and "Time GENERATE: " in output_text:
                 QMessageBox.information(self, "Success", "ROBERT has successfully completed the GENERATE step.")
             else:
                 QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
 
-        if self.workflow_selector.currentText() == "PREDICT":
-            if exit_code == 0 and "Time PREDICT: " in self.console_output.toPlainText():
+        elif workflow == "PREDICT":
+            if exit_code == 0 and "Time PREDICT: " in output_text:
                 QMessageBox.information(self, "Success", "ROBERT has successfully completed the PREDICT step.")
             else:
                 QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
 
-        if self.workflow_selector.currentText() == "VERIFY":
-            if exit_code == 0 and "Time VERIFY: " in self.console_output.toPlainText():
+        elif workflow == "VERIFY":
+            if exit_code == 0 and "Time VERIFY: " in output_text:
                 QMessageBox.information(self, "Success", "ROBERT has successfully completed the VERIFY step.")
             else:
                 QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
 
-        # Show message box for stopping   
-        if exit_code == -1:
-            self.console_output.clear()  # Clear the console output
-            QMessageBox.information(self, "WARNING!", "ROBERT has been successfully stopped.")
-             
-        # Reset the manual stop flag after the process is finished
+        # Final cleanup
         self.manual_stop = False
+
+    # @Slot(int, QProcess.ExitStatus)
+    # def on_process_finished(self, exit_code):
+    #     """Handles the cleanup after the ROBERT process finishes."""
+
+    #     # Reset the buttons and progress bar
+    #     self.run_button.setDisabled(False)
+    #     self.stop_button.setDisabled(True)
+    #     self.progress.setRange(0, 100)
+
+    #     # Clean up
+    #     if self.worker:
+    #         if self.worker.process and self.worker.process.is_alive():
+    #             self.worker.stop()
+    #         self.worker = None
+
+    #     # Check if the ROBERT process was stopped manually  
+    #     #Check console output for success message
+    #     if not self.manual_stop and self.workflow_selector.currentText() == "Full Workflow" or self.workflow_selector.currentText() == "REPORT":
+    #         if exit_code == 0 and "o  ROBERT_report.pdf was created successfully in the working directory!" in self.console_output.toPlainText():
+    #             msg_box = QMessageBox(self)
+    #             msg_box.setIcon(QMessageBox.Information)
+    #             msg_box.setWindowTitle("Success!")
+    #             msg_box.setText("ROBERT has completed successfully.")
+
+    #             # Add custom "View Report" button
+    #             view_report_button = QPushButton("View Report PDF")
+    #             with as_file(files("robert") / "icons" / "pdf_icon.png") as icon_path:
+    #                 view_report_button.setIcon(QIcon(str(icon_path)))             
+    #             msg_box.addButton(view_report_button, QMessageBox.ActionRole)
+
+    #             # Add "OK" button 
+    #             msg_box.addButton("OK", QMessageBox.AcceptRole)
+
+    #             # Connect view_report_button to show results tab
+    #             view_report_button.clicked.connect(lambda: self.tab_widget.setCurrentWidget(self.tab_widget_results))
+
+    #             msg_box.exec()
+
+    #         else:
+    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
+
+    #     # If the process was launched for a specific workflow, update the dropdown to the next step
+    #     if self.workflow_selector.currentText() == "CURATE":
+    #             if exit_code == 0 and "Time CURATE: " in self.console_output.toPlainText():
+    #                 QMessageBox.information(self, "Success", "ROBERT has successfully completed the CURATE step.")
+    #             else:
+    #                 QMessageBox.warning(self, "WARNING!","ROBERT encountered an issue while finishing. Please check the logs.")
+
+    #     if self.workflow_selector.currentText() == "GENERATE":
+    #         if exit_code == 0 and "Time GENERATE: " in self.console_output.toPlainText():
+    #             QMessageBox.information(self, "Success", "ROBERT has successfully completed the GENERATE step.")
+    #         else:
+    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
+
+    #     if self.workflow_selector.currentText() == "PREDICT":
+    #         if exit_code == 0 and "Time PREDICT: " in self.console_output.toPlainText():
+    #             QMessageBox.information(self, "Success", "ROBERT has successfully completed the PREDICT step.")
+    #         else:
+    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
+
+    #     if self.workflow_selector.currentText() == "VERIFY":
+    #         if exit_code == 0 and "Time VERIFY: " in self.console_output.toPlainText():
+    #             QMessageBox.information(self, "Success", "ROBERT has successfully completed the VERIFY step.")
+    #         else:
+    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
+
+    #     # Show message box for stopping   
+    #     if exit_code == -1:
+    #         self.console_output.clear()  # Clear the console output
+    #         QMessageBox.information(self, "WARNING!", "ROBERT has been successfully stopped.")
+             
+    #     # Reset the manual stop flag after the process is finished
+    #     self.manual_stop = False
 
 class DropLabel(QFrame):
     """A widget for file selection via drag-and-drop or browsing. Can be configured for different file types."""
@@ -2228,9 +2404,76 @@ class DropLabel(QFrame):
 #             self.process.kill()
 #             self.process = None
 
-class RobertWorkerExe(QThread):
-    """A QThread that runs ROBERT internally (without subprocess) and streams real-time output."""
+# class RobertWorkerExe(QThread):
+#     """A QThread that runs ROBERT internally (without subprocess) and streams real-time output."""
 
+#     output_received = Signal(str)
+#     error_received = Signal(str)
+#     process_finished = Signal(int)
+
+#     def __init__(self, sys_args):
+#         super().__init__()
+#         self.sys_args = sys_args
+#         self._stop_requested = False
+
+#     def run(self):
+#         """Runs the ROBERT workflow directly and streams output."""
+
+#         class StreamRedirect:
+#             """Redirects stdout and stderr to PyQt signals."""
+#             def __init__(self, signal):
+#                 self.signal = signal
+#             def write(self, msg):
+#                 self.signal.emit(msg.strip())
+#             def flush(self):
+#                 pass
+
+#         # keep original stdout and stderr
+#         original_stdout = sys.stdout
+#         original_stderr = sys.stderr
+#         sys.stdout = StreamRedirect(self.output_received)
+#         sys.stderr = StreamRedirect(self.error_received)
+
+#         try:
+#             # Import the main function from the robert module
+#             main("exe", self.sys_args)
+#             self.process_finished.emit(0)
+
+#         except Exception as e:
+#             tb = traceback.format_exc()
+#             self.output_received.emit(f"[EXCEPTION] {str(e)}\n{tb}")
+#             self.process_finished.emit(1)
+
+#         finally:
+#             sys.stdout = original_stdout
+#             sys.stderr = original_stderr
+
+#     def stop(self):
+#         """Sets the stop flag and terminates the thread (forcefully)."""
+#         self._stop_requested = True
+#         self.terminate()
+def robert_target(queue_out, queue_err, sys_args):
+    """Target function for the ROBERT process in a separate process."""
+    class StreamToQueue:
+        def __init__(self, queue):
+            self.queue = queue
+        def write(self, msg):
+            if msg.strip():
+                self.queue.put(msg.strip())
+        def flush(self): pass
+
+    sys.stdout = StreamToQueue(queue_out)
+    sys.stderr = StreamToQueue(queue_err)
+
+    try:
+        main("exe", sys_args)
+        queue_out.put("__FINISHED_OK__")
+    except Exception:
+        queue_err.put(traceback.format_exc())
+        queue_out.put("__FINISHED_ERROR__")
+
+class RobertWorkerProcess(QObject):
+    """A QObject that runs a subprocess (ROBERT) asynchronously and streams real-time output."""
     output_received = Signal(str)
     error_received = Signal(str)
     process_finished = Signal(int)
@@ -2238,54 +2481,43 @@ class RobertWorkerExe(QThread):
     def __init__(self, sys_args):
         super().__init__()
         self.sys_args = sys_args
-        self._stop_requested = False
+        self.process = None
+        self.queue_out = None
+        self.queue_err = None
+        self._finished_code = None  # to defer emit until all output is captured
 
     def run(self):
-        """Runs the ROBERT workflow directly and streams output."""
+        self.queue_out = Queue()
+        self.queue_err = Queue()
+        self.process = Process(target=robert_target, args=(self.queue_out, self.queue_err, self.sys_args))
+        self.process.start()
+        QTimer.singleShot(10, self._poll_output)
 
-        class StreamRedirect:
-            """Redirects stdout and stderr to PyQt signals."""
-            def __init__(self, signal):
-                self.signal = signal
-            def write(self, msg):
-                self.signal.emit(msg.strip())
-            def flush(self):
-                pass
-
-        # keep original stdout and stderr
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
-        sys.stdout = StreamRedirect(self.output_received)
-        sys.stderr = StreamRedirect(self.error_received)
-
-        try:
-            if self._stop_requested:
-                # If the user requests a stop before ROBERT starts, emit an error message and exit.
-                self.error_received.emit("[USER STOP] ROBERT was stopped before it started.")
-                self.process_finished.emit(-1)
-                return
-            # Launch ROBERT
-            main("exe", self.sys_args)
-
-            if self._stop_requested:
-                # If the user requests a stop after ROBERT starts, emit an error message and exit.
-                self.error_received.emit("[USER STOP] ROBERT was stopped during execution.")
-                self.process_finished.emit(-1)
+    def _poll_output(self):
+        # Get all standard output
+        while not self.queue_out.empty():
+            msg = self.queue_out.get()
+            if msg == "__FINISHED_OK__":
+                self._finished_code = 0
+            elif msg == "__FINISHED_ERROR__":
+                self._finished_code = 1
             else:
-                self.process_finished.emit(0)
+                self.output_received.emit(msg)
 
-        except Exception as e:
-            self.error_received.emit(f"[EXCEPTION] {str(e)}")
-            self.process_finished.emit(1)
-        finally:
-            # restore stdout and stderr
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
+        # Get all error output
+        while not self.queue_err.empty():
+            self.error_received.emit(self.queue_err.get())
+
+        # If process is finished and queues are empty, emit final signal
+        if self._finished_code is not None and self.queue_out.empty() and self.queue_err.empty():
+            self.process_finished.emit(self._finished_code)
+        else:
+            QTimer.singleShot(10, self._poll_output)
 
     def stop(self):
-        """Sets the stop flag and terminates the thread (forcefully)."""
-        self._stop_requested = True
-        self.terminate()
+        if self.process and self.process.is_alive():
+            self.process.terminate()
+            self.process.join()
 
 class ChemDrawFileDialog(QDialog):
     def __init__(self, parent=None):

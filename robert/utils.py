@@ -856,7 +856,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     curate_valid = False
         
         elif module.lower() == 'generate':
-            if self.split.lower() not in ['kn','rnd','stratified','even','extrapolation']:
+            if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q2']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
 
@@ -1251,12 +1251,15 @@ def test_select(self,X_scaled,csv_y):
                 test_points.append(new_test_point)
             random_seed += 1
 
-    elif self.args.split.upper() == 'EXTRAPOLATION':
+    elif self.args.split.upper() == 'EXTRA_Q1':
         # 10% lowest and 10% highest points
-        portion = max(1, round(0.1 * len(csv_y)))
-        lowest_points = csv_y.nsmallest(portion).index.tolist()
-        highest_points = csv_y.nlargest(portion).index.tolist()
-        test_points = lowest_points + highest_points
+        portion = max(1, round(0.2 * len(csv_y)))
+        test_points = csv_y.nsmallest(portion).index.tolist()
+    
+    elif self.args.split.upper() == 'EXTRA_Q5':
+        # 10% lowest and 10% highest points
+        portion = max(1, round(0.2 * len(csv_y)))
+        test_points = csv_y.nlargest(portion).index.tolist()
 
     test_points.sort()
 
@@ -1517,7 +1520,13 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
         # print the target that is above the BO
         # print the final result of the BO just after finishing all the iterations
         Xy_data = sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels)
+        # combined_score = ((Xy_data[f'{model_data["error_type"]}_train']/Xy_data["r2_train"]) + (Xy_data[f'{model_data["error_type"]}_up_bottom']/Xy_data["r2_up_bottom"]))/2
+        # combined_score = ((Xy_data[f'{model_data["error_type"]}_train']/Xy_data["r2_train"]))
         combined_score = (Xy_data[f'{model_data["error_type"]}_train'] + Xy_data[f'{model_data["error_type"]}_up_bottom'])/2
+        # combined_score = (Xy_data[f'{model_data["error_type"]}_train'])
+
+        # if combined_score > 100:
+        #     combined_score = 100.00
         if verify_job:
             return Xy_data
         if model_data["error_type"].lower() in ['mae','rmse']:
@@ -1701,6 +1710,7 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
         # take the worst performing predictions from the top and bottom folds
         if model_data["error_type"].lower() in ['mae','rmse']:
             Xy_data[f'{model_data["error_type"]}_up_bottom'] = max(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][0], Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][-1])
+            Xy_data['r2_up_bottom'] = min(Xy_data['r2_train_sorted_CV'][0], Xy_data['r2_train_sorted_CV'][-1])
         else:  # r2
             Xy_data[f'{model_data["error_type"]}_up_bottom'] = min(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][0], Xy_data[f'{model_data["error_type"]}_train_sorted_CV'][-1])
 

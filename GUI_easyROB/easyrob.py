@@ -30,6 +30,7 @@ import math
 import traceback
 from robert.robert import main
 from multiprocessing import Process, Queue
+import shutil
 
 class AQMETab(QWidget):
     """Tab for AQME workflow with ChemDraw file import support and molecule viewer."""
@@ -1051,7 +1052,6 @@ class EasyROB(QMainWindow):
         self.type_dropdown.addItems(["Regression", "Classification"])
         main_layout.addWidget(self.type_dropdown)
         self.type_dropdown.setStyleSheet(box_features)
-     
         
         # --- Select column for --names ---
         self.names_label = QLabel("Select name column")
@@ -1101,14 +1101,19 @@ class EasyROB(QMainWindow):
         right_layout.addWidget(self.ignored_label)
         right_layout.addWidget(self.ignore_list)
 
-        # Add layouts to the main horizontal layout
+        # Add sub-layouts to the main horizontal layout
         column_layout.addLayout(left_layout)
         column_layout.addLayout(button_layout)
         column_layout.addLayout(right_layout)
 
-        # Inserting into the main layout
-        main_layout.addLayout(column_layout)
-        main_layout.addSpacing(10)  
+        # Create a container for the column layout and resize it
+        column_container = QWidget()
+        column_container.setLayout(column_layout)
+        column_container.setFixedHeight(150) 
+
+        # Insert the column container into the main layout
+        main_layout.addWidget(column_container)
+        main_layout.addSpacing(10)
 
         # AQME Workflow Checkbox
         self.aqme_workflow = QCheckBox("Enable AQME Workflow") 
@@ -1207,7 +1212,7 @@ class EasyROB(QMainWindow):
         self.console_output.setReadOnly(True)
         self.console_output.setStyleSheet("background-color: black; color: white; padding: 5px; font-family: monospace;")
         self.console_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.console_output.setMinimumHeight(200) # Set minimum height
+        self.console_output.setFixedHeight(275)
 
         # Create ANSI converter to display colors in the console and special characters
         self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Preserves colors
@@ -1470,6 +1475,38 @@ class EasyROB(QMainWindow):
             self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
             return
 
+        # Check for leftover workflow folders
+        folders_to_check = ["CURATE", "GENERATE", "PREDICT", "VERIFY"]
+        existing_folders = [f for f in folders_to_check if os.path.exists(f)]
+
+        if existing_folders:
+            message = (
+                "ROBERT detected folders from a previous run.\n\n"
+                "These folders may cause problems if the previous run was interrupted,\n"
+                "or will be overwritten if the previous run completed successfully.\n\n"
+                "Are you sure you want to continue and delete them?"
+            )
+
+            confirmation = QMessageBox.question(
+                self,
+                "WARNING!",
+                message,
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if confirmation == QMessageBox.No:
+                return
+            
+            # Try deleting the folders
+            for folder in existing_folders:
+                try:
+                    shutil.rmtree(folder)
+                    self.console_output.append(f"[INFO] Deleted folder: {folder}")
+                except Exception as e:
+                    self.console_output.append(f"[ERROR] Could not delete folder '{folder}': {e}")
+                    return  # Prevent running ROBERT if cleanup fails
+
         # Build arguments after validation
         sys_args = self.build_sys_args_from_gui()
 
@@ -1494,8 +1531,7 @@ class EasyROB(QMainWindow):
         self.worker.error_received.connect(lambda text: self.console_output.append(f'<span style="color:red;">{text}</span>'))
         self.worker.process_finished.connect(self.on_process_finished)
 
-        # Start the ROBERT worker process
-        self.worker.run() 
+        self.worker.run()
 
 
     def build_sys_args_from_gui(self):
@@ -2417,12 +2453,13 @@ class DropLabel(QFrame):
 #         self._stop_requested = True
 #         self.terminate()
 def robert_target(queue_out, queue_err, sys_args):
+    """Target function for the ROBERT process in a separate process."""
     class StreamToQueue:
         def __init__(self, queue):
             self.queue = queue
         def write(self, msg):
             if msg.strip():
-                self.queue.put(msg)
+                self.queue.put(msg.strip())
         def flush(self): pass
 
     sys.stdout = StreamToQueue(queue_out)
@@ -2436,6 +2473,7 @@ def robert_target(queue_out, queue_err, sys_args):
         queue_out.put("__FINISHED_ERROR__")
 
 class RobertWorkerProcess(QObject):
+    """A QObject that runs a subprocess (ROBERT) asynchronously and streams real-time output."""
     output_received = Signal(str)
     error_received = Signal(str)
     process_finished = Signal(int)
@@ -2444,33 +2482,37 @@ class RobertWorkerProcess(QObject):
         super().__init__()
         self.sys_args = sys_args
         self.process = None
+        self.queue_out = None
+        self.queue_err = None
+        self._finished_code = None  # to defer emit until all output is captured
 
     def run(self):
         self.queue_out = Queue()
         self.queue_err = Queue()
         self.process = Process(target=robert_target, args=(self.queue_out, self.queue_err, self.sys_args))
         self.process.start()
-        QTimer.singleShot(50, self._poll_output)
+        QTimer.singleShot(10, self._poll_output)
 
     def _poll_output(self):
-        if self.queue_out.empty() and self.queue_err.empty():
-            QTimer.singleShot(100, self._poll_output)
-            return
-
+        # Get all standard output
         while not self.queue_out.empty():
             msg = self.queue_out.get()
             if msg == "__FINISHED_OK__":
-                self.process_finished.emit(0)
-                return
+                self._finished_code = 0
             elif msg == "__FINISHED_ERROR__":
-                self.process_finished.emit(1)
-                return
-            self.output_received.emit(msg)
+                self._finished_code = 1
+            else:
+                self.output_received.emit(msg)
 
+        # Get all error output
         while not self.queue_err.empty():
             self.error_received.emit(self.queue_err.get())
 
-        QTimer.singleShot(100, self._poll_output)
+        # If process is finished and queues are empty, emit final signal
+        if self._finished_code is not None and self.queue_out.empty() and self.queue_err.empty():
+            self.process_finished.emit(self._finished_code)
+        else:
+            QTimer.singleShot(10, self._poll_output)
 
     def stop(self):
         if self.process and self.process.is_alive():

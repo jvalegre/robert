@@ -129,8 +129,13 @@ def command_line_args(exe_type,sys_args):
     """
 
     if exe_type == 'exe':
-        sys.argv = sys_args
-    
+        # Simulate sys.argv for use in an executable environment
+        sys.argv = ["launcher.exe"]
+        for k, v in sys_args.items():
+            sys.argv.append(k)
+            if v is not None:
+                sys.argv.append(str(v))
+
     # First, create dictionary with user-defined arguments
     kwargs = {}
     available_args = ["help"]

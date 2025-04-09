@@ -3,7 +3,7 @@ version="2.0.1"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
-    package_data={"robert": ["model_params/*","report/*"]},
+    package_data={"robert": ["model_params/*","report/*","icons/*"]},
     version=version,
     license="MIT",
     description="Refiner and Optimizer of a Bunch of Existing Regression Tools",

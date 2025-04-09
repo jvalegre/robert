@@ -1677,13 +1677,13 @@ def kfold_cv(y_global,y_pred_global,
 def sort_n_load(Xy_data):
     '''
     Sort Xy data values to enhance reproducibility in cases where same databases are loaded
-    with different row order
+    with different row order, ensuring stable sorting across OS with kind='stable'.
     '''
     
     X_train_scaled = np.array(Xy_data['X_train_scaled'])
     y_train = np.array(Xy_data['y_train'])
 
-    sorted_indices = np.argsort(y_train)
+    sorted_indices = np.argsort(y_train, kind='stable')
     sorted_X_train_scaled = X_train_scaled[sorted_indices]
     sorted_y_train = y_train[sorted_indices]
 

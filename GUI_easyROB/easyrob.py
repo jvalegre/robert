@@ -31,6 +31,7 @@ import traceback
 from robert.robert import main
 from multiprocessing import Process, Queue
 import shutil
+from rdkit.Chem import PathToSubmol, MolFragmentToSmarts
 
 class AQMETab(QWidget):
     """Tab for AQME workflow with ChemDraw file import support and molecule viewer."""
@@ -60,36 +61,45 @@ class AQMETab(QWidget):
 
         main_layout.addLayout(button_layout)
 
-        # === Molecule Viewer ===
-        self.mol_viewer = QLabel("Molecule View (SMARTS common pattern Highlighted)", self)
-        self.mol_viewer.setAlignment(Qt.AlignCenter)  # Center the text within the QLabel
+        # === Viewer container with label + viewer stacked ===
+        self.mol_viewer_container = QWidget()
+        self.mol_viewer_container.setFixedSize(500, 500) 
+        self.mol_viewer_container.setStyleSheet("background: transparent;")
 
-        # Set the minimum and maximum sizes for the label
-        self.mol_viewer.setMinimumSize(600, 600)
-        self.mol_viewer.setMaximumSize(600, 600)
+        # Layout with relative positioning
+        mol_layout = QGridLayout(self.mol_viewer_container)
+        mol_layout.setContentsMargins(0, 0, 0, 0)
+        mol_layout.setSpacing(0)
 
-        # Apply rounded borders and other aesthetics with dynamic color changes based on system theme
-        self.mol_viewer.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-style: italic;
-                color: #666;
-                border-radius: 15px;  /* Rounded corners */
-                padding: 20px;  /* Padding inside the label */
-                background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 #f5f5f5, stop:1 #e0e0e0);  /* Light mode background */
-                border: 2px solid #444;  /* Default border color */
-            }
-            /* Dark mode adjustments */
-            QGroupBox, QLabel, QCheckBox, QComboBox {
-                background-color: #333;  /* Dark mode background */
-                color: #fff;  /* Text color for dark mode */
-                border: 2px solid #777;  /* Dark mode border color */
-            }
+        # === mol_viewer (molecule display) ===
+        self.mol_viewer = QLabel(self.mol_viewer_container)
+        self.mol_viewer.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.mol_viewer.setWordWrap(True)
+        self.set_mol_viewer_message("📄 Select a CSV with a SMILES column to display a common SMARTS pattern.")
+        self.mol_viewer.setFixedSize(500, 500)
+
+        # === mol_info_label ===
+        self.mol_info_label = QLabel("🔬 Info here", self.mol_viewer_container)
+        self.mol_info_label.setStyleSheet("""
+            color: #222;
+            background-color: rgba(240, 240, 240, 220);
+            font-size: 11px;
+            font-style: italic;
+            padding: 4px 8px;
+            margin: 6px;
+            border-radius: 6px;
+            border: 1px solid #aaa;
         """)
 
-        # Add the QLabel to the main layout, ensuring it stays centered
-        main_layout.addWidget(self.mol_viewer, alignment=Qt.AlignCenter)
+        self.mol_info_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
+        # === Set up the molecule viewer ===
+        mol_layout.addWidget(self.mol_viewer, 0, 0)
+        mol_layout.addWidget(self.mol_info_label, 0, 0, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        mol_wrapper_layout = QHBoxLayout()
+        mol_wrapper_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        mol_wrapper_layout.addWidget(self.mol_viewer_container)
+        main_layout.addLayout(mol_wrapper_layout)
 
         # === AQME Box at the bottom ===
         aqme_box = QGroupBox("AQME")
@@ -119,11 +129,25 @@ class AQMETab(QWidget):
         aqme_box.setLayout(aqme_layout)
         main_layout.addWidget(aqme_box)
 
+    def set_mol_viewer_message(self, message, tooltip=None):
+        """Display a styled message in the molecule viewer, with optional tooltip."""
+        self.mol_viewer.setText(message)
+        self.mol_viewer.setToolTip(tooltip if tooltip else "")
+        self.mol_viewer.setStyleSheet("""
+            color: #222;
+            background-color: rgba(255, 255, 255, 230);            
+            font-size: 11px;
+            font-style: italic;
+            padding: 4px 8px;
+            margin: 6px;
+            border-radius: 6px;
+            border: 1px solid #aaa;
+        """)
     def detect_patterns_and_display(self):
         """Detects patterns in the loaded CSV and displays the first molecule."""
+
         try:
-            df = pd.read_csv(self.file_path)
-            self.dataframe = df # Store the DataFrame for later use
+            self.csv_df = pd.read_csv(self.file_path) # Store the DataFrame for later use
 
             # === Auto SMARTS detection ===
             self.auto_pattern()
@@ -132,8 +156,8 @@ class AQMETab(QWidget):
             self.display_molecule()
 
         except Exception as e:
-            print(f"Error loading CSV: {e}")
-            self.mol_viewer.setText("Failed to load or process the CSV.")
+            self.set_mol_viewer_message("❌ Failed to load or process the CSV.")
+            self.mol_info_label.setText("🔬 Info here")
 
     def auto_pattern(self):
         """
@@ -150,12 +174,12 @@ class AQMETab(QWidget):
         self.smarts_targets = []
 
         try:
-            df = pd.read_csv(self.file_path)
-            if 'SMILES' not in df.columns:
+            self.csv_df = pd.read_csv(self.file_path)
+            if 'SMILES' not in self.csv_df.columns:
                 raise ValueError("CSV must have a SMILES column")
 
             mol_list = []
-            for smi in df['SMILES'].dropna():
+            for smi in self.csv_df['SMILES'].dropna():
 
                 mol = Chem.MolFromSmiles(smi)
                 mol_list_with_Hs = Chem.AddHs(mol) 
@@ -165,16 +189,26 @@ class AQMETab(QWidget):
             if not mol_list:
                 raise ValueError("No valid molecules.")
 
-            # Get MCS
+            # Get MCS, just one
             mcs_result = rdFMCS.FindMCS(mol_list)
-            if mcs_result:
+            if mcs_result and mcs_result.smartsString:
                 smarts = mcs_result.smartsString
                 self.smarts_targets.append(smarts)
-                print(f"Detected SMARTS pattern: {smarts}")
+            else:
+                # No common substructure found
+                self.set_mol_viewer_message(
+                "⚠️ No common SMARTS pattern was found among the molecules.",
+                tooltip="No shared substructure could be detected with the current SMILES list."
+            )
+            self.mol_info_label.setText("🔬 Info here")
 
         except Exception as e:
-            print(f"auto_pattern error: {e}")
-        
+            self.set_mol_viewer_message(
+                "❌ Failed to detect SMARTS pattern. Check your CSV.",
+                tooltip=f"auto_pattern error: {str(e)}"
+            )
+            self.mol_info_label.setText("🔬 Info here")
+
     def display_molecule(self):
         """Display a SMARTS molecule and highlight atoms based on user selection."""
         rdkit.rdBase.DisableLog('rdApp.*')
@@ -183,55 +217,61 @@ class AQMETab(QWidget):
         try:
             # Ensure there are SMARTS patterns to display
             if not hasattr(self, "smarts_targets") or not self.smarts_targets:
-                self.mol_viewer.setText("No SMARTS patterns available.")
+                self.set_mol_viewer_message("⚠️ No SMARTS patterns available.")
+                self.mol_info_label.setText("🔬 Info here")  # Clear top label
                 return
 
             # Generate molecule from SMARTS pattern
-            mol = Chem.MolFromSmarts(self.smarts_targets[0])  # Assuming one SMARTS pattern for simplicity
-            if mol is None:
-                self.mol_viewer.setText("Invalid SMARTS pattern.")
+            self.mol = Chem.MolFromSmarts(self.smarts_targets[0])
+            if self.mol is None:
+                self.set_mol_viewer_message("⚠️ Invalid SMARTS pattern.")
+                self.mol_info_label.setText("🔬 Info here")
                 return
 
-            self.molecule_image_width = self.mol_viewer.width()
-            self.molecule_image_height = self.mol_viewer.height()
+            # Adapt molecule size to the viewer
+            self.molecule_image_width = self.mol_viewer_container.width()
+            self.molecule_image_height = self.mol_viewer_container.height()
 
-            # Prepare to highlight atoms based on user selection
-            highlight_atoms = set(self.selected_atoms)  # Highlight selected atoms
-            highlight_colors = {}
+            # Prepare highlighting
+            highlight_atoms = set(self.selected_atoms)
+            highlight_colors = {atom_idx: (0.698, 0.4, 1.0) for atom_idx in highlight_atoms} if highlight_atoms else {}
 
-            # Only highlight atoms if some are selected
-            if highlight_atoms:
-                highlight_colors = {atom_idx: (1.0, 1.0, 0.0) for atom_idx in highlight_atoms}  # Yellow color for selection
-
-            # Draw the molecule
+            # Draw molecule
             drawer = rdMolDraw2D.MolDraw2DCairo(self.molecule_image_width, self.molecule_image_height)
             drawer.drawOptions().bondLineWidth = 1.5
-            
-            # Only pass highlightAtoms and highlightAtomColors if there are selected atoms
-            if highlight_atoms:
-                drawer.DrawMolecule(mol, highlightAtoms=highlight_atoms, highlightAtomColors=highlight_colors)
-            else:
-                drawer.DrawMolecule(mol)
 
+            drawer.DrawMolecule(
+                self.mol,
+                highlightAtoms=list(highlight_atoms) if highlight_atoms else [],
+                highlightAtomColors=highlight_colors if highlight_colors else {}
+            )
             drawer.FinishDrawing()
 
-            # Get PNG image as bytes and load into QPixmap from memory
+            # Load image
             png_bytes = drawer.GetDrawingText()
             pixmap = QPixmap()
             pixmap.loadFromData(png_bytes)
 
-            # Update atom coordinates for further processing if needed
-            self.atom_coords = [drawer.GetDrawCoords(i) for i in range(mol.GetNumAtoms())]
+            # Update atom coordinates
+            self.atom_coords = [drawer.GetDrawCoords(i) for i in range(self.mol.GetNumAtoms())]
 
             if self.mol_viewer is not None:
                 if pixmap.isNull():
-                    self.mol_viewer.setText("⚠️ Could not render image.")
+                    self.set_mol_viewer_message("⚠️ Could not render molecule image.")
+                    self.mol_info_label.setText("🔬 Info here")
                 else:
                     self.mol_viewer.setPixmap(pixmap)
+                    if highlight_atoms:
+                        self.mol_info_label.setText(f"🔬 {len(highlight_atoms)} atom(s) selected.")
+                    else:
+                        self.mol_info_label.setText("🧪 SMARTS pattern founded. Click to select atoms.")
 
         except Exception as e:
-            if self.mol_viewer is not None:
-                self.mol_viewer.setText(f"Error displaying molecule: {str(e)}")
+            self.set_mol_viewer_message(
+                "❌ Error displaying molecule.",
+                tooltip=str(e)
+            )
+            self.mol_info_label.setText("🔬 Info here")
 
     def handle_atom_selection(self, atom_idx):
         """Handle the selection of an atom in the pattern."""
@@ -242,77 +282,127 @@ class AQMETab(QWidget):
         # If the atom is already selected, deselect it
         if atom_idx in self.selected_atoms:
             self.selected_atoms.remove(atom_idx)
-            self.display_molecule()  # Update the visualization
-            return
+        else:
+            # Otherwise, add the atom to the selection list
+            self.selected_atoms.append(atom_idx)
 
-        # Otherwise, add the atom to the selection list
-        self.selected_atoms.append(atom_idx)
         self.display_molecule()  # Update the visualization
 
+        # Update the mapping regardless of selection or deselection
+        self.generate_mapped_smiles(
+            self.smarts_targets[0],
+            self.selected_atoms,
+            self.csv_df['SMILES'].dropna()
+        )
+
         # # Update the pattern based on selected atoms (this can be a SMARTS pattern or similar)
-        # self.update_selected_pattern()
+        # self.selected_smarts_pattern = self.update_selected_pattern()
+        # print(f"Selected SMARTS pattern: {self.selected_smarts_pattern}")
 
-    def update_selected_pattern(self):
-        """Update the SMARTS pattern based on selected atoms."""
-        # Here you can create a SMARTS string or just store the selected atom indices
+    # def update_selected_pattern(self):
+    #     from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
+    #     from rdkit import Chem
+    #     from rdkit.Chem import rdchem  # Necesario para IntVector
+    #     """Generate a SMARTS pattern from the currently selected atoms."""
+    #     if not hasattr(self, "mol") or self.mol is None or not self.selected_atoms:
+    #         return None
 
-        # You can build a SMARTS pattern based on the selected atoms if needed
-        # For example, create a new substructure pattern based on the selection
+    #     try:
+            
+    #         atom_indices = sorted(set(self.selected_atoms))
+            
+    #         # Generate SMARTS
+    #         smarts = MolFragmentToSmarts(self.mol, atomsToUse=list(atom_indices), isomericSmarts=False)
+    #         print(f"Selected SMARTS pattern: {smarts}")
+    #         return smarts
 
-        # Optionally, you could visualize the new substructure or simply store it for later use
+    #     except Exception as e:
+    #         print(f"[SMARTS generation error] {e}")
+    #         return None
+
+    def generate_mapped_smiles(self, smarts_pattern, selected_pattern_indices, smiles_list):
+        from rdkit import Chem
+        print(f"Selected pattern indices: {selected_pattern_indices}")
+        print(f"SMARTS pattern: {smarts_pattern}")
+       
+        pattern_mol = Chem.MolFromSmarts(smarts_pattern)
+        if pattern_mol is None:
+            raise ValueError("Invalid SMARTS pattern")
+
+        mapped_smiles_list = []
+
+        for smiles in smiles_list:
+            mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+            if mol is None:
+                mapped_smiles_list.append(None)
+                continue
+
+            match = mol.GetSubstructMatch(pattern_mol)
+            print(f"Match for {smiles}: {match}")
+            if not match:
+                mapped_smiles_list.append(None)
+                continue
+            
+            # Reset atom map numbers
+            mol_copy = Chem.Mol(mol)
+            for atom in mol_copy.GetAtoms():
+                atom.SetAtomMapNum(0)
+
+            for i, pattern_idx in enumerate(selected_pattern_indices):
+                if pattern_idx >= len(match):
+                    continue
+
+                # Using the atom index from the SMARTS pattern to get the corresponding atom in the molecule.
+                # As long as the order of atoms in the SMARTS pattern stays the same, you can reliably map
+                # the same atoms in different molecules, even though their actual atom indices may differ.
+                mol_idx = match[pattern_idx]
+                atom_symbol = mol_copy.GetAtomWithIdx(mol_idx).GetSymbol()
+                print(f"Pattern atom {pattern_idx} → Mol atom {mol_idx} ({atom_symbol})")
+                mol_copy.GetAtomWithIdx(mol_idx).SetAtomMapNum(i + 1)
+
+            mapped_smiles = Chem.MolToSmiles(mol_copy)
+            mapped_smiles_list.append(mapped_smiles)
+            df = pd.DataFrame(mapped_smiles_list, columns=["Mapped_SMILES"])
+            df.to_csv("mapped_smiles.csv", index=False)
+
+        return mapped_smiles_list
 
     def mousePressEvent(self, event: QMouseEvent):
-        """Handle mouse press events to select atoms."""
+        """Handle mouse press events to select atoms and crate pattern.
+        The logic is to check if the mouse press event is within the molecule_viewer area."""
 
         if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.position()  # Get position of mouse click
-            
-            # Check if the click happened inside the mol_viewer widget
-            if self.mol_viewer and self.mol_viewer.geometry().contains(pos.toPoint()):
-                # Adjust coordinates relative to the mol_viewer
-                x = pos.x() - self.mol_viewer.x()
-                y = pos.y() - self.mol_viewer.y()
-
-                # Get atom at the clicked position
+            pos = event.position()
+            if self.mol_viewer_container and self.mol_viewer_container.geometry().contains(pos.toPoint()):
+                relative_pos = self.mol_viewer_container.mapFrom(self, pos.toPoint())
+                x = relative_pos.x()
+                y = relative_pos.y()
                 selected_atom = self.get_atom_at_position(x, y)
-
                 if selected_atom is not None:
-                    self.handle_atom_selection(selected_atom)  # Handle the atom selection
-                    self.display_molecule()  # Redraw molecule based on selection
-
+                    self.handle_atom_selection(selected_atom)
+                    self.display_molecule()  
 
     def get_atom_at_position(self, x, y):
-        """Get the atom index at the given position by checking the distance from the atom coordinates."""
-        
-        # Check if atom coordinates are available
-        if not hasattr(self, 'atom_coords') or self.atom_coords is None:
+        """Get the atom index at the given position by 
+        checking the distance from the atom coordinates. 
+        The atom coordinates are found using RDKit.
+        The logic is to check if the distance between the mouse click
+        and the atom coordinates is less than a threshold."""
+
+        if not hasattr(self, 'atom_coords'):
             return None
-
-        # Calculate the scale factors for the image
-        scale_factor_x = self.mol_viewer.width() / self.molecule_image_width  # Scale factor for X
-        scale_factor_y = self.mol_viewer.height() / self.molecule_image_height  # Scale factor for Y
-
-
-        # Loop through each atom's coordinates
-        for idx, coord in enumerate(self.atom_coords):
-            atom_x, atom_y = coord.x, coord.y  # Get the x and y coordinates of the atom
-
-            # Apply scaling to atom coordinates based on the viewer size
-            atom_x_scaled = atom_x * scale_factor_x
-            atom_y_scaled = atom_y * scale_factor_y
-
-            # Calculate the distance between the mouse click and the atom's coordinates
-            distance = math.sqrt((atom_x_scaled - x) ** 2 + (atom_y_scaled - y) ** 2)
-
-            # Define a smaller threshold for precise selection
-            selection_threshold = 20  # Adjust as needed for more precision
-
-            # Check if the distance is within the selection threshold
-            if distance <= selection_threshold:
-                return idx + 1  # Return the atom index (+1 for 1-based indexing)
-
-        return None  # Return None if no atom is selected
-
+        elif self.atom_coords is not None:
+            for idx, coord in enumerate(self.atom_coords):
+                if len(self.smarts_targets[0]) <= 30: # small molecule = bigger click area
+                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 300: 
+                        return idx 
+                if len(self.smarts_targets[0]) <= 50 and len(self.smarts_targets[0]) > 30: # medium molecule = medium click area
+                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 200: 
+                        return idx 
+                elif len(self.smarts_targets[0]) > 50 : # big molecule = smaller click area 
+                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 100: 
+                        return idx 
+            return None
 
     def open_chemdraw_popup(self):
         """Open the ChemDraw file dialog and process selected file."""
@@ -423,7 +513,7 @@ class AQMETab(QWidget):
                     f"The following 'code_name' values are duplicated:\n\n{', '.join(duplicates)}\n\nPlease make them unique before saving."
                 )
                 return  # Cancel saving
-
+    
             # Ask user where to save
             path, _ = QFileDialog.getSaveFileName(dialog, "Save CSV", "", "CSV Files (*.csv)")
             if not path:
@@ -440,6 +530,8 @@ class AQMETab(QWidget):
                     target = table.item(row, 3).text() if table.item(row, 3) else ""
                     writer.writerow([smi, code, target])
 
+            dialog.accept()
+            QMessageBox.information(dialog, "Success", "CSV file saved successfully!")
 
         save_button.clicked.connect(save_to_csv)
         dialog.setLayout(layout)
@@ -926,6 +1018,7 @@ class EasyROB(QMainWindow):
         self.ignore_list = None
         self.manual_stop = False
         self.worker = None
+        self._last_loaded_file_path = None
         self.initUI()
 
     def move_to_selected(self):
@@ -1363,10 +1456,16 @@ class EasyROB(QMainWindow):
                 self.tab_widget.setCurrentWidget(self.tab_widget_aqme)
                 QMessageBox.information(self, "AQME Tab Enabled", "AQME tab unlocked to specify AQME parameters.")
 
-            # Pass file path and trigger viewer setup in AQMETab
-            if is_checked and tab_enabled and hasattr(self, 'file_path') and self.file_path:
+            # Reset selected atoms if the file path has changed and display the new pattern if there is any
+            if (
+                is_checked and tab_enabled and
+                hasattr(self, 'file_path') and self.file_path and
+                self.file_path != getattr(self, '_last_loaded_file_path', None)
+            ):
+                self.tab_widget_aqme.selected_atoms = []
                 self.tab_widget_aqme.file_path = self.file_path
                 self.tab_widget_aqme.detect_patterns_and_display()
+                self._last_loaded_file_path = self.file_path
 
             elif not is_checked and tab_enabled:
                 self.tab_widget.setTabEnabled(tab_index, False)

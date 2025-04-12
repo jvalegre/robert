@@ -1577,8 +1577,11 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
 
     y_train_pred, y_train_std = [],[]
     for y_val in y_pred_global:
-        y_train_pred.append(np.mean(y_val))
-        y_train_std.append(np.std(y_val))
+        if model_data['type'].lower() == 'reg':
+            y_train_pred.append(np.mean(y_val))
+        elif model_data['type'].lower() == 'clas':
+            y_train_pred.append(int(round(np.mean(y_val))))
+        y_train_std.append(round(np.std(y_val),2))
 
     Xy_data['y_pred_train_all'] = y_pred_global
     Xy_data['y_pred_train'] = y_train_pred
@@ -1587,8 +1590,11 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
     if not BO_opt:
         y_test_pred, y_test_std = [],[]
         for y_val_test in y_pred_global_test:
-            y_test_pred.append(np.mean(y_val_test))
-            y_test_std.append(np.std(y_val_test))
+            if model_data['type'].lower() == 'reg':
+                y_test_pred.append(np.mean(y_val_test))
+            elif model_data['type'].lower() == 'clas':
+                y_test_pred.append(int(round(np.mean(y_val_test))))
+            y_test_std.append(round(np.std(y_val_test),2))
 
         Xy_data['y_pred_test_all'] = y_pred_global_test
         Xy_data['y_pred_test'] = y_test_pred
@@ -1597,8 +1603,11 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
         if 'X_external' in Xy_data: # if there is an external test set
             y_external_pred, y_external_std = [],[]
             for y_val_external in y_pred_global_external:
-                y_external_pred.append(np.mean(y_val_external))
-                y_external_std.append(np.std(y_val_external))
+                if model_data['type'].lower() == 'reg':
+                    y_external_pred.append(np.mean(y_val_external))
+                elif model_data['type'].lower() == 'clas':
+                    y_external_pred.append(int(round(np.mean(y_val_external))))
+                y_external_std.append(round(np.std(y_val_external),2))
 
             Xy_data['y_pred_external_all'] = y_pred_global_external
             Xy_data['y_pred_external'] = y_external_pred
@@ -2030,9 +2039,9 @@ def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph):
     else:
         folder_graph = f'{os.path.dirname(path_n_suffix)}/csv_test'
         if not sd_graph:
-            reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}.png'
+            reg_plot_file = f'{folder_graph}/Results_{os.path.basename(path_n_suffix)}_{set_type}.png'
         else:
-            reg_plot_file = f'{folder_graph}/CV_variability_{os.path.basename(path_n_suffix)}.png'
+            reg_plot_file = f'{folder_graph}/CV_variability_{os.path.basename(path_n_suffix)}_{set_type}.png'
         path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-3:])
     
     return min_value_graph,max_value_graph,reg_plot_file,path_reduced
@@ -2043,8 +2052,9 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
     Plot a confusion matrix with the prediction vs actual values
     '''
 
-    # get confusion matrix
     importlib.reload(plt) # needed to avoid threading issues
+
+    # get confusion matrix
     if 'CV' in set_type: # CV graphs
         y_train_binary = np.round(Xy_data[f'y_train']).astype(int)
         y_pred_train_binary = np.round(Xy_data[f'y_pred_train']).astype(int)

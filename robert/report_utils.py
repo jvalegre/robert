@@ -656,71 +656,30 @@ def adv_sorted_cv(self, suffix, data_score, spacing, pred_type):
     score_sorted = data_score.get(f'sorted_cv_score_{suffix}', 0)
     sorted_cv_image = f'{self.args.path_icons}/score_w_2_{score_sorted}.jpg'
 
+    error_keyword = "rmse" if pred_type.lower() == 'reg' else "mcc"
+
+    
+    # "3d. Extrapolation/Consistency (sorted CV)"
+    if f'scaled_{error_keyword}_sorted_{suffix}' not in data_score:
+        data_score[f'scaled_{error_keyword}_sorted_{suffix}'] = []
+
     if pred_type == 'reg':
-        # Regression mode: "3d. Extrapolation (sorted CV)"
-        if f'scaled_rmse_sorted_{suffix}' not in data_score:
-            data_score[f'scaled_rmse_sorted_{suffix}'] = []
-            
-        sorted_rmse = [f'{val}%' for val in data_score[f'scaled_rmse_sorted_{suffix}']]
-        sorted_rmse_str = str(sorted_rmse).replace("'", '')
-
-        column = f"""
-        <p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>3d. Extrapolation (sorted CV)</u> &nbsp;({score_sorted} / 2
-        &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
-        <p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}Scaled RMSEs across 5-fold CV:
-        <br>{spacing}{sorted_rmse_str}
-        <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
-        <br>{spacing}Every two folds with RMSEs ≤ 1.25*min RMSE: +1.</p>
-        """
-        return column
+        title_cap = '3d. Extrapolation'
+        sorted_rmse = [f'{val}%' for val in data_score[f'scaled_{error_keyword}_sorted_{suffix}']]
     else:
-        # Classification mode: "3d. Consistency (sorted CV)"
-        # We'll replace "Every two folds with MCC ≥ (max MCC - 0.05) => +1"
-        # with a more flexible approach that checks how many folds are close to the max.
-        
-        if f'sorted_mcc_{suffix}' not in data_score:
-            data_score[f'sorted_mcc_{suffix}'] = []
-        sorted_mcc = data_score[f'sorted_mcc_{suffix}']
-        
-        # Convert to strings for display
-        sorted_mcc_str_list = [f'{val}' for val in sorted_mcc]
-        sorted_mcc_str = str(sorted_mcc_str_list).replace("'", '')
+        title_cap = '3c. Consistency'
+        sorted_rmse = [f'{val}' for val in data_score[f'scaled_{error_keyword}_sorted_{suffix}']]
 
-        # Calculate how many folds are close to max
-        if len(sorted_mcc) > 0:
-            max_mcc = max(sorted_mcc)
-            near_max_list = [m for m in sorted_mcc if m >= (max_mcc - 0.05)]
-            near_ratio = len(near_max_list) / len(sorted_mcc)
-        else:
-            max_mcc = 0
-            near_ratio = 0.0
+    sorted_rmse_str = str(sorted_rmse).replace("'", '')
 
-        # Example new logic for awarding up to 2 points:
-        #   near_ratio >= 0.8 => +2
-        #   near_ratio >= 0.5 => +1
-        #   otherwise => 0
-        if near_ratio >= 0.8:
-            score_sorted = 2
-        elif near_ratio >= 0.5:
-            score_sorted = 1
-        else:
-            score_sorted = 0
-
-        data_score[f'sorted_cv_score_{suffix}'] = score_sorted
-
-        # Build the HTML
-        updated_img = f'{self.args.path_icons}/score_w_2_{score_sorted}.jpg'
-        column = f"""
-        <p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>3d. Consistency (sorted CV)</u> &nbsp;({score_sorted} / 2 
-        &nbsp;<img src="file:///{updated_img}" alt="ROBERT Score" style="width: 13%">)</p>
-        <p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">
-           {spacing}MCC across CV folds: {sorted_mcc_str}
-        <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
-        <br>{spacing}Near the maximum threshold: MCC ≥ max(MCC) - 0.05
-        <br>{spacing}Fold ratio near max: {near_ratio:.2f}  → Score = {score_sorted}
-        </p>
-        """
-        return column
+    column = f"""
+    <p style="text-align: justify; margin-top: 35px; margin-bottom: 0px;">{spacing}<u>{title_cap} (sorted CV)</u> &nbsp;({score_sorted} / 2 &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    <p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}Scaled {error_keyword.upper()}s across 5-fold CV:
+    <br>{spacing}{sorted_rmse_str}
+    <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
+    <br>{spacing}Every two folds with {error_keyword.upper()}s ≤ 1.25*min {error_keyword.upper()}: +1.</p>
+    """
+    return column
 
 
 def get_col_text(type_thres):
@@ -897,60 +856,46 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                 start_data = True
         
         if start_data:
-            error_keyword = "RMSE" if pred_type.lower() == 'reg' else "MCC"
-            if f"Original {error_keyword} (" in line:
+            error_keyword = "rmse" if pred_type.lower() == 'reg' else "mcc"
+            if f"Original {error_keyword.upper()} (" in line:
                 for j in range(i+1,i+4): # y-mean, y-shuffle and onehot tests
                     if 'UNCLEAR' in dat_verify[j]:
                         flawed_score -= 1
                     elif 'FAILED' in dat_verify[j]:
                         flawed_score -= 2
                         failed_tests += 1
-                if pred_type.lower() == 'reg':
-                    if '- Sorted ' in dat_verify[i+4]:
-                        sorted_cv_results = dat_verify[i+4].split('RMSE = ')[-1]
-                        sorted_cv_results = ast.literal_eval(sorted_cv_results)
-                        data_score[f'scaled_rmse_sorted_{suffix}'] = [round((val/data_score[f'y_range_{suffix}'])*100,2) for val in sorted_cv_results]
-                        data_score[f'min_scaled_rmse_{suffix}'] = min(data_score[f'scaled_rmse_sorted_{suffix}'])
-                        idx_min_scaled_rmse = data_score[f'scaled_rmse_sorted_{suffix}'].index(data_score[f'min_scaled_rmse_{suffix}'])
+                if '- Sorted ' in dat_verify[i+4]:
+                    sorted_cv_results = dat_verify[i+4].split(f'{error_keyword.upper()} = ')[-1]
+                    sorted_cv_results = ast.literal_eval(sorted_cv_results)
+                    if pred_type.lower() == 'reg':
+                        data_score[f'scaled_{error_keyword}_sorted_{suffix}'] = [round((val/data_score[f'y_range_{suffix}'])*100,2) for val in sorted_cv_results]
+                    else:
+                        data_score[f'scaled_{error_keyword}_sorted_{suffix}'] = sorted_cv_results # no scaling for MCC
 
-                        data_score[f'scaled_rmse_results_sorted_{suffix}'] = []
-                        for idx,err in enumerate(data_score[f'scaled_rmse_sorted_{suffix}']):
+                    # define min and max values
+                    data_score[f'min_scaled_{error_keyword}_{suffix}'] = min(data_score[f'scaled_{error_keyword}_sorted_{suffix}'])
+                    idx_min_scaled_rmse = data_score[f'scaled_{error_keyword}_sorted_{suffix}'].index(data_score[f'min_scaled_{error_keyword}_{suffix}'])
+                    data_score[f'max_scaled_{error_keyword}_{suffix}'] = max(data_score[f'scaled_{error_keyword}_sorted_{suffix}'])
+                    idx_max_scaled_rmse = data_score[f'scaled_{error_keyword}_sorted_{suffix}'].index(data_score[f'max_scaled_{error_keyword}_{suffix}'])
+
+                    data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'] = []
+                    for idx,err in enumerate(data_score[f'scaled_{error_keyword}_sorted_{suffix}']):
+                        if pred_type.lower() == 'reg':
                             if idx == idx_min_scaled_rmse:
-                                data_score[f'scaled_rmse_results_sorted_{suffix}'].append('min')
-                            elif err <= (data_score[f'min_scaled_rmse_{suffix}']*1.25):
-                                data_score[f'scaled_rmse_results_sorted_{suffix}'].append('pass')
+                                data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'].append('min')
+                            elif err <= (data_score[f'min_scaled_{error_keyword}_{suffix}']*1.25):
+                                data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'].append('pass')
                             else:
-                                data_score[f'scaled_rmse_results_sorted_{suffix}'].append('fail')
-
-                        sorted_cv_score = int(data_score[f'scaled_rmse_results_sorted_{suffix}'].count('pass')/2)
-
-                elif pred_type.lower() == 'clas':
-                    if 'Original MCC (' in line:
-                        for j in range(i + 1, i + 4):  # y-mean, y-shuffle and onehot tests
-                            if 'UNCLEAR' in dat_verify[j]:
-                                flawed_score -= 1
-                            elif 'FAILED' in dat_verify[j]:
-                                flawed_score -= 2
-                                failed_tests += 1
-                        if '- Sorted ' in dat_verify[i + 4]:
-                            sorted_cv_results = dat_verify[i + 4].split('MCC = ')[-1]
-                            sorted_cv_results = ast.literal_eval(sorted_cv_results)
-                            data_score[f'sorted_mcc_{suffix}'] = [round(val, 2) for val in sorted_cv_results]
-
-                            sorted_mcc = data_score[f'sorted_mcc_{suffix}']
-                            if len(sorted_mcc) > 0:
-                                max_mcc = max(sorted_mcc)
-                                near_max_list = [m for m in sorted_mcc if m >= (max_mcc - 0.05)]
-                                near_ratio = len(near_max_list) / len(sorted_mcc)
+                                data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'].append('fail')
+                        else:
+                            if idx == idx_max_scaled_rmse:
+                                data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'].append('max')
+                            elif err >= (data_score[f'max_scaled_{error_keyword}_{suffix}']*0.75):
+                                data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'].append('pass')
                             else:
-                                near_ratio = 0.0
+                                data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'].append('fail')
 
-                            if near_ratio >= 0.8:
-                                sorted_cv_score = 2
-                            elif near_ratio >= 0.5:
-                                sorted_cv_score = 1
-                            else:
-                                sorted_cv_score = 0
+                    sorted_cv_score = int(data_score[f'scaled_{error_keyword}_results_sorted_{suffix}'].count('pass')/2)
 
     # adjust max 1 point for flawed tests
     if flawed_score > 1:

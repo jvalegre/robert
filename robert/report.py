@@ -889,9 +889,9 @@ class report:
         if aqme_workflow:
             if not find_aqme:
                 repro_dat += f"""{reduced_line}{space}- AQME is required, but no version was found:</p>"""
-            repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -y -c conda-forge aqme</p>"""
+                repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: pip install aqme==VERSION_USED</p>"""
             if find_aqme:
-                repro_dat += f"""{reduced_line}{space}- Adjust AQME version: pip install aqme=={aqme_version}</p>"""
+                repro_dat += f"""{reduced_line}{space}- Install or adjust AQME version: pip install aqme=={aqme_version}</p>"""
 
             try:
                 path_xtb = Path(f'{os.getcwd()}/AQME/QDESCP')

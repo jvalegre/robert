@@ -50,9 +50,6 @@ def main(exe_type='command',sys_args=None):
     if args.evaluate:
         print('x  Currently, the EVALUATE module does not work in ROBERT v2.0.1. This module will be available in future versions. Install compatible version: pip install robert==1.2.1')
         sys.exit()
-    if args.aqme:
-        print('x  Currently, the AQME module does not work in ROBERT v2.0.1. This module will be available in future versions. Install compatible version: pip install robert==1.2.1')
-        sys.exit()
 
     if not args.evaluate:
         # if no modules are called, the full workflow is activated

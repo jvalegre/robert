@@ -4,13 +4,23 @@
 Versions
 ========
 
-Version 1.3.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.1>`__]
+Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
+   -  Fixed classification with external predictions
+   -  Fixed scores from VERIFY tests in clas
+
+Version 2.0.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.0>`__]
+   *Adaptation of the code to avoid overfitting and to use with low-data problems*
    -  Fixed a bug in one-hot encoding in the one-hot test
    -  Adding the possibility to disable the automatic standarization of descriptors (--std False)
-   -  Changing CV_test (now it standardizes the descriptors in each fold)
+   -  Changing CV_test (now it standardizes the full database with sklearn functions)
    -  Fixing a bug with the sklearn-intelex accelerator
    -  Fixing a threading bug with matplotlib in SHAP
-   -  Sorting the training points when using all the split methods to match GENERATE models with PREDICT/VERIFY
+   -  train:validation split was replaced by a repeated k-fold CV
+   -  The program always holds out a test set
+   -  The average results of the repeated k-fold CV are used to measure predictive ability and to predict new results
+   -  The BayesianOptimization() is used to find the bets model, using a combined metric that depends on interpolation and extrapolation of diferent types of CVs
+   -  This version does not work with classification problems and the AQME and EVALUATE modules were disabled until v2.0.1.
+   -  Updated ROBERT score, which is more robust towards small data problems
 
 Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
    -  Fixing a bug in the KNN imputer (it was incorrectly placing values in the target variable)

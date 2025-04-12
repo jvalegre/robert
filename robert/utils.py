@@ -486,6 +486,12 @@ def load_variables(kwargs, robert_module):
                 self.names = model_data["names"]
                 self.y = model_data["y"]
                 self.csv_name = csv_name
+                # Load error_type if present
+                if "error_type" in model_data:
+                    self.error_type = model_data["error_type"]
+                # Ensure we also load the type if present
+                if "type" in model_data:
+                    self.type = model_data["type"]
 
         elif robert_module.upper() in ['AQME', 'AQME_TEST']: 
             # Check if the csv has 2 columns named smiles or smiles_Suffix. The file is read as text because pandas assigns automatically
@@ -973,7 +979,7 @@ def check_clas_problem(self,csv_df):
             if self.args.error_type not in ['acc', 'mcc', 'f1']:
                 self.args.error_type = 'mcc'
             if ('MVL' or 'mvl') in self.args.model:
-                self.args.model = [x if x.upper() != 'MVL' else 'AdaB' for x in self.args.model]
+                self.args.model = [x if x.upper() != 'MVL' else 'ADAB' for x in self.args.model]
 
             y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
             self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
@@ -1524,18 +1530,16 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
         # calculate sorted CV and its metrics
         # print the target that is above the BO
         # print the final result of the BO just after finishing all the iterations
-        Xy_data = sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels)
-        # combined_score = ((Xy_data[f'{model_data["error_type"]}_train']/Xy_data["r2_train"]) + (Xy_data[f'{model_data["error_type"]}_up_bottom']/Xy_data["r2_up_bottom"]))/2
-        # combined_score = ((Xy_data[f'{model_data["error_type"]}_train']/Xy_data["r2_train"]))
-        combined_score = (Xy_data[f'{model_data["error_type"]}_train'] + Xy_data[f'{model_data["error_type"]}_up_bottom'])/2
-        # combined_score = (Xy_data[f'{model_data["error_type"]}_train'])
+        Xy_data = sorted_kfold_cv(loaded_model, model_data, Xy_data, error_labels)
+        combined_score = (Xy_data[f'{model_data["error_type"]}_train'] + Xy_data[f'{model_data["error_type"]}_up_bottom']) / 2
 
-        # if combined_score > 100:
-        #     combined_score = 100.00
+        # Return if this is part of a verify job
         if verify_job:
             return Xy_data
-        if model_data["error_type"].lower() in ['mae','rmse']:
-            return -combined_score # negative MAE/RMSE for BO maximization
+
+        # Return negative score for MAE/RMSE in BO
+        if model_data["error_type"].lower() in ['mae', 'rmse']:
+            return -combined_score
         else:
             return combined_score
     else:
@@ -1728,9 +1732,7 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
             Xy_data[f'{error3}_train_sorted_CV'].append(mcc_fold)
 
         # Measure fold stability by difference between best and worst fold
-        best_val = max(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'])
-        worst_val = min(Xy_data[f'{model_data["error_type"]}_train_sorted_CV'])
-        Xy_data[f'{model_data["error_type"]}_up_bottom'] = abs(best_val - worst_val)
+        Xy_data[f'{model_data["error_type"]}_up_bottom'] = np.mean(np.abs(Xy_data[f'{model_data["error_type"]}_train_sorted_CV']))
 
     return Xy_data
 

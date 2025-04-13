@@ -47,14 +47,8 @@ def main(exe_type='command',sys_args=None):
     args = command_line_args(exe_type,sys_args)
     args.command_line = True
 
-    if args.type == 'clas':
-        print('x  Currently, ROBERT v2.0.0 does not work with classification problems. This function will be available in future versions. Install compatible version: pip install robert==1.2.1')
-        sys.exit()
     if args.evaluate:
-        print('x  Currently, the EVALUATE module does not work in ROBERT v2.0.0. This module will be available in future versions. Install compatible version: pip install robert==1.2.1')
-        sys.exit()
-    if args.aqme:
-        print('x  Currently, the AQME module does not work in ROBERT v2.0.0. This module will be available in future versions. Install compatible version: pip install robert==1.2.1')
+        print('x  Currently, the EVALUATE module does not work in ROBERT v2.0.1. This module will be available in future versions. Install compatible version: pip install robert==1.2.1')
         sys.exit()
 
     if not args.evaluate:

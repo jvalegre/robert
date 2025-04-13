@@ -25,18 +25,18 @@ path_aqme = path_main + "/AQME"
         (
             "full_workflow_test"
         ),  # test for a full workflow with test
-        # (
-        #     "full_clas"
-        # ),  # test for a full workflow in classification
-        # (
-        #     "full_clas_test"
-        # ),  # test for a full workflow in classification with test
-        # (
-        #     "aqme"
-        # ),  # test for a full workflow starting from AQME
-        # (
-        #     "2smiles_columns"
-        # ),  # test for a full workflow with 2 columns for SMILES
+        (
+            "full_clas"
+        ),  # test for a full workflow in classification
+        (
+            "full_clas_test"
+        ),  # test for a full workflow in classification with test
+        (
+            "aqme"
+        ),  # test for a full workflow starting from AQME
+        (
+            "2smiles_columns"
+        ),  # test for a full workflow with 2 columns for SMILES
     ],
 )
 def test_AQME(test_job):
@@ -100,12 +100,12 @@ def test_AQME(test_job):
         cmd_robert = cmd_robert + ["--type", "clas"]
 
     if test_job == 'aqme':
-        cmd_robert = cmd_robert + ["--aqme","--csearch_keywords", "--sample 1", 
+        cmd_robert = cmd_robert + ["--aqme", 
                     "--qdescp_keywords", "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal",
                     "--alpha", "0.5"]
 
     if test_job == '2smiles_columns':
-        cmd_robert = cmd_robert  + ["--aqme","--csearch_keywords", "--sample 1", "--alpha", "0.5"]
+        cmd_robert = cmd_robert  + ["--aqme", "--alpha", "0.5"]
 
     subprocess.run(cmd_robert)
 
@@ -177,8 +177,8 @@ def test_AQME(test_job):
 
     find_heatmap,find_verify = 0,0
     find_shap,find_pfi,find_outliers = 0,0,0
-    find_results_reg,find_results_valid_clas = 0,0
-    find_results_test_clas,find_test = 0,0
+    find_results_reg,find_results_test_clas = 0,0
+    find_results_test_clas,find_test,find_results_external = 0,0,0
 
     for line in outlines:
         if 'Heatmap_ML_models_No_PFI.png' in line:
@@ -193,18 +193,20 @@ def test_AQME(test_job):
             find_outliers += 1
         if 'Results_RF_No_PFI.png' in line:
             find_results_reg += 1
-        if 'Results_RF_No_PFI_valid.png' in line:
-            find_results_valid_clas += 1
-        if 'Results_RF_No_PFI_csv_test.png' in line:
+        if 'Results_RF_No_PFI_test.png' in line:
             find_results_test_clas += 1
+        if 'Results_RF_No_PFI_external.png' in line: # name in clas
+            find_results_external += 1
+        elif 'CV_variability_RF_No_PFI_external.png' in line: # name in reg
+            find_results_external += 1
         if 'External test metrics' in line:
             find_test += 1
     
     # more specific tests to check content from the ROBERT score section
-    if test_job == 'full_workflow':
+    if test_job in ['full_workflow', 'full_clas']:
         robert_score,points_desc = [],[]
         ml_model_count,partition_count,metrics_train_count,metrics_test_count = 0,0,0,0
-        flawed_models,pred_ability,pred_test_ability,cv_sd_models,cv_vs_test_models,extrapol_ability = [],[],[],[],[],[]
+        flawed_models,pred_ability,pred_test_ability,cv_sd_models,cv_vs_test_models,extrapol_ability,extrapol_ability_clas = [],[],[],[],[],[],[]
         predict_graphs,flawed_image,cv_sd_image = False,False,False
         y_distrib_image,pearson_pred_image = False,False
         find_severe_red = False
@@ -242,6 +244,8 @@ def test_AQME(test_job):
                 cv_sd_image = True
             if '3d. Extrapolation (sorted CV)' in line:
                 extrapol_ability.append(line)
+            elif '3c. Consistency (sorted CV)' in line:
+                extrapol_ability_clas.append(line)
             if 'y_distribution_RF_No_PFI.png' in line:
                 y_distrib_image = True
             if 'Pearson_heatmap_No_PFI.png' in line:
@@ -257,72 +261,114 @@ def test_AQME(test_job):
             if 'How to predict new values with these models?' in line:
                 break
 
-        # model summary, robert score, predict graphs and model metrics
-        assert robert_score[0] == '5'
-        assert robert_score[1] == '5'
-        assert ml_model_count == 2
-        assert partition_count == 2
-        assert points_desc[0] == '30:10'
-        assert points_desc[1] == '30:2'
-        assert predict_graphs
-        assert metrics_train_count == 2
-        assert metrics_test_count == 2
-        # advanced analysis, flawed models section 1
-        assert '-2 / 0' in flawed_models[0]
-        assert '-2 / 0' in flawed_models[1]
-        assert flawed_image
-        # advanced analysis, predictive ability section 2
-        assert '1 / 2' in pred_ability[0]
-        assert 'robert/report/score_w_2_1.jpg' in pred_ability[0]
-        assert '1 / 2' in pred_ability[1]
-        assert 'robert/report/score_w_2_1.jpg' in pred_ability[1]
-        # advanced analysis, predictive ability of external test set section 3a
-        assert '2 / 2' in pred_test_ability[0]
-        assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[0]
-        assert '2 / 2' in pred_test_ability[1]
-        assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[1]
-        # advanced analysis, predictive ability of CV vs test section 3b
-        assert '2 / 2' in cv_vs_test_models[0]
-        assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[0]
-        assert '2 / 2' in cv_vs_test_models[1]
-        assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[1]
-        # advanced analysis, CV variability section 3c
-        assert '2 / 2' in cv_sd_models[0]
-        assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[0]
-        assert '2 / 2' in cv_sd_models[1]
-        assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[1]
-        assert cv_sd_image
-        # advanced analysis, extrapolation section 3d
-        assert '0 / 2' in extrapol_ability[0]
-        assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[0]
-        assert '0 / 2' in extrapol_ability[1]
-        assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[1]
-        # y distribution and Pearson images
-        assert y_distrib_image
-        assert pearson_pred_image
-        # warnings
-        assert find_severe_red
-        assert find_moder_correl
-        assert find_moder_y_dist
-        assert find_assess_red
+        if test_job == 'full_workflow':
+            # model summary, robert score, predict graphs and model metrics
+            assert robert_score[0] == '5'
+            assert robert_score[1] == '5'
+            assert ml_model_count == 2
+            assert partition_count == 2
+            assert points_desc[0] == '30:10'
+            assert points_desc[1] == '30:2'
+            assert predict_graphs
+            assert metrics_train_count == 2
+            assert metrics_test_count == 2
+            # advanced analysis, flawed models section 1
+            assert '-2 / 0' in flawed_models[0]
+            assert '-2 / 0' in flawed_models[1]
+            assert flawed_image
+            # advanced analysis, predictive ability section 2
+            assert '1 / 2' in pred_ability[0]
+            assert 'robert/report/score_w_2_1.jpg' in pred_ability[0]
+            assert '1 / 2' in pred_ability[1]
+            assert 'robert/report/score_w_2_1.jpg' in pred_ability[1]
+            # advanced analysis, predictive ability of external test set section 3a
+            assert '2 / 2' in pred_test_ability[0]
+            assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[0]
+            assert '2 / 2' in pred_test_ability[1]
+            assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[1]
+            # advanced analysis, predictive ability of CV vs test section 3b
+            assert '2 / 2' in cv_vs_test_models[0]
+            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[0]
+            assert '2 / 2' in cv_vs_test_models[1]
+            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[1]
+            # advanced analysis, CV variability section 3c
+            assert '2 / 2' in cv_sd_models[0]
+            assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[0]
+            assert '2 / 2' in cv_sd_models[1]
+            assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[1]
+            assert cv_sd_image
+            # advanced analysis, extrapolation section 3d
+            assert '0 / 2' in extrapol_ability[0]
+            assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[0]
+            assert '0 / 2' in extrapol_ability[1]
+            assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[1]
+            # y distribution and Pearson images
+            assert y_distrib_image
+            assert pearson_pred_image
+            # warnings
+            assert find_severe_red
+            assert find_moder_correl
+            assert find_moder_y_dist
+            assert find_assess_red
+
+        elif test_job == 'full_clas':
+            # model summary, robert score, predict graphs and model metrics
+            assert robert_score[0] == '5'
+            assert robert_score[1] == '3'
+            assert ml_model_count == 2
+            assert points_desc[0] == '30:6'
+            assert points_desc[1] == '30:4'
+            # advanced analysis, flawed models section 1
+            assert '-2 / 0' in flawed_models[0]
+            assert '-2 / 0' in flawed_models[1]
+            assert flawed_image
+            # advanced analysis, predictive ability section 2
+            assert '2 / 3' in pred_ability[0]
+            assert 'robert/report/score_w_3_2.jpg' in pred_ability[0]
+            assert '1 / 3' in pred_ability[1]
+            assert 'robert/report/score_w_3_1.jpg' in pred_ability[1]
+            # advanced analysis, predictive ability of external test set section 3a
+            assert '2 / 3' in pred_test_ability[0]
+            assert 'robert/report/score_w_3_2.jpg' in pred_test_ability[0]
+            assert '2 / 3' in pred_test_ability[1]
+            assert 'robert/report/score_w_3_2.jpg' in pred_test_ability[1]
+            # advanced analysis, predictive ability of CV vs test section 3b
+            assert '1 / 2' in cv_vs_test_models[0]
+            assert 'robert/report/score_w_2_1.jpg' in cv_vs_test_models[0]
+            assert '2 / 2' in cv_vs_test_models[1]
+            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[1]
+            # advanced analysis, extrapolation section 3d
+            assert '2 / 2' in extrapol_ability_clas[0]
+            assert 'robert/report/score_w_2_2.jpg' in extrapol_ability_clas[0]
+            assert '0 / 2' in extrapol_ability_clas[1]
+            assert 'robert/report/score_w_2_0.jpg' in extrapol_ability_clas[1]
+            # y distribution and Pearson images
+            assert y_distrib_image
+            assert pearson_pred_image
+            # warnings
+            assert find_severe_red
+            assert find_moder_correl
+            assert find_assess_red
 
     if test_job in ['full_workflow','full_workflow_test','aqme','2smiles_columns']:
         assert find_outliers > 0
         assert find_results_reg > 0
-        assert find_results_valid_clas == 0
+        assert find_results_test_clas == 0
     else:
         assert find_outliers == 0
         assert find_results_reg == 0
-        assert find_results_valid_clas > 0
+        assert find_results_test_clas > 0
 
     if test_job in ['full_workflow_test','full_clas_test']:
         assert find_test > 0
+        assert find_results_external > 0
         if test_job == 'full_clas_test':
             assert find_results_test_clas > 0
         else:
             assert find_results_test_clas == 0
     else:
         assert find_test == 0
+        assert find_results_external == 0
 
     # common to all reports
     assert find_heatmap > 0

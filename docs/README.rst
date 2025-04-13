@@ -114,7 +114,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 .. code-block:: shell 
    
    pip install robert
-   pip install scikit-learn-intelex==2025.0.1
+   pip install scikit-learn-intelex==2025.2.0
 
 **3.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:  
 
@@ -132,7 +132,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
    conda install -c conda-forge robert
    pip install robert --upgrade
-   pip install scikit-learn-intelex==2025.0.1
+   pip install scikit-learn-intelex==2025.2.0
    conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
 .. installation-end 
@@ -312,10 +312,11 @@ If you use the AQME module, please include this citation:
 
 * Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2023**, *13*, e1663.
 
-Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
+Additionally, please include the corresponding reference for Scikit-learn, SHAP and BayesianOptimization:  
 
 * Pedregosa et al., Scikit-learn: Machine Learning in Python. *J. Mach. Learn. Res.* **2011**, *12*, 2825-2830. 
 * Lundberg et al., From local explanations to global understanding with explainable AI for trees, *Nat. Mach. Intell.* **2020**, *2*, 56–67.  
+* Fernando Nogueira, {Bayesian Optimization}: Open source constrained global optimization tool for {Python}, **2014**, https://github.com/bayesian-optimization/BayesianOptimization
 
 .. reference-end
 

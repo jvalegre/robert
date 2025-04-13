@@ -61,14 +61,15 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
         # Plot CV average ± SD graph of validation or test set
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,sd_graph=True)
         if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
-            # Plot CV average ± SD graph of validation or test set
-            _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=True,sd_graph=True)
+            # Plot CV average ± SD graph of external set
+            set_type = 'external'
+            _ = graph_reg(self,Xy_data,params_dict,set_type,path_n_suffix,graph_style,csv_test=True,sd_graph=True)
 
     elif params_dict['type'].lower() == 'clas':
         for set_type in set_types:
             _ = graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix)
-        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
-            set_type = 'csv_test'
+        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
+            set_type = 'external'
             _ = graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=True)
 
     return graph_style
@@ -182,11 +183,11 @@ def print_predict(self,Xy_data,model_data,suffix_title):
             print_results += f"\n      -  External test : R2 = {Xy_data['r2_external']:.2}, MAE = {Xy_data['mae_external']:.2}, RMSE = {Xy_data['rmse_external']:.2}"
 
     elif model_data['type'].lower() == 'clas':
-        print_results += f"\n      -  {CV_type} : Accuracy = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
+        print_results += f"\n      -  {CV_type} : Accur. = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
-            print_results += f"\n      -  Test : Accuracy = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
-        if 'y_pred_csv_test' in Xy_data and not Xy_data['y_csv_test'].isnull().values.any() and len(Xy_data['y_csv_test']) > 0:
-            print_results += f"\n      -  csv_test : Accur. = {Xy_data['acc_csv_test']:.2}, F1 score = {Xy_data['f1_csv_test']:.2}, MCC = {Xy_data['mcc_csv_test']:.2}"
+            print_results += f"\n      -  Test : Accur. = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
+        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
+            print_results += f"\n      -  External test : Accur. = {Xy_data['acc_external']:.2}, F1 score = {Xy_data['f1_external']:.2}, MCC = {Xy_data['mcc_external']:.2}"
 
     self.args.log.write(print_results)
 

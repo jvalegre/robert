@@ -18,21 +18,21 @@ path_tests = os.getcwd() + "/tests"
 @pytest.mark.parametrize(
     "test_job",
     [
-        (
-            "standard"
-        ),  # test for a train+valid. evaluation
-        (
-            "test"
-        ),  # test for a train+valid.+test evaluation
+        # (
+        #     "standard"
+        # ),  # test for a train+valid. evaluation
+        # (
+        #     "test"
+        # ),  # test for a train+valid.+test evaluation
         # (
         #     "kfold"
         # ),  # test the kfold option
         # (
         #     "clas"
         # ),  # test for classification models, currently EVALUATE only works for MVL, but this test will be implemented in the future
-        (
-            "missing_input"
-        ),  # test that if the --csv_train or --csv_valid options are empty, a prompt pops up and asks for them 
+        # (
+        #     "missing_input"
+        # ),  # test that if the --csv_train or --csv_valid options are empty, a prompt pops up and asks for them 
     ],
 )
 def test_EVALUATE(test_job):

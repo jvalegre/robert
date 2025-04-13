@@ -342,7 +342,7 @@ class report:
             if data_score[f'cv_sd_score_{suffix}'] == 0:
                 warnings_dict[f'moderate_warnings_{suffix}'].append('Imprecise predictions (Section B.3b)')
         elif pred_type == 'clas':
-            if data_score[f'r2_diff_score_{suffix}'] == 0:
+            if data_score[f'diff_mcc_score_{suffix}'] == 0:
                 warnings_dict[f'moderate_warnings_{suffix}'].append('Imprecise predictions (Section B.3b)')
 
         # y distribution
@@ -528,11 +528,11 @@ class report:
 
                     elif section == 'adv_sorted_cv':
                         # advanced score analysis 3d, descriptor proportion
-                        columns_score.append(adv_sorted_cv(self,suffix,data_score,spacing*2))
+                        columns_score.append(adv_sorted_cv(self,suffix,data_score,spacing*2,pred_type))
 
                     elif section == 'adv_cv_diff' and pred_type == 'clas':
                         # advanced score analysis 3b, difference of MCC in model and CV
-                        columns_score.append(adv_cv_diff(self,suffix,data_score,spacing*2))
+                        columns_score.append(adv_cv_diff(self,suffix,data_score,spacing*2,pred_type))
 
             # Combine both columns
             adv_score_dat += combine_cols(columns_score)
@@ -889,9 +889,9 @@ class report:
         if aqme_workflow:
             if not find_aqme:
                 repro_dat += f"""{reduced_line}{space}- AQME is required, but no version was found:</p>"""
-            repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: conda install -y -c conda-forge aqme</p>"""
+                repro_dat += f"""{reduced_line}{space}- Install AQME and its dependencies: pip install aqme==VERSION_USED</p>"""
             if find_aqme:
-                repro_dat += f"""{reduced_line}{space}- Adjust AQME version: pip install aqme=={aqme_version}</p>"""
+                repro_dat += f"""{reduced_line}{space}- Install or adjust AQME version: pip install aqme=={aqme_version}</p>"""
 
             try:
                 path_xtb = Path(f'{os.getcwd()}/AQME/QDESCP')
@@ -1163,15 +1163,7 @@ class report:
             if pred_type.lower() == 'reg':
                 results_images = [str(file_path) for file_path in module_path.rglob(f'{file_name}_*.png')]
             elif pred_type.lower() == 'clas':
-                results_images  = []
-                all_images = [str(file_path) for file_path in module_path.rglob('*.png')]
-                for img in all_images:
-                    if 'test' in set_types:
-                        if file_name in img and '_test.png' in img:
-                            results_images.append(img)
-                    else:
-                        if file_name in img and '_valid.png' in img:
-                            results_images.append(img)
+                results_images = [str(file_path) for file_path in module_path.rglob(f'{file_name}_*.png')]
         # images with no suffixes in the names
         else:
             results_images = [str(file_path) for file_path in module_path.rglob(f'{file_name}_*.png')]

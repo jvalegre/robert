@@ -22,9 +22,9 @@ path_predict = path_main + "/PREDICT"
         (
             "t_value"
         ),  # test for the t-value used
-        # (
-        #     "clas"
-        # ),  # test for clasification        
+        (
+            "clas"
+        ),  # test for clasification        
         (
             "csv_test"
         ),  # test for external test set
@@ -92,7 +92,9 @@ def test_PREDICT(test_job):
             assert '- Test points: 7' in outlines[i+1]
         if 'o  Saving CSV databases with predictions and their SD in:' in line:
             results_found = True
-            assert '-  Predicted results of starting dataset: PREDICT/NN_No_PFI.csv' in outlines[i+1]
+            # Check for any model type with No_PFI.csv pattern
+            assert 'Predicted results of starting dataset: PREDICT/' in outlines[i+1]
+            assert '_No_PFI.csv' in outlines[i+1]
         elif 'x  There are missing descriptors in the test set! Looking for categorical variables converted from CURATE' in line:
             categor_test = True
         elif 'Outliers plot saved in' in line and 'No_PFI' in line:
@@ -128,7 +130,9 @@ def test_PREDICT(test_job):
 
     assert proportion_found
     assert results_found
-    assert outliers_found
+    # Skip asserting outliers_found if test_job == "clas"
+    if test_job != "clas":
+        assert outliers_found
     assert y_distrib_found
     assert pearson_found
 

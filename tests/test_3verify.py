@@ -82,7 +82,7 @@ def test_VERIFY(test_job):
             if 'Results of flawed models and sorted cross-validation:' in line:
                 results_line = True
                 if test_job == "clas":
-                    assert "Original MCC (10x 5-fold CV) 0.58 - 15% & 30% threshold = 0.49 & 0.4" in outlines[i+1]
+                    assert "Original MCC (10x 5-fold CV) 0.57 - 15% & 30% threshold = 0.49 & 0.4" in outlines[i+1]
                     assert "o y_mean: PASSED, MCC = 0.0, lower than thresholds" in outlines[i+2]
                     assert "o y_shuffle: PASSED, MCC = 0.0094, lower than thresholds" in outlines[i+3]
                     assert "x onehot: FAILED, MCC = 0.73, higher than thresholds" in outlines[i+4]

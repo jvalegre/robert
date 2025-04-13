@@ -4,9 +4,12 @@
 Versions
 ========
 
-Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
+Version 2.0.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
    -  Fixed classification with external predictions
    -  Fixed scores from VERIFY tests in clas
+   -  Fixed bug in the detection of automatic classification problems
+   -  Fixed bug in 'load_variables' where the model type and target value were not being saved
+   -  Fixed bug in 'sort_n_load' to ensure reproducibility of sorted CV across different operating systems
 
 Version 2.0.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.0>`__]
    *Adaptation of the code to avoid overfitting and to use with low-data problems*

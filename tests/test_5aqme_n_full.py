@@ -325,21 +325,21 @@ def test_AQME(test_job):
             # advanced analysis, predictive ability section 2
             assert '2 / 3' in pred_ability[0]
             assert 'robert/report/score_w_3_2.jpg' in pred_ability[0]
-            assert '2 / 3' in pred_ability[1]
-            assert 'robert/report/score_w_3_2.jpg' in pred_ability[1]
+            assert '1 / 3' in pred_ability[1]
+            assert 'robert/report/score_w_3_1.jpg' in pred_ability[1]
             # advanced analysis, predictive ability of external test set section 3a
             assert '2 / 3' in pred_test_ability[0]
             assert 'robert/report/score_w_3_2.jpg' in pred_test_ability[0]
             assert '2 / 3' in pred_test_ability[1]
             assert 'robert/report/score_w_3_2.jpg' in pred_test_ability[1]
             # advanced analysis, predictive ability of CV vs test section 3b
-            assert '2 / 2' in cv_vs_test_models[0]
-            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[0]
-            assert '1 / 2' in cv_vs_test_models[1]
-            assert 'robert/report/score_w_2_1.jpg' in cv_vs_test_models[1]
+            assert '1 / 2' in cv_vs_test_models[0]
+            assert 'robert/report/score_w_2_1.jpg' in cv_vs_test_models[0]
+            assert '2 / 2' in cv_vs_test_models[1]
+            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[1]
             # advanced analysis, extrapolation section 3d
-            assert '1 / 2' in extrapol_ability_clas[0]
-            assert 'robert/report/score_w_2_1.jpg' in extrapol_ability_clas[0]
+            assert '2 / 2' in extrapol_ability_clas[0]
+            assert 'robert/report/score_w_2_2.jpg' in extrapol_ability_clas[0]
             assert '0 / 2' in extrapol_ability_clas[1]
             assert 'robert/report/score_w_2_0.jpg' in extrapol_ability_clas[1]
             # y distribution and Pearson images

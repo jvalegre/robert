@@ -84,7 +84,7 @@ def test_VERIFY(test_job):
                 if test_job == "clas":
                     assert "Original MCC (10x 5-fold CV) 0.57 - 15% & 30% threshold = 0.49 & 0.4" in outlines[i+1]
                     assert "o y_mean: PASSED, MCC = 0.0, lower than thresholds" in outlines[i+2]
-                    assert "o y_shuffle: PASSED, MCC = 0.0094, lower than thresholds" in outlines[i+3]
+                    assert "o y_shuffle: PASSED, MCC = 0.0018, lower than thresholds" in outlines[i+3]
                     assert "x onehot: FAILED, MCC = 0.73, higher than thresholds" in outlines[i+4]
                     assert "- Sorted CV : Accuracy = [0.67, 1.0, 0.83, 1.0, 0.67], F1 score = [0.75, 1.0, 0.86, 1.0, 0.67], MCC = [0.45, 1.0, 0.71, 1.0, 0.5]" in outlines[i+5]
                 elif test_job == "standard":

@@ -17,17 +17,20 @@ Don't miss out the latest hands-on tutorials from our [YouTube channel](https://
 ## Recommended installation
 1. (Only once) Create new conda environment: `conda create -n robert python=3.10`  
 2. Activate conda environment: `conda activate robert`  
-3. Install ROBERT using pip: `pip install robert` 
-4. Install libraries for the PDF report `conda install -y -c conda-forge glib gtk3 pango mscorefonts`
-5. (Only for compatible devices) Install Intelex accelerator: `pip install scikit-learn-intelex==2025.0.1`  
+3. Install ROBERT using pip: `pip install robert`
+4. Install RDKit (only if you plan to use easyROB): `pip install rdkit`
+5. Install libraries for the PDF report `conda install -y -c conda-forge glib gtk3 pango mscorefonts`
+6. (Only for compatible devices) Install Intelex accelerator: `pip install scikit-learn-intelex==2025.2.0`  
 * Inexperienced users should visit the *Users with no Python experience* section in [Read the Docs](https://robert.readthedocs.io).
 ## Update the program
-1. Update to the latest version: `pip install robert --upgrade`  
+1. Update to the latest version: `pip install robert --upgrade`
 
 ## Developers and help desk  
 List of main developers and contact emails:  
   - [ ] [Juan V. Alegre-Requena](https://orcid.org/0000-0002-0769-7168). Contact: [jv.alegre@csic.es](mailto:jv.alegre@csic.es)  
-  - [ ] [David Dalmau Ginesta](https://orcid.org/0000-0002-2506-6546). Contact: [ddalmau@unizar.es](mailto:ddalmau@unizar.es)  
+  - [ ] [David Dalmau Ginesta](https://orcid.org/0000-0002-2506-6546). Contact: [ddalmau@unizar.es](mailto:ddalmau@unizar.es)
+  - [ ] [Miguel Martinez Fernandez](https://orcid.org/0009-0002-8538-7250). Contact [miguel.martinez@csic.es](mailto:miguel.martinez@csic.es)
+  - [ ] [Luis Giner Tendero](https://github.com/LlGinerT/). Contact [lginertendero@gmail.com](mailto:lginertendero@gmail.com)
 
 For suggestions and improvements of the code (greatly appreciated!), please reach out through the issues and pull requests options of Github.  
 
@@ -58,6 +61,7 @@ If you use any of the ROBERT modules, please include this citation:
 If you use the AQME module, please include this citation:  
 * Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2023**, *13*, e1663.
 
-Additionally, please include the corresponding reference for Scikit-learn and SHAP:  
+Additionally, please include the corresponding reference for Scikit-learn, SHAP and BayesianOptimization:  
 * Pedregosa et al., Scikit-learn: Machine Learning in Python. *J. Mach. Learn. Res.* **2011**, *12*, 2825-2830.  
-* Lundberg et al., From local explanations to global understanding with explainable AI for trees. *Nat. Mach. Intell.* **2020**, *2*, 56–67.  
+* Lundberg et al., From local explanations to global understanding with explainable AI for trees. *Nat. Mach. Intell.* **2020**, *2*, 56–67.
+* Fernando Nogueira, {Bayesian Optimization}: Open source constrained global optimization tool for {Python}, **2014**, https://github.com/bayesian-optimization/BayesianOptimization  

@@ -170,7 +170,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **5.** Install ROBERT as defined in the "Installation" section (:code:`pip install robert`).
 
 
-**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex==2025.0.1`).
+**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex==2025.2.0`).
 
 
 **7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -y -c conda-forge glib gtk3 pango mscorefonts`).
@@ -194,14 +194,17 @@ these steps:
 
 **1.** Install ROBERT as defined in the "Installation" section.
 
+
+**2.** Install RDKit (:code: `pip install rdkit`)
+
 .. warning::
 
    The GUI only works with ROBERT version 1.0.5 or later (check your version!). 
 
-**2.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
+**3.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
 
 
-**3.** Activate the conda environment called "robert" (:code:`conda activate robert`).
+**4.** Activate the conda environment called "robert" (:code:`conda activate robert`).
 
 
 .. |easyrob| image:: /Modules/images/Robert_icon.png
@@ -211,13 +214,13 @@ these steps:
 .. |download| image:: /Modules/images/download.png
    :width: 200  
 
-**4.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob|, tapping on this button on GitHub |download|
+**5.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob|, tapping on this button on GitHub |download|
 
 
-**5.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+**6.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
 
 
-**6.** Run easyROB with the following command line (:code:`python easyrob.py`).
+**7.** Run easyROB with the following command line (:code:`python easyrob.py`).
 
 .. |easyrob_interface| image:: /Modules/images/easyROB.png
    :width: 500

@@ -12,13 +12,7 @@ Data records are divided by line breaks (i.e., each data record starts a new lin
 .. note:: 
 
    Creating CSV files is most straightforward when using a spreadsheet application, such as Microsoft Excel.
-
-.. warning::
-
-   In certain operating systems, the generated CSV file uses a semicolon (;) as the delimiter instead of a comma (,). 
-   We suggest users check their CSV files by opening them as plain text. If they come across this issue, 
-   they can follow these instructions in their plain text editors: go to the "Edit" tab and select "Replace", 
-   then specify a semicolon (original) and a comma (target), and select "Replace All".
+   
 
 Database generation using Excel
 +++++++++++++++++++++++++++++++

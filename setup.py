@@ -43,7 +43,10 @@ setup(
         "bayesian-optimization==3.0.0b1",
         "numba==0.60.0",
         "shap==0.46.0",
-        "weasyprint==63.1"
+        "weasyprint==63.1",
+        "PySide6",
+        "PyMuPDF",
+        "ansi2html"
     ],
     python_requires=">=3.10",
     include_package_data=True,

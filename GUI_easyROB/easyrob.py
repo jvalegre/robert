@@ -1,5 +1,6 @@
 import sys
 import os
+os.environ["QT_QUICK_BACKEND"] = "software"
 import pandas as pd
 from pathlib import Path
 from PySide6.QtWidgets import (

@@ -170,7 +170,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 **5.** Install ROBERT as defined in the "Installation" section (:code:`pip install robert`).
 
 
-**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex==2025.0.1`).
+**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex==2025.2.0`).
 
 
 **7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -y -c conda-forge glib gtk3 pango mscorefonts`).

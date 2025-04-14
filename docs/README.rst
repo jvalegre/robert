@@ -194,14 +194,17 @@ these steps:
 
 **1.** Install ROBERT as defined in the "Installation" section.
 
+
+**2.** Install RDKit (:code: `conda install conda-forge::rdkit`)
+
 .. warning::
 
    The GUI only works with ROBERT version 1.0.5 or later (check your version!). 
 
-**2.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
+**3.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
 
 
-**3.** Activate the conda environment called "robert" (:code:`conda activate robert`).
+**4.** Activate the conda environment called "robert" (:code:`conda activate robert`).
 
 
 .. |easyrob| image:: /Modules/images/Robert_icon.png
@@ -211,13 +214,13 @@ these steps:
 .. |download| image:: /Modules/images/download.png
    :width: 200  
 
-**4.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob|, tapping on this button on GitHub |download|
+**5.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob|, tapping on this button on GitHub |download|
 
 
-**5.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+**6.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
 
 
-**6.** Run easyROB with the following command line (:code:`python easyrob.py`).
+**7.** Run easyROB with the following command line (:code:`python easyrob.py`).
 
 .. |easyrob_interface| image:: /Modules/images/easyROB.png
    :width: 500

@@ -18,7 +18,7 @@ Don't miss out the latest hands-on tutorials from our [YouTube channel](https://
 1. (Only once) Create new conda environment: `conda create -n robert python=3.10`  
 2. Activate conda environment: `conda activate robert`  
 3. Install ROBERT using pip: `pip install robert`
-4. Install RDKit (only if you plan to use easyROB): `conda install conda-forge::rdkit`
+4. Install RDKit (only if you plan to use easyROB): `pip install rdkit`
 5. Install libraries for the PDF report `conda install -y -c conda-forge glib gtk3 pango mscorefonts`
 6. (Only for compatible devices) Install Intelex accelerator: `pip install scikit-learn-intelex==2025.2.0`  
 * Inexperienced users should visit the *Users with no Python experience* section in [Read the Docs](https://robert.readthedocs.io).

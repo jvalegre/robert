@@ -195,7 +195,7 @@ these steps:
 **1.** Install ROBERT as defined in the "Installation" section.
 
 
-**2.** Install RDKit (:code: `conda install conda-forge::rdkit`)
+**2.** Install RDKit (:code: `pip install rdkit`)
 
 .. warning::
 

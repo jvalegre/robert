@@ -26,7 +26,7 @@ Automated protocols
 Technical information
 +++++++++++++++++++++
 
-The test-pass thresholds are 10% (for unclear results) and 25% (for passed tests), determined by the percentage of error difference (RMSE or MCC by default) relative to the original model.
+The test-pass thresholds are 15% (for unclear results) and 30% (for passed tests), determined by the percentage of error difference (RMSE or MCC by default) relative to the original model.
 Lastly, the VERIFY module generates a bar plot summarizing the test outcomes. This visual representation distinguishes between passed, unclear and failed tests, using blue, yellow and red colors, respectively.
 
 Example

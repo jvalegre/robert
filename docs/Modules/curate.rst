@@ -19,11 +19,11 @@ This module uses a CSV containing the initial database.
 Automated protocols
 +++++++++++++++++++
 
-*  Filters off correlated descriptors (with R\ :sup:`2` higher than 0.9).
-*  Filters off variables with very low correlation to the target values (noise, with R\ :sup:`2` lower than 0.001).
+*  Filters off correlated descriptors (with R\ :sup:`2` higher than 0.7).
+*  Filters off variables with very low correlation to the target values (noise, with R\ :sup:`2` lower than 0.001). (Disabled by default)
 *  Filters off duplicates.
 *  Converts categorical descriptors into one-hot or numerical descriptors.
-*  At the end of the curation process, the program reduces the number of descriptors to the most important ones, up to one-third of the number of data points. For this, ROBERT uses the RFECV function from scikit-learn. This feature, known as Recursive Feature Elimination with Cross-Validation, is combined with a simple random forest model. RFECV uses leave-one-out cross-validation (LOOCV) for databases with fewer than 50 data points, and 5-fold cross-validation for larger databases.
+*  At the end of the curation process, the program uses scikit-learn’s RFECV with repeated K-fold cross-validation to select the most relevant descriptors. The selection can average importances across multiple models (e.g., RF, GB, ADAB) and ensures that the number of descriptors is reduced to one third of the datapoints.
 
 Technical information
 +++++++++++++++++++++

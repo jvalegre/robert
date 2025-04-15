@@ -32,11 +32,9 @@ Executing the job
 
 .. code:: shell
 
-    python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv --curate
+    python -m robert --names Name --y Target_values --csv_name Robert_example.csv --curate
 
-**Options used:**
-
-* :code:`--ignore "[Name]"`: Variables ignored in the model. In this case, the column 'Name' that contains the names of the datapoints, which is not included in the model. Quotation marks are included in "[Name]" to avoid problems when using lists in the command line. More variables can be incuded as "[VAR1,VAR2,VAR3...]". 
+**Options used:** 
 
 * :code:`--names Name`: Name of the column containing the names of the datapoints.  
 

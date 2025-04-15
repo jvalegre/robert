@@ -30,7 +30,13 @@ for designing robust ML models, see references [3] and [4].
 
 .. note:: 
 
-   Please note that the ROBERT score has been created using insights from 1) prior publications on best practices for ML models, 2) our own experience with such models, and 3) a comprehensive benchmarking process involving the nine examples presented in the ROBERT publication. The scoring ranges were established with the intention of achieving a consensus among the majority of ML experts at the opposite ends of the spectrum (i.e., very weak and strong models), while the intermediate scores (i.e., weak and moderate) might allow for varied interpretations based on differing opinions.
+   Please note that the ROBERT score was developed based on the following:
+   
+   1) insights from previous publications on best practices for ML models;
+   2) our experience with these models; and
+   3) a comprehensive benchmarking process that involved the nine examples presented in the ROBERT publication (DOI: https://doi.org/10.1002/wcms.1733) along with eight additional examples from low-data regimes (DOI: https://doi.org/10.1039/D5SC00996K).
+   
+   The scoring ranges were established to achieve consensus among ML experts at the extremes (i.e., very weak and strong models), while allowing for varied interpretations of the intermediate scores (i.e., weak and moderate).
    
    **We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!**
 
@@ -39,8 +45,8 @@ for designing robust ML models, see references [3] and [4].
 How is the score calculated?
 ++++++++++++++++++++++++++++
 
-**Section B.1. Passing VERIFY tests (from -3 to 3 points):**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Section B.1. Model vs "flawed" models (from -6 to 0 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The tests conducted within the VERIFY module are regarded as score indicators:
 
@@ -59,9 +65,9 @@ on the presence of such values (i.e., reaction datasets filled with 0s where com
 ============== ================================
 Points         Condition
 ============== ================================
-•\ |space| 1   Each of the VERIFY tests passed
-0              Each of the unclear VERIFY tests
--•\ |space| -1 Each of the VERIFY tests failed
+0               Each of the VERIFY tests passed
+-• -1           Each of the unclear VERIFY tests
+-••  -2         Each of the VERIFY tests failed
 ============== ================================
 
 The following examples might help clarify these points:
@@ -78,27 +84,37 @@ The following examples might help clarify these points:
 
 |br|
 
-**Section B.2. Predictive ability towards an external test set (2 points):**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Section B.2. CV predictions of the model (2 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The R\ :sup:`2` (for regression) or Matthew's correl. coefficient (MCC, for classification) of an external test set is employed to assess the predictive capabilities of the models found with ROBERT. In cases where a test set is absent, metrics from the validation set are used instead. ROBERT, by default, allocates a sufficient number of data points in test/validation sets to ensure the generation of meaningful R\ :sup:`2`/MCC scores.
+In regression, two metrics (RMSE and R²) are used to ensure a more robust assessment, as a model may show low R² while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
 
 ============ =======================================================
-Points       Condition
+Points       Scaled RMSE
 ============ =======================================================
 |br|         **Regression**
-•• 2         R\ :sup:`2` > 0.85 (high predictive ability)
-•\ |space| 1 0.85 ≥ R\ :sup:`2` ≥ 0.70 (moderate predictive ability)
-0            R\ :sup:`2` < 0.70 (low predictive ability)
+•• 2         ≤ 10% (high predictive ability)
+•\ |space| 1 ≤ 20% (moderate predictive ability)
+0            > 20% (low predictive ability)
 |br|         **Classification**
-•• 2         MCC > 0.75 (high predictive ability)
-•\ |space| 1 0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
-0            MCC < 0.50 (low predictive ability)
+••• 3        MCC > 0.75 (high predictive ability)
+•• 2         0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
+•\ |space| 1 0.50 ≥ MCC ≥ 0.30 (low predictive ability)
+0            MCC < 0.30 (very low predictive ability)
+============ =======================================================
+
+============ =======================================================
+Points        R² (penalty)
+============ =======================================================
+|br|         **Regression**
+-•• -2          R\ :sup:`2` < 0.5
+-• -1           R\ :sup:`2` < 0.7
+0               R\ :sup:`2` >= 0.70
 ============ =======================================================
 
 |br|
 
-**Section B.3. Cross-validation (CV) of the model (4 points):**
+**Section B.3. Predictive ability & overfitting (8 points):**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The cross-validation tests guarantee the meaningfulness of the chosen data partition and guards against data overfitting. All the tests from this section use a combined dataset with training and validation sets.
@@ -111,28 +127,65 @@ The cross-validation tests guarantee the meaningfulness of the chosen data parti
 
    </u>
 
-|u| Section B.3a. CV predictions from training and validation (2 points) |/u|
+|u| Section B.3a. Predictions test set (2 points) |/u|
 
-Calculates the metrics of the model with a leave-one-out CV (LOOCV, for databases with less than 50 points) or a 5-fold cross-validation (larger databases). The predictions are shown in a graph.
+In regression, two metrics (RMSE and R²) are used to ensure a more robust assessment, as a model may show low R² while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
 
 ============ =======================================================
-Points       Condition
+Points       Scaled RMSE
 ============ =======================================================
 |br|         **Regression**
-•• 2         R\ :sup:`2` > 0.85 (high predictive ability)
-•\ |space| 1 0.85 ≥ R\ :sup:`2` ≥ 0.70 (moderate predictive ability)
-0            R\ :sup:`2` < 0.70 (low predictive ability)
+•• 2         ≤ 10% (high predictive ability)
+•\ |space| 1 ≤ 20% (moderate predictive ability)
+0            > 20% (low predictive ability)
 |br|         **Classification**
-•• 2         MCC > 0.75 (high predictive ability)
-•\ |space| 1 0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
-0            MCC < 0.50 (low predictive ability)
+••• 3        MCC > 0.75 (high predictive ability)
+•• 2         0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
+•\ |space| 1 0.50 ≥ MCC ≥ 0.30 (low predictive ability)
+0            MCC < 0.30 (very low predictive ability)
 ============ =======================================================
 
-|u| Section B.3b. Uncertainty of the model (2 points) |/u|
+
+============ =======================================================
+Points        R² (penalty)
+============ =======================================================
+|br|         **Regression**
+-•• -2          R\ :sup:`2` < 0.5 
+-• -1           R\ :sup:`2` < 0.7
+0               R\ :sup:`2` >= 0.70 
+============ =======================================================
+
+|u| Section B.3b. Prediction accuracy test vs CV (2 points) |/u|
 
 **Regression**
 
-Calculates the uncertainty of the model using MAPIE with a Jackknife+ CV (analogous to LOCCV, for databases with less than 50 points) or a 5-fold CV+ (larger databases). ROBERT then calculates an averaged SD using the SD of all the predictions, then multiplies it by 4 to approximate the 95% confidence interval (CI) of a normally distributed population. The score obtained depends on the uncertainty of the MAPIE results, measured by the width of the 95% CI across the range of y values.
+Differences in scaled RMSE between CV predictions of the model and Predictions test set.
+
+============== ================================
+Points         Scaled RMSE ratio
+============== ================================
+•• 2            Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV)
+•\ |space| 1    Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV)
+0               Scaled RMSE (test) >1.50*scaled RMSE (CV)
+============== ================================
+
+**Classification**
+
+Calculates the model's uncertainty by comparing the MCC obtained from the model with the MCC of the CV from Section 3a.
+
+============ ==============================================
+Points       Condition
+============ ==============================================
+•• 2         MCC difference (ΔMCC) < 0.15 (low uncertainty)
+•\ |space| 1 0.15 ≤ ΔMCC ≤ 0.30 (moderate uncertainty)
+0            ΔMCC > 0.30 (high uncertainty)
+============ ==============================================
+
+|u| Section B.3c. Avg. standard deviation (2 points) |/u|
+
+**Regression**
+
+The model’s uncertainty is estimated using predictions from the 10 repetitions of the 10x 5-fold CV. ROBERT then computes the average standard deviation (SD) from all predictions and multiplies it by 4 to approximate the 95% confidence interval (CI) of a normally distributed population. The score for this test depends on the uncertainty of the results, measured by the width of the 95% CI across the range of y values.
 
 ============ ======================================================================
 Points       Condition
@@ -154,33 +207,15 @@ The following examples might help clarify these points:
 
 |sd_examples|
 
-**Classification**
+|u| Section B.3d. Extrapolation (sorted CV) (2 points) |/u|
 
-Calculates the model's uncertainty by comparing the MCC obtained from the model with the MCC of the CV from Section 3a.
+Differences in the RMSE/MCC obtained across the five folds of a sorted 5-fold CV (where target values, y, are sorted from minimum to maximum and not shuffled during CV). First, the minimum RMSE/mMCC among the five folds is identified. Then, the differences between each fold’s RMSE/MCC and this minimum RMSE/MCC are evaluated
 
-============ ==============================================
-Points       Condition
-============ ==============================================
-•• 2         MCC difference (ΔMCC) < 0.15 (low uncertainty)
-•\ |space| 1 0.15 ≤ ΔMCC ≤ 0.30 (moderate uncertainty)
-0            ΔMCC > 0.30 (high uncertainty)
-============ ==============================================
-
-|br|
-
-**Section B.4. Proportion of datapoints vs descriptors (1 point):**
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The ratio of datapoints to descriptors of the model (in the train and validation sets) stands as another crucial parameter. Lower ratios result in simpler models that are more human-interpretable. The extensive literature on ML modeling offers numerous suggested ratios, and we endeavored to select a reasonable threshold in accordance with previous recommendations.
-
-============ ==============================================================
-Points       Condition
-============ ==============================================================
-•\ |space| 1 Ratio datapoints:descriptors ≥ 5:1 (low amount of descriptors)
-0            Ratio < 5:1 (potentially, too many descriptors)
-============ ==============================================================
-
-|br|
++------------+--------------------------------------------------+
+| Points     | Condition                                        |
++============+==================================================+
+| • 1      | Every two folds with RMSE/MCC ≤ 1.25*min RMSE/MCC |
++------------+--------------------------------------------------+
 
 Score ranges
 ++++++++++++

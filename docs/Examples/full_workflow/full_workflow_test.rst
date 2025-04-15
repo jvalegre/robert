@@ -29,14 +29,14 @@ Executing the job
 
 .. code:: shell
 
-    python -m robert --predict --names Name --csv_test Robert_example_test.csv
+    python -m robert --predict --csv_test Robert_example_test.csv
 
 .. note:: 
 
    The --csv_test option can be used as part of end-to-end workflows. For example, this option can be added
    to the "Full workflow from CSV" example:
    
-   :code:`python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv`
+   :code:`python -m robert --names Name --y Target_values --csv_name Robert_example.csv --csv_test Robert_example_test.csv`
 
 **Options used:**
 
@@ -51,24 +51,24 @@ Execution time and versions
 
 Time: ~10 sec
 
-System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
+System: 8 processors (11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz) using 16.0 GB RAM memory
 
-ROBERT version: 1.2.0
+ROBERT version: 2.0.1
 
-scikit-learn-intelex version: 2024.5.0
+scikit-learn-intelex version: 2025.2.0
 
 Results
 +++++++
 
 .. |csv_no_pfi| image:: ../images/csv_icon.jpg
-   :target: ../../_static/NN_80_test_No_PFI.csv
+   :target: ../../_static/Robert_example_test_NN_No_PFI.csv
    :width: 30
 
 .. |csv_pfi| image:: ../images/csv_icon.jpg
-   :target: ../../_static/NN_80_test_PFI.csv
+   :target: ../../_static/Robert_example_test_NN_PFI.csv
    :width: 30
 
-Two CSV files called **NN_80_test_No_PFI.csv** and **NN_80_test_PFI.csv** should be created inside the PREDICT folder. The two files 
+Two CSV files called **Robert_example_test_NN_No_PFI** and **Robert_example_test_NN_PFI** should be created inside the PREDICT folder. The two files 
 contain the predictions from the two different Neural Network (NN) models, with and without PFI filtering,
 obtained in the Full workflow example.
 

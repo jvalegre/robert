@@ -19,8 +19,8 @@ This module uses a GENERATE folder created in a GENERATE job.
 Automated protocols
 +++++++++++++++++++
 
-   *  Calculates R2, MAE and RMSE (for regression) or accuracy, F1 score and MCC (for classification) for the training, validation and test sets of the best No PFI and PFI models found in a GENERATE job.
-   *  Predicts values for an external test set (if any). If the measured y values are included, the model metrics from the previous point will be included, otherwise only the predicted y values will be retrieved. 
+   *  Calculates R2, MAE and RMSE (for regression) or accuracy, F1 score and MCC (for classification) for the 10x 5-fold CV (training+validation) and test sets of the best No PFI and PFI models found in a GENERATE job.
+   *  Predicts values for the test set or an external test set (if any). If the measured y values are included in the external test set, the model metrics from the previous point will be included, otherwise only the predicted y values will be retrieved. 
    *  Performs an outlier analysis.
    *  Performs a SHAP feature analysis.
    *  Performs a PFI feature analysis.

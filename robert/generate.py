@@ -63,15 +63,23 @@ Parameters
         Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI
         filter are used.
     auto_test : bool, default=True
-        Raises % of test points to 10% if test_set is lower than that.
-    test_set : float, default=0.1
-        Amount of datapoints to separate as external test set (0.1 = 10%). These points will not be used during the
+        Raises % of test points to 20% if test_set is lower than that.
+    test_set : float, default=0.2
+        Amount of datapoints to separate as external test set (0.2 = 20%). These points will not be used during the
         hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select
         --test_set 0 to use only training and validation.
     kfold : int, default=5
         Number of random data splits for the cross-validation of the models. 
     repeat_kfolds : int, default=10
         Number of repetitions for the k-fold cross-validation of the models.
+    split : str, default='even'
+        Specifies how the data is split into training and test sets. Options:
+        1. 'even': splits the data evenly into training and test sets.
+        2. 'RND': randomly splits the data.
+        3. 'stratified': splits the data while preserving the distribution of the target variable.
+        4. 'KN': uses a k-means approach to select representative samples.
+        5. 'EXTRA_Q1': selects the 10% lowest values.
+        6. 'EXTRA_Q5': selects the 10% highest values.
         
 """
 #####################################################.

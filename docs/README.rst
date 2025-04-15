@@ -69,15 +69,15 @@ and classification problems**. Comprehensive workflows have been designed to mee
 standards for cheminformatics studies, including:
 
    *  **Atomic and molecular descriptor generation from SMILES**, including an RDKit conformer sampling and 
-      the generation of 200+ steric, electronic and structural descriptors using RDKit, xTB and DBSTEP. 
+      the generation of 200+ steric, electronic and structural descriptors using RDKit, xTB and ᴍᴏʀғᴇᴜs. 
       Requires the `AQME program <https://aqme.readthedocs.io>`__.  
    *  **Data curation**, including filters for correlated descriptors, noise, and duplicates, 
       as well as conversion of categorical descriptors.  
-   *  **Model selection**, including comparison of multiple hyperoptimized models from 
-      scikit-learn and training sizes.  
+   *  **Model selection**, including the comparison of multiple hyperoptimized models using 
+      multiple cross-validation techniques. This approach mitigates overfitting in low-data regimes.
    *  **Prediction** of external test sets, as well as SHAP and PFI feature analysis.  
-   *  **VERIFY tests** to asses the predictive ability of the models, including y-shuffle
-      and y-mean tests, leave-one-out and k-fold cross-validation, and predictions with one-hot features.  
+   *  **VERIFY tests** to assess the predictive ability of the models, including y-shuffle,
+      y-mean, and one-hot encoding tests.  
 
 The code has been designed for:
 

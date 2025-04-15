@@ -36,11 +36,9 @@ Executing the job
 
 .. code:: shell
 
-   python -m robert --ignore "[Name]" --names Name --y Target_values --csv_name Robert_example.csv
+   python -m robert --names Name --y Target_values --csv_name Robert_example.csv
 
 **Options used:**
-
-* :code:`--ignore "[Name]"`: Variables ignored in the model. In this case, the column 'Name' that contains the names of the datapoints, which is not included in the model. Quotation marks are included in "[Name]" to avoid problems when using lists in the command line. More variables can be incuded as "[VAR1,VAR2,VAR3...]". 
 
 * :code:`--names Name`: Name of the column containing the names of the datapoints. This feature allows to print the names of the outlier points (if any).  
 
@@ -51,13 +49,13 @@ Executing the job
 Execution time and versions
 +++++++++++++++++++++++++++
 
-Time: ~1.5 min
+Time: ~3.5 min
 
-System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
+System: 8 processors (11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz) using 16.0 GB RAM memory
 
-ROBERT version: 1.2.0
+ROBERT version: 2.0.1
 
-scikit-learn-intelex version: 2024.5.0
+scikit-learn-intelex version: 2025.2.0
 
 Results
 +++++++
@@ -68,10 +66,9 @@ Results
 
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF file can be visualized here: |pdf_report_test|
 
-The PDF report contains all the results of the workflow. In this case, two Neural Network (NN) models with 80% training sizes were the optimal model found from: 
+The PDF report contains all the results of the workflow. In this case, two Neural Network (NN) models were the optimal model found from: 
 
    * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
-   * Three different partition sizes (60%, 70%, 80%) 
 
 The first part of the PDF file is shown below as a preview:
 

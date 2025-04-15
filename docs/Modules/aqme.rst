@@ -33,7 +33,7 @@ When executing the command line `python -m robert --aqme [OPTIONS]`, ROBERT's AQ
 
 .. code-block:: shell
 
-   python -m aqme --csearch --program rdkit --input CSV_NAME.csv --sample 50
+   python -m aqme --csearch --program rdkit --input CSV_NAME.csv --sample 5
 
 Then, the AQME program is run again to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors with QDESCP, using the following options:
 

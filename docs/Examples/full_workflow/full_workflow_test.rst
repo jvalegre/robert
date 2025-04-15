@@ -29,7 +29,7 @@ Executing the job
 
 .. code:: shell
 
-    python -m robert --predict --names Name --csv_test Robert_example_test.csv
+    python -m robert --predict --csv_test Robert_example_test.csv
 
 .. note:: 
 

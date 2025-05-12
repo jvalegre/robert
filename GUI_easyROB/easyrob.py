@@ -1627,6 +1627,8 @@ class EasyROB(QMainWindow):
             )
 
             if confirmation == QMessageBox.No:
+                self.run_button.setDisabled(False) # Re-enable Play button
+                self.stop_button.setDisabled(True)  # Enable Stop button
                 return
             
             # Try deleting the folders
@@ -1656,6 +1658,8 @@ class EasyROB(QMainWindow):
                     QMessageBox.No
                 )
                 if confirmation == QMessageBox.No:
+                    self.run_button.setDisabled(False) # Re-enable Play button
+                    self.stop_button.setDisabled(True)  # Enable Stop button
                     return
 
             self.tab_widget_aqme.df_mapped_smiles.to_csv(mapped_csv_path, index=False)
@@ -1666,19 +1670,16 @@ class EasyROB(QMainWindow):
             selected_file_path = self.mapped_csv_path
         else:
             selected_file_path = self.file_path
-        
-        # Run ROBERT
-        self.console_output.append(f"Runninfg ROBERT on {selected_file_path}...")
 
         # Build the base command.
         command = (
-            f'python -u -m robert --csv_name "{selected_file_path}" '
+            f'python -u -m robert --csv_name "{os.path.basename(selected_file_path)}" '
             f'--y "{self.y_dropdown.currentText()}" '
             f'--names "{self.names_dropdown.currentText()}"'
         )
         
         if self.csv_test_path:
-            command += f' --csv_test "{self.csv_test_path}"'
+            command += f' --csv_test "{os.path.basename(self.csv_test_path)}"'
         
         if self.type_dropdown.currentText() == "Classification":
             command += ' --type "clas"'

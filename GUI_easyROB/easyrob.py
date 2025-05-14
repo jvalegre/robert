@@ -1,17 +1,7 @@
 import sys
 import os
-os.environ["QT_QUICK_BACKEND"] = "software"
 import pandas as pd
 from pathlib import Path
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QLabel, QPushButton, QFileDialog, QVBoxLayout, QWidget,
-    QComboBox, QListWidget, QProgressBar, QMessageBox, QHBoxLayout, QFrame, QTabWidget, 
-    QLineEdit, QTextEdit, QSizePolicy, QFormLayout, QGridLayout, QGroupBox, QCheckBox, 
-    QScrollArea, QFileDialog, QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem,QInputDialog,
-)
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent
-from PySide6.QtCore import (Qt, QProcess, Slot, QThread, Signal, QTimer, QUrl, QObject)
 import subprocess
 import shlex
 import glob
@@ -27,40 +17,77 @@ from rdkit.Chem import rdFMCS
 from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D, rdDepictor
 import rdkit
-import math
 import traceback
-from robert.robert import main
-from multiprocessing import Process, Queue
 import shutil
-from rdkit.Chem import PathToSubmol, MolFragmentToSmarts
+import tempfile
+import platform
+import signal
+
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QLabel, QPushButton, QFileDialog, QVBoxLayout, QWidget,
+    QComboBox, QListWidget, QProgressBar, QMessageBox, QHBoxLayout, QFrame, QTabWidget, 
+    QLineEdit, QTextEdit, QSizePolicy, QFormLayout, QGridLayout, QGroupBox, QCheckBox, 
+    QScrollArea, QFileDialog, QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem,QInputDialog,
+)
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent
+from PySide6.QtCore import (Qt, Slot, QThread, Signal, QTimer, QUrl)
+
+from robert.robert import main
+os.environ["QT_QUICK_BACKEND"] = "software"
 
 class AQMETab(QWidget):
-    """Tab for AQME workflow with ChemDraw file import support and molecule viewer."""
+    def __init__(self, tab_parent=None, main_window=None, help_tab=None, web_view=None):
 
-    def __init__(self, main_tab_widget):
-        super().__init__()
-
+        super().__init__(tab_parent)  # tab_parent = QTabWidget
+        self.main_tab_widget = tab_parent # Reference to the main QTabWidget
+        self.main_window = main_window  # Reference to the main window, accessible to csv_df, csv_path, etc... 
+        self.help_tab = help_tab
+        self.web_view = web_view
         self.selected_atoms = []
-        self.main_tab_widget = main_tab_widget
+        self.check_multiple_matches = False
         self.box_features = "QGroupBox { font-weight: bold; }"
 
         # === Main vertical layout ===
         main_layout = QVBoxLayout(self)
 
-        # --- ChemDraw Button (compact and centered horizontally) ---
+       # --- ChemDraw Button (modern purple style + top spacing) ---
         self.chemdraw_button = QPushButton("Generate CSV from ChemDraw Files or SDF file")
-        self.chemdraw_button.setStyleSheet("padding: 10px; font-weight: bold;")
         self.chemdraw_button.setCursor(Qt.PointingHandCursor)
-        self.chemdraw_button.setMaximumHeight(40)
-        self.chemdraw_button.setFixedWidth(320)
+        self.chemdraw_button.setFixedSize(400, 42)
+
+        self.chemdraw_button.setStyleSheet("""
+            QPushButton {
+                background-color: #7E57C2;
+                color: white;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #6A42B8;
+            }
+            QPushButton:pressed {
+                background-color: #5E35B1;
+            }
+        """)
+
         self.chemdraw_button.clicked.connect(self.open_chemdraw_popup)
 
+        # Center button horizontally
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         button_layout.addWidget(self.chemdraw_button)
         button_layout.addStretch()
 
-        main_layout.addLayout(button_layout)
+        # Add vertical spacing above the button
+        button_container = QVBoxLayout()
+        button_container.addSpacing(50)
+        button_container.addLayout(button_layout)
+
+        main_layout.addLayout(button_container)
+
 
         # === Viewer container with label + viewer stacked ===
         self.mol_viewer_container = QWidget()
@@ -129,6 +156,13 @@ class AQMETab(QWidget):
 
         aqme_box.setLayout(aqme_layout)
         main_layout.addWidget(aqme_box)
+
+    def go_to_help_section(self, anchor):
+            """Navigates to the help section in the web view."""
+            base_url = "https://robert.readthedocs.io/en/latest/Technical/defaults.html"
+            full_url = f"{base_url}#{anchor.lower()}"
+            self.main_tab_widget.setCurrentWidget(self.help_tab)
+            self.web_view.setUrl(QUrl(full_url))
 
     def set_mol_viewer_message(self, message, tooltip=None):
         """Display a styled message in the molecule viewer, with optional tooltip."""
@@ -216,47 +250,60 @@ class AQMETab(QWidget):
         rdDepictor.SetPreferCoordGen(True)
 
         try:
-            # Ensure there are SMARTS patterns to display
-            if not hasattr(self, "smarts_targets") or not self.smarts_targets:
+            if not self.smarts_targets:
                 self.set_mol_viewer_message("⚠️ No SMARTS patterns available.")
-                self.mol_info_label.setText("🔬 Info here")  # Clear top label
+                self.mol_info_label.setText("🔬 Info here")
                 return
 
-            # Generate molecule from SMARTS pattern
-            self.mol = Chem.MolFromSmarts(self.smarts_targets[0])
-            if self.mol is None:
+            # Convert SMARTS to RDKit Mol
+            pattern_mol = Chem.MolFromSmarts(self.smarts_targets[0])
+            if pattern_mol is None:
                 self.set_mol_viewer_message("⚠️ Invalid SMARTS pattern.")
                 self.mol_info_label.setText("🔬 Info here")
                 return
 
-            # Adapt molecule size to the viewer
+            # Check for multiple matches in the dataset
+            for smiles in self.csv_df["SMILES"]:
+                mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
+                if mol is None:
+                    continue
+                matches = mol.GetSubstructMatches(pattern_mol)
+                if len(matches) > 1:
+                    self.check_multiple_matches = True
+                    self.set_mol_viewer_message(
+                    f"⚠️ Multiple matches detected: the common substructure appears more than once in the molecule '{smiles}'. "
+                    "Atomic descriptor selection has been disabled to avoid ambiguity."
+                    )   
+                    self.mol_info_label.setText("🔬 Info here")
+                    return
+
+            self.check_multiple_matches = False  # All clear
+
+            # Prepare for drawing the SMARTS pattern molecule
+            self.mol = pattern_mol
             self.molecule_image_width = self.mol_viewer_container.width()
             self.molecule_image_height = self.mol_viewer_container.height()
 
-            # Prepare highlighting
             highlight_atoms = set(self.selected_atoms)
-            highlight_colors = {atom_idx: (0.698, 0.4, 1.0) for atom_idx in highlight_atoms} if highlight_atoms else {}
+            highlight_colors = {idx: (0.698, 0.4, 1.0) for idx in highlight_atoms} if highlight_atoms else {}
 
-            # Draw molecule
             drawer = rdMolDraw2D.MolDraw2DCairo(self.molecule_image_width, self.molecule_image_height)
             drawer.drawOptions().bondLineWidth = 1.5
 
             drawer.DrawMolecule(
                 self.mol,
-                highlightAtoms=list(highlight_atoms) if highlight_atoms else [],
-                highlightAtomColors=highlight_colors if highlight_colors else {}
+                highlightAtoms=list(highlight_atoms),
+                highlightAtomColors=highlight_colors
             )
             drawer.FinishDrawing()
 
-            # Load image
+            # Display image
             png_bytes = drawer.GetDrawingText()
             pixmap = QPixmap()
             pixmap.loadFromData(png_bytes)
-
-            # Update atom coordinates
             self.atom_coords = [drawer.GetDrawCoords(i) for i in range(self.mol.GetNumAtoms())]
 
-            if self.mol_viewer is not None:
+            if self.mol_viewer:
                 if pixmap.isNull():
                     self.set_mol_viewer_message("⚠️ Could not render molecule image.")
                     self.mol_info_label.setText("🔬 Info here")
@@ -265,13 +312,13 @@ class AQMETab(QWidget):
                     if highlight_atoms:
                         self.mol_info_label.setText(f"🔬 {len(highlight_atoms)} atom(s) selected.")
                     else:
-                        self.mol_info_label.setText("🧪 SMARTS pattern founded. Click to select atoms.")
+                        self.mol_info_label.setText(
+                        '🧪 SMARTS pattern loaded. Click to select atoms.<br>'
+                        '<span style="color:red;">⚠️ WARNING! No atoms selected. Atomic descriptors will not be generated.</span>'
+                    )
 
         except Exception as e:
-            self.set_mol_viewer_message(
-                "❌ Error displaying molecule.",
-                tooltip=str(e)
-            )
+            self.set_mol_viewer_message("❌ Error displaying molecule.", tooltip=str(e))
             self.mol_info_label.setText("🔬 Info here")
 
     def handle_atom_selection(self, atom_idx):
@@ -296,77 +343,53 @@ class AQMETab(QWidget):
             self.csv_df['SMILES'].dropna()
         )
 
-        # # Update the pattern based on selected atoms (this can be a SMARTS pattern or similar)
-        # self.selected_smarts_pattern = self.update_selected_pattern()
-        # print(f"Selected SMARTS pattern: {self.selected_smarts_pattern}")
-
-    # def update_selected_pattern(self):
-    #     from rdkit.Chem.rdmolfiles import MolFragmentToSmarts
-    #     from rdkit import Chem
-    #     from rdkit.Chem import rdchem  # Necesario para IntVector
-    #     """Generate a SMARTS pattern from the currently selected atoms."""
-    #     if not hasattr(self, "mol") or self.mol is None or not self.selected_atoms:
-    #         return None
-
-    #     try:
-            
-    #         atom_indices = sorted(set(self.selected_atoms))
-            
-    #         # Generate SMARTS
-    #         smarts = MolFragmentToSmarts(self.mol, atomsToUse=list(atom_indices), isomericSmarts=False)
-    #         print(f"Selected SMARTS pattern: {smarts}")
-    #         return smarts
-
-    #     except Exception as e:
-    #         print(f"[SMARTS generation error] {e}")
-    #         return None
-
     def generate_mapped_smiles(self, smarts_pattern, selected_pattern_indices, smiles_list):
-        from rdkit import Chem
-        print(f"Selected pattern indices: {selected_pattern_indices}")
-        print(f"SMARTS pattern: {smarts_pattern}")
-       
+        """
+        Generate mapped SMILES using a SMARTS pattern and selected atom indices.
+        Updates self.df_mapped_smiles with a copy of the original CSV where 'SMILES' is replaced.
+        """
+
+        # Parse the SMARTS pattern to a molecule object
         pattern_mol = Chem.MolFromSmarts(smarts_pattern)
         if pattern_mol is None:
             raise ValueError("Invalid SMARTS pattern")
 
-        mapped_smiles_list = []
+        mapped_smiles = []
 
         for smiles in smiles_list:
             mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
             if mol is None:
-                mapped_smiles_list.append(None)
+                mapped_smiles.append(None)
                 continue
 
-            match = mol.GetSubstructMatch(pattern_mol)
-            print(f"Match for {smiles}: {match}")
-            if not match:
-                mapped_smiles_list.append(None)
+            # Get *all* substructure matches, continue processing if only one match is found
+            matches = mol.GetSubstructMatches(pattern_mol)
+            if len(matches) > 1:
+                return  # Multiple matches found, return without processing
+            elif not matches:
+                mapped_smiles.append(None)
                 continue
-            
-            # Reset atom map numbers
-            mol_copy = Chem.Mol(mol)
-            for atom in mol_copy.GetAtoms():
+
+            # One match only → proceed
+            match = matches[0]
+
+            # Clear existing atom map numbers
+            for atom in mol.GetAtoms():
                 atom.SetAtomMapNum(0)
 
+            # Assign map numbers to selected atoms
             for i, pattern_idx in enumerate(selected_pattern_indices):
-                if pattern_idx >= len(match):
-                    continue
+                if pattern_idx < len(match):
+                    mol.GetAtomWithIdx(match[pattern_idx]).SetAtomMapNum(i + 1)
 
-                # Using the atom index from the SMARTS pattern to get the corresponding atom in the molecule.
-                # As long as the order of atoms in the SMARTS pattern stays the same, you can reliably map
-                # the same atoms in different molecules, even though their actual atom indices may differ.
-                mol_idx = match[pattern_idx]
-                atom_symbol = mol_copy.GetAtomWithIdx(mol_idx).GetSymbol()
-                print(f"Pattern atom {pattern_idx} → Mol atom {mol_idx} ({atom_symbol})")
-                mol_copy.GetAtomWithIdx(mol_idx).SetAtomMapNum(i + 1)
+            mapped_smiles.append(Chem.MolToSmiles(mol))
 
-            mapped_smiles = Chem.MolToSmiles(mol_copy)
-            mapped_smiles_list.append(mapped_smiles)
-            df = pd.DataFrame(mapped_smiles_list, columns=["Mapped_SMILES"])
-            df.to_csv("mapped_smiles.csv", index=False)
+        # Replace SMILES column in CSV
+        df = pd.read_csv(self.file_path)
+        df_mapped = df.copy()
+        df_mapped["SMILES"] = mapped_smiles
+        self.df_mapped_smiles = df_mapped
 
-        return mapped_smiles_list
 
     def mousePressEvent(self, event: QMouseEvent):
         """Handle mouse press events to select atoms and crate pattern.
@@ -415,6 +438,7 @@ class AQMETab(QWidget):
     def load_chemdraw_file(self, main_path):
         """Opens a ChemDraw file and displays the molecules in a table."""
         def load_mols_from_path(path):
+
             if path.endswith('.cdxml'):
                 try:
                     mols = MolsFromCDXMLFile(path, sanitize=True, removeHs=True)
@@ -422,8 +446,26 @@ class AQMETab(QWidget):
                 except Exception as e:
                     QMessageBox.critical(self, "CDXML Read Error", f"Failed to read {path}:\n{str(e)}")
                     return []
+                
             elif path.endswith('.sdf'):
                 return [mol for mol in Chem.SDMolSupplier(path) if mol is not None]
+            
+            elif path.endswith(".cdx"): 
+                with tempfile.NamedTemporaryFile(suffix=".sdf", delete=False) as temp_sdf:
+                    temp_sdf_path = temp_sdf.name
+
+                try:
+                    subprocess.run(["obabel", path, "-O", temp_sdf_path], check=True)
+                except subprocess.CalledProcessError as e:
+                    QMessageBox.critical(self, "CDX Conversion Error", f"Open Babel failed:\n{str(e)}")
+                    return []
+
+                mols = [mol for mol in Chem.SDMolSupplier(temp_sdf_path) if mol is not None]
+
+                if os.path.exists(temp_sdf_path):
+                    os.remove(temp_sdf_path)
+
+                return mols
             else:
                 mol = Chem.MolFromMolFile(path)
                 return [mol] if mol else []
@@ -459,7 +501,6 @@ class AQMETab(QWidget):
                 table.setHorizontalHeaderItem(index, QTableWidgetItem(new_text.strip()))
 
         table.horizontalHeader().sectionDoubleClicked.connect(on_header_double_clicked)
-
 
         for row, mol in enumerate(mols):
             img = Draw.MolToImage(mol, size=(100, 100))
@@ -531,8 +572,12 @@ class AQMETab(QWidget):
                     target = table.item(row, 3).text() if table.item(row, 3) else ""
                     writer.writerow([smi, code, target])
 
+            # Automatically load CSV into the main GUI 
+            if hasattr(self, "main_window") and self.main_window:
+                self.main_window.set_file_path(path)
+
             dialog.accept()
-            QMessageBox.information(dialog, "Success", "CSV file saved successfully!")
+            QMessageBox.information(dialog, "Success", "CSV file saved and loaded successfully!")
 
         save_button.clicked.connect(save_to_csv)
         dialog.setLayout(layout)
@@ -556,12 +601,6 @@ class AdvancedOptionsTab(QWidget):
         generate_box = self.create_generate_section()
         predict_box = self.create_predict_section()
 
-        # # Apply Background Colors
-        # general_box.setStyleSheet("QGroupBox { background-color: #696969;}")  
-        # curate_box.setStyleSheet("QGroupBox { background-color: #696969;}")  
-        # generate_box.setStyleSheet("QGroupBox { background-color: #696969;}")  
-        # predict_box.setStyleSheet("QGroupBox { background-color: #696969;}")  
-
         # GENERAL (Top Row)
         grid_layout.addWidget(general_box, 0, 0, 1, 2)
 
@@ -580,7 +619,12 @@ class AdvancedOptionsTab(QWidget):
     def go_to_help_section(self, anchor):
         """Navigates to the help section in the web view."""
         base_url = "https://robert.readthedocs.io/en/latest/Technical/defaults.html"
-        full_url = f"{base_url}#{anchor}"
+        
+        if anchor.upper() == "GENERAL":
+            full_url = base_url
+        else:
+            full_url = f"{base_url}#{anchor.lower()}"
+        
         self.tab_widget.setCurrentWidget(self.help_tab)
         self.web_view.setUrl(QUrl(full_url))
 
@@ -782,10 +826,6 @@ class AdvancedOptionsTab(QWidget):
         self.t_value = QLineEdit()
         self.t_value.setPlaceholderText("2")
         layout.addRow(QLabel("t_value:"), self.t_value)
-        
-        self.alpha = QLineEdit()
-        self.alpha.setPlaceholderText("0.05")
-        layout.addRow(QLabel("alpha:"), self.alpha)
         
         self.shap_show = QLineEdit()
         self.shap_show.setPlaceholderText("10")
@@ -1021,6 +1061,27 @@ class EasyROB(QMainWindow):
         self.worker = None
         self._last_loaded_file_path = None
         self.initUI()
+        self.clear_test_button.setVisible(False) # Hide the button initially
+
+    def closeEvent(self, event):
+        """Intercept window close to clean up running threads."""
+        if hasattr(self, 'worker') and self.worker and self.worker.isRunning():
+            reply = QMessageBox.question(
+                self,
+                "Exit Confirmation",
+                "ROBERT is still running. Do you want to stop the process and exit?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
+                self.worker.stop()
+                self.worker.wait()
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
 
     def move_to_selected(self):
         """Move selected items from available_list to selected_list."""
@@ -1037,6 +1098,12 @@ class EasyROB(QMainWindow):
             self.available_list.addItem(item.text())  #  Add back to left list
             row = self.ignore_list.row(item)  #  Get correct row index
             self.ignore_list.takeItem(row)  #  Remove from right list
+
+    def clear_test_file(self):
+        """Clear the selected test file."""
+        self.csv_test_path = None
+        self.csv_test_label.setText("Drag & Drop a CSV test file here (optional)")
+        self.clear_test_button.setVisible(False)
 
     def initUI(self):
         """Initializes the main user interface."""
@@ -1106,6 +1173,7 @@ class EasyROB(QMainWindow):
 
         # --- Test CSV File (Optional) ---
         test_layout = QVBoxLayout()
+
         self.csv_test_title = QLabel("Select Test CSV File (optional)", self)
         self.csv_test_title.setAlignment(Qt.AlignCenter)
         self.csv_test_title.setStyleSheet(f"font-weight: bold; font-size: {font_size};")
@@ -1118,13 +1186,27 @@ class EasyROB(QMainWindow):
         )
         self.csv_test_label.set_callback(self.set_csv_test_path)
 
+        self.clear_test_button = QPushButton("✖")
+        self.clear_test_button.setFixedSize(30, 30)
+        self.clear_test_button.setStyleSheet(
+            "background-color: #900; color: white; font-weight: bold; border-radius: 5px;"
+        )
+        self.clear_test_button.setToolTip("Clear selected test CSV file")
+        self.clear_test_button.clicked.connect(self.clear_test_file)
+
+        test_label_container = QWidget()
+        test_label_inner_layout = QHBoxLayout(test_label_container)
+        test_label_inner_layout.setContentsMargins(0, 0, 0, 0)
+        test_label_inner_layout.addWidget(self.csv_test_label)
+        test_label_inner_layout.addWidget(self.clear_test_button)
+
         test_layout.addWidget(self.csv_test_title)
-        test_layout.addWidget(self.csv_test_label)
+        test_layout.addWidget(test_label_container)
+
 
         # --- CSV Section with Button in the Middle ---
         csv_layout = QHBoxLayout()
         csv_layout.addLayout(input_layout)
-        # csv_layout.addLayout(button_layout)
         csv_layout.addLayout(test_layout)
 
         # --- Add All to Main Layout ---
@@ -1264,7 +1346,7 @@ class EasyROB(QMainWindow):
             }
         """)
 
-        self.run_button.clicked.connect(self.run_robert_multiprocessing)
+        self.run_button.clicked.connect(self.run_robert)
 
         # --- Stop Button ---
         self.stop_button = QPushButton("Stop ROBERT")
@@ -1293,7 +1375,7 @@ class EasyROB(QMainWindow):
                 border: 2px solid #600000;
             }
         """)
-        self.stop_button.clicked.connect(self.stop_robert_multiprocessing)
+        self.stop_button.clicked.connect(self.stop_robert)
 
         # # Add button layout to the main layout
         button_container = QHBoxLayout()
@@ -1333,76 +1415,51 @@ class EasyROB(QMainWindow):
         """)
         main_layout.addWidget(self.progress)
 
-        # # --- Launch the process and connect output signals ---
-        # self.process = QProcess(self)
-        # self.process.setWorkingDirectory(os.path.dirname(self.file_path))
-        # self.process.finished.connect(self.on_process_finished)
+        # ============
+        # Create Tabs
+        # ============
 
-        # # Connect signals to capture standard output and error
-        # self.process.readyReadStandardOutput.connect(self.handle_stdout)
-        # self.process.readyReadStandardError.connect(self.handle_stderr)
-        
-        # ===========
-        # "AQME" Tab
-        # ===========
-        self.tab_widget_aqme = AQMETab(self.tab_widget)  
-        self.tab_widget.addTab(self.tab_widget_aqme, "AQME")
-
-        # disable by default
-        self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.tab_widget_aqme), False)
- 
-        # ================
-        # Create Help Tab 
-        # ================
-        self.help_tab = QWidget()
-        help_layout = QVBoxLayout(self.help_tab)
-
-        self.web_view = QWebEngineView()
-        self.web_view.setUrl(QUrl("https://robert.readthedocs.io/en/latest/index.html#"))
-        help_layout.addWidget(self.web_view)
-
-        # =====================================
-        # "Options" Tab (Additional Parameters)
-        # =====================================
-        self.options_tab = AdvancedOptionsTab(self.type_dropdown, self.tab_widget, self.help_tab, self.web_view)
-
-        # ===============================
-        # Add tabs to the main tab widget in desired order
-        # ===============================
-        self.tab_widget.addTab(self.options_tab, "Advanced Options")
-        self.tab_widget.addTab(self.help_tab, "Help")
-
-        # ===============================
-        # "Help" Tab (Documentation)
-        # ===============================
-        self.help_tab = QWidget()
-        help_layout = QVBoxLayout(self.help_tab)
-
-        self.web_view = QWebEngineView()
-        self.web_view.setUrl(QUrl("https://robert.readthedocs.io/en/latest/index.html#"))
-        help_layout.addWidget(self.web_view)
-
-        # ===============================
-        # "Results" Tab (PDF report)
-        # ===============================
-
-        # This tab will be dynamically enabled/disabled based on PDF presence
-        # The order of the tabs is important for avoid the error of relaunch the rest of tabs
+        # Results tab (must be created early so others can reference it)
         self.tab_widget_results = QTabWidget()
         self.results_tab = ResultsTab(self.tab_widget_results)
 
-        # Add the "Results" tab to the main tab widget
-        self.tab_widget.addTab(self.tab_widget_results, "Results")
+        # Help tab
+        self.help_tab = QWidget()
+        help_layout = QVBoxLayout(self.help_tab)
+        self.web_view = QWebEngineView()
+        self.web_view.setUrl(QUrl("https://robert.readthedocs.io/en/latest/index.html#"))
+        help_layout.addWidget(self.web_view)
 
-        # ===============================
-        # "Images" Tab (Multiple Folders)
-        # ===============================
+        # AQME tab (depends on ResultsTab via main_window)
+        self.tab_widget_aqme = AQMETab(
+            tab_parent=self.tab_widget,
+            main_window=self,
+            help_tab=self.help_tab,
+            web_view=self.web_view
+        )
 
-        # Define paths to the folders you want to monitor
+        # Options tab
+        self.options_tab = AdvancedOptionsTab(
+            self.type_dropdown,
+            self.tab_widget,
+            self.help_tab,
+            self.web_view
+        )
+
+        # Images tab
         self.image_folders = ["PREDICT", "GENERATE/Raw_data", "VERIFY", "CURATE"]
-
-        # Create the "Images" tab
         self.images_tab = ImagesTab(self.tab_widget, self.image_folders)
+
+        # ===============================
+        # Add Tabs to Tab Widget (Display order)
+        # ===============================
+
+        self.tab_widget.addTab(self.tab_widget_aqme, "AQME")
+        self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.tab_widget_aqme), False)
+
+        self.tab_widget.addTab(self.options_tab, "Advanced Options")
+        self.tab_widget.addTab(self.help_tab, "Help")
+        self.tab_widget.addTab(self.tab_widget_results, "Results")
         self.tab_widget.addTab(self.images_tab, "Images")
 
         # =========================================
@@ -1477,30 +1534,33 @@ class EasyROB(QMainWindow):
         if file_path:
             self.set_file_path(file_path)
 
-    def set_file_path(self, file_path):
-        """Updates only the DropLabel text, keeping the title unchanged."""
-        self.file_path = file_path
-        self.file_label.setText(f"Selected: {file_path}")
-        self.load_csv_columns()
-
     def select_csv_test_file(self):
         """Opens file dialog to select a test CSV file."""
         file_path, _ = QFileDialog.getOpenFileName(self, "Select Test CSV File", "", "CSV Files (*.csv)")
         if file_path:
             self.set_csv_test_path(file_path)
 
+    def set_file_path(self, file_path):
+        """Sets the path for the input CSV file and updates the label."""
+        self.file_path = file_path  
+        file_name = Path(file_path).name
+        self.file_label.setText(f"Selected: {file_name}")
+        self.file_label.setToolTip(file_path)  
+        self.load_csv_columns()
+
     def set_csv_test_path(self, file_path):
-        """Updates only the DropLabel text, keeping the title unchanged."""
+        """Sets the path for the test CSV file and updates the label."""
         self.csv_test_path = file_path
-        self.csv_test_label.setText(f"Selected: {file_path}")
+        file_name = Path(file_path).name
+        self.csv_test_label.setText(f"Selected: {file_name}")
+        self.csv_test_label.setToolTip(file_path)
+        self.clear_test_button.setVisible(True)
 
     def set_main_chemdraw_path(self, file_path):
         self.main_chemdraw_path = file_path
-        self.main_chemdraw_label.setText(f"Selected: {file_path}")
-
-    def set_optional_chemdraw_path(self, file_path):
-        self.optional_chemdraw_path = file_path
-        self.optional_chemdraw_label.setText(f"Selected: {file_path}")
+        file_name = Path(file_path).name
+        self.main_chemdraw_label.setText(f"Selected: {file_name}")
+        self.main_chemdraw_label.setToolTip(file_path)
 
     def load_csv_columns(self):
         """Loads column names from the selected CSV file and updates all selection fields."""
@@ -1533,50 +1593,21 @@ class EasyROB(QMainWindow):
         new_filename = f"ROBERT_report_{index}.pdf"
         os.rename(base_filename, new_filename)
 
-    # def run_robert_exe(self):
-    #     """Runs ROBERT using internal execution and applies variable validation before launching."""
-
-    #     # Validate input variables first
-    #     if not self.check_variables():
-    #         self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
-    #         return
-
-    #     # Build arguments after validation
-    #     sys_args = self.build_sys_args_from_gui()
-
-    #     # Prepare GUI elements
-    #     self.console_output.clear()
-    #     self.progress.setRange(0, 0)
-    #     self.run_button.setDisabled(True)
-    #     self.stop_button.setDisabled(False)
-        
-    #     # Check if the worker is already running and terminate it
-    #     if self.worker is not None and self.worker.isRunning():
-    #         self.console_output.append("[INFO] Terminating previous ROBERT run...")
-    #         self.worker.stop()
-    #         self.worker.wait()
-    #         self.worker.deleteLater()
-    #         self.worker = None
-
-    #     # Launch new thread for ROBERT
-    #     self.worker = RobertWorkerProcess(sys_args)
-    #     self.worker.output_received.connect(lambda text: self.console_output.append(self.ansi_converter.convert(text, full=False)))
-    #     self.worker.error_received.connect(lambda text: self.console_output.append(f'<span style="color:red;">{text}</span>'))
-    #     self.worker.process_finished.connect(self.on_process_finished)
-    #     self.worker.finished.connect(self.worker.deleteLater)
-
-    #     self.worker.start()
-
-    def run_robert_multiprocessing(self):
-        """Runs ROBERT using multiprocessing-based execution and applies variable validation before launching."""
-
-        # Validate input variables first
-        if not self.check_variables():
-            self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
+    def run_robert(self):
+        """Runs the ROBERT workflow with the selected parameters."""
+        if not self.file_path or not self.y_dropdown.currentText() or not self.names_dropdown.currentText():
+            QMessageBox.warning(self, "WARNING!", "Please select a CSV file, a column for target value, and a name column.")
             return
+        
+        # Check and rename existing "ROBERT_report.pdf" files
+        self.rename_existing_pdf("ROBERT_report.pdf")
 
+        # Disable the Play button while the process is running
+        self.run_button.setDisabled(True)
+        self.stop_button.setDisabled(False)  # Enable Stop button
+        
         # Check for leftover workflow folders
-        folders_to_check = ["CURATE", "GENERATE", "PREDICT", "VERIFY"]
+        folders_to_check = ["CURATE", "GENERATE", "PREDICT", "VERIFY", "AQME", "CSEARCH", "QDESCP"]
         existing_folders = [f for f in folders_to_check if os.path.exists(f)]
 
         if existing_folders:
@@ -1596,6 +1627,8 @@ class EasyROB(QMainWindow):
             )
 
             if confirmation == QMessageBox.No:
+                self.run_button.setDisabled(False) # Re-enable Play button
+                self.stop_button.setDisabled(True)  # Enable Stop button
                 return
             
             # Try deleting the folders
@@ -1604,580 +1637,355 @@ class EasyROB(QMainWindow):
                     shutil.rmtree(folder)
                     self.console_output.append(f"[INFO] Deleted folder: {folder}")
                 except Exception as e:
-                    self.console_output.append(f"[ERROR] Could not delete folder '{folder}': {e}")
+                    self.console_output.append(f"[ERROR] Could not delete folder '{folder}': {e}, try to delete it manually.")
+                    self.run_button.setDisabled(False) # Re-enable Play button
+                    self.stop_button.setDisabled(True)  # Enable Stop button
                     return  # Prevent running ROBERT if cleanup fails
+                
+        # Save mapped CSV only if available from AQME workflow
+        if hasattr(self.tab_widget_aqme, "df_mapped_smiles"):
+            base, ext = os.path.splitext(self.tab_widget_aqme.file_path)
+            mapped_csv_path = base + "_mapped.csv"
 
-        # Build arguments after validation
-        sys_args = self.build_sys_args_from_gui()
+            # Check if the mapped CSV already exists and pop up a confirmation dialog if it does
+            if os.path.exists(mapped_csv_path):
+                confirmation = QMessageBox.question(
+                    self,
+                    "WARNING!",
+                    f"The mapped file '{mapped_csv_path}' already exists.\n"
+                    "Do you want to overwrite it?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No
+                )
+                if confirmation == QMessageBox.No:
+                    self.run_button.setDisabled(False) # Re-enable Play button
+                    self.stop_button.setDisabled(True)  # Enable Stop button
+                    return
 
-        # Prepare GUI elements
-        self.console_output.clear()
-        self.progress.setRange(0, 0)
-        self.run_button.setDisabled(True)
-        self.stop_button.setDisabled(False)
+            self.tab_widget_aqme.df_mapped_smiles.to_csv(mapped_csv_path, index=False)
+            self.mapped_csv_path = mapped_csv_path  
 
-        # Stop any previous worker process if running
-        if self.worker is not None:
-            try:
-                self.console_output.append("[INFO] Terminating previous ROBERT process...")
-                self.worker.stop()
-            except Exception as e:
-                self.console_output.append(f"[WARNING] Could not stop previous worker: {e}")
-            self.worker = None
+        # Check if the mapped CSV exists and is valid for use it in AQME-ROBERT workflow
+        if hasattr(self, "mapped_csv_path") and os.path.isfile(self.mapped_csv_path):
+            selected_file_path = self.mapped_csv_path
+        else:
+            selected_file_path = self.file_path
 
-        # Launch new ROBERT process
-        self.worker = RobertWorkerProcess(sys_args)
-        self.worker.output_received.connect(lambda text: self.console_output.append(self.ansi_converter.convert(text, full=False)))
-        self.worker.error_received.connect(lambda text: self.console_output.append(f'<span style="color:red;">{text}</span>'))
-        self.worker.process_finished.connect(self.on_process_finished)
-
-        self.worker.run()
-
-
-    def build_sys_args_from_gui(self):
-        """Build a dictionary of parameters for ROBERT from GUI selections."""
-        sys_args = {
-            "--csv_name": os.path.basename(self.file_path),
-            "--y": self.y_dropdown.currentText(),
-            "--names": self.names_dropdown.currentText()
-        }
-
+        # Build the base command.
+        command = (
+            f'python -u -m robert --csv_name "{os.path.basename(selected_file_path)}" '
+            f'--y "{self.y_dropdown.currentText()}" '
+            f'--names "{self.names_dropdown.currentText()}"'
+        )
+        
         if self.csv_test_path:
-            sys_args["--csv_test"] = os.path.basename(self.csv_test_path)
-
+            command += f' --csv_test "{os.path.basename(self.csv_test_path)}"'
+        
         if self.type_dropdown.currentText() == "Classification":
-            sys_args["--type"] = "clas"
+            command += ' --type "clas"'
+        
+        selected_columns = [
+            self.ignore_list.item(i).text() 
+            for i in range(self.ignore_list.count())  
+        ]
 
-        selected_columns = [self.ignore_list.item(i).text() for i in range(self.ignore_list.count())]
         if selected_columns:
-            formatted_columns = [f"'{col}'" for col in selected_columns]
-            sys_args["--ignore"] = f"[{', '.join(formatted_columns)}]"
+            formatted_columns = [f"'{col}'" for col in selected_columns]  # Wrap each item in single quotes
+            command += f' --ignore "[{", ".join(formatted_columns)}]"'  # Wrap the entire list in double quotes
 
-        # Workflow selector
-        workflow_option = self.workflow_selector.currentText()
-        if workflow_option and workflow_option.lower() != "full workflow":
-            # Add flag if not "full_workflow" is selected
-            sys_args[f"--{workflow_option.lower()}"] = None 
+        if self.workflow_selector.currentText() == "CURATE":
+            command += ' --curate'
+        elif self.workflow_selector.currentText() == "GENERATE":
+            command += ' --generate'
+        elif self.workflow_selector.currentText() == "PREDICT":
+            command += ' --predict'        
+        elif self.workflow_selector.currentText() == "VERIFY":
+            command += ' --verify'
+        elif self.workflow_selector.currentText() == "REPORT":
+            command += ' --report'
 
-        # GENERAL options
-        if not self.options_tab.auto_type.isChecked():
-            sys_args["--auto_type"] = "False"
-        if self.options_tab.seed.text().strip():
-            sys_args["--seed"] = self.options_tab.seed.text().strip()
-        if self.options_tab.kfold.text().strip():
-            sys_args["--kfold"] = self.options_tab.kfold.text().strip()
-        if self.options_tab.repeat_kfolds.text().strip():
-            sys_args["--repeat_kfolds"] = self.options_tab.repeat_kfolds.text().strip()
+        # Add the additional parameters from the Advanced Options tab
+        # GENERAL Section
+        self.seed_value = self.options_tab.seed.text().strip()
+        self.kfold_value = self.options_tab.kfold.text().strip()
+        self.repeat_kfolds_value = self.options_tab.repeat_kfolds.text().strip()
+        self.auto_type_value = self.options_tab.auto_type.isChecked()
 
-        # AQME
-        if self.aqme_workflow.isChecked():
-            sys_args["--aqme"] = True
-            sys_args["--descp_lvl"] = self.tab_widget_aqme.descriptor_level.currentText()
-            atoms = self.tab_widget_aqme.atoms.text().strip()
-            if atoms:
-                atom_list = [atom.strip() for atom in atoms.split(",") if atom.strip()]
-                atoms_str = '[' + ','.join(atom_list) + ']'
-                sys_args["--qdescp_keywords"] = f"--qdescp_atoms {atoms_str}"
 
-        # CURATE
-        if self.options_tab.categoricalstr.currentText().strip() != "onehot":
-            sys_args["--categorical"] = self.options_tab.categoricalstr.currentText().strip()
-        if not self.options_tab.corr_filter_xbool.isChecked():
-            sys_args["--corr_filter_x"] = "False"
-        if self.options_tab.corr_filter_ybool.isChecked():
-            sys_args["--corr_filter_y"] = "True"
-        if self.options_tab.desc_thresfloat.text().strip():
-            sys_args["--desc_thres"] = self.options_tab.desc_thresfloat.text().strip()
-        if self.options_tab.thres_xfloat.text().strip():
-            sys_args["--thres_x"] = self.options_tab.thres_xfloat.text().strip()
-        if self.options_tab.thres_yfloat.text().strip():
-            sys_args["--thres_y"] = self.options_tab.thres_yfloat.text().strip()
+        # AQME Section
+        self.descriptor_level_selected = self.tab_widget_aqme.descriptor_level.currentText()
+        self.atoms_selected = self.tab_widget_aqme.atoms.text().strip()
 
-        # GENERATE
+        # CURATE Section 
+        self.categorical_value = self.options_tab.categoricalstr.currentText().strip()
+        self.corr_filter_x_value = self.options_tab.corr_filter_xbool.isChecked()
+        self.corr_filter_y_value = self.options_tab.corr_filter_ybool.isChecked()
+        self.desc_thres_value = self.options_tab.desc_thresfloat.text().strip()
+        self.thres_x_value = self.options_tab.thres_xfloat.text().strip()
+        self.thres_y_value = self.options_tab.thres_yfloat.text().strip()
+
+        # GENERATE Section
+        # Detect selected type
         type_mode = self.type_dropdown.currentText()
+
+        # Default values based on type
         default_models = {"RF", "GB", "NN", "MVL"} if type_mode == "Regression" else {"RF", "GB", "NN", "AdaB"}
+        default_error_type = "rmse" if type_mode == "Regression" else "mcc"
+
+        # Collect current values from GUI
+
         selected_models = {
             model for model, checkbox in self.options_tab.modellist.items()
             if checkbox.isChecked()
         }
+
+        self.error_type_value = self.options_tab.error_type.currentText().strip()
+        self.init_points_value = self.options_tab.init_points.text().strip()
+        self.n_iter_value = self.options_tab.n_iter.text().strip()
+        self.expect_improv_value = self.options_tab.expect_improv.text().strip()
+        self.pfi_filter_value = self.options_tab.pfi_filter.isChecked()
+        self.pfi_epochs_value = self.options_tab.pfi_epochs.text().strip()
+        self.pfi_threshold_value = self.options_tab.pfi_threshold.text().strip()
+        self.pfi_max_value = self.options_tab.pfi_max.text().strip()
+        self.auto_test_value = self.options_tab.auto_test.isChecked()
+        self.test_set_value = self.options_tab.test_set.text().strip()
+
+        # PREDICT Section 
+
+        self.t_value = self.options_tab.t_value.text().strip()
+        self.shap_show = self.options_tab.shap_show.text().strip()
+        self.pfi_show = self.options_tab.pfi_show.text().strip()
+
+        # GENERAL Section command
+        # --auto_type (default is True)
+        if not self.auto_type_value:
+            command += " --auto_type False"
+
+        if self.seed_value:
+            command += f' --seed {self.seed_value}'
+        
+        if self.kfold_value:
+            command += f' --kfold {self.kfold_value}'
+        
+        if self.repeat_kfolds_value:
+            command += f' --repeat_kfolds {self.repeat_kfolds_value}'
+
+        # AQME Section command
+        if self.aqme_workflow.isChecked():
+            command += ' --aqme'
+            command += f' --descp_lvl {self.tab_widget_aqme.descriptor_level.currentText()}'
+
+            atoms_entries = []
+
+            # Add 1-based indices from SMARTS selection
+            selected_pattern_indices = self.tab_widget_aqme.selected_atoms
+            if selected_pattern_indices:
+                mapped_numbers = list(range(1, len(selected_pattern_indices) + 1))
+                atoms_entries.extend(mapped_numbers)
+
+            # Add manual SMARTS/text fragments
+            atoms_text = self.tab_widget_aqme.atoms.text().strip()
+            if atoms_text:
+                fragments = [frag.strip() for frag in atoms_text.split(",") if frag.strip()]
+                atoms_entries.extend(fragments)
+
+            if atoms_entries:
+                atoms_str = "[" + ",".join(str(e) for e in atoms_entries) + "]"
+                command += f' --qdescp_keywords "--qdescp_atoms {atoms_str}"'
+
+        # CURATE Section command
+        if self.categorical_value != "onehot": # Default is "onehot"
+            command += f' --categorical {self.categorical_value}'
+
+        if not self.corr_filter_x_value:  # Default es True
+            command += ' --corr_filter_x False'
+
+        if self.corr_filter_y_value:  # Default es False
+            command += ' --corr_filter_y True'
+
+        if self.desc_thres_value:
+            command += f' --desc_thres {self.desc_thres_value}'
+
+        if self.thres_x_value:
+            command += f' --thres_x {self.thres_x_value}'
+
+        if self.thres_y_value:
+            command += f' --thres_y {self.thres_y_value}'
+
+        # GENERATE Section command 
+
+        # --model (only if selection is different from default)
         if selected_models != default_models:
             model_list_str = "[" + ",".join(f"'{m}'" for m in sorted(selected_models)) + "]"
-            sys_args["--model"] = model_list_str
+            command += f' --model "{model_list_str}"'
 
-        default_error_type = "rmse" if type_mode == "Regression" else "mcc"
-        if self.options_tab.error_type.currentText().strip() != default_error_type:
-            sys_args["--error_type"] = self.options_tab.error_type.currentText().strip()
-        if self.options_tab.init_points.text().strip():
-            sys_args["--init_points"] = self.options_tab.init_points.text().strip()
-        if self.options_tab.n_iter.text().strip():
-            sys_args["--n_iter"] = self.options_tab.n_iter.text().strip()
-        if self.options_tab.expect_improv.text().strip():
-            sys_args["--expect_improv"] = self.options_tab.expect_improv.text().strip()
-        if not self.options_tab.pfi_filter.isChecked():
-            sys_args["--pfi_filter"] = "False"
-        if self.options_tab.pfi_epochs.text().strip():
-            sys_args["--pfi_epochs"] = self.options_tab.pfi_epochs.text().strip()
-        if self.options_tab.pfi_threshold.text().strip():
-            sys_args["--pfi_threshold"] = self.options_tab.pfi_threshold.text().strip()
-        if self.options_tab.pfi_max.text().strip():
-            sys_args["--pfi_max"] = self.options_tab.pfi_max.text().strip()
-        if not self.options_tab.auto_test.isChecked():
-            sys_args["--auto_test"] = "False"
-        if self.options_tab.test_set.text().strip():
-            sys_args["--test_set"] = self.options_tab.test_set.text().strip()
+        # --error_type (only if different from default)
+        if self.error_type_value != default_error_type:
+            command += f' --error_type {self.error_type_value}'
 
-        # PREDICT
-        if self.options_tab.t_value.text().strip():
-            sys_args["--t_value"] = self.options_tab.t_value.text().strip()
-        if self.options_tab.alpha.text().strip():
-            sys_args["--alpha"] = self.options_tab.alpha.text().strip()
-        if self.options_tab.shap_show.text().strip():
-            sys_args["--shap_show"] = self.options_tab.shap_show.text().strip()
-        if self.options_tab.pfi_show.text().strip():
-            sys_args["--pfi_show"] = self.options_tab.pfi_show.text().strip()
+        # --init_points (default: 10)
+        if self.init_points_value:
+            command += f' --init_points {self.init_points_value}'
 
-        return sys_args
-    
-    def check_variables(self):
-        """Validates the values directly from the GUI widgets."""
-        errors = []
+        # --n_iter (default: 10)
+        if self.n_iter_value:
+            command += f' --n_iter {self.n_iter_value}'
 
-        # GENERAL
-        seed = self.options_tab.seed.text().strip()
-        if seed and not seed.isdigit():
-            errors.append("Seed must be an integer.")
+        # --expect_improv (default: 0.05)
+        if self.expect_improv_value:
+            command += f' --expect_improv {self.expect_improv_value}'
 
-        kfold = self.options_tab.kfold.text().strip()
-        if kfold and not kfold.isdigit():
-            errors.append("kfold must be an integer.")
+        # --pfi_filter (default: True)
+        if not self.pfi_filter_value:
+            command += " --pfi_filter False"
 
-        repeat_kfolds = self.options_tab.repeat_kfolds.text().strip()
-        if repeat_kfolds and not repeat_kfolds.isdigit():
-            errors.append("repeat_kfolds must be an integer.")
+        # --pfi_epochs (default: 5)
+        if self.pfi_epochs_value:
+            command += f' --pfi_epochs {self.pfi_epochs_value}'
 
-        # AQME
-        if self.aqme_workflow.isChecked():
-            available_columns = [self.available_list.item(i).text() for i in range(self.available_list.count())]
-            if "SMILES" not in available_columns:
-                errors.append("The column 'SMILES' must be present in the CSV file to use the AQME Workflow.")
+        # --pfi_threshold (default: 0.2)
+        if self.pfi_threshold_value:
+            command += f' --pfi_threshold {self.pfi_threshold_value}'
 
-        # CURATE
-        for key, label in [
-            (self.options_tab.desc_thresfloat.text().strip(), "desc_thres"),
-            (self.options_tab.thres_xfloat.text().strip(), "thres_x"),
-            (self.options_tab.thres_yfloat.text().strip(), "thres_y"),
-        ]:
-            if key:
+        # --pfi_max (default: 0)
+        if self.pfi_max_value:
+            command += f' --pfi_max {self.pfi_max_value}'
+
+        # --auto_test (default: True)
+        if not self.auto_test_value:
+            command += " --auto_test False"
+
+        # --test_set (default: 0.1)
+        if self.test_set_value:
+            command += f' --test_set {self.test_set_value}'
+        
+        # PREDICT Section command
+
+        # --t_value (default: 2)
+        if self.t_value:
+            command += f" --t_value {self.t_value}"
+
+        # --shap_show (default: 10)
+        if self.shap_show:
+            command += f" --shap_show {self.shap_show}"
+
+        # --pfi_show (default: 10)
+        if self.pfi_show:
+            command += f" --pfi_show {self.pfi_show}"
+
+        def check_variables(self):
+            """Validates the values extracted from the Advanced Options tab."""
+            errors = []
+
+            # Check that name column and target column are not the same
+            if self.names_dropdown.currentText() == self.y_dropdown.currentText():
+                QMessageBox.warning(
+                    self,
+                    "Invalid Selection",
+                    "The name column and the target value column cannot be the same. Please select different columns."
+                )
+                return False
+
+            # GENERAL
+            if self.seed_value and not self.seed_value.isdigit():
+                errors.append("Seed must be an integer.")
+
+            if self.kfold_value and not self.kfold_value.isdigit():
+                errors.append("kfold must be an integer.")
+
+            if self.repeat_kfolds_value and not self.repeat_kfolds_value.isdigit():
+                errors.append("repeat_kfolds must be an integer.")
+
+            # AQME
+            if self.aqme_workflow.isChecked():
+                available_columns = [self.available_list.item(i).text() for i in range(self.available_list.count())]
+                if "SMILES" not in available_columns:
+                    errors.append("The column 'SMILES' must be present in CSV file to use AQME Workflow.")
+
+            # CURATE
+            if self.desc_thres_value:
                 try:
-                    float(key)
+                    float(self.desc_thres_value)
                 except ValueError:
-                    errors.append(f"{label} must be a number.")
-
-        # GENERATE
-        if self.options_tab.init_points.text().strip() and not self.options_tab.init_points.text().strip().isdigit():
-            errors.append("init_points must be an integer.")
-
-        if self.options_tab.n_iter.text().strip() and not self.options_tab.n_iter.text().strip().isdigit():
-            errors.append("n_iter must be an integer.")
-
-        if self.options_tab.expect_improv.text().strip():
-            try:
-                float(self.options_tab.expect_improv.text().strip())
-            except ValueError:
-                errors.append("expect_improv must be a number.")
-
-        if self.options_tab.pfi_epochs.text().strip() and not self.options_tab.pfi_epochs.text().strip().isdigit():
-            errors.append("pfi_epochs must be an integer.")
-
-        if self.options_tab.pfi_threshold.text().strip():
-            try:
-                float(self.options_tab.pfi_threshold.text().strip())
-            except ValueError:
-                errors.append("pfi_threshold must be a number.")
-
-        if self.options_tab.pfi_max.text().strip() and not self.options_tab.pfi_max.text().strip().isdigit():
-            errors.append("pfi_max must be an integer.")
-
-        if self.options_tab.test_set.text().strip():
-            try:
-                val = float(self.options_tab.test_set.text().strip())
-                if not (0 <= val <= 1):
-                    errors.append("test_set must be between 0 and 1.")
-            except ValueError:
-                errors.append("test_set must be a number between 0 and 1.")
-
-        # PREDICT
-        if self.options_tab.t_value.text().strip() and not self.options_tab.t_value.text().strip().isdigit():
-            errors.append("t_value must be an integer.")
-
-        if self.options_tab.alpha.text().strip():
-            try:
-                val = float(self.options_tab.alpha.text().strip())
-                if not (0 <= val <= 1):
-                    errors.append("alpha must be between 0 and 1.")
-            except ValueError:
-                errors.append("alpha must be a number between 0 and 1.")
-
-        if self.options_tab.shap_show.text().strip() and not self.options_tab.shap_show.text().strip().isdigit():
-            errors.append("shap_show must be an integer.")
-
-        if self.options_tab.pfi_show.text().strip() and not self.options_tab.pfi_show.text().strip().isdigit():
-            errors.append("pfi_show must be an integer.")
-
-        # Show all collected errors
-        if errors:
-            QMessageBox.warning(self, "Invalid Parameters", "\n".join(errors))
-            return False
-
-        return True
-
-    # def run_robert(self):
-    #     """Runs the ROBERT workflow with the selected parameters."""
-    #     if not self.file_path or not self.y_dropdown.currentText() or not self.names_dropdown.currentText():
-    #         QMessageBox.warning(self, "WARNING!", "Please select a CSV file, a column for target value, and a name column.")
-    #         return
-        
-    #     # Check and rename existing "ROBERT_report.pdf" files
-    #     self.rename_existing_pdf("ROBERT_report.pdf")
-
-    #     # Disable the Play button while the process is running
-    #     self.run_button.setDisabled(True)
-    #     self.stop_button.setDisabled(False)  # Enable Stop button
-
-    #     # Build the base command.
-    #     command = (
-    #         f'python -u -m robert --csv_name "{os.path.basename(self.file_path)}" '
-    #         f'--y "{self.y_dropdown.currentText()}" '
-    #         f'--names "{self.names_dropdown.currentText()}"'
-    #     )
-        
-    #     if self.csv_test_path:
-    #         command += f' --csv_test "{os.path.basename(self.csv_test_path)}"'
-        
-    #     if self.type_dropdown.currentText() == "Classification":
-    #         command += ' --type "clas"'
-        
-    #     selected_columns = [
-    #         self.ignore_list.item(i).text() 
-    #         for i in range(self.ignore_list.count())  
-    #     ]
-
-    #     if selected_columns:
-    #         formatted_columns = [f"'{col}'" for col in selected_columns]  # Wrap each item in single quotes
-    #         command += f' --ignore "[{", ".join(formatted_columns)}]"'  # Wrap the entire list in double quotes
-
-    #     if self.workflow_selector.currentText() == "CURATE":
-    #         command += ' --curate'
-    #     elif self.workflow_selector.currentText() == "GENERATE":
-    #         command += ' --generate'
-    #     elif self.workflow_selector.currentText() == "PREDICT":
-    #         command += ' --predict'        
-    #     elif self.workflow_selector.currentText() == "VERIFY":
-    #         command += ' --verify'
-    #     elif self.workflow_selector.currentText() == "REPORT":
-    #         command += ' --report'
-
-    #     # Add the additional parameters from the Advanced Options tab
-    #     # GENERAL Section
-    #     self.seed_value = self.options_tab.seed.text().strip()
-    #     self.kfold_value = self.options_tab.kfold.text().strip()
-    #     self.repeat_kfolds_value = self.options_tab.repeat_kfolds.text().strip()
-    #     self.auto_type_value = self.options_tab.auto_type.isChecked()
-
-
-    #     # AQME Section
-    #     self.descriptor_level_selected = self.tab_widget_aqme.descriptor_level.currentText()
-    #     self.atoms_selected = self.tab_widget_aqme.atoms.text().strip()
-
-    #     # CURATE Section 
-    #     self.categorical_value = self.options_tab.categoricalstr.currentText().strip()
-    #     self.corr_filter_x_value = self.options_tab.corr_filter_xbool.isChecked()
-    #     self.corr_filter_y_value = self.options_tab.corr_filter_ybool.isChecked()
-    #     self.desc_thres_value = self.options_tab.desc_thresfloat.text().strip()
-    #     self.thres_x_value = self.options_tab.thres_xfloat.text().strip()
-    #     self.thres_y_value = self.options_tab.thres_yfloat.text().strip()
-
-    #     # GENERATE Section
-    #     # Detect selected type
-    #     type_mode = self.type_dropdown.currentText()
-
-    #     # Default values based on type
-    #     default_models = {"RF", "GB", "NN", "MVL"} if type_mode == "Regression" else {"RF", "GB", "NN", "AdaB"}
-    #     default_error_type = "rmse" if type_mode == "Regression" else "mcc"
-
-    #     # Collect current values from GUI
-
-    #     selected_models = {
-    #         model for model, checkbox in self.options_tab.modellist.items()
-    #         if checkbox.isChecked()
-    #     }
-
-    #     self.error_type_value = self.options_tab.error_type.currentText().strip()
-    #     self.init_points_value = self.options_tab.init_points.text().strip()
-    #     self.n_iter_value = self.options_tab.n_iter.text().strip()
-    #     self.expect_improv_value = self.options_tab.expect_improv.text().strip()
-    #     self.pfi_filter_value = self.options_tab.pfi_filter.isChecked()
-    #     self.pfi_epochs_value = self.options_tab.pfi_epochs.text().strip()
-    #     self.pfi_threshold_value = self.options_tab.pfi_threshold.text().strip()
-    #     self.pfi_max_value = self.options_tab.pfi_max.text().strip()
-    #     self.auto_test_value = self.options_tab.auto_test.isChecked()
-    #     self.test_set_value = self.options_tab.test_set.text().strip()
-
-    #     # PREDICT Section 
-
-    #     self.t_value = self.options_tab.t_value.text().strip()
-    #     self.alpha = self.options_tab.alpha.text().strip()
-    #     self.shap_show = self.options_tab.shap_show.text().strip()
-    #     self.pfi_show = self.options_tab.pfi_show.text().strip()
-
-    #     # GENERAL Section command
-    #     # --auto_type (default is True)
-    #     if not self.auto_type_value:
-    #         command += " --auto_type False"
-
-    #     if self.seed_value:
-    #         command += f' --seed {self.seed_value}'
-        
-    #     if self.kfold_value:
-    #         command += f' --kfold {self.kfold_value}'
-        
-    #     if self.repeat_kfolds_value:
-    #         command += f' --repeat_kfolds {self.repeat_kfolds_value}'
-
-    #     # AQME Section command
-    #     if self.aqme_workflow.isChecked():
-    #         command += ' --aqme ' 
-
-    #         # Always include descp_lvl
-    #         command +=  f'--descp_lvl {self.descriptor_level_selected}'
-
-    #         # Add qdescp_atoms only if it's not empty
-    #         if self.atoms_selected:
-            
-    #             # Split the string by commas and strip whitespace
-    #             atoms = [atom.strip() for atom in self.atoms_selected.split(',') if atom.strip()]
-    #             atoms_str = '[' + ','.join(atoms) + ']'
-
-    #             # Append to the command inside the --qdescp_keywords argument
-    #             command += f' --qdescp_keywords "--qdescp_atoms {atoms_str}"'
-        
-    #     # CURATE Section command
-    #     if self.categorical_value != "onehot": # Default is "onehot"
-    #         command += f' --categorical {self.categorical_value}'
-
-    #     if not self.corr_filter_x_value:  # Default es True
-    #         command += ' --corr_filter_x False'
-
-    #     if self.corr_filter_y_value:  # Default es False
-    #         command += ' --corr_filter_y True'
-
-    #     if self.desc_thres_value:
-    #         command += f' --desc_thres {self.desc_thres_value}'
-
-    #     if self.thres_x_value:
-    #         command += f' --thres_x {self.thres_x_value}'
-
-    #     if self.thres_y_value:
-    #         command += f' --thres_y {self.thres_y_value}'
-
-    #     # GENERATE Section command 
-
-    #     # --model (only if selection is different from default)
-    #     if selected_models != default_models:
-    #         model_list_str = "[" + ",".join(f"'{m}'" for m in sorted(selected_models)) + "]"
-    #         command += f' --model "{model_list_str}"'
-
-    #     # --error_type (only if different from default)
-    #     if self.error_type_value != default_error_type:
-    #         command += f' --error_type {self.error_type_value}'
-
-    #     # --init_points (default: 10)
-    #     if self.init_points_value:
-    #         command += f' --init_points {self.init_points_value}'
-
-    #     # --n_iter (default: 10)
-    #     if self.n_iter_value:
-    #         command += f' --n_iter {self.n_iter_value}'
-
-    #     # --expect_improv (default: 0.05)
-    #     if self.expect_improv_value:
-    #         command += f' --expect_improv {self.expect_improv_value}'
-
-    #     # --pfi_filter (default: True)
-    #     if not self.pfi_filter_value:
-    #         command += " --pfi_filter False"
-
-    #     # --pfi_epochs (default: 5)
-    #     if self.pfi_epochs_value:
-    #         command += f' --pfi_epochs {self.pfi_epochs_value}'
-
-    #     # --pfi_threshold (default: 0.2)
-    #     if self.pfi_threshold_value:
-    #         command += f' --pfi_threshold {self.pfi_threshold_value}'
-
-    #     # --pfi_max (default: 0)
-    #     if self.pfi_max_value:
-    #         command += f' --pfi_max {self.pfi_max_value}'
-
-    #     # --auto_test (default: True)
-    #     if not self.auto_test_value:
-    #         command += " --auto_test False"
-
-    #     # --test_set (default: 0.1)
-    #     if self.test_set_value:
-    #         command += f' --test_set {self.test_set_value}'
-        
-    #     # PREDICT Section command
-
-    #     # --t_value (default: 2)
-    #     if self.t_value:
-    #         command += f" --t_value {self.t_value}"
-
-    #     # --alpha (default: 0.05)
-    #     if self.alpha:
-    #         command += f" --alpha {self.alpha}"
-
-    #     # --shap_show (default: 10)
-    #     if self.shap_show:
-    #         command += f" --shap_show {self.shap_show}"
-
-    #     # --pfi_show (default: 10)
-    #     if self.pfi_show:
-    #         command += f" --pfi_show {self.pfi_show}"
-
-    # def check_variables(self):
-    #     """Validates the values extracted from the Advanced Options tab."""
-    #     errors = []
-
-    #     # GENERAL
-    #     if self.seed_value and not self.seed_value.isdigit():
-    #         errors.append("Seed must be an integer.")
-
-    #     if self.kfold_value and not self.kfold_value.isdigit():
-    #         errors.append("kfold must be an integer.")
-
-    #     if self.repeat_kfolds_value and not self.repeat_kfolds_value.isdigit():
-    #         errors.append("repeat_kfolds must be an integer.")
-
-    #     # AQME
-    #     if self.aqme_workflow.isChecked():
-    #         available_columns = [self.available_list.item(i).text() for i in range(self.available_list.count())]
-    #         if "SMILES" not in available_columns:
-    #             errors.append("The column 'SMILES' must be present in CSV file to use AQME Workflow.")
-
-    #     # CURATE
-    #     if self.desc_thres_value:
-    #         try:
-    #             float(self.desc_thres_value)
-    #         except ValueError:
-    #             errors.append("desc_thres must be a number.")
-
-    #     if self.thres_x_value:
-    #         try:
-    #             float(self.thres_x_value)
-    #         except ValueError:
-    #             errors.append("thres_x must be a number.")
-
-    #     if self.thres_y_value:
-    #         try:
-    #             float(self.thres_y_value)
-    #         except ValueError:
-    #             errors.append("thres_y must be a number.")
-
-    #     # GENERATE
-    #     if self.init_points_value and not self.init_points_value.isdigit():
-    #         errors.append("init_points must be an integer.")
-
-    #     if self.n_iter_value and not self.n_iter_value.isdigit():
-    #         errors.append("n_iter must be an integer.")
-
-    #     if self.expect_improv_value:
-    #         try:
-    #             float(self.expect_improv_value)
-    #         except ValueError:
-    #             errors.append("expect_improv must be a number.")
-
-    #     if self.pfi_epochs_value and not self.pfi_epochs_value.isdigit():
-    #         errors.append("pfi_epochs must be an integer.")
-
-    #     if self.pfi_threshold_value:
-    #         try:
-    #             float(self.pfi_threshold_value)
-    #         except ValueError:
-    #             errors.append("pfi_threshold must be a number.")
-
-    #     if self.pfi_max_value and not self.pfi_max_value.isdigit():
-    #         errors.append("pfi_max must be an integer.")
-
-    #     if self.test_set_value:
-    #         try:
-    #             value = float(self.test_set_value)
-    #             if not (0 <= value <= 1):
-    #                 errors.append("test_set must be between 0 and 1.")
-    #         except ValueError:
-    #             errors.append("test_set must be a number between 0 and 1.")
-
-    #     # PREDICT
-    #     if self.t_value and not self.t_value.isdigit():
-    #         errors.append("t_value must be an integer.")
-
-    #     if self.alpha:
-    #         try:
-    #             value = float(self.alpha)
-    #             if not (0 <= value <= 1):
-    #                 errors.append("alpha must be between 0 and 1.")
-    #         except ValueError:
-    #             errors.append("alpha must be a number between 0 and 1.")
-
-    #     if self.shap_show and not self.shap_show.isdigit():
-    #         errors.append("shap_show must be an integer.")
-
-    #     if self.pfi_show and not self.pfi_show.isdigit():
-    #         errors.append("pfi_show must be an integer.")
-
-    #     if errors:
-    #         QMessageBox.warning(self, "Invalid Parameters", "\n".join(errors))
-    #         return False
-
-    #     return True
-
-        # if check_variables(self):  # Check if the parameters are valid
-        #     self.console_output.clear()
-        #     self.progress.setRange(0, 0)  # Indeterminate progress
-        #     self.worker = RobertWorker(command, os.getcwd())
-        #     self.worker.output_received.connect(self.console_output.append)
-        #     self.worker.error_received.connect(self.console_output.append)
-        #     self.worker.process_finished.connect(self.on_process_finished)
-        #     self.worker.start()
-        # else:
-        #     # Reset the buttons and progress bar
-        #     self.run_button.setDisabled(False)
-        #     self.stop_button.setDisabled(True)
-        #     self.progress.setRange(0, 100)
-        #     self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
-    # def stop_robert(self):
-    #     """Stops the ROBERT process safely after user confirmation."""
-        
-    #     confirmation = QMessageBox.question(
-    #         self, 
-    #         "WARNING!", 
-    #         "Are you sure you want to stop ROBERT?",
-    #         QMessageBox.Yes | QMessageBox.No, 
-    #         QMessageBox.No
-    #     )
-
-    #     if confirmation == QMessageBox.No:
-    #         return  
-
-    #     self.manual_stop = True
-
-    #     if self.worker and self.worker.isRunning():
-    #         self.worker.stop()  
-    #         self.worker.wait()
-    #         self.worker = None
-    #         self.on_process_finished(-1)
-
-    def stop_robert_multiprocessing(self):
+                    errors.append("desc_thres must be a number.")
+
+            if self.thres_x_value:
+                try:
+                    float(self.thres_x_value)
+                except ValueError:
+                    errors.append("thres_x must be a number.")
+
+            if self.thres_y_value:
+                try:
+                    float(self.thres_y_value)
+                except ValueError:
+                    errors.append("thres_y must be a number.")
+
+            # GENERATE
+            if self.init_points_value and not self.init_points_value.isdigit():
+                errors.append("init_points must be an integer.")
+
+            if self.n_iter_value and not self.n_iter_value.isdigit():
+                errors.append("n_iter must be an integer.")
+
+            if self.expect_improv_value:
+                try:
+                    float(self.expect_improv_value)
+                except ValueError:
+                    errors.append("expect_improv must be a number.")
+
+            if self.pfi_epochs_value and not self.pfi_epochs_value.isdigit():
+                errors.append("pfi_epochs must be an integer.")
+
+            if self.pfi_threshold_value:
+                try:
+                    float(self.pfi_threshold_value)
+                except ValueError:
+                    errors.append("pfi_threshold must be a number.")
+
+            if self.pfi_max_value and not self.pfi_max_value.isdigit():
+                errors.append("pfi_max must be an integer.")
+
+            if self.test_set_value:
+                try:
+                    value = float(self.test_set_value)
+                    if not (0 <= value <= 1):
+                        errors.append("test_set must be between 0 and 1.")
+                except ValueError:
+                    errors.append("test_set must be a number between 0 and 1.")
+
+            # PREDICT
+            if self.t_value and not self.t_value.isdigit():
+                errors.append("t_value must be an integer.")
+
+            if self.shap_show and not self.shap_show.isdigit():
+                errors.append("shap_show must be an integer.")
+
+            if self.pfi_show and not self.pfi_show.isdigit():
+                errors.append("pfi_show must be an integer.")
+
+            if errors:
+                QMessageBox.warning(self, "Invalid Parameters", "\n".join(errors))
+                return False
+
+            return True
+
+        if check_variables(self):  # Check if the parameters are valid
+            self.console_output.clear()
+            self.progress.setRange(0, 0)  # Indeterminate progress
+            self.worker = RobertWorker(command, os.getcwd())
+            self.worker.output_received.connect(self.console_output.append)
+            self.worker.error_received.connect(self.console_output.append)
+            self.worker.process_finished.connect(self.on_process_finished)
+            self.worker.start()
+        else:
+            # Reset the buttons and progress bar
+            self.run_button.setDisabled(False)
+            self.stop_button.setDisabled(True)
+            self.progress.setRange(0, 100)
+            self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
+
+    def stop_robert(self):
         """Stops the ROBERT process safely after user confirmation."""
         
         confirmation = QMessageBox.question(
@@ -2193,47 +2001,12 @@ class EasyROB(QMainWindow):
 
         self.manual_stop = True
 
-        # Check and stop the multiprocessing-based worker
-        if self.worker and hasattr(self.worker, 'process') and self.worker.process.is_alive():
-            self.worker.stop()  # Calls .terminate() on the process
+        if self.worker and self.worker.isRunning():
+            self.worker.stop()  
+            self.worker.wait()
             self.worker = None
             self.on_process_finished(-1)
 
-    # def stop_robert(self):
-    #     """Stops the ROBERT process safely after user confirmation."""
-        
-    #     # Confirmation dialog
-    #     confirmation = QMessageBox.question(
-    #         self, 
-    #         "WARNING!", 
-    #         "Are you sure you want to stop ROBERT?",
-    #         QMessageBox.Yes | QMessageBox.No, 
-    #         QMessageBox.No
-    #     )
-
-    #     # If user selects "No", do nothing and return
-    #     if confirmation == QMessageBox.No:
-    #         return  
-        
-    #     # Set the flag for manual stop
-    #     self.manual_stop = True
-
-    #     # --- Proceed to stop the process ---
-    #     if self.worker and self.worker.isRunning():
-    #         self.worker.terminate()  # Stop the QThread with ROBERT process
-    #         self.worker.wait()  # Ensure thread cleanup before setting to None
-    #         self.worker = None  # Cleanup after 
-    #         self.on_process_finished(-1)  # Call cleanup function
-
-    # def handle_stdout(self):
-    #     """ Handles the output of the ROBERT process. """
-    #     output = self.process.readAllStandardOutput().data().decode("utf-8")
-    #     self.console_output.append(output)
-
-    # def handle_stderr(self):
-    #     """ Handles the error output of the ROBERT process. """
-    #     error_output = self.process.readAllStandardError().data().decode("utf-8")
-    #     self.console_output.append(error_output)
     @Slot(int)
     def on_process_finished(self, exit_code):
         """Handles the cleanup after the ROBERT process finishes."""
@@ -2245,7 +2018,7 @@ class EasyROB(QMainWindow):
 
         # Clean up the worker process
         if self.worker:
-            if self.worker.process and self.worker.process.is_alive():
+            if self.worker.process and self.worker.process.poll() is None:
                 self.worker.stop()
             self.worker = None
 
@@ -2304,96 +2077,21 @@ class EasyROB(QMainWindow):
         # Final cleanup
         self.manual_stop = False
 
-    # @Slot(int, QProcess.ExitStatus)
-    # def on_process_finished(self, exit_code):
-    #     """Handles the cleanup after the ROBERT process finishes."""
-
-    #     # Reset the buttons and progress bar
-    #     self.run_button.setDisabled(False)
-    #     self.stop_button.setDisabled(True)
-    #     self.progress.setRange(0, 100)
-
-    #     # Clean up
-    #     if self.worker:
-    #         if self.worker.process and self.worker.process.is_alive():
-    #             self.worker.stop()
-    #         self.worker = None
-
-    #     # Check if the ROBERT process was stopped manually  
-    #     #Check console output for success message
-    #     if not self.manual_stop and self.workflow_selector.currentText() == "Full Workflow" or self.workflow_selector.currentText() == "REPORT":
-    #         if exit_code == 0 and "o  ROBERT_report.pdf was created successfully in the working directory!" in self.console_output.toPlainText():
-    #             msg_box = QMessageBox(self)
-    #             msg_box.setIcon(QMessageBox.Information)
-    #             msg_box.setWindowTitle("Success!")
-    #             msg_box.setText("ROBERT has completed successfully.")
-
-    #             # Add custom "View Report" button
-    #             view_report_button = QPushButton("View Report PDF")
-    #             with as_file(files("robert") / "icons" / "pdf_icon.png") as icon_path:
-    #                 view_report_button.setIcon(QIcon(str(icon_path)))             
-    #             msg_box.addButton(view_report_button, QMessageBox.ActionRole)
-
-    #             # Add "OK" button 
-    #             msg_box.addButton("OK", QMessageBox.AcceptRole)
-
-    #             # Connect view_report_button to show results tab
-    #             view_report_button.clicked.connect(lambda: self.tab_widget.setCurrentWidget(self.tab_widget_results))
-
-    #             msg_box.exec()
-
-    #         else:
-    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
-
-    #     # If the process was launched for a specific workflow, update the dropdown to the next step
-    #     if self.workflow_selector.currentText() == "CURATE":
-    #             if exit_code == 0 and "Time CURATE: " in self.console_output.toPlainText():
-    #                 QMessageBox.information(self, "Success", "ROBERT has successfully completed the CURATE step.")
-    #             else:
-    #                 QMessageBox.warning(self, "WARNING!","ROBERT encountered an issue while finishing. Please check the logs.")
-
-    #     if self.workflow_selector.currentText() == "GENERATE":
-    #         if exit_code == 0 and "Time GENERATE: " in self.console_output.toPlainText():
-    #             QMessageBox.information(self, "Success", "ROBERT has successfully completed the GENERATE step.")
-    #         else:
-    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
-
-    #     if self.workflow_selector.currentText() == "PREDICT":
-    #         if exit_code == 0 and "Time PREDICT: " in self.console_output.toPlainText():
-    #             QMessageBox.information(self, "Success", "ROBERT has successfully completed the PREDICT step.")
-    #         else:
-    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
-
-    #     if self.workflow_selector.currentText() == "VERIFY":
-    #         if exit_code == 0 and "Time VERIFY: " in self.console_output.toPlainText():
-    #             QMessageBox.information(self, "Success", "ROBERT has successfully completed the VERIFY step.")
-    #         else:
-    #             QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")
-
-    #     # Show message box for stopping   
-    #     if exit_code == -1:
-    #         self.console_output.clear()  # Clear the console output
-    #         QMessageBox.information(self, "WARNING!", "ROBERT has been successfully stopped.")
-             
-    #     # Reset the manual stop flag after the process is finished
-    #     self.manual_stop = False
-
 class DropLabel(QFrame):
-    """A widget for file selection via drag-and-drop or browsing. Can be configured for different file types."""
-
+    """A custom QLabel that accepts file drops and opens a file dialog."""
     def __init__(self, text, parent=None, file_filter="CSV Files (*.csv)", extensions=(".csv",)):
         super().__init__(parent)
-        
+
         self.file_filter = file_filter
         self.valid_extensions = extensions
         self.setAcceptDrops(True)
-        self.callback = None  
+        self.callback = None
+        self.full_file_path = None
 
         self.setStyleSheet("font-size: 14px; border: none;")
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
 
-        # --- Instruction Label with Border ---
         self.label = QLabel(text, self)
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setStyleSheet("""
@@ -2404,42 +2102,41 @@ class DropLabel(QFrame):
             border: 2px dashed gray; 
             padding: 5px;
             border-radius: 5px;
-        """)  
+        """)
         self.layout.addWidget(self.label, alignment=Qt.AlignCenter)
 
-        # --- Browse Button ---
         self.browse_button = QPushButton("Browse", self)
         self.browse_button.clicked.connect(self.open_file_dialog)
-        self.browse_button.setFixedSize(120, 30)  
+        self.browse_button.setFixedSize(120, 30)
         self.browse_button.setStyleSheet(
             "padding: 6px 12px; font-size: 14px; border-radius: 5px; background-color: #555; color: white; border: 1px solid #777;"
         )
         self.layout.addWidget(self.browse_button, alignment=Qt.AlignCenter)
 
     def set_callback(self, callback):
-        """Sets the callback function to be called when a file is selected."""
+        """Set the callback function to be called with the file path."""
         self.callback = callback
 
     def set_file_type(self, file_filter, extensions):
-        """Allows changing file type after creation (e.g. for .csv or .sdf)."""
+        """Set the file type for the file dialog."""
         self.file_filter = file_filter
         self.valid_extensions = extensions
 
     def open_file_dialog(self):
-        """Opens file dialog to select a file based on current filter."""
+        """Open a file dialog to select a file."""
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "", self.file_filter)
         if file_path and self.callback:
             self.set_file_path(file_path)
 
     def dragEnterEvent(self, event):
-        """Handles drag event to check if file is valid."""
+        """Allow dropping files."""
         if event.mimeData().hasUrls():
             event.accept()
         else:
             event.ignore()
 
     def dropEvent(self, event):
-        """Handles dropped file selection."""
+        """Handle dropped files."""
         urls = event.mimeData().urls()
         if urls:
             file_path = urls[0].toLocalFile()
@@ -2449,109 +2146,90 @@ class DropLabel(QFrame):
                 self.label.setText("⚠ Invalid file format.")
 
     def set_file_path(self, file_path):
-        """Updates only the DropLabel text, keeping the title unchanged."""
-        self.label.setText(f"Selected: {os.path.basename(file_path)}")
+        """Sets the file path and updates the label."""
+        self.full_file_path = file_path
+        file_name = Path(file_path).name
+        self.label.setText(f"Selected: {file_name}")
+        self.label.setToolTip(file_path) 
         if self.callback:
             self.callback(file_path)
 
     def setText(self, text):
-        """Updates the label text inside DropLabel."""
+        """Sets the label text."""
         self.label.setText(text)
 
-# class RobertWorker(QThread):
-#     """A QThread that runs a subprocess asynchronously and streams real-time output."""
+class RobertWorker(QThread):
+    """A QThread that runs a subprocess asynchronously and streams real-time output."""
 
-#     output_received = Signal(str)
-#     error_received = Signal(str)
-#     process_finished = Signal(int)
+    output_received = Signal(str)
+    error_received = Signal(str)
+    process_finished = Signal(int)
 
-#     def __init__(self, command, working_dir=None):
-#         super().__init__()
-#         self.command = command
-#         self.working_dir = working_dir
-#         self.process = None
-#         self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Ensures dark mode support
+    def __init__(self, command, working_dir=None):
+        super().__init__()
+        self.command = command
+        self.working_dir = working_dir
+        self.process = None
+        self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Ensures dark mode support
+        self.is_windows = platform.system() == "Windows"
 
-#     def run(self):
-#         """Runs the subprocess and streams output line by line in real-time with ANSI support."""
-#         self.process = subprocess.Popen(
-#             shlex.split(self.command),
-#             cwd=self.working_dir,
-#             stdout=subprocess.PIPE,
-#             stderr=subprocess.PIPE,
-#             text=True,
-#             bufsize=1,
-#             universal_newlines=True
-#         )
 
-#         # Read output in real-time and convert ANSI to HTML for read correctly console
-#         with self.process.stdout:
-#             for line in iter(self.process.stdout.readline, ''):
-#                 formatted_line = self.ansi_converter.convert(line.strip(), full=False)
-#                 self.output_received.emit(formatted_line)
+    def run(self):
+        """Runs the subprocess and streams output line by line in real-time with ANSI support."""
+        if self.is_windows:
+            self.process = subprocess.Popen(
+                shlex.split(self.command),
+                cwd=self.working_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+            )
+        else:
+            self.process = subprocess.Popen(
+                shlex.split(self.command),
+                cwd=self.working_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+                preexec_fn=os.setsid
+            )
 
-#         with self.process.stderr:
-#             for line in iter(self.process.stderr.readline, ''):
-#                 formatted_line = f'<span style="color:red;">{line.strip()}</span>'
-#                 self.error_received.emit(formatted_line)  # Display errors in red
+        # Read output in real-time and convert ANSI to HTML for read correctly console
+        with self.process.stdout:
+            for line in iter(self.process.stdout.readline, ''):
+                formatted_line = self.ansi_converter.convert(line.strip(), full=False)
+                self.output_received.emit(formatted_line)
 
-#         self.process.wait()
-#         self.process_finished.emit(self.process.returncode)
+        with self.process.stderr:
+            for line in iter(self.process.stderr.readline, ''):
+                formatted_line = f'<span style="color:red;">{line.strip()}</span>'
+                self.error_received.emit(formatted_line)  # Display errors in red
 
-#     def stop(self):
-#         """Stops the subprocess."""
-#         if self.process:
-#             self.process.kill()
-#             self.process = None
+        self.process.wait()
+        self.process_finished.emit(self.process.returncode)
 
-# class RobertWorkerExe(QThread):
-#     """A QThread that runs ROBERT internally (without subprocess) and streams real-time output."""
+    def stop(self):
+        """Stops the subprocess and its children."""
+        if not self.process:
+            return
 
-#     output_received = Signal(str)
-#     error_received = Signal(str)
-#     process_finished = Signal(int)
+        try:
+            if self.is_windows:
+                self.process.send_signal(signal.CTRL_BREAK_EVENT)
+                if self.process.poll() is None:
+                    self.process.kill()
+            else:
+                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
+        except Exception as e:
+            print(f"Error stopping process: {e}")
+        finally:
+            self.process = None
 
-#     def __init__(self, sys_args):
-#         super().__init__()
-#         self.sys_args = sys_args
-#         self._stop_requested = False
-
-#     def run(self):
-#         """Runs the ROBERT workflow directly and streams output."""
-
-#         class StreamRedirect:
-#             """Redirects stdout and stderr to PyQt signals."""
-#             def __init__(self, signal):
-#                 self.signal = signal
-#             def write(self, msg):
-#                 self.signal.emit(msg.strip())
-#             def flush(self):
-#                 pass
-
-#         # keep original stdout and stderr
-#         original_stdout = sys.stdout
-#         original_stderr = sys.stderr
-#         sys.stdout = StreamRedirect(self.output_received)
-#         sys.stderr = StreamRedirect(self.error_received)
-
-#         try:
-#             # Import the main function from the robert module
-#             main("exe", self.sys_args)
-#             self.process_finished.emit(0)
-
-#         except Exception as e:
-#             tb = traceback.format_exc()
-#             self.output_received.emit(f"[EXCEPTION] {str(e)}\n{tb}")
-#             self.process_finished.emit(1)
-
-#         finally:
-#             sys.stdout = original_stdout
-#             sys.stderr = original_stderr
-
-#     def stop(self):
-#         """Sets the stop flag and terminates the thread (forcefully)."""
-#         self._stop_requested = True
-#         self.terminate()
 def robert_target(queue_out, queue_err, sys_args):
     """Target function for the ROBERT process in a separate process."""
     class StreamToQueue:
@@ -2572,59 +2250,12 @@ def robert_target(queue_out, queue_err, sys_args):
         queue_err.put(traceback.format_exc())
         queue_out.put("__FINISHED_ERROR__")
 
-class RobertWorkerProcess(QObject):
-    """A QObject that runs a subprocess (ROBERT) asynchronously and streams real-time output."""
-    output_received = Signal(str)
-    error_received = Signal(str)
-    process_finished = Signal(int)
-
-    def __init__(self, sys_args):
-        super().__init__()
-        self.sys_args = sys_args
-        self.process = None
-        self.queue_out = None
-        self.queue_err = None
-        self._finished_code = None  # to defer emit until all output is captured
-
-    def run(self):
-        self.queue_out = Queue()
-        self.queue_err = Queue()
-        self.process = Process(target=robert_target, args=(self.queue_out, self.queue_err, self.sys_args))
-        self.process.start()
-        QTimer.singleShot(10, self._poll_output)
-
-    def _poll_output(self):
-        # Get all standard output
-        while not self.queue_out.empty():
-            msg = self.queue_out.get()
-            if msg == "__FINISHED_OK__":
-                self._finished_code = 0
-            elif msg == "__FINISHED_ERROR__":
-                self._finished_code = 1
-            else:
-                self.output_received.emit(msg)
-
-        # Get all error output
-        while not self.queue_err.empty():
-            self.error_received.emit(self.queue_err.get())
-
-        # If process is finished and queues are empty, emit final signal
-        if self._finished_code is not None and self.queue_out.empty() and self.queue_err.empty():
-            self.process_finished.emit(self._finished_code)
-        else:
-            QTimer.singleShot(10, self._poll_output)
-
-    def stop(self):
-        if self.process and self.process.is_alive():
-            self.process.terminate()
-            self.process.join()
-
 class ChemDrawFileDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Select ChemDraw Files")
         self.setMinimumWidth(500)
-        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
+        self.setWindowFlags(Qt.Dialog | Qt.MSWindowsFixedSizeDialogHint)
         self.setSizeGripEnabled(True)
 
         self.main_chemdraw_path = None
@@ -2640,13 +2271,20 @@ class ChemDrawFileDialog(QDialog):
 
         # Required file
         self.main_label = DropLabel(
-            "Drag & Drop a main .sdf or .cdxml file here",
+            "Drag & Drop a main .sdf, .cdxml, .mol or .cdx file here",
             self,
-            file_filter="ChemDraw Files (*.sdf *.cdxml *.mol)",
-            extensions=(".sdf", ".cdxml", ".mol")
+            file_filter="ChemDraw Files (*.sdf *.cdxml *.mol *.cdx)",
+            extensions=(".sdf", ".cdxml", ".mol", ".cdx")
         )
         self.main_label.set_callback(self.set_main_file)
         layout.addWidget(self.main_label)
+
+        # Static warning message for user awareness
+        self.warning_label = QLabel("⚠️ The file should only contain molecular structures without associated names.")
+        self.warning_label.setStyleSheet("color: red; font-weight: bold;")
+        self.warning_label.setWordWrap(True)
+        self.warning_label.setAlignment(Qt.AlignCenter)  # Center the text
+        layout.addWidget(self.warning_label)
 
         # Continue button
         self.continue_button = QPushButton("Continue")

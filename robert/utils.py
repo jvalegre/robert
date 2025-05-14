@@ -2624,6 +2624,7 @@ def load_dfs(self,folder_model,module,sanity_check=False,print_info=True):
         path_db = f"{Path(os.getcwd()).joinpath(folder_model)}"
     if os.path.exists(path_db):
         csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
+        csv_files.sort(key=lambda f: f.endswith('_db.csv')) # sort the database file to be the last one, depending on the OS was taking first the dabatase and then the parameters
         for csv_file in csv_files:
             if csv_file.endswith('_db.csv'):
                 if not sanity_check:

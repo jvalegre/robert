@@ -46,7 +46,8 @@ setup(
         "weasyprint==63.1",
         "PySide6",
         "PyMuPDF",
-        "ansi2html"
+        "ansi2html",
+        "rdkit==2024.3.3"
     ],
     python_requires=">=3.10",
     include_package_data=True,

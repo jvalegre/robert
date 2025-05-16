@@ -1,0 +1,14 @@
+name: easyrob_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - qt-main
+  - qt-webengine
+  - rdkit
+  - pip
+  - pyinstaller=6.12
+  - pip:
+      - PySide6
+      - PyMuPDF
+      - ansi2html

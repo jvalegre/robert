@@ -33,8 +33,59 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent
 from PySide6.QtCore import (Qt, Slot, QThread, Signal, QTimer, QUrl)
 
-from robert.robert import main
 os.environ["QT_QUICK_BACKEND"] = "software"
+
+class AssetPath:
+    """
+    A class to manage and retrieve the file path of an asset.
+    Attributes:
+        _filename (str): The name of the file for which the path is managed.
+    Methods:
+        get_path():
+            Retrieves the full path to the asset file. If the application is
+            running in a frozen state (e.g., packaged with PyInstaller), it
+            constructs the path relative to the current working directory.
+            Otherwise, it retrieves the path using the importlib.resources API.
+    """
+    def __init__(self,filename):
+        self._filename = filename
+    
+    def get_path(self):
+        """
+        Retrieves the file path to the icon file associated with the current instance.
+
+        If the application is running in a frozen state (e.g., packaged with PyInstaller),
+        the method constructs the path relative to the current working directory. Otherwise,
+        it uses the `importlib.resources` module to locate the file within the package.
+
+        Returns:
+            Path: The resolved file path to the icon file.
+        """
+        if getattr(sys,"frozen",False):
+            return Path.cwd()/"_internal"/"robert_env"/"Lib"/"site-packages"/"robert"/"icons"/ self._filename
+        else:
+            return as_file(files("robert") / "icons" / self._filename)
+        
+class AssetLibrary:
+    """
+    AssetLibrary is a class that provides a centralized collection of asset paths 
+    used in the application. Each attribute represents a specific asset, such as 
+    icons or logos, and is initialized using the AssetPath function.
+
+    Attributes:
+        Info_icon (AssetPath): Path to the "info_icon.png" asset.
+        Robert_logo_transparent (AssetPath): Path to the "Robert_logo_transparent.png" asset.
+        Robert_icon (AssetPath): Path to the "Robert_icon.png" asset.
+        Play_icon (AssetPath): Path to the "play_icon.png" asset.
+        Stop_icon (AssetPath): Path to the "stop_icon.png" asset.
+        Pdf_icon (AssetPath): Path to the "pdf_icon.png" asset.
+    """
+    Info_icon = AssetPath("info_icon.png")
+    Robert_logo_transparent = AssetPath("Robert_logo_transparent.png")
+    Robert_icon = AssetPath("Robert_icon.png")
+    Play_icon = AssetPath("play_icon.png")
+    Stop_icon = AssetPath("stop_icon.png")
+    Pdf_icon = AssetPath("pdf_icon.png")
 
 class AQMETab(QWidget):
     def __init__(self, tab_parent=None, main_window=None, help_tab=None, web_view=None):
@@ -144,7 +195,7 @@ class AQMETab(QWidget):
 
         # Help button
         help_button = QPushButton("Help AQME parameters")
-        with as_file(files("robert") / "icons" / "info_icon.png") as icon_path:
+        with AssetLibrary.Info_icon.get_path() as icon_path:
             help_button.setIcon(QIcon(str(icon_path)))
 
         help_button.setCursor(Qt.PointingHandCursor)
@@ -633,7 +684,7 @@ class AdvancedOptionsTab(QWidget):
         button = QPushButton(f"Help {topic.upper()} parameters")
 
         # Load icon using importlib.resources
-        with as_file(files("robert") / "icons" / "info_icon.png") as icon_path:
+        with AssetLibrary.Info_icon.get_path() as icon_path:
             button.setIcon(QIcon(str(icon_path)))
 
         button.setCursor(Qt.PointingHandCursor)
@@ -1137,7 +1188,7 @@ class EasyROB(QMainWindow):
         self.tab_widget.addTab(scroll_area, "ROBERT")
 
         # --- Add logo with frame ---
-        with as_file(files("robert") / "icons" / "Robert_logo_transparent.png") as path_logo:
+        with AssetLibrary.Robert_logo_transparent.get_path() as path_logo:
             pixmap = QPixmap(str(path_logo))
             scaled_pixmap = pixmap.scaled(400, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
@@ -1153,7 +1204,7 @@ class EasyROB(QMainWindow):
             main_layout.addWidget(logo_frame, alignment=Qt.AlignCenter)
 
         # --- Set window icon ---
-        with as_file(files("robert") / "icons" / "Robert_icon.png") as path_icon:
+        with AssetLibrary.Robert_icon.get_path() as path_icon:
             self.setWindowIcon(QIcon(str(path_icon)))
 
         # --- Input CSV File (Required) ---
@@ -1322,7 +1373,7 @@ class EasyROB(QMainWindow):
         self.run_button = QPushButton(" Run ROBERT")
         self.run_button.setFixedSize(200, 40)  # Adjust button size
 
-        with as_file(files("robert") / "icons" / "play_icon.png") as icon_play_path:
+        with AssetLibrary.Play_icon.get_path() as icon_play_path:
             self.run_button.setIcon(QIcon(str(icon_play_path)))
 
         # Apply button styling
@@ -1352,7 +1403,7 @@ class EasyROB(QMainWindow):
         self.stop_button = QPushButton("Stop ROBERT")
         self.stop_button.setFixedSize(200, 40)
 
-        with as_file(files("robert") / "icons" / "stop_icon.png") as icon_stop_path:
+        with AssetLibrary.Stop_icon.get_path() as icon_stop_path:
             self.stop_button.setIcon(QIcon(str(icon_stop_path)))
 
         self.stop_button.setDisabled(True)  # Initially disabled
@@ -1671,9 +1722,21 @@ class EasyROB(QMainWindow):
         else:
             selected_file_path = self.file_path
 
+        python_pointer = "python"
+
+        if getattr(sys,"frozen", False):
+            embeded_env = Path.cwd()/"_internal"/"robert_env"
+            match sys.platform:
+                case("win32"):
+                    python_pointer = embeded_env/"python.exe"
+                case("linux"): 
+                    python_pointer = embeded_env/"bin"/"python"
+                case("darwin"):
+                    python_pointer = embeded_env/"bin"/"python3"
+        
         # Build the base command.
         command = (
-            f'python -u -m robert --csv_name "{os.path.basename(selected_file_path)}" '
+            f'"{python_pointer}" -u -m robert --csv_name "{os.path.basename(selected_file_path)}" '
             f'--y "{self.y_dropdown.currentText()}" '
             f'--names "{self.names_dropdown.currentText()}"'
         )
@@ -2041,7 +2104,7 @@ class EasyROB(QMainWindow):
                 msg_box.setText("ROBERT has completed successfully.")
 
                 view_report_button = QPushButton("View Report PDF")
-                with as_file(files("robert") / "icons" / "pdf_icon.png") as icon_path:
+                with AssetLibrary.Pdf_icon.get_path() as icon_path:
                     view_report_button.setIcon(QIcon(str(icon_path)))
                 msg_box.addButton(view_report_button, QMessageBox.ActionRole)
                 msg_box.addButton("OK", QMessageBox.AcceptRole)
@@ -2230,6 +2293,7 @@ class RobertWorker(QThread):
         finally:
             self.process = None
 
+#TODO por
 def robert_target(queue_out, queue_err, sys_args):
     """Target function for the ROBERT process in a separate process."""
     class StreamToQueue:

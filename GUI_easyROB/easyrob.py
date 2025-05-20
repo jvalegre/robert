@@ -234,7 +234,9 @@ class AQMETab(QWidget):
         """Detects patterns in the loaded CSV and displays the first molecule."""
 
         try:
+           
             self.csv_df = pd.read_csv(self.file_path) # Store the DataFrame for later use
+            self.smiles_column = next((col for col in self.csv_df.columns if col.lower() == "smiles"), None)
 
             # === Auto SMARTS detection ===
             self.auto_pattern()
@@ -261,12 +263,11 @@ class AQMETab(QWidget):
         self.smarts_targets = []
 
         try:
-            self.csv_df = pd.read_csv(self.file_path)
-            if 'SMILES' not in self.csv_df.columns:
+            if self.smiles_column is None:
                 raise ValueError("CSV must have a SMILES column")
 
             mol_list = []
-            for smi in self.csv_df['SMILES'].dropna():
+            for smi in self.csv_df[self.smiles_column].dropna():
 
                 mol = Chem.MolFromSmiles(smi)
                 mol_list_with_Hs = Chem.AddHs(mol) 
@@ -315,7 +316,7 @@ class AQMETab(QWidget):
                 return
 
             # Check for multiple matches in the dataset
-            for smiles in self.csv_df["SMILES"]:
+            for smiles in self.csv_df[self.smiles_column]:
                 mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
                 if mol is None:
                     continue
@@ -392,7 +393,7 @@ class AQMETab(QWidget):
         self.generate_mapped_smiles(
             self.smarts_targets[0],
             self.selected_atoms,
-            self.csv_df['SMILES'].dropna()
+            self.csv_df[self.smiles_column].dropna()
         )
 
     def generate_mapped_smiles(self, smarts_pattern, selected_pattern_indices, smiles_list):
@@ -439,7 +440,7 @@ class AQMETab(QWidget):
         # Replace SMILES column in CSV
         df = pd.read_csv(self.file_path)
         df_mapped = df.copy()
-        df_mapped["SMILES"] = mapped_smiles
+        df_mapped[self.smiles_column] = mapped_smiles
         self.df_mapped_smiles = df_mapped
 
 
@@ -898,30 +899,47 @@ class AdvancedOptionsTab(QWidget):
         return box
 
 class ResultsTab(QWidget):
-    """Tab for displaying results dynamically as PDFs are generated."""
-    def __init__(self, main_tab_widget):
+    def __init__(self, main_tab_widget, file_path):
         super().__init__()
-        
-        self.main_tab_widget = main_tab_widget  # Reference to the main QTabWidget
-        self.pdf_tabs = {}  # Store open PDF tabs
 
-        # Timer to check for new PDFs every 2 seconds
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.check_for_pdfs)
-        self.timer.start(2000)
+        self.main_tab_widget = main_tab_widget
+        self.base_path = os.path.dirname(file_path)
+        self.pdf_tabs = {}
 
-        self.check_for_pdfs()  # Initial check
+        # Internal tab widget for PDF files
+        self.pdf_tab_widget = QTabWidget()
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.pdf_tab_widget)
+        self.setLayout(layout)
+
+        # Check for existing PDFs 
+        self.check_for_pdfs()
+
+    def refresh_with_new_path(self, file_path):
+        """Updates the path and reloads PDF tabs."""
+        self.base_path = os.path.dirname(file_path)
+        self.clear_pdf_tabs()
+        self.check_for_pdfs()
+
+    def clear_pdf_tabs(self):
+        """Remove all existing PDF tabs."""
+        for pdf_viewer in self.pdf_tabs.values():
+            index = self.pdf_tab_widget.indexOf(pdf_viewer)
+            if index != -1:
+                self.pdf_tab_widget.removeTab(index)
+        self.pdf_tabs.clear()
 
     def check_for_pdfs(self):
         """Checks for new PDFs and updates the UI dynamically."""
-        pdf_files = sorted(glob.glob("ROBERT_report*.pdf"))  # Detect PDFs
+        pdf_pattern = os.path.join(self.base_path, "ROBERT_report*.pdf")
+        pdf_files = sorted(glob.glob(pdf_pattern))
 
         # Remove missing PDFs
         for pdf in list(self.pdf_tabs.keys()):
             if pdf not in pdf_files:
-                index = self.main_tab_widget.indexOf(self.pdf_tabs[pdf])
+                index = self.pdf_tab_widget.indexOf(self.pdf_tabs[pdf])
                 if index != -1:
-                    self.main_tab_widget.removeTab(index)
+                    self.pdf_tab_widget.removeTab(index)
                 del self.pdf_tabs[pdf]
 
         # Add new PDFs as tabs
@@ -930,11 +948,11 @@ class ResultsTab(QWidget):
                 self.add_pdf_tab(pdf)
 
     def add_pdf_tab(self, pdf_path):
-        """Creates a new tab displaying the PDF."""
+        """Creates a new internal tab displaying the PDF."""
         pdf_viewer = PDFViewer(pdf_path)
-        index = self.main_tab_widget.addTab(pdf_viewer, pdf_path.split("/")[-1])
+        index = self.pdf_tab_widget.addTab(pdf_viewer, os.path.basename(pdf_path))
         self.pdf_tabs[pdf_path] = pdf_viewer
-        self.main_tab_widget.setCurrentIndex(index)
+        self.pdf_tab_widget.setCurrentIndex(index)
 
 class PDFViewer(QWidget):
     """Widget to display a PDF inside a scrollable area."""
@@ -980,31 +998,39 @@ class PDFViewer(QWidget):
 
 class ImagesTab(QWidget):
     """Images tab for displaying images from multiple folders as results of Robert workflow."""
-    
-    def __init__(self, main_tab_widget, image_folders):
+
+    def __init__(self, main_tab_widget, image_folders, file_path):
         super().__init__()
 
-        self.main_tab_widget = main_tab_widget  # Reference to the main QTabWidget
-        self.image_folders = image_folders  # List of folders to monitor
-        self.folder_widgets = {}  # Dictionary to store folder tabs
+        self.main_tab_widget = main_tab_widget
+        self.image_folders = image_folders
+        self.base_path = os.path.dirname(file_path)
+        self.folder_widgets = {}
 
-        # Create the QTabWidget for sub-tabs inside "Images"
         self.folder_tabs = QTabWidget()
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(self.folder_tabs)
         self.setLayout(self.layout)
 
-        # Timer to check for new images every 2 seconds
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.check_for_images)
-        self.timer.start(2000)
+        self.check_for_images()
 
-        self.check_for_images()  # Initial check
+    def refresh_with_new_path(self, file_path):
+        """Update image base path and refresh image tabs."""
+        self.base_path = os.path.dirname(file_path)
+        self.clear_image_tabs()
+        self.check_for_images()
+
+    def clear_image_tabs(self):
+        """Clear all image folders and their widgets."""
+        for i in reversed(range(self.folder_tabs.count())):
+            widget = self.folder_tabs.widget(i)
+            if widget:
+                widget.deleteLater()
+            self.folder_tabs.removeTab(i)
+        self.folder_widgets.clear()
 
     def check_for_images(self):
-        """Dynamically updates sub-tabs based on image folders with custom names and order."""
-
-        # Define custom names and order for folders
+        """Scan folders and update tabs with new images."""
         folder_names = {
             "CURATE": "CURATE",
             "GENERATE/Raw_data": "GENERATE",
@@ -1012,57 +1038,44 @@ class ImagesTab(QWidget):
             "VERIFY": "VERIFY",
         }
 
-        # Define the exact order of the tabs
-        folder_order = [ "CURATE", "GENERATE/Raw_data","PREDICT", "VERIFY",]
+        folder_order = ["CURATE", "GENERATE/Raw_data", "PREDICT", "VERIFY"]
 
-        # Loop through folders in the defined order
         for folder in folder_order:
-            if not os.path.exists(folder):
-                continue  # Skip if the folder doesn't exist
+            full_folder_path = os.path.join(self.base_path, folder)
+            if not os.path.exists(full_folder_path):
+                continue
 
-            image_files = sorted(glob.glob(os.path.join(folder, "*.[pjg][np][g]")))  # Detect images
+            image_files = sorted(glob.glob(os.path.join(full_folder_path, "*.[pjg][np][g]")))
 
-            # If the folder does not have a tab, create one
             if folder not in self.folder_widgets:
                 folder_widget = QWidget()
                 folder_layout = QVBoxLayout(folder_widget)
                 scroll_area = QScrollArea()
                 scroll_area.setWidgetResizable(True)
 
-                # Grid layout for images
                 image_grid = QGridLayout()
                 container = QWidget()
                 container.setLayout(image_grid)
                 scroll_area.setWidget(container)
                 folder_layout.addWidget(scroll_area)
-
                 folder_widget.setLayout(folder_layout)
 
-                # Get the custom name for the tab
-                tab_name = folder_names.get(folder, os.path.basename(folder))  # Default to folder name if not found
-
-                # Add tab with custom name
+                tab_name = folder_names.get(folder, os.path.basename(folder))
                 self.folder_tabs.addTab(folder_widget, tab_name)
-
-                # Store reference for later updates
                 self.folder_widgets[folder] = image_grid
 
-            # Retrieve the image grid for the corresponding folder tab
             image_grid = self.folder_widgets[folder]
 
-            # Remove previous images before updating
             while image_grid.count():
                 item = image_grid.takeAt(0)
                 if item.widget():
                     item.widget().deleteLater()
 
-            # Add new images in the grid layout
             row, col = 0, 0
-            max_columns = 3  # Number of images per row
+            max_columns = 3
             for img_path in image_files:
-                image_label = ImageLabel(img_path, size=300)  # Larger image size
+                image_label = ImageLabel(img_path, size=300)
                 image_grid.addWidget(image_label, row, col)
-
                 col += 1
                 if col >= max_columns:
                     col = 0
@@ -1346,6 +1359,7 @@ class EasyROB(QMainWindow):
         # AQME Workflow Checkbox
         self.aqme_workflow = QCheckBox("Enable AQME Workflow") 
         self.aqme_workflow.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.aqme_workflow.stateChanged.connect(self.check_aqme_workflow)
         main_layout.addWidget(self.aqme_workflow)
         main_layout.addSpacing(10)  
 
@@ -1438,7 +1452,36 @@ class EasyROB(QMainWindow):
         # --- Console Output Setup ---
         self.console_output = QTextEdit()
         self.console_output.setReadOnly(True)
-        self.console_output.setStyleSheet("background-color: black; color: white; padding: 5px; font-family: monospace;")
+        self.console_output.setStyleSheet("""
+            QTextEdit {
+                background-color: black;
+                color: white;
+                padding: 5px;
+                font-family: monospace;
+            }
+            QScrollBar:vertical {
+                background: #2e2e2e;
+                width: 12px;
+                margin: 0px 0px 0px 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #5a5a5a;
+                min-height: 20px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #787878;
+            }
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                background: none;
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                background: none;
+            }
+        """)
         self.console_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.console_output.setFixedHeight(275)
 
@@ -1472,8 +1515,8 @@ class EasyROB(QMainWindow):
         # ============
 
         # Results tab (must be created early so others can reference it)
-        self.tab_widget_results = QTabWidget()
-        self.results_tab = ResultsTab(self.tab_widget_results)
+        self.results_tab = QTabWidget()
+        self.results_tab = ResultsTab(self.tab_widget, self.file_path)
 
         # Help tab
         self.help_tab = QWidget()
@@ -1500,7 +1543,7 @@ class EasyROB(QMainWindow):
 
         # Images tab
         self.image_folders = ["PREDICT", "GENERATE/Raw_data", "VERIFY", "CURATE"]
-        self.images_tab = ImagesTab(self.tab_widget, self.image_folders)
+        self.images_tab = ImagesTab(self.tab_widget, self.image_folders, self.file_path)
 
         # ===============================
         # Add Tabs to Tab Widget (Display order)
@@ -1511,75 +1554,93 @@ class EasyROB(QMainWindow):
 
         self.tab_widget.addTab(self.options_tab, "Advanced Options")
         self.tab_widget.addTab(self.help_tab, "Help")
-        self.tab_widget.addTab(self.tab_widget_results, "Results")
+
+        self.tab_widget.addTab(self.results_tab, "Results")
+        self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.results_tab), False)
+
         self.tab_widget.addTab(self.images_tab, "Images")
-
-        # =========================================
-        # Create Independent Timers for Each Check
-        # =========================================
-
-        # PDF Checking Timer
-        self.timer_pdfs = QTimer(self)
-        self.timer_pdfs.timeout.connect(self.check_for_pdfs)
-        self.timer_pdfs.start(2000)
-
-        # Image Checking Timer
-        self.timer_images = QTimer(self)
-        self.timer_images.timeout.connect(self.check_for_images)
-        self.timer_images.start(2000)
-
-        # AQME Checkbox Monitoring Timer
-        self.timer_aqme = QTimer(self)
-        self.timer_aqme.timeout.connect(self.check_aqme_workflow)
-        self.timer_aqme.start(1000)
-
-        # Run initial checks
-        self.check_for_pdfs()
-        self.check_for_images()
+        self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.images_tab), False)
 
     def check_for_images(self):
         """Enable or disable the 'Images' tab based on folder existence."""
-        has_folders = any(os.path.exists(folder) for folder in self.image_folders)
+        if not hasattr(self, 'file_path'):
+            return  # Exit early if file_path is not set
 
-        # Get the index of the "Images" tab
+        run_dir = os.path.dirname(self.file_path)
+
+        has_folders = any(
+            os.path.exists(os.path.join(run_dir, folder)) for folder in self.image_folders
+        )
+
         tab_index = self.tab_widget.indexOf(self.images_tab)
-
-        # Enable or disable the tab based on folder presence
         if tab_index != -1:
             self.tab_widget.setTabEnabled(tab_index, has_folders)
 
     def check_for_pdfs(self):
         """Enable or disable the 'Results' tab based on PDF presence."""
-        has_pdfs = bool(glob.glob("ROBERT_report*.pdf"))
-        self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.tab_widget_results), has_pdfs)
+        if not hasattr(self, 'file_path'):
+            return  # Exit early if file_path is not set
+
+        run_dir = os.path.dirname(self.file_path)
+        pdf_pattern = os.path.join(run_dir, "ROBERT_report*.pdf")
+
+        has_pdfs = bool(glob.glob(pdf_pattern))
+
+        self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.results_tab), has_pdfs)
 
     def check_aqme_workflow(self):
-        """Enable or disable the AQME tab based on the checkbox state (polled every 2 seconds)."""
+        """Enable or disable the AQME tab and refresh its content based on checkbox state and file path."""
         is_checked = self.aqme_workflow.isChecked()
         tab_index = self.tab_widget.indexOf(self.tab_widget_aqme)
 
-        if tab_index != -1:
-            tab_enabled = self.tab_widget.isTabEnabled(tab_index)
+        if tab_index == -1:
+            return
 
-            if is_checked and not tab_enabled:
+        if is_checked:
+            # Enable the AQME tab if not already enabled
+            if not self.tab_widget.isTabEnabled(tab_index):
                 self.tab_widget.setTabEnabled(tab_index, True)
                 self.tab_widget.setCurrentWidget(self.tab_widget_aqme)
                 QMessageBox.information(self, "AQME Tab Enabled", "AQME tab unlocked to specify AQME parameters.")
 
-            # Reset selected atoms if the file path has changed and display the new pattern if there is any
-            if (
-                is_checked and tab_enabled and
-                hasattr(self, 'file_path') and self.file_path and
-                self.file_path != getattr(self, '_last_loaded_file_path', None)
-            ):
+            # Always refresh AQME tab content if file path is available
+            if hasattr(self, 'file_path') and self.file_path:
                 self.tab_widget_aqme.selected_atoms = []
                 self.tab_widget_aqme.file_path = self.file_path
                 self.tab_widget_aqme.detect_patterns_and_display()
                 self._last_loaded_file_path = self.file_path
 
-            elif not is_checked and tab_enabled:
+        else:
+            # Disable the AQME tab if the checkbox is unchecked
+            if self.tab_widget.isTabEnabled(tab_index):
                 self.tab_widget.setTabEnabled(tab_index, False)
 
+    def refresh_tabs(self):
+        """Remove and recreate the Images and Results tabs using the current file_path."""
+
+        # Remove and delete the existing Images tab if it exists
+        if hasattr(self, "images_tab"):
+            index = self.tab_widget.indexOf(self.images_tab)
+            if index != -1:
+                self.tab_widget.removeTab(index)
+            self.images_tab.deleteLater()
+            del self.images_tab
+
+        # Remove and delete the existing Results tab if it exists
+        if hasattr(self, "results_tab"):
+            index = self.tab_widget.indexOf(self.results_tab)
+            if index != -1:
+                self.tab_widget.removeTab(index)
+            self.results_tab.deleteLater()
+            del self.results_tab
+
+        # Recreate the tabs using the current file_path
+        self.images_tab = ImagesTab(self.tab_widget, self.image_folders, self.file_path)
+        self.results_tab = ResultsTab(self.tab_widget, self.file_path)
+
+        self.tab_widget.addTab(self.results_tab, "Results")
+        self.tab_widget.addTab(self.images_tab, "Images")
+            
     def select_file(self):
         """Opens file dialog to select a CSV file."""
         file_path, _ = QFileDialog.getOpenFileName(self, "Select CSV File", "", "CSV Files (*.csv)")
@@ -1593,12 +1654,30 @@ class EasyROB(QMainWindow):
             self.set_csv_test_path(file_path)
 
     def set_file_path(self, file_path):
-        """Sets the path for the input CSV file and updates the label."""
-        self.file_path = file_path  
-        file_name = Path(file_path).name
-        self.file_label.setText(f"Selected: {file_name}")
-        self.file_label.setToolTip(file_path)  
-        self.load_csv_columns()
+        """Sets the path for the input CSV file and updates the interface."""
+        if getattr(self, 'file_path', None) != file_path:
+            self.file_path = file_path
+            file_name = Path(file_path).name
+            self.file_label.setText(f"Selected: {file_name}")
+            self.file_label.setToolTip(file_path)
+            self._last_loaded_file_path = None  # reset 
+
+            self.load_csv_columns()
+
+            # Update tabs with new information
+            self.refresh_tabs()
+
+            # Check for PDFs and images and unlock tabs, also check AQME workflow pattern detection
+            self.check_aqme_workflow()
+            self.check_for_pdfs()
+            self.check_for_images()
+
+            # informatio for "Results" tab and "Images" tab for update the display
+            if hasattr(self, "images_tab") and hasattr(self.images_tab, "refresh_with_new_path"):
+                self.images_tab.refresh_with_new_path(file_path)
+
+            if hasattr(self, "results_tab") and hasattr(self.results_tab, "refresh_with_new_path"):
+                self.results_tab.refresh_with_new_path(file_path)
 
     def set_csv_test_path(self, file_path):
         """Sets the path for the test CSV file and updates the label."""
@@ -1632,18 +1711,20 @@ class EasyROB(QMainWindow):
                 self.ignore_list.clear()
             self.available_list.addItems(columns)  
 
-    def rename_existing_pdf(self, base_filename):
-        """Renames an existing PDF file by adding an incremental number."""
-        if not os.path.exists(base_filename):
+    def rename_existing_pdf(self, base_filename, directory):
+        """Renames an existing PDF file in the given directory by adding an incremental number."""
+        base_path = os.path.join(directory, base_filename)
+
+        if not os.path.exists(base_path):
             return  # No existing file, so nothing to rename
 
         # Find the next available numbered filename
         index = 1
-        while os.path.exists(f"ROBERT_report_{index}.pdf"):
+        while os.path.exists(os.path.join(directory, f"ROBERT_report_{index}.pdf")):
             index += 1
-        
-        new_filename = f"ROBERT_report_{index}.pdf"
-        os.rename(base_filename, new_filename)
+
+        new_path = os.path.join(directory, f"ROBERT_report_{index}.pdf")
+        os.rename(base_path, new_path)
 
     def run_robert(self):
         """Runs the ROBERT workflow with the selected parameters."""
@@ -1651,8 +1732,11 @@ class EasyROB(QMainWindow):
             QMessageBox.warning(self, "WARNING!", "Please select a CSV file, a column for target value, and a name column.")
             return
         
+        # Work directory
+        run_dir = os.path.dirname(self.file_path)
+
         # Check and rename existing "ROBERT_report.pdf" files
-        self.rename_existing_pdf("ROBERT_report.pdf")
+        self.rename_existing_pdf("ROBERT_report.pdf", run_dir)
 
         # Disable the Play button while the process is running
         self.run_button.setDisabled(True)
@@ -1660,7 +1744,7 @@ class EasyROB(QMainWindow):
         
         # Check for leftover workflow folders
         folders_to_check = ["CURATE", "GENERATE", "PREDICT", "VERIFY", "AQME", "CSEARCH", "QDESCP"]
-        existing_folders = [f for f in folders_to_check if os.path.exists(f)]
+        existing_folders = [f for f in folders_to_check if os.path.exists(os.path.join(run_dir, f))]
 
         if existing_folders:
             message = (
@@ -1685,14 +1769,15 @@ class EasyROB(QMainWindow):
             
             # Try deleting the folders
             for folder in existing_folders:
+                folder_path = os.path.join(run_dir, folder)
                 try:
-                    shutil.rmtree(folder)
-                    self.console_output.append(f"[INFO] Deleted folder: {folder}")
+                    shutil.rmtree(folder_path)
+                    self.console_output.append(f"[INFO] Deleted folder: {folder_path}")
                 except Exception as e:
-                    self.console_output.append(f"[ERROR] Could not delete folder '{folder}': {e}, try to delete it manually.")
-                    self.run_button.setDisabled(False) # Re-enable Play button
-                    self.stop_button.setDisabled(True)  # Enable Stop button
-                    return  # Prevent running ROBERT if cleanup fails
+                    self.console_output.append(f"[ERROR] Could not delete folder '{folder_path}': {e}, try to delete it manually.")
+                    self.run_button.setDisabled(False)
+                    self.stop_button.setDisabled(True)
+                    return
                 
         # Save mapped CSV only if available from AQME workflow
         if hasattr(self.tab_widget_aqme, "df_mapped_smiles"):
@@ -1963,8 +2048,10 @@ class EasyROB(QMainWindow):
             # AQME
             if self.aqme_workflow.isChecked():
                 available_columns = [self.available_list.item(i).text() for i in range(self.available_list.count())]
-                if "SMILES" not in available_columns:
-                    errors.append("The column 'SMILES' must be present in CSV file to use AQME Workflow.")
+                lowercase_columns = [col.lower() for col in available_columns]
+
+                if "smiles" not in lowercase_columns:
+                    errors.append("The column 'SMILES' must be present in the CSV file to use the AQME Workflow.")
 
             # CURATE
             if self.desc_thres_value:
@@ -2097,6 +2184,18 @@ class EasyROB(QMainWindow):
         output_text = self.console_output.toPlainText()
         workflow = self.workflow_selector.currentText()
 
+        # Refresh tabs and check state BEFORE showing the message box
+        self.check_for_pdfs()
+        self.check_for_images()
+        self.refresh_tabs()
+
+        if hasattr(self, "images_tab") and hasattr(self.images_tab, "refresh_with_new_path"):
+            self.images_tab.refresh_with_new_path(self.file_path)
+
+        if hasattr(self, "results_tab") and hasattr(self.results_tab, "refresh_with_new_path"):
+            self.results_tab.refresh_with_new_path(self.file_path)
+
+        # Check for successful completion
         if not self.manual_stop and (workflow == "Full Workflow" or workflow == "REPORT"):
             if exit_code == 0 and "ROBERT_report.pdf was created successfully" in output_text:
                 msg_box = QMessageBox(self)
@@ -2109,7 +2208,7 @@ class EasyROB(QMainWindow):
                     view_report_button.setIcon(QIcon(str(icon_path)))
                 msg_box.addButton(view_report_button, QMessageBox.ActionRole)
                 msg_box.addButton("OK", QMessageBox.AcceptRole)
-                view_report_button.clicked.connect(lambda: self.tab_widget.setCurrentWidget(self.tab_widget_results))
+                view_report_button.clicked.connect(lambda: self.tab_widget.setCurrentWidget(self.results_tab))
                 msg_box.exec()
             else:
                 QMessageBox.warning(self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs.")

@@ -10,6 +10,17 @@ setup_logger()
 
 log = logging.getLogger("easyrob_build")
 pyInstaller_log = logging.getLogger("pyinstaller_logger")
+conda_pack_log = logging.getLogger("condapack_logger")
+
+
+def deactivate_env():
+    try:
+        subprocess.run(
+            ["conda", "deactivate"], capture_output=True, text=True, check=True
+        )
+    except subprocess.CalledProcessError as e:
+        log.error(f"Failed to execute conda command:\n{e}")
+        sys.exit(1)
 
 
 def define_env(env_name: str, yaml_path: Path):
@@ -26,6 +37,7 @@ def define_env(env_name: str, yaml_path: Path):
             response = (
                 input("Do you want to continue using it? [Y/N]: ").strip().lower()
             )
+            log.info(response)
             if response != "y":
                 log.info("Aborted by user.")
                 sys.exit(0)
@@ -94,6 +106,51 @@ def pyinstaller_build(env_name: str, spec_path: Path, dist_dir: Path, work_dir: 
         sys.exit(1)
 
 
+def conda_pack(env_name: str, output_dir: Path):
+    log.info(f"Packing Conda environment '{env_name}' with conda-pack...")
+    log.info("The full packing log will be saved to 'conda-pack.log'.")
+
+    archive_name = f"{env_name}.tar.gz"
+    output_path = output_dir / archive_name
+
+    command = [
+        "conda",
+        "run",
+        "-n",
+        env_name,
+        "conda-pack",
+        "-n",
+        env_name,
+        "-o",
+        str(output_path),
+    ]
+
+    try:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        with process.stdout:
+            for line in process.stdout:
+                conda_pack_log.info(line.rstrip())
+
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, command)
+
+        log.info("Environment packed successfully.")
+        log.info("You can find the archive at: %s", output_dir)
+    except subprocess.CalledProcessError as e:
+        log.error("Conda-pack failed. Check 'conda-pack.log' for details.")
+        log.error(f"Command: {e.cmd}")
+        log.error(f"Return code: {e.returncode}")
+        sys.exit(1)
+
+
 def buildContext(root: Path):
     match sys.platform:
         case "win32":
@@ -113,24 +170,62 @@ def buildContext(root: Path):
     return dist, tmp
 
 
+def build_innosetup_installer(iss_path: Path):
+    log.info("Building installer with Inno Setup...")
+    log.info("The full log will be shown in console output.")
+
+    iscc_path = Path("C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe")
+
+    if not iscc_path.exists():
+        log.error(f"Inno Setup compiler not found at {iscc_path}")
+        sys.exit(1)
+
+    command = [str(iscc_path), str(iss_path)]
+
+    try:
+        result = subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        log.info("Installer built successfully.")
+        log.info(result.stdout)
+    except subprocess.CalledProcessError as e:
+        log.error("Inno Setup failed.")
+        log.error(f"Command: {e.cmd}")
+        log.error(e.stdout)
+        sys.exit(1)
+
+
 def main():
-    env_name = "easyrob_env"
     rootBuild_dir = Path(__file__).parent
-    yaml_path = rootBuild_dir / "easyrob_env.yaml"
-    spec_path = rootBuild_dir / "pyinstallerBuild.spec"
+    easyrob_env = "easyrob_env"
+    easyrob_yaml = rootBuild_dir / "config_files" / "easyrob_env.yaml"
+    robert_env = "robert_env"
+    robert_yaml = rootBuild_dir / "config_files" / "robert-aqme_env.yaml"
+    spec_path = rootBuild_dir / "config_files" / "pyinstallerBuild.spec"
     dist_path, tmp_path = buildContext(rootBuild_dir)
+    result_path = dist_path / "EasyRob"
+    iss_file = rootBuild_dir / "config_files" / "installer.iss"
 
     if not spec_path.exists():
         log.error(f"Spec file not found at {spec_path}")
         sys.exit(1)
-    if not yaml_path.exists():
-        log.error(f"YAML file not found at {yaml_path}")
+    if not easyrob_yaml.exists():
+        log.error(f"YAML file not found at {easyrob_yaml}")
         sys.exit(1)
 
-    define_env(env_name=env_name, yaml_path=yaml_path)
+    define_env(env_name=easyrob_env, yaml_path=easyrob_yaml)
     pyinstaller_build(
-        env_name=env_name, spec_path=spec_path, dist_dir=dist_path, work_dir=tmp_path
+        env_name=easyrob_env, spec_path=spec_path, dist_dir=dist_path, work_dir=tmp_path
     )
+
+    define_env(env_name=robert_env, yaml_path=robert_yaml)
+    conda_pack(env_name=robert_env, output_dir=result_path)
+
+    build_innosetup_installer(iss_path=iss_file)
 
     try:
         shutil.rmtree(tmp_path)

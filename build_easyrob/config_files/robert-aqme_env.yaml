@@ -1,0 +1,17 @@
+name: easyrob_env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - openbabel=3.1.1
+  - xtb=6.7.1
+  - conda-pack
+  - glib
+  - gtk3
+  - pango
+  - mscorefonts
+  - pip
+  - pip:
+      - robert==2.0.1
+      - scikit-learn-intelex==2025.2.0
+      - aqme==1.7.0

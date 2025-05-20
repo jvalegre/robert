@@ -10,7 +10,7 @@ def setup_logger():
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_formatter = logging.Formatter(
-        fmt="[%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+        fmt="%(asctime)s - [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
     )
     console_handler.setFormatter(console_formatter)
 
@@ -27,7 +27,19 @@ def setup_logger():
     pyinstaller_logger.setLevel(logging.INFO)
     pyinstaller_logger.propagate = False  # No hereda nada del root
 
-    py_log_path = Path("pyinstaller.log")
-    py_file_handler = logging.FileHandler(py_log_path, mode="w")
-    py_file_handler.setFormatter(logging.Formatter("%(message)s"))
-    pyinstaller_logger.addHandler(py_file_handler)
+    pyinstaller_log_path = Path("pyinstaller.log")
+    pyinstaller_file_handler = logging.FileHandler(pyinstaller_log_path, mode="w")
+    pyinstaller_file_handler.setFormatter(logging.Formatter("%(message)s"))
+    pyinstaller_logger.addHandler(pyinstaller_file_handler)
+
+    # Conda-pack logger
+    conda_pack_logger = logging.getLogger("condapack_logger")
+    conda_pack_logger.setLevel(logging.INFO)
+    conda_pack_logger.propagate = False  # No hereda nada del root
+
+    conda_pack_logger_log_path = Path("conda_pack.log")
+    conda_pack_logger_file_handler = logging.FileHandler(
+        conda_pack_logger_log_path, mode="w"
+    )
+    conda_pack_logger_file_handler.setFormatter(logging.Formatter("%(message)s"))
+    conda_pack_logger.addHandler(pyinstaller_file_handler)

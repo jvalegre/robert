@@ -65,7 +65,8 @@ class AssetPath:
             return Path.cwd()/"_internal"/"robert_env"/"Lib"/"site-packages"/"robert"/"icons"/ self._filename
         else:
             return as_file(files("robert") / "icons" / self._filename)
-        
+
+
 class AssetLibrary:
     """
     AssetLibrary is a class that provides a centralized collection of asset paths 
@@ -2036,7 +2037,7 @@ class EasyROB(QMainWindow):
         if check_variables(self):  # Check if the parameters are valid
             self.console_output.clear()
             self.progress.setRange(0, 0)  # Indeterminate progress
-            self.worker = RobertWorker(command, os.getcwd())
+            self.worker = RobertWorker(command, os.path.dirname(selected_file_path))
             self.worker.output_received.connect(self.console_output.append)
             self.worker.error_received.connect(self.console_output.append)
             self.worker.process_finished.connect(self.on_process_finished)
@@ -2292,27 +2293,6 @@ class RobertWorker(QThread):
             print(f"Error stopping process: {e}")
         finally:
             self.process = None
-
-#TODO por
-def robert_target(queue_out, queue_err, sys_args):
-    """Target function for the ROBERT process in a separate process."""
-    class StreamToQueue:
-        def __init__(self, queue):
-            self.queue = queue
-        def write(self, msg):
-            if msg.strip():
-                self.queue.put(msg.strip())
-        def flush(self): pass
-
-    sys.stdout = StreamToQueue(queue_out)
-    sys.stderr = StreamToQueue(queue_err)
-
-    try:
-        main("exe", sys_args)
-        queue_out.put("__FINISHED_OK__")
-    except Exception:
-        queue_err.put(traceback.format_exc())
-        queue_out.put("__FINISHED_ERROR__")
 
 class ChemDrawFileDialog(QDialog):
     def __init__(self, parent=None):

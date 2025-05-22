@@ -2597,7 +2597,7 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
                 self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
-            self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values.')
+            self.args.log.write(f'\no  Before hyperoptimization, {int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values.')
             try:
                 test_points = test_select(self,X_scaled_df,csv_y)
             except TypeError:

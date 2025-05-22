@@ -68,7 +68,11 @@ Required packages
 
 .. warning::
 
-   This workflow is not available in Windows because xTB is **only compatible with macOS and Linux!**
+  Due to an update in the libgfortran library, **xTB** and **CREST** may encounter issues during optimizations. If you plan to use them, please make sure to run the following command **after** installing them:
+
+.. code-block:: shell 
+
+   conda install conda-forge::libgfortran=14.2.0
 
 Executing the job
 +++++++++++++++++

@@ -130,7 +130,7 @@ def test_GENERATE(test_job):
                 finding_line += 1
             elif f"2. 50% = RMSE from the bottom or top (worst performing) fold in a sorted 5-fold CV (extrapolation)" in line:
                 finding_line += 1
-            elif f"o  Before hyproptimization, 20% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values." in line:
+            elif f"o  Before hyperoptimization, 20% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values." in line:
                 finding_line += 0.5 # it appears two times, in PFI and no PFI
                 # this elif adds 4 points to the standard test (0.5*2(PFI and no PFI)*4(models)
             elif f"o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.53" in line:

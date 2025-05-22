@@ -5,6 +5,9 @@ Versions
 ========
 
 Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
+   -  Fixed bug in MAC and Linux OS from the GENERATE
+   -  Updating AQME version to 1.7.3
+   -  Fixing libgfortran library to version 14.2.0
 
 Version 2.0.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.1>`__]
    -  The AQME and EVALUATE modules are now fully functional and have been reactivated in this version.

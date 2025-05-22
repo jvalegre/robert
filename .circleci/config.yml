@@ -46,11 +46,12 @@ jobs:
           pip install rdkit==2024.3.1
           conda install -y -c conda-forge openbabel
           conda install -y -c conda-forge xtb=6.7.1
+          conda install conda-forge::libgfortran=14.2.0
           conda install -y -c conda-forge glib
           pip install weasyprint
           conda install -y -c conda-forge gtk3
           conda install -y -c conda-forge pango
-          pip install aqme==1.7.1
+          pip install aqme==1.7.3
           pip install .
           pip install scikit-learn-intelex==2025.2.0
           # uninstall robert to avoid codecov issues (only running from the robert folder)

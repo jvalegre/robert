@@ -58,7 +58,7 @@ Required packages
 
 .. code:: shell
 
-    pip install aqme==1.7.1
+    pip install aqme
 
 * **xTB:** Install xTB with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
 

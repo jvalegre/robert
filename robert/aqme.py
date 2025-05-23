@@ -125,7 +125,7 @@ class aqme:
                     aqme_indv_name = f'AQME_indiv_{smi_suffix}'
 
                 # run AQME-QDESCP to generate descriptors
-                cmd_qdescp = ['python', '-m', 'aqme', '--qdescp', '--input', f'{aqme_indv_name}.csv', '--program', 'xtb', '--csv_name', f'{aqme_indv_name}.csv', '--nprocs', f'{self.args.nprocs}', '--robert']
+                cmd_qdescp = ['python','-u', '-m', 'aqme', '--qdescp', '--input', f'{aqme_indv_name}.csv', '--program', 'xtb', '--csv_name', f'{aqme_indv_name}.csv', '--nprocs', f'{self.args.nprocs}', '--robert']
                 _ = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
 
                 if smi_suffix is not None:

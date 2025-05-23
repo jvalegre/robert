@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="2.0.1"
+version="2.0.2"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
@@ -46,7 +46,8 @@ setup(
         "weasyprint==63.1",
         "PySide6",
         "PyMuPDF",
-        "ansi2html"
+        "ansi2html",
+        "rdkit==2024.3.3"
     ],
     python_requires=">=3.10",
     include_package_data=True,

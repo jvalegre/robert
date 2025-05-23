@@ -43,12 +43,17 @@ The CSV database contains the following columns:
 Required packages
 +++++++++++++++++
 
+* **Openbabel:** Install Openbabel with conda-forge:
+
+.. code:: shell
+
+    conda install -y -c conda-forge openbabel=3.1.1
+
 * **AQME:** Install (or update) AQME with conda-forge (or follow the instructions from `their ReadtheDocs <https://aqme.readthedocs.io>`__):
 
 .. code:: shell
 
-    conda install -y -c conda-forge aqme
-    pip install aqme --upgrade      (if AQME was previously installed)
+    pip install aqme
 
 * **xTB:** Install xTB with conda-forge (or follow the instructions from `their documentation <https://xtb-docs.readthedocs.io>`__):
 
@@ -58,7 +63,11 @@ Required packages
 
 .. warning::
 
-   This workflow is not available in Windows because xTB is **only compatible with macOS and Linux!**
+  Due to an update in the libgfortran library, **xTB** and **CREST** may encounter issues during optimizations. If you plan to use them, please make sure to run the following command **after** installing them:
+
+.. code-block:: shell 
+
+   conda install conda-forge::libgfortran=14.2.0
 
 Executing the job
 +++++++++++++++++

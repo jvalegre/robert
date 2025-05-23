@@ -8,10 +8,10 @@ Parameters
         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
     discard : list, default=[]
         List containing the columns of the input CSV file that will not be included as descriptors
-        in the curated CSV file (i.e. ['name','SMILES']).
+        in the curated CSV file (i.e. "['name','SMILES']").
     ignore : list, default=[]
         List containing the columns of the input CSV file that will be ignored during the curation process
-        (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
+        (i.e. "['name','SMILES']"). The descriptors will be included in the curated CSV file. The y value
         is automatically ignored.
     names : str, default=''
         Column of the names for each datapoint. Names are used to print outliers.

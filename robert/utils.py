@@ -58,7 +58,7 @@ import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.0.1"
+robert_version = "2.0.2"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -2597,7 +2597,7 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
                 self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
-            self.args.log.write(f'\no  Before hyproptimization, {int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values.')
+            self.args.log.write(f'\no  Before hyperoptimization, {int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values.')
             try:
                 test_points = test_select(self,X_scaled_df,csv_y)
             except TypeError:
@@ -2624,6 +2624,7 @@ def load_dfs(self,folder_model,module,sanity_check=False,print_info=True):
         path_db = f"{Path(os.getcwd()).joinpath(folder_model)}"
     if os.path.exists(path_db):
         csv_files = glob.glob(f'{Path(path_db).joinpath("*.csv")}')
+        csv_files.sort(key=lambda f: f.endswith('_db.csv')) # sort the database file to be the last one, depending on the OS was taking first the dabatase and then the parameters
         for csv_file in csv_files:
             if csv_file.endswith('_db.csv'):
                 if not sanity_check:

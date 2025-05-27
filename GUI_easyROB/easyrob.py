@@ -2348,7 +2348,7 @@ class RobertWorker(QThread):
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
             )
         else:
             self.process = subprocess.Popen(

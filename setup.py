@@ -47,6 +47,7 @@ setup(
         "PySide6",
         "PyMuPDF",
         "ansi2html",
+        "psutil",
         "rdkit==2024.3.3"
     ],
     python_requires=">=3.10",

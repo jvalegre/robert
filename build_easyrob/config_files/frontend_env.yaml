@@ -13,3 +13,4 @@ dependencies:
       - PySide6
       - PyMuPDF
       - ansi2html
+      - psutil

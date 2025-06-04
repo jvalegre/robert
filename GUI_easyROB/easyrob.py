@@ -2286,6 +2286,7 @@ class EasyROB(QMainWindow):
             return True
 
         if check_variables(self):  # Check if the parameters are valid
+            self.console_output.append("<b><span style='color:orangered;'>Running ROBERT...</span></b><br>")
             self.progress.setRange(0, 0)  # Indeterminate progress
             self.worker = RobertWorker(command, os.path.dirname(selected_file_path))
             self.worker.output_received.connect(self.console_output.append)

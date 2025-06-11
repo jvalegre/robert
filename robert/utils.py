@@ -334,6 +334,14 @@ def load_variables(kwargs, robert_module):
     if self.csv_test and not os.path.exists(f"{self.csv_test}") and os.path.exists(f'{self.csv_test}.csv'):
         self.csv_test = f'{self.csv_test}.csv'
 
+    # check for spaces in csv file names
+    if " " in str(self.csv_name):
+        print("\nx  ERROR: The input CSV file name contains spaces. Please remove spaces from the file name and try again. Spaces in file names can cause problems. Example: use 'my_data.csv' instead of 'my data.csv'.")
+        sys.exit()
+    if self.csv_test and " " in str(self.csv_test):
+        print("\nx  ERROR: The test CSV file name contains spaces. Please remove spaces from the file name and try again. Spaces in file names can cause problems. Example: use 'test_data.csv' instead of 'test data.csv'.")
+        sys.exit()
+
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 

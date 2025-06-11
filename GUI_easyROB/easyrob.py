@@ -23,6 +23,7 @@ import platform
 import psutil
 from functools import partial
 from multiprocessing import Process, Queue
+import threading
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QPushButton, QFileDialog, QVBoxLayout, QWidget,
@@ -2535,28 +2536,42 @@ class RobertWorker(QThread):
                     preexec_fn=os.setsid
                 )
 
-            try:
-                if self.process and self.process.stdout:
+            def read_stdout():
+                try:
                     for line in self.process.stdout:
                         if self._stop_requested:
                             break
                         formatted_line = self.ansi_converter.convert(line.strip(), full=False)
                         self.output_received.emit(formatted_line)
-                if self.process and self.process.stderr:
+                except Exception as e:
+                    self.error_received.emit(f"Error reading stdout: {e}")
+
+            def read_stderr():
+                try:
                     for line in self.process.stderr:
                         if self._stop_requested:
                             break
                         formatted_line = f'<span style="color:red;">{line.strip()}</span>'
                         self.error_received.emit(formatted_line)
-                if self.process:
-                    exit_code = self.process.wait()
-                else:
-                    exit_code = -1
-            except Exception as e:
-                self.error_received.emit(f"Error during process execution: {e}")
+                except Exception as e:
+                    self.error_received.emit(f"Error reading stderr: {e}")
+
+            stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+            stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+
+            stdout_thread.start()
+            stderr_thread.start()
+
+            # Wait for process to finish
+            if self.process:
+                exit_code = self.process.wait()
+            else:
                 exit_code = -1
 
-            # Clean up the process
+            # Wait for both reader threads to finish
+            stdout_thread.join()
+            stderr_thread.join()
+
             self.process = None
             if self._stop_requested:
                 self.process_finished.emit(-1)

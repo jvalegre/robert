@@ -120,7 +120,7 @@ class aqme:
                     aqme_indv_name = 'AQME_indiv'
                 else:
                     smi_suffix = column.split("_")[1]
-                    csv_temp['code_name'] = csv_temp['code_name'] + '_' + smi_suffix
+                    csv_temp['code_name'] = csv_temp['code_name'].astype(str) + '_' + smi_suffix
                     csv_temp.to_csv(f'AQME_indiv_{smi_suffix}.csv', index=False)
                     aqme_indv_name = f'AQME_indiv_{smi_suffix}'
 

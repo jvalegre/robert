@@ -334,6 +334,14 @@ def load_variables(kwargs, robert_module):
     if self.csv_test and not os.path.exists(f"{self.csv_test}") and os.path.exists(f'{self.csv_test}.csv'):
         self.csv_test = f'{self.csv_test}.csv'
 
+    # check for spaces in csv file names
+    if " " in str(self.csv_name):
+        print("\nx  ERROR: The input CSV file name contains spaces. Please remove spaces from the file name and try again. Spaces in file names can cause problems. Example: use 'my_data.csv' instead of 'my data.csv'.")
+        sys.exit()
+    if self.csv_test and " " in str(self.csv_test):
+        print("\nx  ERROR: The test CSV file name contains spaces. Please remove spaces from the file name and try again. Spaces in file names can cause problems. Example: use 'test_data.csv' instead of 'test data.csv'.")
+        sys.exit()
+
     if robert_module != "command":
         self.initial_dir = Path(os.getcwd())
 
@@ -1006,6 +1014,10 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     Loads either a Xy (params=False) or a parameter (params=True) database from a CSV file
     '''
     
+    # adjust external set in AQME workflows
+    if module.lower() == 'aqme_test':
+        external_test = True
+
     txt_load = ''
     # this part fixes CSV files that use ";" as separator
     with open(csv_load, 'r', encoding='utf-8') as file:
@@ -1042,7 +1054,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         if 'Set' in csv_df.columns: # removes the column that tracks sets
             accepted_descs -= 1
             ignored_descs += 1
-        if module.lower() not in ['aqme']:
+        if module.lower() not in ['aqme','aqme_test']:
             csv_name = os.path.basename(csv_load)
             if module.lower() not in ['predict']:
                 txt_load += f'\no  Database {csv_name} loaded successfully, including:'

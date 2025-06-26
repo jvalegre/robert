@@ -35,7 +35,7 @@ from robert.utils import (load_variables,
     )
 
 # list of potential arguments from CSV inputs in AQME
-aqme_args = ['charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']
+aqme_args = ['charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral','sample']
 
 class aqme:
     """
@@ -120,7 +120,7 @@ class aqme:
                     aqme_indv_name = 'AQME_indiv'
                 else:
                     smi_suffix = column.split("_")[1]
-                    csv_temp['code_name'] = csv_temp['code_name'] + '_' + smi_suffix
+                    csv_temp['code_name'] = csv_temp['code_name'].astype(str) + '_' + smi_suffix
                     csv_temp.to_csv(f'AQME_indiv_{smi_suffix}.csv', index=False)
                     aqme_indv_name = f'AQME_indiv_{smi_suffix}'
 

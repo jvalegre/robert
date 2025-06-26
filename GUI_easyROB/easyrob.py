@@ -17,76 +17,26 @@ from rdkit.Chem import rdFMCS
 from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D, rdDepictor
 import rdkit
-import traceback
 import shutil
 import tempfile
 import platform
-import signal
+import psutil
+from functools import partial
+from multiprocessing import Process, Queue
+import threading
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QPushButton, QFileDialog, QVBoxLayout, QWidget,
     QComboBox, QListWidget, QProgressBar, QMessageBox, QHBoxLayout, QFrame, QTabWidget, 
     QLineEdit, QTextEdit, QSizePolicy, QFormLayout, QGridLayout, QGroupBox, QCheckBox, 
     QScrollArea, QFileDialog, QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem,QInputDialog,
+    QSlider,
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent
-from PySide6.QtCore import (Qt, Slot, QThread, Signal, QTimer, QUrl)
+from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent, QWheelEvent
+from PySide6.QtCore import (Qt, Slot, QThread, Signal, QObject, QUrl, QTimer)
 
 os.environ["QT_QUICK_BACKEND"] = "software"
-
-class AssetPath:
-    """
-    A class to manage and retrieve the file path of an asset.
-    Attributes:
-        _filename (str): The name of the file for which the path is managed.
-    Methods:
-        get_path():
-            Retrieves the full path to the asset file. If the application is
-            running in a frozen state (e.g., packaged with PyInstaller), it
-            constructs the path relative to the current working directory.
-            Otherwise, it retrieves the path using the importlib.resources API.
-    """
-    def __init__(self,filename):
-        self._filename = filename
-    
-    def get_path(self):
-        """
-        Retrieves the file path to the icon file associated with the current instance.
-
-        If the application is running in a frozen state (e.g., packaged with PyInstaller),
-        the method constructs the path relative to the current working directory. Otherwise,
-        it uses the `importlib.resources` module to locate the file within the package.
-
-        Returns:
-            Path: The resolved file path to the icon file.
-        """
-        if getattr(sys,"frozen",False):
-            return Path.cwd()/"_internal"/"robert_env"/"Lib"/"site-packages"/"robert"/"icons"/ self._filename
-        else:
-            return as_file(files("robert") / "icons" / self._filename)
-
-
-class AssetLibrary:
-    """
-    AssetLibrary is a class that provides a centralized collection of asset paths 
-    used in the application. Each attribute represents a specific asset, such as 
-    icons or logos, and is initialized using the AssetPath function.
-
-    Attributes:
-        Info_icon (AssetPath): Path to the "info_icon.png" asset.
-        Robert_logo_transparent (AssetPath): Path to the "Robert_logo_transparent.png" asset.
-        Robert_icon (AssetPath): Path to the "Robert_icon.png" asset.
-        Play_icon (AssetPath): Path to the "play_icon.png" asset.
-        Stop_icon (AssetPath): Path to the "stop_icon.png" asset.
-        Pdf_icon (AssetPath): Path to the "pdf_icon.png" asset.
-    """
-    Info_icon = AssetPath("info_icon.png")
-    Robert_logo_transparent = AssetPath("Robert_logo_transparent.png")
-    Robert_icon = AssetPath("Robert_icon.png")
-    Play_icon = AssetPath("play_icon.png")
-    Stop_icon = AssetPath("stop_icon.png")
-    Pdf_icon = AssetPath("pdf_icon.png")
 
 class AQMETab(QWidget):
     def __init__(self, tab_parent=None, main_window=None, help_tab=None, web_view=None):
@@ -155,8 +105,14 @@ class AQMETab(QWidget):
         self.mol_viewer = QLabel(self.mol_viewer_container)
         self.mol_viewer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.mol_viewer.setWordWrap(True)
+
+        # Allow text selection
+        self.mol_viewer.setTextInteractionFlags(
+            Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard 
+        )
         self.set_mol_viewer_message("📄 Select a CSV with a SMILES column to display a common SMARTS pattern.")
         self.mol_viewer.setFixedSize(500, 500)
+
 
         # === mol_info_label ===
         self.mol_info_label = QLabel("🔬 Info here", self.mol_viewer_container)
@@ -234,68 +190,65 @@ class AQMETab(QWidget):
         """Detects patterns in the loaded CSV and displays the first molecule."""
 
         try:
-           
-            self.csv_df = pd.read_csv(self.file_path) # Store the DataFrame for later use
+            self.csv_df = smart_read_csv(self.file_path) # Store the DataFrame for later use
             self.smiles_column = next((col for col in self.csv_df.columns if col.lower() == "smiles"), None)
+
+            self.set_mol_viewer_message("🔬 Detecting common SMARTS pattern...")
 
             # === Auto SMARTS detection ===
             self.auto_pattern()
-
-            # === Display first molecule ===
-            self.display_molecule()
 
         except Exception as e:
             self.set_mol_viewer_message("❌ Failed to load or process the CSV.")
             self.mol_info_label.setText("🔬 Info here")
 
+    def _on_mcs_success(self, smarts):
+        """Handle successful MCS detection."""
+        self.smarts_targets.append(smarts)
+        self.mol_info_label.setText("🔬 Info here")
+        self.display_molecule()
+
+    def _on_mcs_error(self, message):
+        """Handle MCS detection error."""
+        self.set_mol_viewer_message(
+            message,
+            tooltip="SMARTS pattern detection failed."
+        )
+        self.mol_info_label.setText("🔬 Info here")
+
+    def _on_mcs_timeout(self):
+        """Handle MCS detection timeout."""
+        self.set_mol_viewer_message(
+            "⏱️ Timeout: MCS (Maximum Common Substructure) took too long and was aborted.",
+            tooltip="SMARTS pattern detection failed."
+        )
+        self.mol_info_label.setText("🔬 Info here")
+
+
     def auto_pattern(self):
         """
         Auto-detect common SMARTS pattern in molecules from CSV 'SMILES' column.
-
-        This function will use RDKit's MCS algorithm to find the Maximum Common Substructure
-        (MCS) in the molecules read from the CSV file. If a pattern is found, it will be added
-        to the 'smarts_targets' attribute.
-
-        If the function fails to detect a pattern (e.g., due to invalid molecules), it will not
-        raise an error, but will print an error message.
-
+        Uses a separate process to avoid blocking the GUI.
         """
+
+        self.mol_info_label.setText("🔬 Info here")
         self.smarts_targets = []
 
-        try:
-            if self.smiles_column is None:
-                raise ValueError("CSV must have a SMILES column")
+        if self.smiles_column is None:
+            return
 
-            mol_list = []
-            for smi in self.csv_df[self.smiles_column].dropna():
+        smiles_list = self.csv_df[self.smiles_column].dropna().tolist()
 
-                mol = Chem.MolFromSmiles(smi)
-                mol_list_with_Hs = Chem.AddHs(mol) 
-                if mol_list_with_Hs:
-                    mol_list.append(mol_list_with_Hs)
+        # Instantiate a QThread for MCS detection
+        self.mcs_worker = MCSProcessWorker(smiles_list, timeout_ms=30000) # 30 seconds timeout
 
-            if not mol_list:
-                raise ValueError("No valid molecules.")
+        # Connect signals to handle success, error, and timeout
+        self.mcs_worker.finished.connect(self._on_mcs_success)
+        self.mcs_worker.error.connect(self._on_mcs_error)
+        self.mcs_worker.timeout.connect(self._on_mcs_timeout)
 
-            # Get MCS, just one
-            mcs_result = rdFMCS.FindMCS(mol_list)
-            if mcs_result and mcs_result.smartsString:
-                smarts = mcs_result.smartsString
-                self.smarts_targets.append(smarts)
-            else:
-                # No common substructure found
-                self.set_mol_viewer_message(
-                "⚠️ No common SMARTS pattern was found among the molecules.",
-                tooltip="No shared substructure could be detected with the current SMILES list."
-            )
-            self.mol_info_label.setText("🔬 Info here")
-
-        except Exception as e:
-            self.set_mol_viewer_message(
-                "❌ Failed to detect SMARTS pattern. Check your CSV.",
-                tooltip=f"auto_pattern error: {str(e)}"
-            )
-            self.mol_info_label.setText("🔬 Info here")
+        # Launch the MCS detection process
+        self.mcs_worker.start()
 
     def display_molecule(self):
         """Display a SMARTS molecule and highlight atoms based on user selection."""
@@ -324,7 +277,7 @@ class AQMETab(QWidget):
                 if len(matches) > 1:
                     self.check_multiple_matches = True
                     self.set_mol_viewer_message(
-                    f"⚠️ Multiple matches detected: the common substructure appears more than once in the molecule '{smiles}'. "
+                    f"⚠️ Multiple matches detected: the common substructure '{self.smarts_targets[0]}' appears more than once in the molecule '{smiles}'. "
                     "Atomic descriptor selection has been disabled to avoid ambiguity."
                     )   
                     self.mol_info_label.setText("🔬 Info here")
@@ -438,7 +391,7 @@ class AQMETab(QWidget):
             mapped_smiles.append(Chem.MolToSmiles(mol))
 
         # Replace SMILES column in CSV
-        df = pd.read_csv(self.file_path)
+        df = smart_read_csv(self.file_path)
         df_mapped = df.copy()
         df_mapped[self.smiles_column] = mapped_smiles
         self.df_mapped_smiles = df_mapped
@@ -491,15 +444,32 @@ class AQMETab(QWidget):
     def load_chemdraw_file(self, main_path):
         """Opens a ChemDraw file and displays the molecules in a table."""
         def load_mols_from_path(path):
-
+            """Load molecules from a ChemDraw or SDF file."""
             if path.endswith('.cdxml'):
                 try:
                     mols = MolsFromCDXMLFile(path, sanitize=True, removeHs=True)
-                    return [mol for mol in mols if mol is not None]
+                    total_count = len(mols)
+                    valid_mols = [mol for mol in mols if mol is not None]
+                    valid_count = len(valid_mols)
+
+                    if valid_count == 0:
+                        QMessageBox.warning(self, "CDXML Warning", f"No valid molecules found in the file:\n{path}")
+                        return []
+
+                    elif valid_count < total_count:
+                        failed_count = total_count - valid_count
+                        QMessageBox.warning(
+                            self,
+                            "CDXML Partial Load",
+                            f"File loaded with partial success.\n{failed_count} out of {total_count} molecules failed sanitization and were skipped."
+                        )
+
+                    return valid_mols
+
                 except Exception as e:
                     QMessageBox.critical(self, "CDXML Read Error", f"Failed to read {path}:\n{str(e)}")
                     return []
-                
+
             elif path.endswith('.sdf'):
                 return [mol for mol in Chem.SDMolSupplier(path) if mol is not None]
             
@@ -532,30 +502,56 @@ class AQMETab(QWidget):
         self.show_molecule_table_dialog(mols_main)
 
     def show_molecule_table_dialog(self, mols):
-        """Create and display the molecule table dialog with save CSV functionality."""
+        """
+        Create and display a dialog showing a table of molecules,
+        with the ability to add/remove columns, edit 'target' column name,
+        and save the table as CSV. Includes various field validations.
+        """
+        # --- Dialog Setup ---
         dialog = QDialog(self)
         dialog.setWindowTitle("ChemDraw Molecules")
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMaximizeButtonHint)
         dialog.setSizeGripEnabled(True)
         dialog.resize(800, 600)
+
         layout = QVBoxLayout(dialog)
 
-        headers = ["Image", "SMILES", "code_name", "target"]
-        table = QTableWidget(len(mols), len(headers))
-        table.setHorizontalHeaderLabels(headers)
+        # --- Table Columns ---
+        base_headers = ["Image", "SMILES", "code_name", "target"]
+        extra_columns = ["charge", "mult", "complex_type"]
+        complex_type_options = ["", "squareplanar", "squarepyramidal", "linear", "trigonalplanar"]
 
-        # Make column headers editable on double-click
+        # Table widget setup
+        table = QTableWidget(len(mols), len(base_headers))
+        table.setHorizontalHeaderLabels(base_headers)
+
+        # Save indexes of required columns
+        self.smiles_col_index = base_headers.index("SMILES")
+        self.code_name_col_index = base_headers.index("code_name")
+        self.target_col_index = base_headers.index("target")
+
+        # --- Header Double Click Handler (for renaming 'target') ---
         def on_header_double_clicked(index):
+            """
+            Allow renaming ONLY for the 'target' column when double-clicked.
+            """
+            target_index = self.target_col_index
+            if index != target_index:
+                return  # Only allow renaming for the 'target' column
             current_text = table.horizontalHeaderItem(index).text()
-            new_text, ok = QInputDialog.getText(dialog, "Edit Column Name",
-                                                f"Rename column '{current_text}':",
-                                                text=current_text)
+            new_text, ok = QInputDialog.getText(
+                dialog, "Edit Column Name",
+                f"Rename column '{current_text}':", text=current_text
+            )
             if ok and new_text.strip():
                 table.setHorizontalHeaderItem(index, QTableWidgetItem(new_text.strip()))
 
+        # Connect header double click signal
         table.horizontalHeader().sectionDoubleClicked.connect(on_header_double_clicked)
 
+        # --- Populate Table with Molecule Data ---
         for row, mol in enumerate(mols):
+            # Create image for molecule and put in cell (column 0)
             img = Draw.MolToImage(mol, size=(100, 100))
             buffer = BytesIO()
             img.save(buffer, format="PNG")
@@ -568,71 +564,193 @@ class AQMETab(QWidget):
             hbox.addWidget(label)
             hbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
             widget.setLayout(hbox)
-
             table.setRowHeight(row, 110)
             table.setCellWidget(row, 0, widget)
 
-            smi = Chem.MolToSmiles(mol) if mol else ""
+            # Set SMILES (column 1)
+            cx_smi = Chem.MolToCXSmiles(mol)
+            smi = cx_smi.split(' ')[0]
             table.setItem(row, 1, QTableWidgetItem(smi))
-            table.setItem(row, 2, QTableWidgetItem(""))  # code_name
-            table.setItem(row, 3, QTableWidgetItem(""))  # target
+            # code_name (column 2), target (column 3) initialized empty
+            table.setItem(row, 2, QTableWidgetItem(""))
+            table.setItem(row, 3, QTableWidgetItem(""))
 
+        # --- Set Default Table Column Widths ---
+        default_width = 150
+        for col in range(table.columnCount()):
+            table.setColumnWidth(col, default_width)
         layout.addWidget(table)
 
-        # Save Button
+        # --- Checkbox Controls for Optional Columns ---
+        checkbox_layout = QHBoxLayout()
+        checkboxes = {}
+
+        def toggle_column(col_name, state):
+            """
+            Add or remove an extra column based on the corresponding checkbox.
+            Handles special widget for 'complex_type' column.
+            """
+            def set_all_column_widths(width):
+                for col in range(table.columnCount()):
+                    table.setColumnWidth(col, width)
+
+            current_headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+            if state:  # Checkbox checked: add column if not present
+                if col_name not in current_headers:
+                    idx = table.columnCount()
+                    table.insertColumn(idx)
+                    header_item = QTableWidgetItem(col_name)
+                    header_item.setFlags(header_item.flags() & ~Qt.ItemIsEditable)
+                    table.setHorizontalHeaderItem(idx, header_item)
+                    for row in range(table.rowCount()):
+                        if col_name == "complex_type":
+                            combo = QComboBox()
+                            combo.addItems(complex_type_options)
+                            combo.setCurrentIndex(0)
+                            table.setCellWidget(row, idx, combo)
+                        else:
+                            table.setItem(row, idx, QTableWidgetItem(""))
+            else:  # Checkbox unchecked: remove column if present
+                if col_name in current_headers:
+                    idx = current_headers.index(col_name)
+                    table.removeColumn(idx)
+            set_all_column_widths(default_width)
+
+        # Create checkboxes for each optional column
+        for col_name in extra_columns:
+            cb = QCheckBox(col_name)
+            cb.stateChanged.connect(partial(toggle_column, col_name))
+            checkbox_layout.addWidget(cb)
+            checkboxes[col_name] = cb
+
+        layout.addLayout(checkbox_layout)
+
+        # --- Save as CSV Button ---
         save_button = QPushButton("💾 Save as CSV")
         save_button.setStyleSheet("padding: 6px; font-weight: bold;")
         layout.addWidget(save_button, alignment=Qt.AlignmentFlag.AlignRight)
 
         def save_to_csv():
-            """Save the table data to a CSV file."""
-            # Validate that all code_name cells are filled
+            """
+            Collect all table data and save to a CSV file.
+            Includes validation for required fields, uniqueness, types, and empty checks.
+            """
+            headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+
+            # --- Mandatory column presence check ---
+            try:
+                smiles_idx = headers.index("SMILES")
+                code_name_idx = headers.index("code_name")
+            except ValueError as e:
+                QMessageBox.warning(dialog, "WARNING!", f"Column missing: {str(e)}")
+                return
+
+            # --- Data validation ---
+            code_names = []
             for row in range(table.rowCount()):
-                code_item = table.item(row, 2)
-                target_item = table.item(row, 3)
+                # Check 'SMILES' not empty
+                item = table.item(row, smiles_idx)
+                if not item or not item.text().strip():
+                    QMessageBox.warning(dialog, "WARNING!", f"Please fill in all 'SMILES' fields before saving.")
+                    return
 
-                # Check if code_name and target are filled
-                if (not code_item or not code_item.text().strip() or
-                        not target_item or not target_item.text().strip()):
-                        QMessageBox.warning(dialog, "WARNING!", "Please fill in all 'code_name' and 'target' fields before saving.")
-                        return  # Cancel saving
-                
-            # Check for duplicate 'code_name' entries
-            code_names = [table.item(row, 2).text().strip() for row in range(table.rowCount())]
+                # Check 'code_name' not empty
+                item = table.item(row, code_name_idx)
+                if not item or not item.text().strip():
+                    QMessageBox.warning(dialog, "WARNING!", f"Please fill in all 'code_name' fields before saving.")
+                    return
+
+                code_names.append(table.item(row, code_name_idx).text().strip())
+
+                # Validate 'charge' column if present (must be int, not empty)
+                if "charge" in headers:
+                    charge_idx = headers.index("charge")
+                    item = table.item(row, charge_idx)
+                    val = item.text().strip() if item else ""
+                    if val == "":
+                        QMessageBox.warning(dialog, "WARNING!", f"Column 'charge' cannot be empty.")
+                        return
+                    if not (val.lstrip('-').isdigit() and '.' not in val):
+                        QMessageBox.warning(dialog, "WARNING!", f"Column 'charge' must be an integer.")
+                        return
+
+                # Validate 'mult' column if present (must be int, not empty)
+                if "mult" in headers:
+                    mult_idx = headers.index("mult")
+                    item = table.item(row, mult_idx)
+                    val = item.text().strip() if item else ""
+                    if val == "":
+                        QMessageBox.warning(dialog, "WARNING!", f"Column 'mult' cannot be empty.")
+                        return
+                    if not (val.lstrip('-').isdigit() and '.' not in val):
+                        QMessageBox.warning(dialog, "WARNING!", f"Column 'mult' must be an integer.")
+                        return
+
+                # Validate 'complex_type' if present (must be selected)
+                if "complex_type" in headers:
+                    complex_type_idx = headers.index("complex_type")
+                    combo = table.cellWidget(row, complex_type_idx)
+                    if combo is not None and combo.currentText().strip() == "":
+                        QMessageBox.warning(
+                            dialog, "WARNING!",
+                            f"Column 'complex_type' cannot be empty. Please select a value."
+                        )
+                        return
+
+            # --- Uniqueness check for 'code_name' ---
             duplicates = [name for name in set(code_names) if code_names.count(name) > 1]
-
             if duplicates:
                 QMessageBox.warning(
-                    dialog,
-                    "WARNING!",
+                    dialog, "WARNING!",
                     f"The following 'code_name' values are duplicated:\n\n{', '.join(duplicates)}\n\nPlease make them unique before saving."
                 )
-                return  # Cancel saving
-    
-            # Ask user where to save
+                return
+
+            # --- Numeric check for 'target' column ---
+            for row in range(table.rowCount()):
+                item = table.item(row, self.target_col_index)
+                val = item.text().strip() if item else ""
+                if not val:
+                    QMessageBox.warning(dialog, "WARNING!", f"Target column is empty.")
+                    return
+                try:
+                    float(val)
+                except ValueError:
+                    QMessageBox.warning(dialog, "WARNING!", f"Target column must be numeric.")
+                    return
+
+            # --- File dialog to select save path ---
             path, _ = QFileDialog.getSaveFileName(dialog, "Save CSV", "", "CSV Files (*.csv)")
             if not path:
                 return
 
-            # Proceed to write CSV
+            # --- Prepare headers and write CSV ---
+            save_headers = [h for h in headers if h != "Image"]
             with open(path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow(["SMILES", "code_name", "target"])
-
+                writer.writerow(save_headers)
                 for row in range(table.rowCount()):
-                    smi = table.item(row, 1).text() if table.item(row, 1) else ""
-                    code = table.item(row, 2).text() if table.item(row, 2) else ""
-                    target = table.item(row, 3).text() if table.item(row, 3) else ""
-                    writer.writerow([smi, code, target])
+                    row_values = []
+                    for col in range(table.columnCount()):
+                        header = headers[col]
+                        if header == "Image":
+                            continue
+                        if header == "complex_type":
+                            combo = table.cellWidget(row, col)
+                            row_values.append(combo.currentText() if combo else "")
+                        else:
+                            item = table.item(row, col)
+                            row_values.append(item.text() if item else "")
+                    writer.writerow(row_values)
 
-            # Automatically load CSV into the main GUI 
+            # --- Optional: Update main window file path and show message ---
             if hasattr(self, "main_window") and self.main_window:
                 self.main_window.set_file_path(path)
-
             dialog.accept()
             QMessageBox.information(dialog, "Success", "CSV file saved and loaded successfully!")
 
         save_button.clicked.connect(save_to_csv)
+
         dialog.setLayout(layout)
         dialog.exec()
 
@@ -955,46 +1073,79 @@ class ResultsTab(QWidget):
         self.pdf_tab_widget.setCurrentIndex(index)
 
 class PDFViewer(QWidget):
-    """Widget to display a PDF inside a scrollable area."""
-
+    """Widget to display a PDF inside a scrollable area with zoom control and threading."""
     def __init__(self, pdf_path):
         super().__init__()
+        self.pdf_path = pdf_path
+        self.current_zoom = 2.0  # Default zoom
+        self.image_cache = {}  # {(page_num, zoom): QPixmap}
+        self.threads = []  # Keep references to threads to avoid premature garbage collection
 
         layout = QVBoxLayout(self)
+
+        self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self.zoom_slider.setRange(10, 60)
+        self.zoom_slider.setValue(int(self.current_zoom * 10))
+        self.zoom_slider.valueChanged.connect(self.on_zoom_change)
+        layout.addWidget(self.zoom_slider)
+
         self.scroll_area = QScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         layout.addWidget(self.scroll_area)
 
-        # Container widget for PDF pages
         self.container = QWidget()
         self.scroll_area.setWidget(self.container)
         self.vbox = QVBoxLayout(self.container)
 
-        self.load_pdf(pdf_path)
+        self.render_pdf()
 
-    def load_pdf(self, pdf_path):
-        """Loads and renders the PDF pages and centers them."""
-        doc = fitz.open(pdf_path)
-        
-        for page_num in range(len(doc)):
-            zoom = 1.2  # size of the PDF pages
-            pix = doc[page_num].get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+    def on_zoom_change(self, value):
+        new_zoom = value / 10.0
+        if new_zoom != self.current_zoom:
+            self.current_zoom = new_zoom
+            self.render_pdf()
 
-            img = QPixmap()
-            img.loadFromData(pix.tobytes("ppm"))
+    def render_pdf(self):
+        # Clear UI
+        while self.vbox.count():
+            child = self.vbox.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
 
-            # Create a container with a horizontal layout to center the QLabel
-            page_container = QWidget()
-            hbox = QHBoxLayout(page_container)
-            hbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Clear threads (let them finish in background if running)
+        self.threads.clear()
 
-            label = QLabel()
-            label.setPixmap(img)
-            hbox.addWidget(label)
-
-            self.vbox.addWidget(page_container)
-
+        doc = fitz.open(self.pdf_path)
+        self.page_count = len(doc)
         doc.close()
+
+        for page_num in range(self.page_count):
+            placeholder = QLabel()
+            placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.vbox.addWidget(placeholder)
+
+            key = (page_num, self.current_zoom)
+            if key in self.image_cache:
+                placeholder.setPixmap(self.image_cache[key])
+            else:
+                thread = PageRenderThread(self.pdf_path, page_num, self.current_zoom)
+                thread.finished.connect(self.on_page_rendered)
+                thread.start()
+                self.threads.append(thread)  # keep reference to avoid garbage collection
+
+    def on_page_rendered(self, page_num, zoom, pixmap):
+        if zoom != self.current_zoom:
+            return  # ignore outdated render
+
+        self.image_cache[(page_num, zoom)] = pixmap
+
+        label = QLabel()
+        label.setPixmap(pixmap)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Replace placeholder
+        self.vbox.itemAt(page_num).widget().deleteLater()
+        self.vbox.insertWidget(page_num, label)
 
 class ImagesTab(QWidget):
     """Images tab for displaying images from multiple folders as results of Robert workflow."""
@@ -1111,7 +1262,6 @@ class ImageLabel(QLabel):
         if menu.exec() == QMessageBox.StandardButton.Yes:
             clipboard = QApplication.clipboard()
             clipboard.setPixmap(QPixmap(self.image_path))
-
 
 class EasyROB(QMainWindow):
     """Main window for the easyROB application."""
@@ -1281,7 +1431,7 @@ class EasyROB(QMainWindow):
         self.y_label = QLabel("Select Target Column (y)")
         self.y_label.setStyleSheet(f"font-weight: bold; font-size: {font_size};")
         main_layout.addWidget(self.y_label)
-        self.y_dropdown = QComboBox()
+        self.y_dropdown = NoScrollComboBox()        
         main_layout.addWidget(self.y_dropdown)
         self.y_dropdown.setStyleSheet(box_features)
         
@@ -1289,7 +1439,7 @@ class EasyROB(QMainWindow):
         self.type_label = QLabel("Prediction Type")
         self.type_label.setStyleSheet(f"font-weight: bold; font-size: {font_size};")
         main_layout.addWidget(self.type_label)
-        self.type_dropdown = QComboBox()
+        self.type_dropdown = NoScrollComboBox()
         self.type_dropdown.addItems(["Regression", "Classification"])
         main_layout.addWidget(self.type_dropdown)
         self.type_dropdown.setStyleSheet(box_features)
@@ -1298,7 +1448,7 @@ class EasyROB(QMainWindow):
         self.names_label = QLabel("Select name column")
         self.names_label.setStyleSheet(f"font-weight: bold; font-size: {font_size};")
         main_layout.addWidget(self.names_label)
-        self.names_dropdown = QComboBox()
+        self.names_dropdown = NoScrollComboBox()
         main_layout.addWidget(self.names_dropdown) 
         self.names_dropdown.setStyleSheet(box_features)
      
@@ -1364,7 +1514,7 @@ class EasyROB(QMainWindow):
         main_layout.addSpacing(10)  
 
         # Workflow selection dropdown
-        self.workflow_selector = QComboBox()
+        self.workflow_selector = NoScrollComboBox()
         self.workflow_selector.setStyleSheet("font-weight: bold; font-size: 14px;")
 
         # Add options
@@ -1443,7 +1593,7 @@ class EasyROB(QMainWindow):
         """)
         self.stop_button.clicked.connect(self.stop_robert)
 
-        # # Add button layout to the main layout
+        # Add button layout to the main layout
         button_container = QHBoxLayout()
         button_container.addWidget(self.run_button)
         button_container.addWidget(self.stop_button)
@@ -1482,9 +1632,10 @@ class EasyROB(QMainWindow):
                 background: none;
             }
         """)
+        # Set minimum height for the console output and make it expandable
+        self.console_output.setMinimumHeight(275)  
         self.console_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.console_output.setFixedHeight(275)
-
+        
         # Create ANSI converter to display colors in the console and special characters
         self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Preserves colors
         main_layout.addWidget(QLabel("Console Output"))
@@ -1600,7 +1751,6 @@ class EasyROB(QMainWindow):
             # Enable the AQME tab if not already enabled
             if not self.tab_widget.isTabEnabled(tab_index):
                 self.tab_widget.setTabEnabled(tab_index, True)
-                self.tab_widget.setCurrentWidget(self.tab_widget_aqme)
                 QMessageBox.information(self, "AQME Tab Enabled", "AQME tab unlocked to specify AQME parameters.")
 
             # Always refresh AQME tab content if file path is available
@@ -1662,6 +1812,10 @@ class EasyROB(QMainWindow):
             self.file_label.setToolTip(file_path)
             self._last_loaded_file_path = None  # reset 
 
+            # Clear previous content 
+            if hasattr(self.tab_widget_aqme, "df_mapped_smiles"):
+                self.tab_widget_aqme.df_mapped_smiles = None
+
             self.load_csv_columns()
 
             # Update tabs with new information
@@ -1696,7 +1850,7 @@ class EasyROB(QMainWindow):
     def load_csv_columns(self):
         """Loads column names from the selected CSV file and updates all selection fields."""
         if self.file_path:
-            df = pd.read_csv(self.file_path, encoding='utf-8')
+            df = smart_read_csv(self.file_path)
             columns = list(df.columns)
 
             # --- Update Dropdowns ---
@@ -1732,21 +1886,25 @@ class EasyROB(QMainWindow):
             QMessageBox.warning(self, "WARNING!", "Please select a CSV file, a column for target value, and a name column.")
             return
         
+        # Disable the Play button while the process is running
+        self.run_button.setDisabled(True)
+        self.stop_button.setDisabled(False)  # Enable Stop button
+
+        # Clear previous content and reset with blank baseline
+        self.console_output.clear()
+        self.console_output.setHtml("<pre style='color:white; background-color:black; font-family:monospace;'></pre>")
+
         # Work directory
         run_dir = os.path.dirname(self.file_path)
 
         # Check and rename existing "ROBERT_report.pdf" files
         self.rename_existing_pdf("ROBERT_report.pdf", run_dir)
 
-        # Disable the Play button while the process is running
-        self.run_button.setDisabled(True)
-        self.stop_button.setDisabled(False)  # Enable Stop button
-        
         # Check for leftover workflow folders
         folders_to_check = ["CURATE", "GENERATE", "PREDICT", "VERIFY", "AQME", "CSEARCH", "QDESCP"]
         existing_folders = [f for f in folders_to_check if os.path.exists(os.path.join(run_dir, f))]
 
-        if existing_folders:
+        if existing_folders and self.workflow_selector.currentText() == "Full Workflow":
             message = (
                 "ROBERT detected folders from a previous run.\n\n"
                 "These folders may cause problems if the previous run was interrupted,\n"
@@ -1780,7 +1938,10 @@ class EasyROB(QMainWindow):
                     return
                 
         # Save mapped CSV only if available from AQME workflow
-        if hasattr(self.tab_widget_aqme, "df_mapped_smiles"):
+        if hasattr(self.tab_widget_aqme, "df_mapped_smiles") and \
+            self.tab_widget_aqme.df_mapped_smiles is not None and \
+            len(self.tab_widget_aqme.selected_atoms) > 0:
+
             base, ext = os.path.splitext(self.tab_widget_aqme.file_path)
             mapped_csv_path = base + "_mapped.csv"
 
@@ -1803,7 +1964,11 @@ class EasyROB(QMainWindow):
             self.mapped_csv_path = mapped_csv_path  
 
         # Check if the mapped CSV exists and is valid for use it in AQME-ROBERT workflow
-        if hasattr(self, "mapped_csv_path") and os.path.isfile(self.mapped_csv_path):
+        if hasattr(self, "mapped_csv_path") and \
+            os.path.isfile(self.mapped_csv_path) and \
+            len(self.tab_widget_aqme.selected_atoms) > 0:
+
+            # Use the mapped CSV path for the workflow
             selected_file_path = self.mapped_csv_path
         else:
             selected_file_path = self.file_path
@@ -2122,7 +2287,7 @@ class EasyROB(QMainWindow):
             return True
 
         if check_variables(self):  # Check if the parameters are valid
-            self.console_output.clear()
+            self.console_output.append("<b><span style='color:orangered;'>Running ROBERT...</span></b><br>")
             self.progress.setRange(0, 0)  # Indeterminate progress
             self.worker = RobertWorker(command, os.path.dirname(selected_file_path))
             self.worker.output_received.connect(self.console_output.append)
@@ -2137,8 +2302,8 @@ class EasyROB(QMainWindow):
             self.console_output.append("WARNING! Invalid parameters. Please fix them before running.")
 
     def stop_robert(self):
-        """Stops the ROBERT process safely after user confirmation."""
-        
+        """Stops the ROBERT process safely after user confirmation, non-blocking."""
+
         confirmation = QMessageBox.question(
             self, 
             "WARNING!", 
@@ -2153,11 +2318,11 @@ class EasyROB(QMainWindow):
         self.manual_stop = True
 
         if self.worker and self.worker.isRunning():
-            self.worker.stop()  
-            self.worker.wait()
-            self.worker = None
-            self.on_process_finished(-1)
-
+            self.console_output.append("<br><b><span style='color:orangered;'>Stopping ROBERT...</span></b>")
+            self.progress.setRange(0, 100)
+            self.stop_button.setDisabled(True)
+            QTimer.singleShot(0, self.worker.stop) 
+            
     @Slot(int)
     def on_process_finished(self, exit_code):
         """Handles the cleanup after the ROBERT process finishes."""
@@ -2322,76 +2487,134 @@ class DropLabel(QFrame):
         self.label.setText(text)
 
 class RobertWorker(QThread):
-    """A QThread that runs a subprocess asynchronously and streams real-time output."""
+    """
+    QThread that runs a subprocess asynchronously and streams real-time output.
+    Supports safe termination of the entire process tree on all major OSes.
+    """
 
     output_received = Signal(str)
     error_received = Signal(str)
     process_finished = Signal(int)
+    request_stop = Signal()
 
     def __init__(self, command, working_dir=None):
         super().__init__()
         self.command = command
         self.working_dir = working_dir
         self.process = None
-        self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Ensures dark mode support
+        self._stop_requested = False
+        self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)
         self.is_windows = platform.system() == "Windows"
-
+        self.request_stop.connect(self._handle_stop)
 
     def run(self):
-        """Runs the subprocess and streams output line by line in real-time with ANSI support."""
-        if self.is_windows:
-            self.process = subprocess.Popen(
-                shlex.split(self.command),
-                cwd=self.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-            )
-        else:
-            self.process = subprocess.Popen(
-                shlex.split(self.command),
-                cwd=self.working_dir,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                preexec_fn=os.setsid
-            )
-
-        # Read output in real-time and convert ANSI to HTML for read correctly console
-        with self.process.stdout:
-            for line in iter(self.process.stdout.readline, ''):
-                formatted_line = self.ansi_converter.convert(line.strip(), full=False)
-                self.output_received.emit(formatted_line)
-
-        with self.process.stderr:
-            for line in iter(self.process.stderr.readline, ''):
-                formatted_line = f'<span style="color:red;">{line.strip()}</span>'
-                self.error_received.emit(formatted_line)  # Display errors in red
-
-        self.process.wait()
-        self.process_finished.emit(self.process.returncode)
-
-    def stop(self):
-        """Stops the subprocess and its children."""
-        if not self.process:
-            return
-
+        """
+        Runs the subprocess and streams output in real time.
+        Terminates cleanly if stop is requested.
+        """
         try:
             if self.is_windows:
-                self.process.send_signal(signal.CTRL_BREAK_EVENT)
-                if self.process.poll() is None:
-                    self.process.kill()
+                self.process = subprocess.Popen(
+                    shlex.split(self.command),
+                    cwd=self.working_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+                )
             else:
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-        except Exception as e:
-            print(f"Error stopping process: {e}")
-        finally:
+                self.process = subprocess.Popen(
+                    shlex.split(self.command),
+                    cwd=self.working_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    preexec_fn=os.setsid
+                )
+
+            def read_stdout():
+                try:
+                    for line in self.process.stdout:
+                        if self._stop_requested:
+                            break
+                        formatted_line = self.ansi_converter.convert(line.strip(), full=False)
+                        self.output_received.emit(formatted_line)
+                except Exception as e:
+                    self.error_received.emit(f"Error reading stdout: {e}")
+
+            def read_stderr():
+                try:
+                    for line in self.process.stderr:
+                        if self._stop_requested:
+                            break
+                        formatted_line = f'<span style="color:red;">{line.strip()}</span>'
+                        self.error_received.emit(formatted_line)
+                except Exception as e:
+                    self.error_received.emit(f"Error reading stderr: {e}")
+
+            stdout_thread = threading.Thread(target=read_stdout, daemon=True)
+            stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+
+            stdout_thread.start()
+            stderr_thread.start()
+
+            # Wait for process to finish
+            if self.process:
+                exit_code = self.process.wait()
+            else:
+                exit_code = -1
+
+            # Wait for both reader threads to finish
+            stdout_thread.join()
+            stderr_thread.join()
+
             self.process = None
+            if self._stop_requested:
+                self.process_finished.emit(-1)
+            else:
+                self.process_finished.emit(exit_code)
+
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            self.error_received.emit(f"Error in run(): {e}\n{tb}")
+
+    def stop(self):
+        """
+        Request to stop the subprocess and its children.
+        Call this from the UI thread.
+        """
+        self.request_stop.emit()
+
+    def _handle_stop(self):
+        """
+        Terminates the subprocess and all its child processes (cross-platform).
+        Runs in the worker thread.
+        """
+        self._stop_requested = True
+        if not self.process:
+            return
+        try:
+            parent = psutil.Process(self.process.pid)
+            procs = parent.children(recursive=True)
+            procs.append(parent)
+            for p in procs:
+                try:
+                    p.terminate()
+                except Exception:
+                    pass
+            gone, alive = psutil.wait_procs(procs, timeout=2)
+            for p in alive:
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+        except Exception as e:
+            self.error_received.emit(f"Error stopping process: {e}")
 
 class ChemDrawFileDialog(QDialog):
     def __init__(self, parent=None):
@@ -2448,6 +2671,159 @@ class ChemDrawFileDialog(QDialog):
             QMessageBox.warning(self, "Missing File", "Please select a main ChemDraw file.")
             return
         self.accept()  # close the dialog with success
+
+def smart_read_csv(filepath):
+    with open(filepath, 'r', encoding='utf-8') as f:
+        first_line = f.readline()
+        delimiter = ';' if first_line.count(';') > first_line.count(',') else ','
+    df = pd.read_csv(filepath, encoding='utf-8', delimiter=delimiter)
+    return df
+
+class NoScrollComboBox(QComboBox):
+    """
+    A custom QComboBox that prevents scrolling when the dropdown is closed.
+    """     
+    def wheelEvent(self, event: QWheelEvent):
+        # Only allow scrolling when dropdown is open
+        if self.view().isVisible():
+            super().wheelEvent(event)
+        else:
+            event.ignore()
+
+class AssetPath:
+    """
+    A class to manage and retrieve the file path of an asset.
+    Attributes:
+        _filename (str): The name of the file for which the path is managed.
+    Methods:
+        get_path():
+            Retrieves the full path to the asset file. If the application is
+            running in a frozen state (e.g., packaged with PyInstaller), it
+            constructs the path relative to the current working directory.
+            Otherwise, it retrieves the path using the importlib.resources API.
+    """
+    def __init__(self,filename):
+        self._filename = filename
+    
+    def get_path(self):
+        """
+        Retrieves the file path to the icon file associated with the current instance.
+
+        If the application is running in a frozen state (e.g., packaged with PyInstaller),
+        the method constructs the path relative to the current working directory. Otherwise,
+        it uses the `importlib.resources` module to locate the file within the package.
+
+        Returns:
+            Path: The resolved file path to the icon file.
+        """
+        if getattr(sys,"frozen",False):
+            return Path.cwd()/"_internal"/"robert_env"/"Lib"/"site-packages"/"robert"/"icons"/ self._filename
+        else:
+            return as_file(files("robert") / "icons" / self._filename)
+
+
+class AssetLibrary:
+    """
+    AssetLibrary is a class that provides a centralized collection of asset paths 
+    used in the application. Each attribute represents a specific asset, such as 
+    icons or logos, and is initialized using the AssetPath function.
+
+    Attributes:
+        Info_icon (AssetPath): Path to the "info_icon.png" asset.
+        Robert_logo_transparent (AssetPath): Path to the "Robert_logo_transparent.png" asset.
+        Robert_icon (AssetPath): Path to the "Robert_icon.png" asset.
+        Play_icon (AssetPath): Path to the "play_icon.png" asset.
+        Stop_icon (AssetPath): Path to the "stop_icon.png" asset.
+        Pdf_icon (AssetPath): Path to the "pdf_icon.png" asset.
+    """
+    Info_icon = AssetPath("info_icon.png")
+    Robert_logo_transparent = AssetPath("Robert_logo_transparent.png")
+    Robert_icon = AssetPath("Robert_icon.png")
+    Play_icon = AssetPath("play_icon.png")
+    Stop_icon = AssetPath("stop_icon.png")
+    Pdf_icon = AssetPath("pdf_icon.png")
+
+def mcs_process(smiles_list, result_queue):
+    """Find the Maximum Common Substructure (MCS) in a list of SMILES strings."""
+    try:
+        mol_list = []
+        for smi in smiles_list:
+            mol = Chem.MolFromSmiles(smi)
+            mol_with_Hs = Chem.AddHs(mol)
+            if mol_with_Hs:
+                mol_list.append(mol_with_Hs)
+        if not mol_list:
+            result_queue.put(('error', 'No valid molecules.'))
+            return
+        mcs_result = rdFMCS.FindMCS(mol_list)
+        if mcs_result and mcs_result.smartsString:
+            result_queue.put(('success', mcs_result.smartsString))
+        else:
+            result_queue.put(('error', '⚠️ No common SMARTS pattern found.'))
+    except Exception as e:
+        result_queue.put(('error', f'❌ MCS failed: {str(e)}'))
+
+class MCSProcessWorker(QObject):
+    finished = Signal(str)
+    error = Signal(str)
+    timeout = Signal()
+
+    def __init__(self, smiles_list, timeout_ms=10000):
+        super().__init__()
+        self.smiles_list = smiles_list
+        self.queue = Queue()
+        self.process = None
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self._on_timeout)
+        self.timeout_ms = timeout_ms
+
+    def start(self):
+        self.process = Process(target=mcs_process, args=(self.smiles_list, self.queue))
+        self.process.start()
+        self.timer.start(self.timeout_ms)
+        QTimer.singleShot(100, self.check_result) 
+
+    def check_result(self):
+        if not self.queue.empty():
+            status, msg = self.queue.get()
+            self.timer.stop()
+            self.process.join()
+            if status == 'success':
+                self.finished.emit(msg)
+            else:
+                self.error.emit(msg)
+        elif self.process.is_alive():
+            QTimer.singleShot(100, self.check_result)
+        else:
+            self.timer.stop()
+            self.process.join()
+
+    def _on_timeout(self):
+        if self.process and self.process.is_alive():
+            self.process.terminate()
+            self.process.join()
+            self.timeout.emit()
+
+class PageRenderThread(QThread):
+    finished = Signal(int, float, QPixmap)  # page_num, zoom, pixmap
+
+    def __init__(self, pdf_path, page_num, zoom):
+        super().__init__()
+        self.pdf_path = pdf_path
+        self.page_num = page_num
+        self.zoom = zoom
+
+    def run(self):
+        doc = fitz.open(self.pdf_path)
+        page = doc.load_page(self.page_num)
+        matrix = fitz.Matrix(self.zoom, self.zoom)
+        pix = page.get_pixmap(matrix=matrix)
+        img = QPixmap()
+        img.loadFromData(pix.tobytes("ppm"))
+        doc.close()
+
+        self.finished.emit(self.page_num, self.zoom, img)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

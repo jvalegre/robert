@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-version="2.0.2"
+version="2.0.3"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
@@ -30,6 +30,8 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     install_requires=[
         "PyYAML==6.0.2",
@@ -47,6 +49,7 @@ setup(
         "PySide6",
         "PyMuPDF",
         "ansi2html",
+        "psutil",
         "rdkit==2024.3.3"
     ],
     python_requires=">=3.10",

@@ -1006,6 +1006,10 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     Loads either a Xy (params=False) or a parameter (params=True) database from a CSV file
     '''
     
+    # adjust external set in AQME workflows
+    if module.lower() == 'aqme_test':
+        external_test = True
+
     txt_load = ''
     # this part fixes CSV files that use ";" as separator
     with open(csv_load, 'r', encoding='utf-8') as file:
@@ -1042,7 +1046,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         if 'Set' in csv_df.columns: # removes the column that tracks sets
             accepted_descs -= 1
             ignored_descs += 1
-        if module.lower() not in ['aqme']:
+        if module.lower() not in ['aqme','aqme_test']:
             csv_name = os.path.basename(csv_load)
             if module.lower() not in ['predict']:
                 txt_load += f'\no  Database {csv_name} loaded successfully, including:'

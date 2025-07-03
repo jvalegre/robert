@@ -135,6 +135,14 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
    pip install scikit-learn-intelex==2025.2.0
    conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
+.. warning::
+
+   On some Linux systems (e.g., Ubuntu 22.04), you may also need to install gtk2 in addition to gtk3 to avoid errors related to missing libraries (such as 'libgobject-2.0-0'). You can install it with:
+
+   .. code-block:: shell
+
+      conda install -c conda-forge gtk2
+
 .. installation-end 
 
 .. note-start 

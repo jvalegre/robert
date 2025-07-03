@@ -35,7 +35,7 @@ from robert.utils import (load_variables,
     )
 
 # list of potential arguments from CSV inputs in AQME
-aqme_args = ['charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']
+aqme_args = ['charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral','sample']
 
 class aqme:
     """

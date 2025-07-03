@@ -144,7 +144,7 @@ def set_aqme_args(args):
         sys.exit()
 
     # list of potential arguments from CSV inputs in AQME
-    aqme_args = ['smiles','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral']
+    aqme_args = ['smiles','charge','mult','complex_type','geom','constraints_atoms','constraints_dist','constraints_angle','constraints_dihedral','sample']
 
     # ignore the names and SMILES of the molecules
     remove = []

@@ -50,7 +50,8 @@ setup(
         "PyMuPDF",
         "ansi2html",
         "psutil",
-        "rdkit==2024.3.3"
+        "rdkit==2024.3.3",
+        "psutil==7.0.0",
     ],
     python_requires=">=3.10",
     include_package_data=True,

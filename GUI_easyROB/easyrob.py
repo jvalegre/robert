@@ -9,6 +9,7 @@ import fitz
 from importlib.resources import files, as_file
 from ansi2html import Ansi2HTMLConverter
 from rdkit.Chem.rdmolfiles import MolsFromCDXMLFile
+from rdkit.Chem.rdmolops import GetMolFrags
 from rdkit import Chem
 from rdkit.Chem import Draw
 from io import BytesIO
@@ -34,7 +35,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent, QWheelEvent
-from PySide6.QtCore import (Qt, Slot, QThread, Signal, QObject, QUrl, QTimer)
+from PySide6.QtCore import (Qt, Slot, QThread, Signal, QObject, QUrl, QTimer, QEventLoop)
 
 os.environ["QT_QUICK_BACKEND"] = "software"
 
@@ -47,7 +48,6 @@ class AQMETab(QWidget):
         self.help_tab = help_tab
         self.web_view = web_view
         self.selected_atoms = []
-        self.check_multiple_matches = False
         self.box_features = "QGroupBox { font-weight: bold; }"
 
         # === Main vertical layout ===
@@ -127,6 +127,10 @@ class AQMETab(QWidget):
             border: 1px solid #aaa;
         """)
 
+        self.mol_info_label.setWordWrap(True)  
+        self.mol_info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.mol_info_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.mol_info_label.setMaximumWidth(600)  
         self.mol_info_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
         # === Set up the molecule viewer ===
@@ -255,47 +259,74 @@ class AQMETab(QWidget):
         rdkit.rdBase.DisableLog('rdApp.*')
         rdDepictor.SetPreferCoordGen(True)
 
+        self.metal_atomic_numbers = {
+            3, 11, 19, 37, 55, 87,
+            4, 12, 20, 38, 56, 88,
+            21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+            39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+            72, 73, 74, 75, 76, 77, 78, 79, 80,
+            13, 49, 50, 81, 82, 83
+        }
+
         try:
+            self.metal_found = False
+            self.metal_atoms_to_highlight = set()
+            metal_found_in_this_mol = False
+
             if not self.smarts_targets:
                 self.set_mol_viewer_message("⚠️ No SMARTS patterns available.")
                 self.mol_info_label.setText("🔬 Info here")
                 return
 
-            # Convert SMARTS to RDKit Mol
             pattern_mol = Chem.MolFromSmarts(self.smarts_targets[0])
             if pattern_mol is None:
                 self.set_mol_viewer_message("⚠️ Invalid SMARTS pattern.")
                 self.mol_info_label.setText("🔬 Info here")
                 return
 
-            # Check for multiple matches in the dataset
+            self.multiple_matches_detected = False
+
             for smiles in self.csv_df[self.smiles_column]:
                 mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
                 if mol is None:
                     continue
+
                 matches = mol.GetSubstructMatches(pattern_mol)
+
+                for match in matches:
+                    for idx in match:
+                        atom = mol.GetAtomWithIdx(idx)
+                        if atom.GetAtomicNum() in self.metal_atomic_numbers:
+                            metal_found_in_this_mol = True
+                            self.metal_found = True
+                            self.metal_atoms_to_highlight.add(idx)
+                            break
+                    if metal_found_in_this_mol:
+                        break
+
                 if len(matches) > 1:
-                    self.check_multiple_matches = True
-                    self.set_mol_viewer_message(
-                    f"⚠️ Multiple matches detected: the common substructure '{self.smarts_targets[0]}' appears more than once in the molecule '{smiles}'. "
-                    "Atomic descriptor selection has been disabled to avoid ambiguity."
-                    )   
-                    self.mol_info_label.setText("🔬 Info here")
-                    return
+                    self.multiple_matches_detected = True
+                    if not metal_found_in_this_mol:
+                        self.set_mol_viewer_message(
+                            f"⚠️ <b>Multiple matches detected<b>: the common substructure '{self.smarts_targets[0]}' appears more than once in the molecule '{smiles}'. "
+                            "Atomic descriptor selection has been disabled to avoid ambiguity."
+                        )
+                        self.mol_info_label.setText("🔬 Info here")
+                        return
 
-            self.check_multiple_matches = False  # All clear
-
-            # Prepare for drawing the SMARTS pattern molecule
             self.mol = pattern_mol
             self.molecule_image_width = self.mol_viewer_container.width()
             self.molecule_image_height = self.mol_viewer_container.height()
 
-            highlight_atoms = set(self.selected_atoms)
+            if self.metal_found and self.multiple_matches_detected:
+                highlight_atoms = set(self.metal_atoms_to_highlight)
+            else:
+                highlight_atoms = set(self.selected_atoms)
+
             highlight_colors = {idx: (0.698, 0.4, 1.0) for idx in highlight_atoms} if highlight_atoms else {}
 
             drawer = rdMolDraw2D.MolDraw2DCairo(self.molecule_image_width, self.molecule_image_height)
             drawer.drawOptions().bondLineWidth = 1.5
-
             drawer.DrawMolecule(
                 self.mol,
                 highlightAtoms=list(highlight_atoms),
@@ -303,7 +334,6 @@ class AQMETab(QWidget):
             )
             drawer.FinishDrawing()
 
-            # Display image
             png_bytes = drawer.GetDrawingText()
             pixmap = QPixmap()
             pixmap.loadFromData(png_bytes)
@@ -315,13 +345,27 @@ class AQMETab(QWidget):
                     self.mol_info_label.setText("🔬 Info here")
                 else:
                     self.mol_viewer.setPixmap(pixmap)
-                    if highlight_atoms:
-                        self.mol_info_label.setText(f"🔬 {len(highlight_atoms)} atom(s) selected.")
-                    else:
+
+                    if self.metal_found and self.multiple_matches_detected:
                         self.mol_info_label.setText(
-                        '🧪 SMARTS pattern loaded. Click to select atoms.<br>'
-                        '<span style="color:red;">⚠️ WARNING! No atoms selected. Atomic descriptors will not be generated.</span>'
-                    )
+                            '🧪 <b>SMARTS pattern loaded. Metal atom(s) automatically selected.</b><br>'
+                            '<span style="color:red;">⚠️ Multiple matches were found. '
+                            'Atomic descriptors will be generated for the detected metal atom(s). '
+                            'Manual atom selection has been disabled to avoid ambiguity.</span>'
+                        )
+                    elif self.metal_found and not self.selected_atoms:
+                        self.mol_info_label.setText(
+                            '🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>'
+                            '<span style="color:red;">⚠️ No atoms selected. Descriptors will only be generated for the detected metal.</span>'
+                        )
+                    else:
+                        if highlight_atoms:
+                            self.mol_info_label.setText(f"🔬 {len(highlight_atoms)} atom(s) selected.")
+                        else:
+                            self.mol_info_label.setText(
+                                '🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>'
+                                '<span style="color:red;">⚠️ WARNING! No atoms selected. Atomic descriptors will not be generated.</span>'
+                            )
 
         except Exception as e:
             self.set_mol_viewer_message("❌ Error displaying molecule.", tooltip=str(e))
@@ -332,6 +376,10 @@ class AQMETab(QWidget):
 
         if not hasattr(self, 'selected_atoms'):
             self.selected_atoms = []
+        
+        if getattr(self, 'metal_found', False) and getattr(self, 'multiple_matches_detected', False):
+            # Prevent manual selection when metal match has been auto-selected due to ambiguity
+            return
 
         # If the atom is already selected, deselect it
         if atom_idx in self.selected_atoms:
@@ -349,10 +397,12 @@ class AQMETab(QWidget):
             self.csv_df[self.smiles_column].dropna()
         )
 
+
     def generate_mapped_smiles(self, smarts_pattern, selected_pattern_indices, smiles_list):
         """
         Generate mapped SMILES using a SMARTS pattern and selected atom indices.
         Updates self.df_mapped_smiles with a copy of the original CSV where 'SMILES' is replaced.
+
         """
 
         # Parse the SMARTS pattern to a molecule object
@@ -447,9 +497,15 @@ class AQMETab(QWidget):
             """Load molecules from a ChemDraw or SDF file."""
             if path.endswith('.cdxml'):
                 try:
-                    mols = MolsFromCDXMLFile(path, sanitize=True, removeHs=True)
+                    mols = MolsFromCDXMLFile(path, sanitize=False, removeHs=False)
                     total_count = len(mols)
-                    valid_mols = [mol for mol in mols if mol is not None]
+                    valid_mols = []
+
+                    for mol in mols:
+                        if mol is not None:
+                            fragments = GetMolFrags(mol, asMols=True, sanitizeFrags=False)
+                            valid_mols.extend(fragments)
+
                     valid_count = len(valid_mols)
 
                     if valid_count == 0:
@@ -474,21 +530,23 @@ class AQMETab(QWidget):
                 return [mol for mol in Chem.SDMolSupplier(path) if mol is not None]
             
             elif path.endswith(".cdx"): 
-                with tempfile.NamedTemporaryFile(suffix=".sdf", delete=False) as temp_sdf:
-                    temp_sdf_path = temp_sdf.name
+                QMessageBox.critical(
+                    self,
+                    "Unsupported CDX Format",
+                    (
+                        "The selected file is in CDX format, which is currently not supported for automatic import.To proceed, please use the ChemDraw application to export your structures in CDXML format.\n\n"
+                        "➤ If you already have a ChemDraw file in CDX format, open it in ChemDraw and re-save or export it as a .cdxml file.\n\n"
+                        "➤ If re-exporting the entire file is not feasible, you can also manually copy each individual molecule:\n\n"
+                        "   1. Open the CDX file in ChemDraw.\n"
+                        "   2. Select a molecule.\n"
+                        "   3. Press Ctrl+C (or Cmd+C on Mac).\n"
+                        "   4. Paste it (Ctrl+V or Cmd+V) into a new ChemDraw document.\n"
+                        "   5. Save the new document as a CDXML file.\n\n"
+                        "This ensures proper structure recognition and compatibility with the application.\n\n"
+                    )
+                )
+                return []
 
-                try:
-                    subprocess.run(["obabel", path, "-O", temp_sdf_path], check=True)
-                except subprocess.CalledProcessError as e:
-                    QMessageBox.critical(self, "CDX Conversion Error", f"Open Babel failed:\n{str(e)}")
-                    return []
-
-                mols = [mol for mol in Chem.SDMolSupplier(temp_sdf_path) if mol is not None]
-
-                if os.path.exists(temp_sdf_path):
-                    os.remove(temp_sdf_path)
-
-                return mols
             else:
                 mol = Chem.MolFromMolFile(path)
                 return [mol] if mol else []
@@ -518,7 +576,7 @@ class AQMETab(QWidget):
 
         # --- Table Columns ---
         base_headers = ["Image", "SMILES", "code_name", "target"]
-        extra_columns = ["charge", "mult", "complex_type"]
+        extra_columns = ["charge", "mult", "complex_type", "sample", "geom"]
         complex_type_options = ["", "squareplanar", "squarepyramidal", "linear", "trigonalplanar"]
 
         # Table widget setup
@@ -568,8 +626,7 @@ class AQMETab(QWidget):
             table.setCellWidget(row, 0, widget)
 
             # Set SMILES (column 1)
-            cx_smi = Chem.MolToCXSmiles(mol)
-            smi = cx_smi.split(' ')[0]
+            smi = Chem.MolToSmiles(mol, canonical=False)
             table.setItem(row, 1, QTableWidgetItem(smi))
             # code_name (column 2), target (column 3) initialized empty
             table.setItem(row, 2, QTableWidgetItem(""))
@@ -696,6 +753,30 @@ class AQMETab(QWidget):
                             f"Column 'complex_type' cannot be empty. Please select a value."
                         )
                         return
+                    
+                # Validate 'sample' column if present (must be int, not empty)
+                if "sample" in headers:
+                    sample_idx = headers.index("sample")
+                    for row in range(table.rowCount()):
+                        item = table.item(row, sample_idx)
+                        val = item.text().strip() if item else ""
+                        if val == "":
+                            QMessageBox.warning(dialog, "WARNING!", f"Column 'sample' cannot be empty.")
+                            return
+                        if not (val.lstrip('-').isdigit() and '.' not in val):
+                            QMessageBox.warning(dialog, "WARNING!", f"Column 'sample' must be an integer.")
+                            return
+
+                # Validate 'GEOM' column if present (must not be empty)
+                if "geom" in headers:
+                    geom_idx = headers.index("geom")
+                    for row in range(table.rowCount()):
+                        item = table.item(row, geom_idx)
+                        val = item.text().strip() if item else ""
+                        if val == "":
+                            QMessageBox.warning(dialog, "WARNING!", f"Column 'geom' cannot be empty.")
+                            return
+
 
             # --- Uniqueness check for 'code_name' ---
             duplicates = [name for name in set(code_names) if code_names.count(name) > 1]
@@ -1279,8 +1360,9 @@ class EasyROB(QMainWindow):
         self.clear_test_button.setVisible(False) # Hide the button initially
 
     def closeEvent(self, event):
-        """Intercept window close to clean up running threads."""
-        if hasattr(self, 'worker') and self.worker and self.worker.isRunning():
+        """Intercept window close to clean up running threads safely."""
+        worker = getattr(self, 'worker', None)
+        if worker is not None and worker.isRunning():
             reply = QMessageBox.question(
                 self,
                 "Exit Confirmation",
@@ -1288,10 +1370,21 @@ class EasyROB(QMainWindow):
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
-
             if reply == QMessageBox.Yes:
-                self.worker.stop()
-                self.worker.wait()
+                loop = QEventLoop()
+                worker.process_finished.connect(loop.quit)
+
+                worker.stop()  # safely stop the process tree
+
+                # Safety timeout: stop waiting after 5 seconds
+                QTimer.singleShot(5000, loop.quit)
+                loop.exec()
+
+                if worker.isRunning():
+                    print("[DEBUG] Worker did not stop in time, forcing exit anyway.")
+                else:
+                    print("[DEBUG] Worker stopped successfully.")
+
                 event.accept()
             else:
                 event.ignore()
@@ -2553,6 +2646,11 @@ class RobertWorker(QThread):
                             break
                         formatted_line = f'<span style="color:red;">{line.strip()}</span>'
                         self.error_received.emit(formatted_line)
+
+                    # Reset line to avoid any leftover ANSI red text
+                    reset_line = self.ansi_converter.convert("\033[0m", full=False)
+                    self.output_received.emit(reset_line)
+
                 except Exception as e:
                     self.error_received.emit(f"Error reading stderr: {e}")
 

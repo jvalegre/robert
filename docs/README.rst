@@ -106,7 +106,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
 .. code-block:: shell 
    
-   conda create -n robert python=3.10
+   conda create -n robert -c conda-forge -y python=3.10
    conda activate robert
 
 **2.** Install ROBERT and the intelex accelerator with pip (only if your system is compatible with intelex):  

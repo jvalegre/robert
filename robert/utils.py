@@ -875,7 +875,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     curate_valid = False
         
         elif module.lower() == 'generate':
-            if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q2']:
+            if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q5']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
 
@@ -1246,14 +1246,16 @@ def test_select(self,X_scaled,csv_y):
             test_points = test_idx.tolist()
 
     elif self.args.split.upper() == 'EVEN':
+        # Remove the max and min values so they don't end up in the training set
+        csv_y_capped = csv_y.drop([csv_y.idxmin(), csv_y.idxmax()])
         # Calculate the number of bins based on the number of points
-        y_binned = pd.qcut(csv_y, q=selected_size, labels=False, duplicates='drop')
+        y_binned = pd.qcut(csv_y_capped, q=selected_size, labels=False, duplicates='drop')
 
         # Adjust bin count if any bin has fewer than two elements (happens in imbalanced data, see comment below)
         temp_size = selected_size
         while y_binned.value_counts().min() < 2 and temp_size > 2:
             temp_size -= 1
-            y_binned = pd.qcut(csv_y, q=temp_size, labels=False, duplicates='drop')
+            y_binned = pd.qcut(csv_y_capped, q=temp_size, labels=False, duplicates='drop')
 
         # Determine central validation points for each bin
         test_points = []
@@ -1275,12 +1277,12 @@ def test_select(self,X_scaled,csv_y):
             random_seed += 1
 
     elif self.args.split.upper() == 'EXTRA_Q1':
-        # 10% lowest and 10% highest points
+        # 20% lowest points
         portion = max(1, round(0.2 * len(csv_y)))
         test_points = csv_y.nsmallest(portion).index.tolist()
     
     elif self.args.split.upper() == 'EXTRA_Q5':
-        # 10% lowest and 10% highest points
+        # 20%% highest points
         portion = max(1, round(0.2 * len(csv_y)))
         test_points = csv_y.nlargest(portion).index.tolist()
 

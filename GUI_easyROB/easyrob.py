@@ -25,15 +25,17 @@ import psutil
 from functools import partial
 from multiprocessing import Process, Queue
 import threading
+import requests
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QPushButton, QFileDialog, QVBoxLayout, QWidget,
     QComboBox, QListWidget, QProgressBar, QMessageBox, QHBoxLayout, QFrame, QTabWidget, 
     QLineEdit, QTextEdit, QSizePolicy, QFormLayout, QGridLayout, QGroupBox, QCheckBox, 
     QScrollArea, QFileDialog, QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem,QInputDialog,
-    QSlider,
+    QSlider, 
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
 from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent, QWheelEvent
 from PySide6.QtCore import (Qt, Slot, QThread, Signal, QObject, QUrl, QTimer, QEventLoop)
 
@@ -143,16 +145,45 @@ class AQMETab(QWidget):
 
         # === AQME Box at the bottom ===
         aqme_box = QGroupBox("AQME")
-        aqme_box.setMaximumHeight(115)  
+        aqme_box.setMaximumHeight(150)  
         aqme_box.setStyleSheet(self.box_features)
         aqme_layout = QFormLayout()
 
         self.atoms = QLineEdit(placeholderText="e.g., Au or C=O")
         self.descriptor_level = QComboBox()
         self.descriptor_level.addItems(["interpret", "denovo", "full"])
+        self.solvent = QComboBox()
+        self.solvent.addItems([
+            "None",
+            # "Acetone",
+            # "Acetonitrile",
+            # "Aniline",
+            # "Benzaldehyde",
+            # "Benzene",
+            # "CH2Cl2",
+            # "CHCl3",
+            # "CS2",
+            # "Dioxane",
+            # "DMF",
+            # "DMSO",
+            # "Ether",
+            # "Ethylacetate",
+            # "Furane",
+            # "Hexadecane",
+            # "Hexane",
+            # "Methanol",
+            # "Nitromethane",
+            # "Octanol",
+            # "Octanol (wet)",
+            # "Phenol",
+            # "Toluene",
+            # "THF",
+            # "Water"
+        ])
 
         aqme_layout.addRow(QLabel("QDESCP Atoms:"), self.atoms)
         aqme_layout.addRow(QLabel("Descriptor Level:"), self.descriptor_level)
+        aqme_layout.addRow(QLabel("Solvent:"), self.solvent)
 
         # Help button
         help_button = QPushButton("Help AQME parameters")
@@ -916,6 +947,10 @@ class AdvancedOptionsTab(QWidget):
         self.repeat_kfolds.setPlaceholderText("10")
         layout.addRow(QLabel("repeat_kfolds:"), self.repeat_kfolds)
 
+        self.split = QComboBox()
+        self.split.addItems([ "even", "RND", "stratified", "KN", "extra_q1", "extra_q5" ])
+        layout.addRow(QLabel("split:"), self.split)
+
         # --- Help button at the bottom ---
         help_button = self.create_help_button("GENERAL")
 
@@ -1410,7 +1445,7 @@ class EasyROB(QMainWindow):
     def clear_test_file(self):
         """Clear the selected test file."""
         self.csv_test_path = None
-        self.csv_test_label.setText("Drag & Drop a CSV test file here (optional)")
+        self.csv_test_label.setText("Drag & Drop a CSV external test file here (optional)")
         self.clear_test_button.setVisible(False)
 
     def initUI(self):
@@ -1482,12 +1517,12 @@ class EasyROB(QMainWindow):
         # --- Test CSV File (Optional) ---
         test_layout = QVBoxLayout()
 
-        self.csv_test_title = QLabel("Select Test CSV File (optional)", self)
+        self.csv_test_title = QLabel("Select External Test CSV File (optional)", self)
         self.csv_test_title.setAlignment(Qt.AlignCenter)
         self.csv_test_title.setStyleSheet(f"font-weight: bold; font-size: {font_size};")
 
         self.csv_test_label = DropLabel(
-            "Drag & Drop a CSV test file here (optional)",
+            "Drag & Drop a external CSV test file here (optional)",
             self,
             file_filter="CSV Files (*.csv)",
             extensions=(".csv",)
@@ -1769,6 +1804,71 @@ class EasyROB(QMainWindow):
         self.web_view.setUrl(QUrl("https://robert.readthedocs.io/en/latest/index.html#"))
         help_layout.addWidget(self.web_view)
 
+        # Databases tab
+        self.descriptor_libraries_tab = QWidget()
+        descriptor_libraries_layout = QVBoxLayout(self.descriptor_libraries_tab)
+
+        # Subclass QWebEngineView so pop-ups/new-window requests are redirected
+        # to the same view (so links that open in a new window load here).
+        class SingleWindowWebView(QWebEngineView):
+            def createWindow(self, webWindowType):
+                tmp = QWebEngineView(self)
+                tmp.setAttribute(Qt.WA_DeleteOnClose, True)
+                tmp.urlChanged.connect(lambda url: (self.setUrl(url), tmp.deleteLater()))
+                return tmp
+
+        self.databases_home_url = QUrl("https://descriptor-libraries.molssi.org/")
+
+        home_bar = QWidget()
+        home_bar.setContentsMargins(0, 0, 0, 0)
+        home_bar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        home_layout = QHBoxLayout(home_bar)
+        home_layout.setContentsMargins(0, 0, 0, 0)
+        home_layout.setSpacing(2)
+
+        home_button = QPushButton("🏠 MolSSI Databases")
+        home_button.setToolTip("Return to the Databases start page")
+        home_button.setAccessibleName("Databases home button")
+        home_button.setCursor(Qt.PointingHandCursor)
+        home_button.setFixedSize(150, 24)
+        home_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        home_button.clicked.connect(lambda: self.databases_web_view.setUrl(self.databases_home_url))
+
+        home_layout.addWidget(home_button)
+        home_layout.addStretch()
+
+        descriptor_libraries_layout.addWidget(home_bar, 0, Qt.AlignLeft)
+
+        self.databases_web_view = SingleWindowWebView()
+        self.databases_web_view.setUrl(self.databases_home_url)
+        descriptor_libraries_layout.addWidget(self.databases_web_view)
+
+        # --- Downloads (CSV/JSON/PDF…) ---
+        profile = self.databases_web_view.page().profile()
+        def _on_download(req: QWebEngineDownloadRequest):
+            # Prompt user once for the destination (suggested filename if available)
+            suggested = req.downloadFileName() or "download"
+            path, _ = QFileDialog.getSaveFileName(self.descriptor_libraries_tab, "Save File", suggested)
+            if not path:
+                req.cancel()
+                return
+
+            dirname = os.path.dirname(path)
+            basename = os.path.basename(path)
+            # Try to set both name and directory; some Qt versions separate these APIs
+            try:
+                req.setDownloadDirectory(dirname)
+                req.setDownloadFileName(basename)
+            except Exception:
+                # Fallback: at least set the directory
+                try:
+                    req.setDownloadDirectory(dirname)
+                except Exception:
+                    pass
+            req.accept()
+
+        profile.downloadRequested.connect(_on_download)
+
         # AQME tab (depends on ResultsTab via main_window)
         self.tab_widget_aqme = AQMETab(
             tab_parent=self.tab_widget,
@@ -1796,6 +1896,7 @@ class EasyROB(QMainWindow):
         self.tab_widget.addTab(self.tab_widget_aqme, "AQME")
         self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.tab_widget_aqme), False)
 
+        self.tab_widget.addTab(self.descriptor_libraries_tab, "Databases")
         self.tab_widget.addTab(self.options_tab, "Advanced Options")
         self.tab_widget.addTab(self.help_tab, "Help")
 
@@ -2117,11 +2218,13 @@ class EasyROB(QMainWindow):
         self.kfold_value = self.options_tab.kfold.text().strip()
         self.repeat_kfolds_value = self.options_tab.repeat_kfolds.text().strip()
         self.auto_type_value = self.options_tab.auto_type.isChecked()
+        self.split_value = self.options_tab.split.currentText().strip()
 
 
         # AQME Section
         self.descriptor_level_selected = self.tab_widget_aqme.descriptor_level.currentText()
         self.atoms_selected = self.tab_widget_aqme.atoms.text().strip()
+        self.solvent_selected = self.tab_widget_aqme.solvent.currentText()
 
         # CURATE Section 
         self.categorical_value = self.options_tab.categoricalstr.currentText().strip()
@@ -2177,6 +2280,9 @@ class EasyROB(QMainWindow):
         if self.repeat_kfolds_value:
             command += f' --repeat_kfolds {self.repeat_kfolds_value}'
 
+        if self.split_value != "even":  # Default is "even"
+            command += f' --split {self.split_value.lower()}'
+
         # AQME Section command
         if self.aqme_workflow.isChecked():
             command += ' --aqme'
@@ -2199,6 +2305,10 @@ class EasyROB(QMainWindow):
             if atoms_entries:
                 atoms_str = "[" + ",".join(str(e) for e in atoms_entries) + "]"
                 command += f' --qdescp_keywords "--qdescp_atoms {atoms_str}"'
+
+            # Add solvent if not "None"
+            if self.solvent_selected != "None":
+                command += f' --qdescp_keywords "--qdescp_solvent {self.solvent_selected}"'
 
         # CURATE Section command
         if self.categorical_value != "onehot": # Default is "onehot"

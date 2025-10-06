@@ -4,6 +4,13 @@
 Versions
 ========
 
+Version 2.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.3>`__]
+   -  Fixed bug when selecting test set datapoints with the EVEN option
+   -  Fixed bug in the name of extra_q1 and extra_q5 splitting methods
+   -  Updating scikit-learn to version 1.7.2
+   -  Updating BO to version 3.1.0
+   -  Molssi databases link in easyROB GUI
+
 Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
    -  Fixed bug in MAC and Linux OS from the GENERATE
    -  Updating AQME version to 1.7.3

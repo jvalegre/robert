@@ -78,8 +78,8 @@ Parameters
         2. 'RND': randomly splits the data.
         3. 'stratified': splits the data while preserving the distribution of the target variable.
         4. 'KN': uses a k-means approach to select representative samples.
-        5. 'EXTRA_Q1': selects the 10% lowest values.
-        6. 'EXTRA_Q5': selects the 10% highest values.
+        5. 'extra_q1': selects the 20% lowest values.
+        6. 'extra_q5': selects the 20% highest values.
         
 """
 #####################################################.

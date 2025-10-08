@@ -23,7 +23,7 @@ from matplotlib.ticker import FormatStrFormatter
 import shap
 import seaborn as sb
 from scipy import stats
-from pkg_resources import resource_filename
+from importlib.resources import files
 # for users with no intel architectures. This part has to be before the sklearn imports
 try:
     from sklearnex import patch_sklearn
@@ -409,7 +409,7 @@ def load_variables(kwargs, robert_module):
                 self.log.write(f"Command line used in ROBERT: python -m robert {cmd_print}\n")
 
         elif robert_module.upper() == 'REPORT':
-            self.path_icons = Path(resource_filename("robert", "report"))
+            self.path_icons = files("robert").joinpath("report")
 
         # using or not the intelex accelerator might affect the results
         if robert_module.upper() in ['GENERATE','VERIFY','PREDICT']:

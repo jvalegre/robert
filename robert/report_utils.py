@@ -1107,10 +1107,10 @@ def repro_info(modules):
     except:
         python_version = '(version could not be determined)'
     if intelex_installed:
+        from importlib.metadata import version, PackageNotFoundError
         try:
-            import pkg_resources
-            intelex_version = pkg_resources.get_distribution("scikit-learn-intelex").version
-        except:
+            intelex_version = version("scikit-learn-intelex")
+        except PackageNotFoundError:
             intelex_version = '(version could not be determined)'
     else:
         intelex_version = 'not installed'

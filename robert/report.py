@@ -911,10 +911,10 @@ class report:
 
         if crest_workflow:
             try:
-                import pkg_resources
-                crest_version = pkg_resources.get_distribution('crest').version
+                from importlib.metadata import PackageNotFoundError, version as importlib_version
+                crest_version = importlib_version("crest")
                 find_crest = True
-            except:
+            except PackageNotFoundError:
                 find_crest = False
             if not find_crest:
                 repro_dat += f"""{reduced_line}{space}- CREST is required, but no version was found:</p>"""

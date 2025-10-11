@@ -58,7 +58,7 @@ import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.0.2"
+robert_version = "2.0.3"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -657,65 +657,50 @@ def correlation_filter(self, csv_df):
         txt_corr += f'\n   -  No descriptors were removed'
 
     # Check if descriptors are more than one third of datapoints
-    descpriptors_used = {}
-    n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
+    descriptors_used = {}
 
     num_descriptors = round(len(csv_df[self.args.y]) / 3)
     if n_descps > num_descriptors:
         cv_type = f'{self.args.repeat_kfolds}x {self.args.kfold}_fold_cv'
         txt_corr += f'\n\no  There are more descriptors than one-third of the data points. A Recursive Feature Elimination with Cross-Validation (RFECV) using {cv_type} is performed to select the most relevant descriptors'
 
-        # Use RFECV with the standard sklearn models to select the most important descriptors
-        importances_normalized = {}
-        models_used = []
-        for model in self.args.model:
+        # Use RFECV with GB model to select the most important descriptors
+        model = 'GB'
 
-            # load the parameters of the minimalist models used for REFCV
-            rfecv_params = load_minimal_model(model)
-            rfecv_params = model_adjust_params(self, model, rfecv_params)
+        # load the parameters of the minimalist model used for REFCV
+        rfecv_params = load_minimal_model(model)
+        rfecv_params = model_adjust_params(self, model, rfecv_params)
 
-            estimator = load_model(self, model, **rfecv_params)
+        estimator = load_model(self, model, **rfecv_params)
 
-            # Repeated kfold-CV type
-            cv_model = RepeatedKFold(n_splits=self.args.kfold, n_repeats=self.args.repeat_kfolds, random_state=self.args.seed)
+        # Repeated kfold-CV type
+        cv_model = RepeatedKFold(n_splits=self.args.kfold, n_repeats=self.args.repeat_kfolds, random_state=self.args.seed)
 
-            # select scoring function for PFI analysis based on the error type
-            scoring = get_scoring_key(self.args.type,self.args.error_type)
+        # select scoring function for PFI analysis based on the error type
+        scoring = get_scoring_key(self.args.type,self.args.error_type)
 
-            X_df = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
-            X_scaled_df,_ = scale_df(X_df,None)
-            y_df = csv_df_filtered[self.args.y]
+        X_df = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+        X_scaled_df,_ = scale_df(X_df,None)
+        y_df = csv_df_filtered[self.args.y]
 
-            # these are the compatible models with RFECV, the selection is an average of multiple RFECV processes
-            if model.upper() in ['RF','GB','ADAB']:
-                models_used.append(model.upper())
-                # specify to keep all descriptors, otherwise sometimes it changes the number of descps
-                # obtained in the different models (optimal number of features)
-                selector = RFECV(estimator, scoring=scoring, min_features_to_select=n_descps, cv=cv_model)
+        # RFECV model using at least 1 feature 
+        selector = RFECV(estimator, scoring=scoring, min_features_to_select=1, cv=cv_model)
+        selector.fit(X_scaled_df,y_df)
 
-                # Convert column names to strings to avoid any issues
-                X_scaled_df.columns = X_scaled_df.columns.astype(str)
-                selector.fit(X_scaled_df,y_df)
-
-                # Sort the descriptors by their importance scores
-                max_importance = max(selector.estimator_.feature_importances_)
-                importances_normalized[model] = [descp/max_importance for descp in selector.estimator_.feature_importances_]
-
-        # sum of all normalized importances, sort and discard
-        if importances_normalized != {}:
-            averaged_normalized_importances = [sum(values) / len(values) for values in zip(*importances_normalized.values())]
-
-            global_importances = list(zip(X_scaled_df.columns,averaged_normalized_importances))
-            sorted_descriptors = sorted(global_importances, key=lambda x: x[1], reverse=True)
-            descpriptors_used = [descriptor for descriptor, _ in sorted_descriptors[:num_descriptors]]
-            for descp_remove,_ in sorted_descriptors:
-                if descp_remove not in descpriptors_used:
-                    csv_df_filtered = csv_df_filtered.drop(descp_remove, axis=1)
-
-            txt_corr += f'\n   - Models averaged for RFECV: {", ".join(models_used)}'
-
+        descriptors_used[model] = list(X_scaled_df.columns[selector.support_])
+        if len(descriptors_used[model]) < num_descriptors:
+            txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected'
         else:
-            txt_corr += f'\n   x The RFECV filter was not applied, include one of these models with the --model option to apply it: RF, GB, ADAB'
+            txt_corr += f'\n   - {model}: more than {num_descriptors} descriptors selected, using the top {num_descriptors} based on feature importance'
+            feature_importances = selector.estimator_.feature_importances_
+            selected_cols = np.array(X_scaled_df.columns)[selector.support_]
+            top_idx = np.argsort(feature_importances)[::-1][:num_descriptors]
+            descriptors_used[model] = selected_cols[top_idx].tolist()
+        keep_cols = descriptors_used[model] + [self.args.y] + self.args.ignore
+        csv_df_filtered = csv_df_filtered[keep_cols]
+
+    else:
+        txt_corr += f'\n   x The RFECV filter was not applied, include one of these models with the --model option to apply it: RF, GB, ADAB'
 
     self.args.log.write(txt_corr)
 

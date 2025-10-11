@@ -5,6 +5,7 @@ Versions
 ========
 
 Version 2.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.3>`__]
+   -  Fixing RFECV 
    -  Fixing bug in the AQME module when using --csv_test
    -  Changing pkg_resources to importlib.resources to avoid deprecation warnings
    -  Fixed bug when selecting test set datapoints with the EVEN option

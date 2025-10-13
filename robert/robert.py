@@ -47,10 +47,6 @@ def main(exe_type='command',sys_args=None):
     args = command_line_args(exe_type,sys_args)
     args.command_line = True
 
-    if args.evaluate:
-        print('x  Currently, the EVALUATE module does not work in ROBERT v2.0.1. This module will be available in future versions. Install compatible version: pip install robert==1.2.1')
-        sys.exit()
-
     if not args.evaluate:
         # if no modules are called, the full workflow is activated
         full_workflow = False
@@ -116,11 +112,11 @@ def main(exe_type='command',sys_args=None):
         # EVALUATE, which also creates the files of GENERATE
         evaluate(**vars(args))
 
-        # adjust variables to make them compatible with regular ROBERT workflows
-        args = set_eval_vars(args)
-
         # CURATE, only for the Pearson corr matrix (print if there are 30 or less points)
         curate(**vars(args))
+
+        # Ignore the Set column created in EVALUATE inside the CSV of the GENERATE folder
+        args.ignore.append('Set')
 
         # VERIFY
         verify(**vars(args))
@@ -158,19 +154,6 @@ def set_aqme_args(args):
     for column in aqme_df.columns:
         if column.lower() == 'code_name' and args.names == '':
             args.names = column
-
-    return args
-
-
-def set_eval_vars(args):
-    '''
-    Adjust variables to make them compatible with regular ROBERT workflows
-    '''
-    
-    args.ignore.append('Set')
-    csv_basename = os.path.basename(f'{args.csv_train}').split('.')[0]
-    args.csv_name = f'{csv_basename}_EVAL_db.csv'
-    args.csv_test = ''
 
     return args
 

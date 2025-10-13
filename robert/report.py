@@ -790,9 +790,6 @@ class report:
         if self.args.csv_name == '' or self.args.csv_test == '':
             self = get_csv_names(self,command_line)
 
-        if eval_only and self.args.csv_train != '':
-            self.args.csv_name = self.args.csv_train
-
         repro_dat,citation_dat = '',''
         
         # version, date and citation
@@ -825,15 +822,9 @@ class report:
 
         # reproducibility section, starts with the icon of reproducibility  
         repro_dat += f"""{first_line}<br><strong>1. Download these files <i>(the authors should have uploaded the files as supporting information!)</i>:</strong></p>"""
-        if not eval_only:
-            repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
-            if self.args.csv_test != '':
-                repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
-        else:
-            repro_dat += f"""{reduced_line}{space}- Training CSV database ({self.args.csv_train})</p>"""
-            repro_dat += f"""{reduced_line}{space}- Validation CSV database ({self.args.csv_valid})</p>"""
-            if self.args.csv_test != '':
-                repro_dat += f"""{reduced_line}{space}- Test CSV database ({self.args.csv_test})</p>"""  
+        repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
+        if self.args.csv_test != '':
+            repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
 
         if aqme_workflow:
             try:

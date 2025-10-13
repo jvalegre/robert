@@ -563,15 +563,8 @@ def missing_inputs(self,module,print_err=False):
     """
 
     if module.lower() not in ['predict','verify','report','aqme_test']:
-        if module.lower() == 'evaluate':
-            if self.csv_train == '':
-                self = check_csv_option(self,'csv_train',print_err)
-            if self.csv_valid == '':
-                self = check_csv_option(self,'csv_valid',print_err)
-
-        else:
-            if self.csv_name == '':
-                self = check_csv_option(self,'csv_name',print_err)
+        if self.csv_name == '':
+            self = check_csv_option(self,'csv_name',print_err)
 
     if module.lower() not in ['predict','verify','report','aqme_test']:
         if self.y == '':
@@ -832,10 +825,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
     self = missing_inputs(self,module)
 
     if module.lower() == 'evaluate':
-        curate_valid = locate_csv(self,self.csv_train,'csv_train',curate_valid)
-        curate_valid = locate_csv(self,self.csv_valid,'csv_valid',curate_valid)
-        if self.csv_test != '':
-            curate_valid = locate_csv(self,self.csv_test,'csv_test',curate_valid)
+        curate_valid = locate_csv(self,self.csv_name,curate_valid)
 
         if self.eval_model.lower() not in ['mvl']:
             self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL' (more options will be added soon)")
@@ -847,7 +837,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
     elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
 
-        curate_valid = locate_csv(self,self.csv_name,'csv_name',curate_valid)
+        curate_valid = locate_csv(self,self.csv_name,curate_valid)
 
         if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:
@@ -943,7 +933,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
-def locate_csv(self,csv_input,csv_type,curate_valid):
+def locate_csv(self,csv_input,curate_valid):
     '''
     Assesses whether the input CSV databases can be located
     '''
@@ -954,7 +944,7 @@ def locate_csv(self,csv_input,csv_type,curate_valid):
     elif os.path.exists(f"{Path(os.getcwd()).joinpath(csv_input)}"):
         path_csv = f"{Path(os.getcwd()).joinpath(csv_input)}"
     if not os.path.exists(path_csv) or csv_input == '':
-        self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: --{csv_type} {csv_input}')
+        self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: --csv_name {csv_input}')
         curate_valid = False
     
     return curate_valid

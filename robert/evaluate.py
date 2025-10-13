@@ -5,12 +5,9 @@ Parameters
 GENERAL
 +++++++
 
-    csv_train : str, default=''
-        Name of the CSV file containing the train set. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
-    csv_valid : str, default=''
-        Name of the CSV file containing the validation set. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
-    csv_test : str, default=''
-        Name of the CSV file containing the test set (if any). A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
+    csv_name : str, default=''
+        Name of the CSV file containing all the points used in the model (combining train + valid + test).
+        A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
     y : str, default=''
         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
     names : str, default=''
@@ -26,36 +23,6 @@ GENERAL
         Random seed used in the ML predictor models and other protocols.
     destination : str, default=None,
         Directory to create the output file(s).
-    
-Affect VERIFY
-+++++++++++++
-
-    error_type : str, default: rmse (regression), mcc (classification)
-        Target value used during the VERIFY evaluation. Options:
-        Regression:
-        1. rmse (root-mean-square error)
-        2. mae (mean absolute error)
-        3. r2 (R-squared, not recommended since R2 might be good even with high errors in small datasets)
-        Classification:
-        1. mcc (Matthew's correlation coefficient)
-        2. f1 (F1 score)
-        3. acc (accuracy, fraction of correct predictions)
-
-Affect PREDICT
-++++++++++++++
-
-    t_value : float, default=2
-        t-value that will be the threshold to identify outliers (check tables for t-values elsewhere).
-        The higher the t-value the more restrictive the analysis will be (i.e. there will be more 
-        outliers with t-value=1 than with t-value = 4).
-    alpha : float, default=0.05
-        Significance level, or probability of making a wrong decision. This parameter is related to
-        the confidence intervals (i.e. 1-alpha is the confidence interval). By default, an alpha value
-        of 0.05 is used, which corresponds to a confidence interval of 95%.
-    shap_show : int, default=10,
-        Number of descriptors shown in the plot of the SHAP analysis.
-    pfi_show : int, default=10,
-        Number of descriptors shown in the plot of the PFI analysis.
 
 Affect VERIFY and PREDICT
 +++++++++++++++++++++++++
@@ -72,12 +39,12 @@ Affect VERIFY and PREDICT
 #####################################################.
 
 import os
-import sys
 import shutil
 import time
 import pandas as pd
 from pathlib import Path
-from robert.utils import load_variables, finish_print, load_database
+from robert.utils import load_variables, finish_print, load_database, prepare_sets
+from robert.generate_utils import set_sets
 
 
 class evaluate:
@@ -97,75 +64,49 @@ class evaluate:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "evaluate")
 
-        # load databases, merge them and save CSV for ROBERT workflow
-        csv_df_train,csv_df_valid = self.load_sets()
+        # clean folders from previous runs
+        _ = self.clean_eval()
+
+        # load database, discard user-defined descriptors and perform data checks
+        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
+
+        # standardizes and separates an external test set
+        Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
 
         # saves database and model params in the /GENERATE/Best_model/No_PFI folder
-        _ = self.save_generate(csv_df_train,csv_df_valid)
+        _ = self.save_generate(csv_df,Xy_data)
 
         # finish the printing of the EVALUATE info file
         _ = finish_print(self,start_time,'EVALUATE')
 
-
-    def load_sets(self):
+    def clean_eval(self):
         '''
-        Load databases, merge them and save CSV (tracking the test types using the Set column)
+        Cleans folders from previous runs
         '''
-        
-        csv_df_train,_,_ = load_database(self,self.args.csv_train,"evaluate",print_info=False)
-        csv_df_train['Set'] = ['Training'] * len(csv_df_train[self.args.y])
-        csv_df_valid,_,_ = load_database(self,self.args.csv_valid,"evaluate",print_info=False)
-        csv_df_valid['Set'] = ['Validation'] * len(csv_df_valid[self.args.y])
-        if self.args.csv_test != '':
-            csv_df_test,_,_ = load_database(self,self.args.csv_test,"evaluate",print_info=False)
-            csv_df_test['Set'] = ['Test'] * len(csv_df_test[self.args.y])
 
-        self.args.ignore.append('Set')
+        for folder in ['CURATE','GENERATE','VERIFY','PREDICT']:
+            eval_folder = f'{Path(os.getcwd()).joinpath(folder)}'
+            if os.path.exists(eval_folder):
+                shutil.rmtree(eval_folder)
 
-        # ensure that the datasets have the same number of columns and save combined database
-        if len(csv_df_train.columns) != len(csv_df_valid.columns):
-            self.args.log.write(f"\nx  Training and validation CSV files do not have the same number of columns!")
-            self.args.log.finalize()
-            sys.exit()
-        elif self.args.csv_test != '' and len(csv_df_train.columns) != len(csv_df_test.columns):
-            self.args.log.write(f"\nx  Training and test CSV files do not have the same number of columns!")
-            self.args.log.finalize()
-            sys.exit()
-
-        csv_df = pd.concat([csv_df_train,csv_df_valid], axis=0).reset_index(drop=True)
-        if self.args.csv_test != '':
-            csv_df = pd.concat([csv_df,csv_df_test], axis=0).reset_index(drop=True)
-        
-        csv_basename = os.path.basename(f'{self.args.csv_train}').split('.')[0]
-        self.args.csv_name = f'{csv_basename}_EVAL_db.csv'
-        _ = csv_df.to_csv(f'{self.args.csv_name}', index = None, header=True)
-
-        return csv_df_train,csv_df_valid
-
-
-    def save_generate(self,csv_df_train,csv_df_valid):
+    def save_generate(self,csv_df,Xy_data):
         '''
         Saves database and model params in the /GENERATE/Best_model/No_PFI folder
         '''
-        
-        # copy database
+
+        # copy database with Set column
         generate_folder = Path('GENERATE/Best_model/No_PFI')
         if os.path.exists(generate_folder):
             shutil.rmtree(generate_folder)
         Path(generate_folder).mkdir(exist_ok=True, parents=True)
 
-        train_points = len(csv_df_train[self.args.y])
-        valid_points = len(csv_df_valid[self.args.y])
-        train_proportion = round((train_points/(train_points+valid_points))*100)
-        adapted_name = f'{self.args.eval_model}_{train_proportion}'
+        # include the Set column to differentiate between train and test sets (and external test, if any)
+        csv_df = set_sets(csv_df,Xy_data)
 
-        shutil.copy(f"{self.args.csv_name}", f"{generate_folder}/{adapted_name}_db.csv")
+        _ = csv_df.to_csv(f'{generate_folder}/{self.args.eval_model}_db.csv', index = None, header=True)
 
         # save all the parameters of the model
         df_params = pd.DataFrame()
-        train_points = len(csv_df_train[self.args.y])
-        valid_points = len(csv_df_valid[self.args.y])
-        df_params['train'] = [train_proportion]
         df_params['kfold'] = [self.args.kfold]
         df_params['repeat_kfolds'] = [self.args.repeat_kfolds]
         df_params['model'] = [self.args.eval_model]
@@ -174,8 +115,7 @@ class evaluate:
         df_params['y'] = [self.args.y]
         df_params['names'] = [self.args.names]
         df_params['error_type'] = [self.args.error_type]
-        # self.arg.names and "Set" are already in self.args.ignore
-        descriptors = csv_df_train.drop(self.args.ignore+[self.args.y], axis=1).columns
-        df_params['X_descriptors'] = [list(descriptors)]
+        df_params['params'] = '{}'
+        df_params['X_descriptors'] = [list(Xy_data['X_descriptors'])]
 
-        _ = df_params.to_csv(f'{generate_folder}/{adapted_name}.csv', index = None, header=True)
+        _ = df_params.to_csv(f'{generate_folder}/{self.args.eval_model}.csv', index = None, header=True)

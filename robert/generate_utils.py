@@ -7,6 +7,7 @@ import shutil
 import pandas as pd
 import numpy as np
 import glob
+import json
 from robert.utils import (
     load_params,
     PFI_filter,
@@ -50,7 +51,15 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_db")
     params_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model.upper()}")
     _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
-    bo_data_df = pd.DataFrame([bo_data])
+    
+    # Convert params dict to string to avoid serialization issues
+    bo_data_to_save = bo_data.copy()
+    if 'params' in bo_data_to_save:
+        bo_data_to_save['params'] = json.dumps(bo_data_to_save['params'])
+    if 'X_descriptors' in bo_data_to_save:
+        bo_data_to_save['X_descriptors'] = json.dumps(bo_data_to_save['X_descriptors'])
+    
+    bo_data_df = pd.DataFrame([bo_data_to_save])
     _ = bo_data_df.to_csv(f'{params_name}.csv', index = None, header=True)
 
     return bo_data

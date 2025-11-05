@@ -101,12 +101,11 @@ Installation
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
 **1.** Create and activate the conda environment where you want to install the program. If you are not sure of what 
-this point means, check out the "Users with no Python experience" section. This is an example for Python 3.10, but 
-it also works for newer Python versions (i.e., 3.11 and 3.12):
+this point means, check out the "Users with no Python experience" section. It only works with Python 3.11 or 3.12:
 
 .. code-block:: shell 
    
-   conda create -n robert -c conda-forge -y python=3.10
+   conda create -n robert -c conda-forge -y python=3.12
    conda activate robert
 
 **2.** Install ROBERT and the intelex accelerator with pip (only if your system is compatible with intelex):  

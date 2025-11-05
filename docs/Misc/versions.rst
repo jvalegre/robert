@@ -5,13 +5,16 @@ Versions
 ========
 
 Version 2.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.3>`__]
-   -  Fixing RFECV 
+   -  Changing the way of selecting the 10 first initial points in Bayesian Optimization (now using Latin Hypercube Sampling)
+   -  Deleting first the most correlated features in CURATE module
+   -  Sorting the columns and rows in the csv files to ensure reproducibility
+   -  Using only KNN imputer if you have more than 100 datapoints
+   -  Fixing RFECV (each model now has its own set of descriptors after feature selection)
    -  Fixing bug in the AQME module when using --csv_test
    -  Changing pkg_resources to importlib.resources to avoid deprecation warnings
    -  Fixed bug when selecting test set datapoints with the EVEN option
    -  Fixed bug in the name of extra_q1 and extra_q5 splitting methods
-   -  Updating scikit-learn to version 1.7.2
-   -  Updating BO to version 3.1.0
+   -  Updating packages versions in setup.py
    -  Molssi databases link in easyROB GUI
 
 Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]

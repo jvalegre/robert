@@ -80,18 +80,46 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     Saves CSV files with the different sets and their predicted results
     '''
 
+    # Check if we need to reconvert class labels (for classification with string labels)
+    reconvert_labels = False
+    class_mapping_reverse = None
+    if 'class_0_label' in model_data and 'class_1_label' in model_data:
+        reconvert_labels = True
+        class_mapping_reverse = {
+            0: model_data['class_0_label'],
+            1: model_data['class_1_label']
+        }
+
     # save CV and test results as a single df
     Xy_train, Xy_test = pd.DataFrame(Xy_data['names_train']), pd.DataFrame(Xy_data['names_test'])
     for col in Xy_data['X_train']:
         Xy_train[col] = Xy_data['X_train'][col].tolist()
         Xy_test[col] = Xy_data['X_test'][col].tolist()
-    Xy_train[model_data['y']] = Xy_data['y_train'].tolist()
-    Xy_train[f"{model_data['y']}_pred"] = Xy_data['y_pred_train']
-    Xy_train[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_train_sd']
+    
+    # Store y values and predictions, reconverting if needed
+    y_col = model_data['y']
+    
+    # For training set
+    y_train_values = Xy_data['y_train'].tolist()
+    y_pred_train_values = Xy_data['y_pred_train']
+    if reconvert_labels:
+        y_train_values = [class_mapping_reverse[int(y)] for y in y_train_values]
+        y_pred_train_values = [class_mapping_reverse[int(y)] for y in y_pred_train_values]
+    
+    Xy_train[y_col] = y_train_values
+    Xy_train[f"{y_col}_pred"] = y_pred_train_values
+    Xy_train[f"{y_col}_pred_sd"] = Xy_data['y_pred_train_sd']
 
-    Xy_test[model_data['y']] = Xy_data['y_test'].tolist()
-    Xy_test[f"{model_data['y']}_pred"] = Xy_data['y_pred_test']
-    Xy_test[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_test_sd']
+    # For test set
+    y_test_values = Xy_data['y_test'].tolist()
+    y_pred_test_values = Xy_data['y_pred_test']
+    if reconvert_labels:
+        y_test_values = [class_mapping_reverse[int(y)] for y in y_test_values]
+        y_pred_test_values = [class_mapping_reverse[int(y)] for y in y_pred_test_values]
+    
+    Xy_test[y_col] = y_test_values
+    Xy_test[f"{y_col}_pred"] = y_pred_test_values
+    Xy_test[f"{y_col}_pred_sd"] = Xy_data['y_pred_test_sd']
 
     df_results = pd.concat([Xy_train, Xy_test], axis=0)
 
@@ -119,9 +147,18 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
             Xy_external[col] = Xy_data['X_external'][col].tolist()
             Xy_external[col] = Xy_data['X_external'][col].tolist()
 
+        # Reconvert external set labels if needed
         if 'y_external' in Xy_data:
-            Xy_external[model_data['y']] = Xy_data['y_external'].tolist()
-        Xy_external[f"{model_data['y']}_pred"] = Xy_data['y_pred_external']
+            y_external_values = Xy_data['y_external'].tolist()
+            if reconvert_labels:
+                y_external_values = [class_mapping_reverse[int(y)] for y in y_external_values]
+            Xy_external[model_data['y']] = y_external_values
+        
+        y_pred_external_values = Xy_data['y_pred_external']
+        if reconvert_labels:
+            y_pred_external_values = [class_mapping_reverse[int(y)] for y in y_pred_external_values]
+        
+        Xy_external[f"{model_data['y']}_pred"] = y_pred_external_values
         Xy_external[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_external_sd']
 
         path_external = Path(os.getcwd()).joinpath('PREDICT/csv_test/')

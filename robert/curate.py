@@ -195,4 +195,10 @@ class curate:
         options_df['ignore'] = [self.args.ignore]
         options_df['names'] = [self.args.names]
         options_df['csv_name'] = [csv_curate_name_general]
+        
+        # Save class label mapping if it exists (for classification with string labels)
+        if hasattr(self.args, 'class_0_label'):
+            options_df['class_0_label'] = [self.args.class_0_label]
+            options_df['class_1_label'] = [self.args.class_1_label]
+        
         _ = options_df.to_csv(f'{options_name}', index=None, header=True)

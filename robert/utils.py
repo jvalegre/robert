@@ -475,6 +475,11 @@ def load_variables(kwargs, robert_module):
                             self.ignore  = format_lists(self.ignore)
                         elif option == 'csv_name':
                             self.csv_name = curate_df['csv_name'][0]
+                
+                # Load class labels if they exist (for classification with string labels)
+                if 'class_0_label' in curate_df.columns and 'class_1_label' in curate_df.columns:
+                    self.class_0_label = curate_df['class_0_label'][0]
+                    self.class_1_label = curate_df['class_1_label'][0]
 
         elif robert_module.upper() in ['PREDICT','VERIFY']:
             if robert_module.upper() == 'PREDICT':
@@ -1071,32 +1076,55 @@ def locate_csv(self,csv_input,curate_valid):
 
 def check_clas_problem(self,csv_df):
     '''
-    Changes type to classification if there are only two different y values
+    Changes type to classification if there are only two different y values.
+    Automatically converts any pair of values (strings or numbers) to 0 and 1.
+    Stores the original labels for later reconversion in outputs.
     '''
 
     # changes type to classification if there are only two different y values
     if self.args.type.lower() == 'reg' and self.args.auto_type:
-        if len(set(csv_df[self.args.y])) in [1,2,3,4]:
+        num_unique = len(set(csv_df[self.args.y]))
+        if num_unique in [1,2,3,4]:
             self.args.type = 'clas'
             if self.args.error_type not in ['acc', 'mcc', 'f1']:
                 self.args.error_type = 'mcc'
             if ('MVL' or 'mvl') in self.args.model:
                 self.args.model = [x if x.upper() != 'MVL' else 'ADAB' for x in self.args.model]
 
-            y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
-            self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
+            # Only print the message if there are exactly 2 values
+            if num_unique == 2:
+                unique_vals = list(set(csv_df[self.args.y]))
+                y_val_detect = f'{unique_vals[0]} and {unique_vals[1]}'
+                self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
 
     if self.args.type.lower() == 'clas':
         if len(set(csv_df[self.args.y])) == 2:
-            for target_val in set(csv_df[self.args.y]):
-                if target_val not in [0,'0',1,'1']:
-                    y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
-                    self.args.log.write(f'\nx  Only 0s and 1s values are currently allowed for classification problems! {y_val_detect} were used as values')
-                    self.args.log.finalize()
-                    sys.exit()
+            unique_values = sorted(list(set(csv_df[self.args.y])))  # Sort alphabetically for consistency
+            
+            # Check if values are already 0 and 1
+            if set([str(v) for v in unique_values]) == {'0', '1'}:
+                # Already in correct format, just ensure they're integers
+                csv_df[self.args.y] = csv_df[self.args.y].astype(int)
+            else:
+                # Convert any pair of values to 0 and 1
+                # Store original labels for reconversion in outputs
+                self.args.class_0_label = str(unique_values[0])
+                self.args.class_1_label = str(unique_values[1])
+                
+                # Create mapping dictionaries
+                self.args.class_mapping = {unique_values[0]: 0, unique_values[1]: 1}
+                self.args.class_mapping_reverse = {0: unique_values[0], 1: unique_values[1]}
+                
+                # Convert values in dataframe
+                csv_df[self.args.y] = csv_df[self.args.y].map(self.args.class_mapping)
+                
+                self.args.log.write(f'\no  Classification labels converted: {self.args.class_0_label} → 0, {self.args.class_1_label} → 1')
+                self.args.log.write(f'   Original labels will be restored in output files')
 
         if len(set(csv_df[self.args.y])) != 2:
-            self.args.log.write(f'\nx  Only two different y values are currently allowed! {len(set(csv_df[self.args.y]))} different values were used {set(csv_df[self.args.y])}')
+            self.args.log.write(f'\nx  Only two different y values are currently allowed for classification problems! {len(set(csv_df[self.args.y]))} different values were used: {set(csv_df[self.args.y])}')
+            self.args.log.write(f'   The program detected this is a classification problem (non-numeric values or few unique values)')
+            self.args.log.write(f'   Please use only 2 different class labels (e.g., "active"/"inactive" or 0/1)')
             self.args.log.finalize()
             sys.exit()
 
@@ -2280,15 +2308,24 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
 
     importlib.reload(plt) # needed to avoid threading issues
 
+    # Check if we need to use original class labels for display
+    display_labels = None
+    if 'class_0_label' in params_dict and 'class_1_label' in params_dict:
+        display_labels = [params_dict['class_0_label'], params_dict['class_1_label']]
+
     # get confusion matrix
     if 'CV' in set_type: # CV graphs
         y_train_binary = np.round(Xy_data[f'y_train']).astype(int)
         y_pred_train_binary = np.round(Xy_data[f'y_pred_train']).astype(int)
-        matrix = ConfusionMatrixDisplay.from_predictions(y_train_binary, y_pred_train_binary, normalize=None, cmap='Blues')
+        matrix = ConfusionMatrixDisplay.from_predictions(y_train_binary, y_pred_train_binary, 
+                                                          normalize=None, cmap='Blues', 
+                                                          display_labels=display_labels)
     else: # other graphs
         y_binary = np.round(Xy_data[f'y_{set_type}']).astype(int)
         y_pred_binary = np.round(Xy_data[f'y_pred_{set_type}']).astype(int)
-        matrix = ConfusionMatrixDisplay.from_predictions(y_binary, y_pred_binary, normalize=None, cmap='Blues') 
+        matrix = ConfusionMatrixDisplay.from_predictions(y_binary, y_pred_binary, 
+                                                          normalize=None, cmap='Blues',
+                                                          display_labels=display_labels) 
 
     # transfer it to the same format and size used in reg graphs
     _, ax = plt.subplots(figsize=(7.45,6))

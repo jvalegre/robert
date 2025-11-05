@@ -44,7 +44,7 @@ setup(
         "numba==0.62.1",
         "shap==0.49.1",
         "weasyprint==63.1",
-        "PySide6",
+        "PySide6==6.9.2",
         "PyMuPDF",
         "ansi2html",
         "rdkit==2025.9.1",

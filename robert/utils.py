@@ -1139,9 +1139,12 @@ def check_clas_problem(self,csv_df):
             else:
                 original_label = min_class_label
             
+            # Convert class_counts to dict with regular Python ints
+            class_dist = {int(k): int(v) for k, v in class_counts.items()}
+            
             self.args.log.write(f'\nx  Insufficient data for classification! One of the classes has only {min_class_count} datapoints (class "{original_label}")')
             self.args.log.write(f'   Each class must have at least 5 datapoints to ensure robust train/validation/test splits')
-            self.args.log.write(f'   Current distribution: {dict(class_counts)}')
+            self.args.log.write(f'   Current distribution: {class_dist}')
             self.args.log.write(f'   Please add more datapoints for the minority class or consider a different approach')
             self.args.log.finalize()
             sys.exit()

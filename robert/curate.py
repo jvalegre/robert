@@ -165,9 +165,14 @@ class curate:
                 # Sort rows by y value for reproducibility
                 csv_df_to_save = csv_df_per_model[model].reset_index(drop=True).sort_values(by=self.args.y).reset_index(drop=True)
                 _ = csv_df_to_save.to_csv(f'{csv_curate_name}', index=None, header=True)
-                path_reduced = '/'.join(f'{csv_curate_name}'.replace('\\','/').split('/')[-2:])
+
+                # y values to predict, considering that ROBERT will work with multiple values of y in future versions
+                if not isinstance(self.args.y,list):
+                    count_y = 1
+                else:
+                    count_y = len(self.args.y)
                 
-                txt_csv = f'\n   o Model {model}: {len(csv_df_per_model[model].columns)} columns remaining:\n'
+                txt_csv = f'\n   o Model {model}: {len(csv_df_per_model[model].columns)-len(self.args.ignore)-count_y} descriptors remaining:\n'
                 txt_csv += '      ' + ', '.join(f'{var}' for var in csv_df_per_model[model].columns if var not in self.args.ignore and var != self.args.y)
                 self.args.log.write(txt_csv)
             
@@ -178,7 +183,7 @@ class curate:
             csv_curate_name_general = self.args.destination.joinpath(csv_curate_name_general)
             csv_df_to_save_general = csv_df_filtered.reset_index(drop=True).sort_values(by=self.args.y).reset_index(drop=True)
             _ = csv_df_to_save_general.to_csv(f'{csv_curate_name_general}', index=None, header=True)
-            
+
         else:
             # Original behavior: save single curated database
             csv_curate_name_general = f'{csv_basename}_CURATE.csv'

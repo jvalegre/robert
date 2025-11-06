@@ -10,6 +10,7 @@ import pytest
 import shutil
 import subprocess
 import pandas as pd
+from robert.curate import curate
 
 # saves the working directory
 path_tests = os.getcwd() + "/tests"
@@ -49,6 +50,9 @@ path_curate = os.getcwd() + "/CURATE"
         (
             "standard"
         ),  # standard test  
+        (
+            "standard_cmd"
+        ),  # standard test through command line
 
     ],
 )
@@ -63,79 +67,116 @@ def test_CURATE(test_job):
             if "CURATE" in dat_file:
                 os.remove(dat_file)
 
-    # runs the program with the different tests
-    cmd_robert = [
-        "python",
-        "-m",
-        "robert",
-        "--curate",
-        "--discard", "['xtest']"
-    ]
+    # Create kwargs dictionary for curate function
+    curate_kwargs = {
+        'discard': ['xtest']
+    }
 
     if test_job != 'missing_input':
         if test_job == 'rfecv':
             csv_name = 'A_randos.csv'
         else:
             csv_name = 'Robert_example.csv'
+        
+        curate_kwargs.update({
+            'y': 'Target_values',
+            'csv_name': f"{path_tests}/{csv_name}",
+            'names': 'Name'
+        })
 
-        cmd_robert = cmd_robert + ['--y','Target_values',
-                                   "--csv_name", f"{path_tests}/{csv_name}",
-                                   "--names","Name"]
+    if test_job in ["standard","standard_cmd"]:
+        def _check_standard():
+            # check that the DAT file is created inside the CURATE folder
+            assert not os.path.exists("CURATE_data.dat")
+            outfile = open(f"{path_curate}/CURATE_data.dat", "r")
+            outlines = outfile.readlines()
+            outfile.close()
+            assert "ROBERT v" in outlines[0]
 
-    if test_job == "standard":
-        subprocess.run(cmd_robert)
+            # check that descriptors are removed correctly
+            model_dict = {
+                'RF': {
+                    'accepted_vars': ['x10', 'x2', 'x5', 'x7', 'x9'],
+                    'discarded_vars': ['Csub-Csub', 'Csub-H', 'H-O', 'x11', 'x8', 'ynoise', 'x4', 'xtest']
+                    },
+                'GB': {
+                    'accepted_vars': ['Csub-Csub', 'Csub-H', 'H-O', 'x10', 'x11', 'x2', 'x5', 'x7', 'x8', 'ynoise'],
+                    'discarded_vars': ['x9', 'x4', 'xtest']
+                    },
+                'NN': {
+                    'accepted_vars': ['Csub-Csub', 'Csub-H', 'H-O', 'x10', 'x11', 'x2', 'x5', 'x7', 'x8', 'x9', 'ynoise'],
+                    'discarded_vars': ['x4', 'xtest']
+                    },
+                'MVL': {
+                    'accepted_vars': ['Csub-Csub', 'Csub-H', 'H-O', 'x10', 'x11', 'x2', 'x5', 'x7', 'x8', 'x9', 'ynoise'],
+                    'discarded_vars': ['x4', 'xtest']
+                    },
+                    }
+            for model in model_dict:
+                db_model = pd.read_csv(f"{path_curate}/Robert_example_CURATE_{model}.csv")
+                # 1. Duplicate entries are removed
+                assert len(db_model['Name']) == 37
+                # 2. Correlated variables with X and noise (low R2 with y) are removed
+                for var in model_dict[model]['discarded_vars']:
+                    assert var not in db_model.columns
+                # 3. Ignored variables and y are kept
+                assert 'Name' in db_model.columns
+                assert 'Target_values' in db_model.columns
+                # 4. Discarded variables are removed
+                assert 'xtest' not in db_model.columns
+                # 5. The rest of the variables are kept
+                for var in model_dict[model]['accepted_vars']:
+                    assert var in db_model.columns
+                assert len(db_model.columns) == len(model_dict[model]['accepted_vars'])+2
 
-        # check that the DAT file is created inside the CURATE folder
-        assert not os.path.exists("CURATE_data.dat")
-        outfile = open(f"{path_curate}/CURATE_data.dat", "r")
-        outlines = outfile.readlines()
-        outfile.close()
-        assert "ROBERT v" in outlines[0]
+                # Check if the descriptors were reduced correctly (less than 1/3 of the data points)
+                n_descps = len(db_model.columns) - 2  # subtracting 'Name' and 'Target_values'
+                datapoints = len(db_model)
+                assert n_descps < (datapoints / 3)
 
-        # check that descriptors are removed correctly
-        db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
-        # 1. Duplicate entries are removed
-        assert len(db_final['Name']) == 37
-        # 2. Correlated variables with X and noise (low R2 with y) are removed
-        discard_vars = ['x1','x3','x5', 'x6']
-        for var in discard_vars:
-            assert var not in db_final.columns
-        # 3. Ignored variables and y are kept
-        assert 'Name' in db_final.columns
-        assert 'Target_values' in db_final.columns
-        # 4. Discarded variables are removed
-        assert 'xtest' not in db_final.columns
-        # 5. The rest of the variables are kept
-        final_vars = ['x2','x7','x8','x9','x10','x11','ynoise']
-        for var in final_vars:
-            assert var in db_final.columns
+            # check that categorical variables are converted with one-hot encoding
+            db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
+            categ_vars = ['Csub-H','Csub-Csub','H-O']
+            for var in categ_vars:
+                assert var in db_final.columns
+            assert 'x4' not in db_final.columns
+            for val in db_final['Csub-H']:
+                assert val in [0,1]
 
-        # check that categorical variables are converted with one-hot encoding
-        categ_vars = ['Csub-H','Csub-Csub','H-O']
-        for var in categ_vars:
-            assert var in db_final.columns
-        assert 'x4' not in db_final.columns
-        for val in db_final['Csub-H']:
-            assert val in [0,1]
+            # check that the CURATE options are stored
+            db_save = pd.read_csv(f"{path_curate}/CURATE_options.csv")
+            assert db_save['y'][0] == "Target_values"
+            assert db_save['ignore'][0] == "['Name']"
+            assert 'Robert_example_CURATE.csv' in db_save['csv_name'][0]
 
-        # check that the CURATE options are stored
-        db_save = pd.read_csv(f"{path_curate}/CURATE_options.csv")
-        assert db_save['y'][0] == "Target_values"
-        assert db_save['ignore'][0] == "['Name']"
-        assert 'Robert_example_CURATE.csv' in db_save['csv_name'][0]
+            #check that the Pearson heatplot is created
+            assert os.path.exists(f'{path_curate}/Pearson_heatmap.png')
+        
+        # Run the appropriate command
+        if test_job == "standard_cmd":
+            cmd_robert = [
+                "python",
+                "-m",
+                "robert",
+                "--curate",
+                "--discard", "['xtest']"
+            ]
 
-        #check that the Pearson heatplot is created
-        assert os.path.exists(f'{path_curate}/Pearson_heatmap.png')
-
-        # Check if the descriptors were reduced correctly (less than 1/3 of the data points)
-        db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
-        n_descps = len(db_final.columns) - 2  # subtracting 'Name' and 'Target_values'
-        datapoints = len(db_final)
-        assert n_descps < (datapoints / 3)
+            cmd_robert = cmd_robert + ['--y','Target_values',
+                                    "--csv_name", f"{path_tests}/{csv_name}",
+                                    "--names","Name"]
+            subprocess.run(cmd_robert)
+        else:
+            _ = curate(**curate_kwargs)
+        
+        # Run the checks
+        _ = _check_standard()
 
     elif test_job == "categorical":
-        cmd_robert = cmd_robert + ['--categorical', 'numbers']
-        subprocess.run(cmd_robert)
+        curate_kwargs.update({
+            'categorical': 'numbers',
+        })
+        _ = curate(**curate_kwargs)
 
         # check if variable x4 was changed
         db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
@@ -143,17 +184,14 @@ def test_CURATE(test_job):
         assert 3 in db_final['x4']
 
     elif test_job == "nan_fix":
-        cmd_robert = [
-            "python",
-            "-m",
-            "robert",
-            "--curate",
-            "--csv_name", f"{path_tests}/Robert_example_NaNs.csv",
-            '--y', 'Target_values',
-            "--names", "Name",
-            "--discard", "['xtest']"
-        ]
-        subprocess.run(cmd_robert)
+        nan_fix_kwargs = {
+            'csv_name': f"{path_tests}/Robert_example_NaNs.csv",
+            'y': 'Target_values',
+            'names': 'Name',
+            'discard': ['xtest']
+        }
+
+        _ = curate(**nan_fix_kwargs)
 
         # check that all the missing values were filled
         db_final = pd.read_csv(f"{path_curate}/Robert_example_NaNs_CURATE.csv")
@@ -162,18 +200,14 @@ def test_CURATE(test_job):
         assert isinstance(db_final['x2'][0], (int, float))
 
     elif test_job == 'corr_filter_x':
-        cmd_robert = [
-            "python",
-            "-m",
-            "robert",
-            "--curate",
-            "--csv_name", f"{path_tests}/Robert_example.csv",
-            '--y', 'Target_values',
-            "--names", 'Name',
-            "--discard", "['xtest']",
-            "--corr_filter_x", "False"
-        ]
-        subprocess.run(cmd_robert)
+        corr_filter_x_kwargs = {
+            'csv_name': f"{path_tests}/Robert_example.csv",
+            'y': 'Target_values',
+            'names': 'Name',
+            'discard': ['xtest'],
+            'corr_filter_x': False
+        }
+        _ = curate(**corr_filter_x_kwargs)
         
         # check that descriptors aren't removed 
         db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
@@ -182,18 +216,14 @@ def test_CURATE(test_job):
             assert var in db_final.columns
 
     elif test_job == 'corr_filter_y':
-        cmd_robert = [
-            "python",
-            "-m",
-            "robert",
-            "--curate",
-            "--csv_name", f"{path_tests}/Robert_example.csv",
-            '--y', 'Target_values',
-            "--names", 'Name',
-            "--discard", "['xtest']",
-            "--corr_filter_y", "True"
-        ]
-        subprocess.run(cmd_robert)
+        corr_filter_y_kwargs = {
+            'csv_name': f"{path_tests}/Robert_example.csv",
+            'y': 'Target_values',
+            'names': 'Name',
+            'discard': ['xtest'],
+            'corr_filter_y': True
+        }
+        _ = curate(**corr_filter_y_kwargs)
         
         # check that descriptors aren't removed 
         db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
@@ -201,28 +231,22 @@ def test_CURATE(test_job):
 
     elif test_job in ['filter_thres','filter_thres_yaml']:
         if test_job == 'filter_thres':
-            cmd_robert = [
-                "python",
-                "-m",
-                "robert",
-                "--curate",
-                "--csv_name", f"{path_tests}/Robert_example.csv",
-                '--y', 'Target_values',
-                "--name", "Name",
-                "--discard", "['xtest']",
-                "--thres_x", "0.999",
-                "--corr_filter_y", "True",
-                "--thres_y", "0.000001"
-            ]
+            filter_thres_kwargs = {
+                'csv_name': f"{path_tests}/Robert_example.csv",
+                'y': 'Target_values',
+                'names': 'Name',
+                'discard': ['xtest'],
+                'thres_x': 0.999,
+                'corr_filter_y': True,
+                'thres_y': 0.000001
+            }
+
         elif test_job == 'filter_thres_yaml':
-            cmd_robert = [
-                "python",
-                "-m",
-                "robert",
-                "--varfile", f"{path_tests}/params.yaml",
-                "--csv_name", f"{path_tests}/Robert_example.csv",
-            ]
-        subprocess.run(cmd_robert)
+            filter_thres_kwargs = {
+                'varfile': f"{path_tests}/params.yaml",
+                'csv_name': f"{path_tests}/Robert_example.csv"
+            }
+        _ = curate(**filter_thres_kwargs)
         
         # check that descriptors aren't removed
         db_final = pd.read_csv(f"{path_curate}/Robert_example_CURATE.csv")
@@ -240,17 +264,13 @@ def test_CURATE(test_job):
                 shutil.move(f"{path_tests}/Robert_example_separator_original.csv",f"{path_tests}/Robert_example_separator.csv")
 
         # Test to check if the separator of the CSV file is correctly read
-        cmd_robert = [
-            "python",
-            "-m",
-            "robert",
-            "--curate",
-            "--csv_name", f"{path_tests}/Robert_example_separator.csv",
-            '--y', 'Target_values',
-            "--names", "Name",
-            "--discard", "['xtest']"
-        ]
-        subprocess.run(cmd_robert)
+        csv_separator_kwargs = {
+            'csv_name': f"{path_tests}/Robert_example_separator.csv",
+            'y': 'Target_values',
+            'names': 'Name',
+            'discard': ['xtest']
+        }
+        _ = curate(**csv_separator_kwargs)
 
         # check that the DAT file has a warning about the separator
         assert not os.path.exists("CURATE_data.dat")
@@ -276,16 +296,24 @@ def test_CURATE(test_job):
         # since we're inputting values for input() prompts, we use command lines and provide
         # the answers with external files using "< FILENAME_WITH_ANSWERS" in the command line
 
+        cmd_robert_missing = [
+            "python",
+            "-m",
+            "robert",
+            "--curate",
+            "--discard", "['xtest']"
+        ]
+
         missing_options = ['csv_name', 'y', 'names']
         for missing_option in missing_options:
             if missing_option == 'csv_name':
-                cmd_missing = cmd_robert + ['--y','Target_values',
+                cmd_missing = cmd_robert_missing + ['--y','Target_values',
                                             "--names","Name"]
             elif missing_option == 'y':
-                cmd_missing = cmd_robert + ["--csv_name", f"{path_tests}/Robert_example.csv",
+                cmd_missing = cmd_robert_missing + ["--csv_name", f"{path_tests}/Robert_example.csv",
                                             "--names","Name"]
             elif missing_option == 'names':
-                cmd_missing = cmd_robert + ['--y','Target_values',
+                cmd_missing = cmd_robert_missing + ['--y','Target_values',
                                             "--csv_name", f"{path_tests}/Robert_example.csv"]
 
             cmd_missing = f'{" ".join(cmd_missing)} < {path_tests}/{missing_option}.txt'
@@ -310,7 +338,7 @@ def test_CURATE(test_job):
             assert curate_valid
 
     elif test_job == "rfecv":
-        subprocess.run(cmd_robert)
+        _ = curate(**curate_kwargs)
 
         # check if variables are discarded right with RFECV
         db_final = pd.read_csv(f"{path_curate}/{csv_name.split('.csv')[0]}_CURATE.csv")

@@ -58,7 +58,7 @@ import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.0.3"
+robert_version = "2.1.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -636,13 +636,12 @@ def correlation_filter(self, csv_df):
                 descriptors_drop.append(column)
                 txt_corr += f'\n   - {column}: all the values are the same'
 
-            # Calculate correlation with y for remaining descriptors
-            if column not in descriptors_drop:
-                res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
-                rsquared_y = res_y.rvalue**2
-
                 # Remove descriptors with low correlation to the response values
                 if self.args.corr_filter_y:
+                    # Calculate correlation with y for remaining descriptors
+                    if column not in descriptors_drop:
+                        res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
+                        rsquared_y = res_y.rvalue**2
                     if rsquared_y < self.args.thres_y:
                         descriptors_drop.append(column)
                         txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
@@ -1125,6 +1124,25 @@ def check_clas_problem(self,csv_df):
             self.args.log.write(f'\nx  Only two different y values are currently allowed for classification problems! {len(set(csv_df[self.args.y]))} different values were used: {set(csv_df[self.args.y])}')
             self.args.log.write(f'   The program detected this is a classification problem (non-numeric values or few unique values)')
             self.args.log.write(f'   Please use only 2 different class labels (e.g., "active"/"inactive" or 0/1)')
+            self.args.log.finalize()
+            sys.exit()
+        
+        # Check that each class has at least 5 points
+        class_counts = csv_df[self.args.y].value_counts()
+        min_class_count = class_counts.min()
+        min_class_label = class_counts.idxmin()
+        
+        if min_class_count < 5:
+            # Get original label if available
+            if hasattr(self.args, 'class_mapping_reverse') and min_class_label in self.args.class_mapping_reverse:
+                original_label = self.args.class_mapping_reverse[min_class_label]
+            else:
+                original_label = min_class_label
+            
+            self.args.log.write(f'\nx  Insufficient data for classification! One of the classes has only {min_class_count} datapoints (class "{original_label}")')
+            self.args.log.write(f'   Each class must have at least 5 datapoints to ensure robust train/validation/test splits')
+            self.args.log.write(f'   Current distribution: {dict(class_counts)}')
+            self.args.log.write(f'   Please add more datapoints for the minority class or consider a different approach')
             self.args.log.finalize()
             sys.exit()
 

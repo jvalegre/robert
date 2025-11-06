@@ -103,15 +103,26 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
 **Recommended installation**
 ============================
 
-**1.** Download the environment file and create the conda environment:
+.. |download| image:: /Modules/images/download.png
+   :width: 140
+   :align: middle
+
+**1.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/master/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+
+**2.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
 
 .. code-block:: shell
 
-   curl -L -O https://raw.githubusercontent.com/jvalegre/robert/ddg_branch/environment/env.yaml
+   cd C:/Users/Downloads
+
+**3.** Create the conda environment from the YAML file:
+
+.. code-block:: shell
+
    conda env create -f env.yaml
    conda activate robert
 
-**2.** Check that the installation was successful:
+**4.** Check that the installation was successful:
 
 .. code-block:: shell
 
@@ -189,22 +200,31 @@ You need a terminal with Python to install and run ROBERT. These are some sugges
 If you prefer a faster and easier installation, you can use the preconfigured **YAML environment file**.  
 This method automatically installs Python, ROBERT, and all required dependencies.
 
+.. |download| image:: /Modules/images/download.png
+   :width: 140
+   :align: middle
+
 **1.** Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>`__ for your 
 operating system (Windows, macOS or Linux). Alternatively, if you're familiar with conda installers, 
 you can install `Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
 (requires less space than Anaconda).  
 
-**2.** Open an Anaconda prompt (Windows) or a terminal (macOS/Linux).
+**2.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/master/environment/env.yaml>`__ by clicking this button on GitHub |download|.
 
-**3.** Download the ROBERT environment file and create the environment:
+**3.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
 
 .. code-block:: shell
 
-   curl -L -O https://raw.githubusercontent.com/jvalegre/robert/ddg_branch/environment/env.yaml
+   cd C:/Users/Downloads
+
+**4.** Create the conda environment from the YAML file:
+
+.. code-block:: shell
+
    conda env create -f env.yaml
    conda activate robert
 
-**4.** Check that ROBERT is installed correctly:
+**5.** Check that ROBERT is installed correctly:
 
 .. code-block:: shell
 
@@ -234,11 +254,10 @@ operating system (Windows, macOS or Linux). Alternatively, you can install
 
 .. code-block:: shell
 
-   conda create -n robert python=3.10
+   conda create -n robert -c conda-forge -y python=3.12
 
 *You only need to do this once.*
 |br|
-*This is an example for Python 3.10, but it also works for newer Python versions (i.e., 3.11 and 3.12).*
 
 **4.** Activate the conda environment called "robert":
 
@@ -281,6 +300,10 @@ Graphical User Interface (GUI): easyROB
 
 easyROB is the graphical interface of ROBERT. It allows you to configure and launch ROBERT workflows 
 without using command lines — just by selecting files and options through an intuitive window.
+
+.. note::
+
+   For video tutorials on how to use easyROB, check out our `YouTube channel <https://www.youtube.com/@thealegregroup4964/videos>`_.
 
 To run **easyROB**, follow these steps:
 
@@ -446,3 +469,4 @@ We really THANK all the testers for their feedback and for participating in the 
 * **Xinchun Ran** (2023, Yang group at Vanderbilt University)
 
 .. acknowledgment-end
+

@@ -4,7 +4,7 @@
 Versions
 ========
 
-Version 2.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.3>`__]
+Version 2.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.0>`__]
    -  In classification problems now we can use 2 different categorial class labels (e.g., "active"/"inactive").
    -  Changing the way of selecting the 10 first initial points in Bayesian Optimization (now using Latin Hypercube Sampling)
    -  Deleting first the most correlated features in CURATE module

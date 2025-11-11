@@ -33,6 +33,7 @@ var_dict = {
     "test_set" : 0.2,
     "auto_test" : True,
     "auto_type": True,
+    "auto_fill": True,
     "model" : ['RF','GB','NN','MVL'],
     "eval_model" : 'MVL',
     "custom_params" : None,

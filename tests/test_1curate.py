@@ -25,7 +25,10 @@ path_curate = os.getcwd() + "/CURATE"
         ),  # categorical with numbers test
         (
             "nan_fix"
-        ),  # test that empty values are replaced by 0s
+        ),  # test that empty values are replaced by KNN imputer
+        (
+            "auto_fill"
+        ),  # test that columns with empty values are removed
         (
             "corr_filter_x"
         ),  # test to disable the correlation filter of X
@@ -195,9 +198,29 @@ def test_CURATE(test_job):
 
         # check that all the missing values were filled
         db_final = pd.read_csv(f"{path_curate}/Robert_example_NaNs_CURATE.csv")
-        # 1. Duplicate entries are removed
+        # 1. Check if values are added with the KNN imputer  with <90% descriptors are discarded
         assert isinstance(db_final['x2'][4], (int, float))
         assert isinstance(db_final['x2'][0], (int, float))
+        # 2. Check if columns with <90% descriptors are discarded
+        assert 'x10' not in db_final.columns
+        # 3. Check if rows with <50% descriptors are discarded and whether the imputer worked on cols with int
+        assert int(db_final['x2'].notna().sum()) == 36
+        assert int(db_final['x7'].notna().sum()) == 36
+
+    elif test_job == 'auto_fill':
+        auto_fill_kwargs = {
+            'csv_name': f"{path_tests}/auto_fill.csv",
+            'y': 'Target_values',
+            'names': 'Name',
+            'discard': ['xtest'],
+            'auto_fill': False
+        }
+        _ = curate(**auto_fill_kwargs)
+
+        # check that columns with missing values were removed
+        db_final = pd.read_csv(f"{path_curate}/auto_fill_CURATE.csv")
+        assert 'x2' in db_final.columns
+        assert len(db_final.columns) == 3
 
     elif test_job == 'corr_filter_x':
         corr_filter_x_kwargs = {
@@ -341,9 +364,9 @@ def test_CURATE(test_job):
         _ = curate(**curate_kwargs)
 
         # check if variables are discarded right with RFECV
-        db_final = pd.read_csv(f"{path_curate}/{csv_name.split('.csv')[0]}_CURATE.csv")
-        assert 'rando4' not in db_final.columns
+        db_final = pd.read_csv(f"{path_curate}/{csv_name.split('.csv')[0]}_CURATE_NN.csv")
+        assert 'dist' not in db_final.columns
 
-        accepted_vars = ['E_HOMO','V_Bur','dist', 'rando1', 'rando2', 'rando3']
+        accepted_vars = ['E_HOMO','V_Bur', 'rando1', 'rando2', 'rando3', 'rando4']
         for var in accepted_vars:
             assert var in db_final.columns

@@ -50,7 +50,8 @@ Parameters
         Number of repetitions for the k-fold cross-validation of the RFECV feature selector.
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
-
+    auto_fill : bool, default = True
+        Complete missing values in columns with descriptors of "float" type using a KNN imputer
 
 """
 #####################################################.

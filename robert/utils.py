@@ -629,28 +629,27 @@ def correlation_filter(self, csv_df):
     txt_corr += f'\n   Excluded descriptors:'
     
     # First pass: remove constant descriptors and those with low correlation to y
-    for i,column in enumerate(csv_df.columns):
+    for _,column in enumerate(csv_df.columns):
         if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
             # Remove descriptors where all values are the same
             if len(set(csv_df[column])) == 1:
                 descriptors_drop.append(column)
                 txt_corr += f'\n   - {column}: all the values are the same'
 
-                # Remove descriptors with low correlation to the response values
-                if self.args.corr_filter_y:
-                    # Calculate correlation with y for remaining descriptors
-                    if column not in descriptors_drop:
-                        res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
-                        rsquared_y = res_y.rvalue**2
-                    if rsquared_y < self.args.thres_y:
-                        descriptors_drop.append(column)
-                        txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
+            # Remove descriptors with low correlation to the response values
+            if self.args.corr_filter_y:
+                # Calculate correlation with y for remaining descriptors
+                if column not in descriptors_drop:
+                    res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
+                    rsquared_y = res_y.rvalue**2
+                if rsquared_y < self.args.thres_y:
+                    descriptors_drop.append(column)
+                    txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
 
     # Second pass: remove highly correlated descriptors (always removing the most correlated first)
-    if self.args.corr_filter_x:
-        csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
-        csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
-        
+    csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
+    csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+    if self.args.corr_filter_x and len(csv_df_X_filtered.columns) > 1:        
         # Calculate R² correlation matrix between descriptors
         corr_matrix = csv_df_X_filtered.corr().abs()
         corr_matrix_r2 = corr_matrix ** 2
@@ -1179,61 +1178,44 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
 
-    # Missing data handling: robust strategy for columns and rows (KNN imputer for large datasets)
+    # Missing data handling: robust strategy for columns and rows (optional KNN imputer)
     target_col = self.args.y
-    int_columns = csv_df.select_dtypes(include=['int']).columns.drop(target_col, errors='ignore')
-    numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(target_col, errors='ignore')
-    descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y]
+    descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
     min_count = int(0.9 * len(csv_df))
-    if len(csv_df) >= 100:
-        # Remove columns with <90% data
-        cols_to_drop = [col for col in descriptor_cols if csv_df[col].notna().sum() < min_count]
-        if cols_to_drop:
-            csv_df = csv_df.drop(columns=cols_to_drop)
-            if module.lower() == 'curate':
-                txt_load += f"\n   - Removed {len(cols_to_drop)} column(s) with <90% data (dataset >= 100 points)\n"
-            descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y]
-        # Remove rows with >50% missing descriptors
-        if descriptor_cols:
-            rows_too_missing = csv_df[descriptor_cols].isna().sum(axis=1) > (0.5 * len(descriptor_cols))
-            if rows_too_missing.any():
-                n_removed_rows = rows_too_missing.sum()
-                csv_df = csv_df[~rows_too_missing].reset_index(drop=True)
-                if module.lower() == 'curate':
-                    txt_load += f"\n   - Removed {n_removed_rows} row(s) with >50% missing descriptors (dataset >= 100 points)\n"
-        # Apply KNN imputer only to numeric columns with missing
+
+    # Remove columns with <90% data
+    cols_to_drop = [col for col in descriptor_cols if csv_df[col].notna().sum() < min_count]
+    if cols_to_drop:
+        csv_df = csv_df.drop(columns=cols_to_drop)
+        if module.lower() == 'curate':
+            txt_load += f"\n   - Removed {len(cols_to_drop)} column(s) with <90% data\n"
+        descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
+    
+    # Remove rows with <50% data
+    rows_too_missing = csv_df[descriptor_cols].isna().sum(axis=1) > (0.5 * len(descriptor_cols))
+    if rows_too_missing.any():
+        n_removed_rows = rows_too_missing.sum()
+        csv_df = csv_df[~rows_too_missing].reset_index(drop=True)
+        descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
+        if module.lower() == 'curate':
+            txt_load += f"\n   - Removed {n_removed_rows} row(s) with >50% missing descriptors\n"
+    
+    # Apply KNN imputer only to numeric columns with missing values (when auto_fill is activated)
+    if self.args.auto_fill:
         numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(target_col, errors='ignore')
         if csv_df[numeric_columns].isna().any().any():
             imputer = KNNImputer(n_neighbors=5)
             csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns, index=csv_df.index)
             if module.lower() == 'curate':
-                txt_load += f"\n   - Applied KNN imputer to columns with missing values (dataset >= 100 points)\n"
+                txt_load += f"\n   - Applied KNN imputer to columns with missing values\n"
     else:
-        # Remove rows where all descriptors are missing
-        if descriptor_cols:
-            rows_all_missing = csv_df[descriptor_cols].isna().all(axis=1)
-            if rows_all_missing.any():
-                n_removed_all = rows_all_missing.sum()
-                csv_df = csv_df[~rows_all_missing].reset_index(drop=True)
-                if module.lower() == 'curate':
-                    txt_load += f"\n   - Removed {n_removed_all} row(s) with all descriptors missing (dataset < 100 points)\n"
-        # Remove rows with >50% missing descriptors
-        descriptor_cols_remaining = [col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y]
-        if descriptor_cols_remaining:
-            rows_too_missing = csv_df[descriptor_cols_remaining].isna().sum(axis=1) > (0.5 * len(descriptor_cols_remaining))
-            if rows_too_missing.any():
-                n_removed_rows = rows_too_missing.sum()
-                csv_df = csv_df[~rows_too_missing].reset_index(drop=True)
-                if module.lower() == 'curate':
-                    txt_load += f"\n   - Removed {n_removed_rows} row(s) with >50% missing descriptors (dataset < 100 points)\n"
-            descriptor_cols_remaining = [col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y]
         # Remove columns with ANY missing value
-        cols_with_missing = [col for col in descriptor_cols_remaining if csv_df[col].isna().any()]
+        cols_with_missing = [col for col in descriptor_cols if csv_df[col].isna().any() and col not in self.args.ignore+self.args.discard]
         if cols_with_missing:
             csv_df = csv_df.drop(columns=cols_with_missing)
             if module.lower() == 'curate':
-                txt_load += f"\n   - Removed {len(cols_with_missing)} column(s) with missing values (dataset < 100 points)\n"
-    csv_df[int_columns] = csv_df[int_columns]
+                txt_load += f"\n   - Removed {len(cols_with_missing)} column(s) with missing values\n"
+
     if print_info:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
@@ -1255,6 +1237,9 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                 txt_load += f'\no  External set {csv_name} loaded successfully, including:'
                 txt_load += f'\n   - {len(csv_df[csv_df.columns[0]])} datapoints'
             self.args.log.write(txt_load)
+            if accepted_descs == 0:
+                self.args.log.write(f"\nx  The aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
+                sys.exit()
 
     # Sort columns alphabetically for reproducibility across ALL modules
     if module.lower() not in ['aqme', 'aqme_test']:

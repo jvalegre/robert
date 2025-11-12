@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import pandas as pd
 from pathlib import Path
+from robert.generate import generate
 
 # saves the working directory
 path_main = os.getcwd()
@@ -23,6 +24,9 @@ path_generate = os.getcwd() + "/GENERATE"
         (
             "reduced"
         ),  # test with less models and partition sizes
+        (
+            "reduced_cmd"
+        ),  # reduced test through cmd line
         (
             "reduced_noPFI"
         ),  # test to disable the PFI analysis
@@ -65,44 +69,52 @@ def test_GENERATE(test_job):
     else:
         csv_name = 'CURATE/Robert_example_CURATE.csv'
 
-    cmd_robert = [
-        "python",
-        "-m",
-        "robert",
-        "--generate",
-        "--csv_name", csv_name,
-        '--y', 'Target_values',
-        ]
+    if test_job == 'reduced_cmd':
+        cmd_robert = [
+            "python",
+            "-m",
+            "robert",
+            "--generate",
+            "--csv_name", csv_name,
+            '--y', 'Target_values',
+            '--model', '[RF]',
+            '--init_points', '1',
+            '--n_iter', '1'
+            ]
+        subprocess.run(cmd_robert)
+    else:
+        generate_kwargs = {
+            'generate': True,
+            'csv_name': csv_name,
+            'y': 'Target_values'
+        }
+        if test_job != 'standard':
+            # add model
+            if test_job not in ['reduced_gp','reduced_adab']:
+                generate_kwargs['model'] = ['RF']
+            elif test_job == 'reduced_gp':
+                generate_kwargs['model'] = ['GP']
+            elif test_job == 'reduced_adab':
+                generate_kwargs['model'] = ['Adab']
 
-    if test_job != 'standard':
-        # add model
-        if test_job not in ['reduced_gp','reduced_adab']:
-            model_list = ['RF']
-        elif test_job == 'reduced_gp':
-            model_list = ['GP']
-        elif test_job == 'reduced_adab':
-            model_list = ['Adab']
-
-        # adjust cmd for tests
-        if test_job == "reduced_noPFI":
-            cmd_robert = cmd_robert + ["--pfi_filter", "False"]
-        elif test_job == 'reduced_PFImax':
-            cmd_robert = cmd_robert + ["--pfi_max", "1"]
-        elif test_job == "reduced_kfold":
-            cmd_robert = cmd_robert + ["--kfold", "10", "--repeat_kfolds", "5"]
-        elif test_job in ['reduced_clas']:
-            cmd_robert = cmd_robert + ["--type", "clas"]
+            # adjust cmd for tests
+            if test_job == "reduced_noPFI":
+                generate_kwargs['pfi_filter'] = False
+            elif test_job == 'reduced_PFImax':
+                generate_kwargs['pfi_max'] = 1
+            elif test_job == "reduced_kfold":
+                generate_kwargs['kfold'] = 10
+                generate_kwargs['repeat_kfolds'] = 5
+            elif test_job in ['reduced_clas']:
+                generate_kwargs['type'] = "clas"
+            
+            generate_kwargs['init_points'] = 1
+            generate_kwargs['n_iter'] = 1
+            
+        else: # needed to define the variables, change if default options change
+            generate_kwargs['model'] = ['RF','GB','NN','MVL']
         
-        cmd_robert = cmd_robert + ['--init_points', '1',
-                                   '--n_iter', '1']
-        
-    else: # needed to define the variables, change if default options change
-        model_list = ['RF','GB','NN','MVL']
-    
-    cmd_robert = cmd_robert + [
-        "--model", f"{model_list}"]
-    
-    subprocess.run(cmd_robert)
+        generate(**generate_kwargs)
 
     if test_job not in []:  
         # check that the DAT file is created
@@ -111,13 +123,17 @@ def test_GENERATE(test_job):
         outlines = outfile.readlines()
         outfile.close()
         assert "ROBERT v" in outlines[0]
-        assert "- 37 datapoints" in outlines[9]
-        if test_job == 'reduced_clas':
-            assert "- 9 accepted descriptors" in outlines[10]
+        if test_job == 'reduced_cmd':
+            indeces = [9,10,11,12]
         else:
-            assert "- 10 accepted descriptors" in outlines[10]
-        assert "- 1 ignored descriptors" in outlines[11]
-        assert "- 0 discarded descriptors" in outlines[12]
+            indeces = [7,8,9,10]
+        assert "- 37 datapoints" in outlines[indeces[0]]
+        if test_job == 'reduced_clas':
+            assert "- 9 accepted descriptors" in outlines[indeces[1]]
+        else:
+            assert "- 11 accepted descriptors" in outlines[indeces[1]]
+        assert "- 1 ignored descriptors" in outlines[indeces[2]]
+        assert "- 0 discarded descriptors" in outlines[indeces[3]]
 
         # find GENERATE evaluation
         finding_line = 0
@@ -133,9 +149,9 @@ def test_GENERATE(test_job):
             elif f"o  Before hyperoptimization, 20% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values." in line:
                 finding_line += 0.5 # it appears two times, in PFI and no PFI
                 # this elif adds 4 points to the standard test (0.5*2(PFI and no PFI)*4(models)
-            elif f"o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.53" in line:
+            elif f"o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.55" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for RF (with PFI filter): 0.58" in line:
+            elif f"o Combined RMSE for RF (with PFI filter): 0.57" in line:
                 reproducibility += 1
             # lines only for standard
             elif f"- 1/4 - ML model: RF" in line:
@@ -146,21 +162,21 @@ def test_GENERATE(test_job):
                 finding_line += 1
             elif f"- 4/4 - ML model: MVL" in line:
                 finding_line += 1
-            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.52' in line:
+            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.41' in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for RF (with PFI filter): 0.54" in line:
+            elif f"o Combined RMSE for RF (with PFI filter): 0.4" in line:
                 reproducibility += 1
-            elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.39" in line:
+            elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.41" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for GB (with PFI filter): 0.35" in line:
+            elif f"o Combined RMSE for GB (with PFI filter): 0.41" in line:
                 reproducibility += 1
-            elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.33" in line:
+            elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.34" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for NN (with PFI filter): 0.38" in line:
+            elif f"o Combined RMSE for NN (with PFI filter): 0.39" in line:
                 reproducibility += 1
-            elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 0.45' in line:
+            elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 0.47' in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for MVL (with PFI filter): 0.38" in line:
+            elif f"o Combined RMSE for MVL (with PFI filter): 0.47" in line:
                 reproducibility += 1
             # lines only for
             elif f"1. 50% = RMSE from a 5x repeated 10-fold CV (interpoplation)" in line:
@@ -169,7 +185,7 @@ def test_GENERATE(test_job):
         if test_job == "reduced_noPFI":
             assert finding_line == 3.5
             assert reproducibility == 1
-        elif test_job == "reduced":
+        elif test_job in ["reduced",'reduced_cmd']:
             assert finding_line == 4
             assert reproducibility == 2
         if test_job == 'standard':
@@ -179,7 +195,10 @@ def test_GENERATE(test_job):
             assert finding_changed_kfold == 1
 
         # check that the right amount of CSV files were created
-        expected_amount = len(model_list) * 2
+        if test_job == 'reduced_cmd':
+            expected_amount = 2
+        else:
+            expected_amount = len(generate_kwargs['model']) * 2
         if test_job != "reduced_noPFI":
             folders = ['No_PFI','PFI']
         else:
@@ -194,36 +213,45 @@ def test_GENERATE(test_job):
             assert len(best_amount) == 2
             params_best = pd.read_csv(best_amount[0])
             db_best = pd.read_csv(best_amount[1])
-            if test_job in ['reduced','reduced_PFImax','reduced_gp','reduced_adab']:
+            if test_job in ['reduced','reduced_cmd','reduced_PFImax','reduced_gp','reduced_adab','reduced_clas','standard']:
                 if folder == 'No_PFI':
-                    if test_job in ['reduced','reduced_PFImax','reduced_gp','reduced_adab']:
-                        desc_list = ['x2', 'x7', 'x8', 'x9', 'x10', 'x11', 'ynoise', 'Csub-Csub', 'Csub-H', 'H-O']
+                    if test_job in ['reduced','reduced_cmd','reduced_PFImax']:
+                        desc_list = ["x10", "x2", "x5", "x7", "x9"]
+                    elif test_job == 'reduced_gp':
+                        desc_list = ["Csub-Csub", "Csub-H", "H-O", "x10", "x11", "x2", "x5", "x7", "x8", "x9", "ynoise"]
+                    elif test_job == 'reduced_adab':
+                        desc_list = ["Csub-Csub", "Csub-H", "H-O", "x10", "x11", "x2", "x5", "x7", "x8", "x9", "ynoise"]
                     elif test_job == 'reduced_clas':
-                        desc_list = ['x1', 'x2', 'x3', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10']
+                        desc_list = ["x1", "x10", "x2", "x3", "x5", "x6", "x7", "x8", "x9"]
+                    elif test_job == 'standard':
+                        desc_list = ["Csub-Csub", "Csub-H", "H-O", "x10", "x11", "x2", "x5", "x7", "x8", "x9", "ynoise"]
                 elif folder == 'PFI':
-                    if test_job == 'reduced':
+                    if test_job in ['reduced','reduced_cmd']:
                         desc_list = ['x7', 'x10']
                     elif test_job == 'reduced_PFImax':
                         desc_list = ['x10']
                     elif test_job == 'reduced_gp':
-                        desc_list = ['ynoise', 'Csub-Csub', 'Csub-H', 'x7', 'x10', 'x9']
+                        desc_list = ['x5', 'Csub-Csub', 'x7', 'x10', 'x8', 'Csub-H']
                     elif test_job == 'reduced_adab':
-                        desc_list = ['x2', 'x7', 'x10']
+                        desc_list = ['x10', 'x9']
+                    elif test_job == 'reduced_clas':
+                        desc_list = ['x7', 'x10', 'x5', 'x3', 'x9', 'x6']
+                    elif test_job == 'standard':
+                        desc_list = ['x5', 'x7', 'x9', 'Csub-H', 'x10', 'Csub-Csub']
+                if test_job in ['reduced','reduced_cmd']:
+                    # check set splits
+                    expected_sets = ['Training', 'Training', 'Training', 'Test', 'Training']
+                    for i,expected_set in enumerate(expected_sets):
+                        assert db_best['Set'][i] == expected_set
+                    # check whether the values are sorted (for reproducibility)
+                    expected_rows = [0.308776518, 0.321084552, 0.329517076, 0.39762592, 0.410599034]
+                    for i,expected_row in enumerate(expected_rows):
+                        assert db_best['Target_values'][i] == expected_row
+                    # check whether the columns are sorted (for reproducibility)
+                    expected_cols = ['x10', 'x2', 'x5', 'x7', 'x9']
+                    for i,expected_col in enumerate(expected_cols):
+                        assert db_best.columns[i] == expected_col
 
-                if test_job in ['reduced']:
-                    sum_split = 0
-                    if db_best['Set'][0] == 'Training':
-                        sum_split += 1
-                    if db_best['Set'][1] == 'Training':
-                        sum_split += 1
-                    if db_best['Set'][2] == 'Training':
-                        sum_split += 1
-                    if db_best['Set'][3] == 'Test':
-                        sum_split += 1
-                    if db_best['Set'][4] == 'Test':
-                        sum_split += 1            
-                    if test_job == 'reduced':
-                        assert sum_split == 5
                 for var in desc_list:
                     assert var in params_best['X_descriptors'][0]
                 assert len(desc_list) == len(params_best['X_descriptors'][0].split(','))

@@ -117,7 +117,7 @@ def test_AQME(test_job):
     if test_job != 'aqme': # in AQME, there are too many descriptors so the Pearson heatmap doesn't show
         assert len(glob.glob(f'{path_main}/CURATE/*.png')) == 1
     assert len(glob.glob(f'{path_main}/CURATE/*.dat')) == 1
-    assert len(glob.glob(f'{path_main}/CURATE/*.csv')) == 2
+    assert len(glob.glob(f'{path_main}/CURATE/*.csv')) == 3
 
     # GENERATE folder
     folders_gen = ['No_PFI','PFI']
@@ -150,7 +150,7 @@ def test_AQME(test_job):
     if test_job == 'aqme':
         assert os.path.exists(f'{path_main}/AQME-ROBERT_interpret_solubility.csv')
         db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_interpret_solubility.csv')
-        descps = ['code_name','solub','HOMO','Total charge']
+        descps = ['code_name','solub','HOMO','C_Partial charge', 'C_Buried volume']
         for descp in descps:
             assert descp in db_aqme.columns
         assert 'smiles' in db_aqme.columns
@@ -168,7 +168,9 @@ def test_AQME(test_job):
     if test_job == '2smiles_columns':
         assert os.path.exists(f'{path_main}/AQME-ROBERT_interpret_solubility_solvent.csv')
         db_aqme = pd.read_csv(f'{path_main}/AQME-ROBERT_interpret_solubility_solvent.csv')
-        assert 'smiles_sub' and 'smiles_solvent' in db_aqme.columns
+        descps_2smiles = ['code_name','smiles_sub', 'smiles_solvent','solub','HOMO_sub','C_Partial charge_sub','HOMO_solvent']
+        for descp in descps_2smiles:
+            assert descp in db_aqme.columns
 
     # find important parts in ROBERT_report
     outfile = open(f"{path_main}/report_debug.txt", "r")
@@ -214,8 +216,8 @@ def test_AQME(test_job):
         find_assess_red = False
 
         for i,line in enumerate(outlines):
-            if 'robert/report/score_' in line and 'robert/report/score_w' not in line:
-                robert_score.append(line.split('robert/report/score_')[1][0])
+            if 'report/score_' in line and 'report/score_w' not in line:
+                robert_score.append(line.split('report/score_')[1][0])
             if 'Model = RF' in line:
                 ml_model_count += 1
             if 'CV (train+valid.):Test = 81:19' in line:
@@ -230,7 +232,7 @@ def test_AQME(test_job):
                 metrics_test_count += 1
             if '1. Model vs "flawed" models' in line:
                 flawed_models.append(line)
-            if 'VERIFY/VERIFY_tests_RF_No_PFI.png' in line:
+            if 'VERIFY/VERIFY_tests_RF_No_PFI.png' in line or 'VERIFY\\VERIFY_tests_RF_No_PFI.png' in line:
                 flawed_image = True
             if '2. CV predictions of the model' in line:
                 pred_ability.append(line)
@@ -240,7 +242,7 @@ def test_AQME(test_job):
                 cv_vs_test_models.append(line)
             if '3c. Avg. standard deviation (SD)' in line:
                 cv_sd_models.append(line)
-            if 'PREDICT/CV_variability_RF_No_PFI.png' in line:
+            if 'PREDICT/CV_variability_RF_No_PFI.png' in line or 'PREDICT\\CV_variability_RF_No_PFI.png' in line:
                 cv_sd_image = True
             if '3d. Extrapolation (sorted CV)' in line:
                 extrapol_ability.append(line)
@@ -264,44 +266,44 @@ def test_AQME(test_job):
         if test_job == 'full_workflow':
             # model summary, robert score, predict graphs and model metrics
             assert robert_score[0] == '5'
-            assert robert_score[1] == '5'
+            assert robert_score[1] == '6'
             assert ml_model_count == 2
             assert partition_count == 2
-            assert points_desc[0] == '30:10'
+            assert points_desc[0] == '30:5'
             assert points_desc[1] == '30:2'
             assert predict_graphs
             assert metrics_train_count == 2
             assert metrics_test_count == 2
             # advanced analysis, flawed models section 1
             assert '-2 / 0' in flawed_models[0]
-            assert '-2 / 0' in flawed_models[1]
+            assert '-1 / 0' in flawed_models[1]
             assert flawed_image
             # advanced analysis, predictive ability section 2
             assert '1 / 2' in pred_ability[0]
-            assert 'robert/report/score_w_2_1.jpg' in pred_ability[0]
+            assert 'report/score_w_2_1.jpg' in pred_ability[0]
             assert '1 / 2' in pred_ability[1]
-            assert 'robert/report/score_w_2_1.jpg' in pred_ability[1]
+            assert 'report/score_w_2_1.jpg' in pred_ability[1]
             # advanced analysis, predictive ability of external test set section 3a
             assert '2 / 2' in pred_test_ability[0]
-            assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[0]
+            assert 'report/score_w_2_2.jpg' in pred_test_ability[0]
             assert '2 / 2' in pred_test_ability[1]
-            assert 'robert/report/score_w_2_2.jpg' in pred_test_ability[1]
+            assert 'report/score_w_2_2.jpg' in pred_test_ability[1]
             # advanced analysis, predictive ability of CV vs test section 3b
             assert '2 / 2' in cv_vs_test_models[0]
-            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[0]
+            assert 'report/score_w_2_2.jpg' in cv_vs_test_models[0]
             assert '2 / 2' in cv_vs_test_models[1]
-            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[1]
+            assert 'report/score_w_2_2.jpg' in cv_vs_test_models[1]
             # advanced analysis, CV variability section 3c
             assert '2 / 2' in cv_sd_models[0]
-            assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[0]
+            assert 'report/score_w_2_2.jpg' in cv_sd_models[0]
             assert '2 / 2' in cv_sd_models[1]
-            assert 'robert/report/score_w_2_2.jpg' in cv_sd_models[1]
+            assert 'report/score_w_2_2.jpg' in cv_sd_models[1]
             assert cv_sd_image
             # advanced analysis, extrapolation section 3d
             assert '0 / 2' in extrapol_ability[0]
-            assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[0]
+            assert 'report/score_w_2_0.jpg' in extrapol_ability[0]
             assert '0 / 2' in extrapol_ability[1]
-            assert 'robert/report/score_w_2_0.jpg' in extrapol_ability[1]
+            assert 'report/score_w_2_0.jpg' in extrapol_ability[1]
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -313,35 +315,35 @@ def test_AQME(test_job):
 
         elif test_job == 'full_clas':
             # model summary, robert score, predict graphs and model metrics
-            assert robert_score[0] == '5'
-            assert robert_score[1] == '3'
+            assert robert_score[0] == '4'
+            assert robert_score[1] == '6'
             assert ml_model_count == 2
-            assert points_desc[0] == '30:6'
-            assert points_desc[1] == '30:4'
+            assert points_desc[0] == '29:6'
+            assert points_desc[1] == '29:4'
             # advanced analysis, flawed models section 1
             assert '-2 / 0' in flawed_models[0]
             assert '-2 / 0' in flawed_models[1]
             assert flawed_image
             # advanced analysis, predictive ability section 2
             assert '2 / 3' in pred_ability[0]
-            assert 'robert/report/score_w_3_2.jpg' in pred_ability[0]
-            assert '1 / 3' in pred_ability[1]
-            assert 'robert/report/score_w_3_1.jpg' in pred_ability[1]
+            assert 'report/score_w_3_2.jpg' in pred_ability[0]
+            assert '2 / 3' in pred_ability[1]
+            assert 'report/score_w_3_2.jpg' in pred_ability[1]
             # advanced analysis, predictive ability of external test set section 3a
-            assert '2 / 3' in pred_test_ability[0]
-            assert 'robert/report/score_w_3_2.jpg' in pred_test_ability[0]
-            assert '2 / 3' in pred_test_ability[1]
-            assert 'robert/report/score_w_3_2.jpg' in pred_test_ability[1]
+            assert '3 / 3' in pred_test_ability[0]
+            assert 'report/score_w_3_3.jpg' in pred_test_ability[0]
+            assert '3 / 3' in pred_test_ability[1]
+            assert 'report/score_w_3_3.jpg' in pred_test_ability[1]
             # advanced analysis, predictive ability of CV vs test section 3b
             assert '1 / 2' in cv_vs_test_models[0]
-            assert 'robert/report/score_w_2_1.jpg' in cv_vs_test_models[0]
+            assert 'report/score_w_2_1.jpg' in cv_vs_test_models[0]
             assert '2 / 2' in cv_vs_test_models[1]
-            assert 'robert/report/score_w_2_2.jpg' in cv_vs_test_models[1]
+            assert 'report/score_w_2_2.jpg' in cv_vs_test_models[1]
             # advanced analysis, extrapolation section 3d
-            assert '2 / 2' in extrapol_ability_clas[0]
-            assert 'robert/report/score_w_2_2.jpg' in extrapol_ability_clas[0]
-            assert '0 / 2' in extrapol_ability_clas[1]
-            assert 'robert/report/score_w_2_0.jpg' in extrapol_ability_clas[1]
+            assert '0 / 2' in extrapol_ability_clas[0]
+            assert 'report/score_w_2_0.jpg' in extrapol_ability_clas[0]
+            assert '1 / 2' in extrapol_ability_clas[1]
+            assert 'report/score_w_2_1.jpg' in extrapol_ability_clas[1]
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -381,6 +383,6 @@ def test_AQME(test_job):
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
-    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_solubility.csv','AQME-ROBERT_Robert_example_2smiles.csv','AQME-ROBERT_solubility_solvent.csv','Robert_example.csv','solubility.csv','solubility_solvent.csv']:
+    for file_discard in ['report_debug.txt','ROBERT_report.pdf','AQME-ROBERT_interpret_solubility.csv','AQME-ROBERT_interpret_Robert_example_2smiles.csv','AQME-ROBERT_interpret_solubility_solvent.csv','Robert_example.csv','solubility.csv','solubility_solvent.csv']:
         if os.path.exists(f'{path_main}/{file_discard}'):
             os.remove(f'{path_main}/{file_discard}')

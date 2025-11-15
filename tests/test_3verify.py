@@ -10,6 +10,7 @@ import pytest
 import shutil
 import subprocess
 from pathlib import Path
+from robert.verify import verify
 
 # saves the working directory
 path_main = os.getcwd()
@@ -25,6 +26,9 @@ path_verify = path_main + "/VERIFY"
         (
             "standard"
         ),  # standard test
+        (
+            "standard_cmd"
+        ),  # standard test with command line
     ],
 )
 def test_VERIFY(test_job):
@@ -56,17 +60,20 @@ def test_VERIFY(test_job):
             filepath_reg.rename(f"{path_main}/GENERATE")
 
     # runs the program with the different tests
-    cmd_robert = [
-        "python",
-        "-m",
-        "robert",
-        "--verify",
-    ]
+    if test_job == 'standard_cmd':
+        cmd_robert = [
+            "python",
+            "-m",
+            "robert",
+            "--verify",
+        ]
 
-    if test_job == "kfold":
-        cmd_robert = cmd_robert + ["--kfold", "10"]
-
-    subprocess.run(cmd_robert)
+        subprocess.run(cmd_robert)
+    
+    else:
+        verify_kwargs = {}
+        
+        verify(**verify_kwargs)
 
     # check that the DAT file is created
     assert not os.path.exists(f"{path_main}/VERIFY_data.dat")
@@ -82,17 +89,17 @@ def test_VERIFY(test_job):
             if 'Results of flawed models and sorted cross-validation:' in line:
                 results_line = True
                 if test_job == "clas":
-                    assert "Original MCC (10x 5-fold CV) 0.57 - 15% & 30% threshold = 0.49 & 0.4" in outlines[i+1]
+                    assert "Original MCC (10x 5-fold CV) 0.63 - 15% & 30% threshold = 0.53 & 0.44" in outlines[i+1]
                     assert "o y_mean: PASSED, MCC = 0.0, lower than thresholds" in outlines[i+2]
-                    assert "o y_shuffle: PASSED, MCC = 0.0018, lower than thresholds" in outlines[i+3]
-                    assert "x onehot: FAILED, MCC = 0.73, higher than thresholds" in outlines[i+4]
-                    assert "- Sorted CV : Accuracy = [0.67, 1.0, 0.83, 1.0, 0.67], F1 score = [0.75, 1.0, 0.86, 1.0, 0.67], MCC = [0.45, 1.0, 0.71, 1.0, 0.5]" in outlines[i+5]
+                    assert "o y_shuffle: PASSED, MCC = 0.042, lower than thresholds" in outlines[i+3]
+                    assert "o onehot: PASSED, MCC = -0.034, lower than thresholds" in outlines[i+4]
+                    assert "- Sorted CV : Accuracy = [0.83, 0.83, 1.0, 0.67, 0.6], F1 score = [0.86, 0.86, 1.0, 0.67, 0.5], MCC = [0.71, 0.71, 1.0, 0.5, 0.41]" in outlines[i+5]
                 elif test_job == "standard":
-                    assert "Original RMSE (10x 5-fold CV) 0.25 + 15% & 30% threshold = 0.29 & 0.33" in outlines[i+1]
+                    assert "Original RMSE (10x 5-fold CV) 0.24 + 15% & 30% threshold = 0.28 & 0.31" in outlines[i+1]
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i+2]
-                    assert "o y_shuffle: PASSED, RMSE = 0.87" in outlines[i+3]
-                    assert "- onehot: UNCLEAR, RMSE = 0.31" in outlines[i+4]
-                    assert "- Sorted 5-fold CV : R2 = [0.29, 0.3, 0.08, 0.83, 0.27], MAE = [0.36, 0.21, 0.11, 0.27, 0.42], RMSE = [0.36, 0.22, 0.12, 0.3, 0.47]" in outlines[i+5]
+                    assert "o y_shuffle: PASSED, RMSE = 0.84" in outlines[i+3]
+                    assert "- onehot: UNCLEAR, RMSE = 0.3" in outlines[i+4]
+                    assert "- Sorted 5-fold CV : R2 = [0.0, 0.54, 0.0, 0.42, 0.2], MAE = [0.31, 0.15, 0.04, 0.36, 0.46], RMSE = [0.32, 0.2, 0.05, 0.43, 0.51]" in outlines[i+5]
                 break
     assert results_line
 

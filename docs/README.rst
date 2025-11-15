@@ -147,12 +147,11 @@ this point means, check out the "Users with no Python experience" section. It on
    conda create -n robert -c conda-forge -y python=3.12
    conda activate robert
 
-**2.** Install ROBERT and the intelex accelerator with pip (only if your system is compatible with intelex):  
+**2.** Install ROBERT with pip:  
 
 .. code-block:: shell 
    
    pip install robert
-   pip install scikit-learn-intelex==2025.2.0
 
 **3.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:  
 
@@ -164,13 +163,16 @@ this point means, check out the "Users with no Python experience" section. It on
 
    In some computers, you might see lots of pop-up windows with errors when installing GLib. Just press "Accept" in all the windows and finish the process until you see "Done" in the terminal.
 
+.. warning::
+
+   In some rare cases when using Linux systems, the PDF is still not generated after installing all the previous libraries. Users might try to execute these two command lines before: ``export GI_TYPELIB_PATH=$CONDA_PREFIX/lib/girepository-1.0`` and ``export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH``.
+
 You can also use conda-forge in step 2 instead of pip, executing these commands:  
 
 .. code-block:: shell
 
    conda install -c conda-forge robert
    pip install robert --upgrade
-   pip install scikit-learn-intelex==2025.2.0
    conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
 .. warning::
@@ -271,25 +273,19 @@ operating system (Windows, macOS or Linux). Alternatively, you can install
 
    pip install robert
 
-**6.** Install the intelex code accelerator (only if your system is compatible with intelex):
-
-.. code-block:: shell
-
-   pip install scikit-learn-intelex==2025.2.0
-
-**7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:
+**6.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:
 
 .. code-block:: shell
 
    conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
-**8.** Go to the folder with your CSV database (using the "cd" command):
+**7.** Go to the folder with your CSV database (using the "cd" command):
 
 .. code-block:: shell
 
    cd C:/Users/test_robert
 
-**9.** Run ROBERT as explained in the Examples section.
+**8.** Run ROBERT as explained in the Examples section.
 
 .. note-end 
 

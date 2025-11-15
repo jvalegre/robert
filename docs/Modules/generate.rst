@@ -36,7 +36,7 @@ Automated protocols
 Technical information
 +++++++++++++++++++++
 
-The GENERATE module performs an exploration of various ML algorithms. It uses built-in ML models from scikit-learn [1] or its code accelerator, scikit-learn-intelex. These models are hyperoptimized using Bayesian Optimization [2] to find their optimal parameters.
+The GENERATE module performs an exploration of various ML algorithms. It uses built-in ML models from scikit-learn [1]. These models are hyperoptimized using Bayesian Optimization [2] to find their optimal parameters.
 
 The software automatically generates a heatmap displaying RMSE values obtained from hyperoptimized algorithms. Furthermore, it performs permutation feature importance (PFI) analysis to identify the most influential descriptors and generate new models with only those descriptors. Users have the flexibility to fine-tune the PFI filter threshold using the "PFI_threshold" parameter. By default, this threshold removes features that contribute less than 4% to the model's R2. While this filter is activated by default, users can deactivate it by setting the "pfi_filter" option to False.
 

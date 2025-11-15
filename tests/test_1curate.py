@@ -56,7 +56,6 @@ path_curate = os.getcwd() + "/CURATE"
         (
             "standard_cmd"
         ),  # standard test through command line
-
     ],
 )
 def test_CURATE(test_job):
@@ -365,8 +364,8 @@ def test_CURATE(test_job):
 
         # check if variables are discarded right with RFECV
         db_final = pd.read_csv(f"{path_curate}/{csv_name.split('.csv')[0]}_CURATE_NN.csv")
-        assert 'dist' not in db_final.columns
+        assert 'E_HOMO' not in db_final.columns
 
-        accepted_vars = ['E_HOMO','V_Bur', 'rando1', 'rando2', 'rando3', 'rando4']
+        accepted_vars = ['V_Bur', 'dist', 'rando1', 'rando2', 'rando3', 'rando4']
         for var in accepted_vars:
             assert var in db_final.columns

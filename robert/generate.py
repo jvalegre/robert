@@ -72,12 +72,12 @@ Parameters
         Number of random data splits for the cross-validation of the models. 
     repeat_kfolds : int, default=10
         Number of repetitions for the k-fold cross-validation of the models.
-    split : str, default='even'
+    split : str, default= 'even' (regression) or 'rnd' (classification)
         Specifies how the data is split into training and test sets. Options:
         1. 'even': splits the data evenly into training and test sets.
         2. 'RND': randomly splits the data.
         3. 'stratified': splits the data while preserving the distribution of the target variable.
-        4. 'KN': uses a k-means approach to select representative samples.
+        4. 'KN': uses a k-means approach to select representative samples for training (good for intrapolation, bad for extrapolation).
         5. 'extra_q1': selects the 20% lowest values.
         6. 'extra_q5': selects the 20% highest values.
         

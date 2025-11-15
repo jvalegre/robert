@@ -234,7 +234,8 @@ def pearson_map_predict(self,Xy_data,params_dir):
     Plots the Pearson map and analyzes correlation of descriptors.
     '''
 
-    corr_matrix = pearson_map(self,Xy_data['X_train'],'predict',params_dir=params_dir)
+    X_combined = pd.concat([Xy_data['X_train'], Xy_data['X_test']], axis=0, ignore_index=True)
+    corr_matrix = pearson_map(self,X_combined,'predict',params_dir=params_dir)
 
     corr_dict = {'descp_1': [],
                  'descp_2': [],

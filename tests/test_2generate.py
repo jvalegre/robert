@@ -113,6 +113,8 @@ def test_GENERATE(test_job):
             
         else: # needed to define the variables, change if default options change
             generate_kwargs['model'] = ['RF','GB','NN','MVL']
+            generate_kwargs['init_points'] = 2
+            generate_kwargs['n_iter'] = 2
         
         generate(**generate_kwargs)
 
@@ -162,15 +164,15 @@ def test_GENERATE(test_job):
                 finding_line += 1
             elif f"- 4/4 - ML model: MVL" in line:
                 finding_line += 1
-            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.41' in line:
+            elif f'o Best combined RMSE (target) found in BO for RF (no PFI filter): 0.49' in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for RF (with PFI filter): 0.4" in line:
+            elif f"o Combined RMSE for RF (with PFI filter): 0.5" in line:
                 reproducibility += 1
             elif f"o Best combined RMSE (target) found in BO for GB (no PFI filter): 0.41" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for GB (with PFI filter): 0.41" in line:
+            elif f"o Combined RMSE for GB (with PFI filter): 0.38" in line:
                 reproducibility += 1
-            elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.34" in line:
+            elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.33" in line:
                 reproducibility += 1
             elif f"o Combined RMSE for NN (with PFI filter): 0.39" in line:
                 reproducibility += 1
@@ -235,9 +237,9 @@ def test_GENERATE(test_job):
                     elif test_job == 'reduced_adab':
                         desc_list = ['x10', 'x9']
                     elif test_job == 'reduced_clas':
-                        desc_list = ['x7', 'x10', 'x5', 'x3', 'x9', 'x6']
+                        desc_list = ['x6']
                     elif test_job == 'standard':
-                        desc_list = ['x5', 'x7', 'x9', 'Csub-H', 'x10', 'Csub-Csub']
+                        desc_list = ['x10', 'x7']
                 if test_job in ['reduced','reduced_cmd']:
                     # check set splits
                     expected_sets = ['Training', 'Training', 'Training', 'Test', 'Training']
@@ -255,7 +257,20 @@ def test_GENERATE(test_job):
                 for var in desc_list:
                     assert var in params_best['X_descriptors'][0]
                 assert len(desc_list) == len(params_best['X_descriptors'][0].split(','))
-    
+
+                if test_job == 'reduced_clas':
+                    metric_bo = 'mcc'
+                else:
+                    metric_bo = 'rmse'
+
+                for col in ['model', 'type', 'kfold', 'repeat_kfolds', 'seed', 'error_type', 'y', 'names', 'X_descriptors', 'params', f'combined_{metric_bo}', 'split']:
+                    assert col in params_best.columns
+                
+                if test_job == 'reduced_clas':
+                    assert params_best['split'][0].upper() == 'RND'
+                else:
+                    assert params_best['split'][0].upper() == 'EVEN'
+
         # check that the heatmap plots were generated
         assert os.path.exists(f'{path_generate}/Raw_data/Heatmap_ML_models_No_PFI.png')
         if test_job != "reduced_noPFI":

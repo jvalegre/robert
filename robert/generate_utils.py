@@ -63,7 +63,10 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     if hasattr(self.args, 'class_0_label'):
         bo_data_to_save['class_0_label'] = self.args.class_0_label
         bo_data_to_save['class_1_label'] = self.args.class_1_label
-    
+
+    # Save split type
+    bo_data_to_save['split'] = self.args.split
+ 
     bo_data_df = pd.DataFrame([bo_data_to_save])
     _ = bo_data_df.to_csv(f'{params_name}.csv', index = None, header=True)
 

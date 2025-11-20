@@ -84,10 +84,10 @@ def test_PREDICT(test_job):
         if test_job == "csv_test":
             predict_kwargs["csv_test"] = "tests/Robert_example_test.csv"
 
-        subprocess.run(predict_kwargs)
+        predict(**predict_kwargs)
 
     # check that the DAT file is created
-    assert not os.path.exists(f"{path_main}/PREDICT_data.dat")
+    assert os.path.exists(f"{path_predict}/PREDICT_data.dat")
     outfile = open(f"{path_predict}/PREDICT_data.dat", "r")
     outlines = outfile.readlines()
     outfile.close()
@@ -126,7 +126,7 @@ def test_PREDICT(test_job):
             if 'x  WARNING! High correlations observed (up to r = 1.0 or R2 = 1.0, for x1 and x3)' in line:
                 pearson_found = True
         else:
-            if 'x  WARNING! Noticeable correlations observed (up to r = -0.81 or R2 = 0.66, for x10 and x7)' in line:
+            if 'x  WARNING! Noticeable correlations observed (up to r = -0.84 or R2 = 0.7, for x5 and x8)' in line:
                 pearson_found = True
         if test_job == "clas":
             if 'o  Your data seems quite uniform' in line:

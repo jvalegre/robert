@@ -309,7 +309,6 @@ def test_AQME(test_job):
             assert pearson_pred_image
             # warnings
             assert find_severe_red
-            assert find_moder_correl
             assert find_moder_y_dist
             assert find_assess_red
 

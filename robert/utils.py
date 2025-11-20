@@ -763,7 +763,8 @@ def correlation_filter(self, csv_df):
                     perm_result = permutation_importance(estimator, X_scaled_df, y_df, 
                                           n_repeats=self.args.pfi_epochs, 
                                           random_state=self.args.seed + pfi_run,  # Different seed per run
-                                          scoring=scoring)
+                                          scoring=scoring,
+                                          n_jobs=1)  # Force single thread for reproducibility
                     all_importances.append(perm_result.importances_mean)
                 
                 # Average the importances across all runs and round to reduce floating point variance
@@ -1702,12 +1703,16 @@ def load_model(self, model_name, **params):
     """
 
     if model_name == 'RF':
+        # Ensure n_jobs=1 for reproducibility if not already in params
+        if 'n_jobs' not in params:
+            params['n_jobs'] = 1
         if self.args.type.lower() == 'reg':
             loaded_model = RandomForestRegressor(**params)
         else:
             loaded_model = RandomForestClassifier(**params)
 
     elif model_name == 'GB':
+        # GradientBoosting doesn't have n_jobs parameter, it's already deterministic
         if self.args.type.lower() == 'reg':
             loaded_model = GradientBoostingRegressor(**params)
         else:
@@ -2101,7 +2106,7 @@ def PFI_filter(self, Xy_data, model_data):
     # select scoring function for PFI analysis based on the error type
     scoring, score_model, _ = scoring_n_score(self,model_data,Xy_data,loaded_model)
     
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=self.args.seed)
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=self.args.seed, n_jobs=1)
 
     # transforms the values into a list and sort the PFI values with the descriptor names
     descp_cols_pfi, PFI_values, PFI_sd = [],[],[]
@@ -2484,7 +2489,7 @@ def PFI_plot(self,Xy_data,model_data,path_n_suffix):
     # select scoring function for PFI analysis based on the error type
     scoring, _, error_type = scoring_n_score(self,model_data,Xy_data,loaded_model)
 
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=model_data['seed'])
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=model_data['seed'], n_jobs=1)
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]

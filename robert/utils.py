@@ -734,7 +734,7 @@ def correlation_filter(self, csv_df):
         X_scaled_df,_ = scale_df(X_df,None)
         y_df = csv_df_filtered[self.args.y]
 
-        for model in self.args.model:
+        for model in sorted(self.args.model):
             # Load the parameters of the minimalist model used for RFECV
             rfecv_params = load_minimal_model(model)
             rfecv_params = model_adjust_params(self, model, rfecv_params)
@@ -755,42 +755,75 @@ def correlation_filter(self, csv_df):
                 # Train the model once on all features
                 estimator.fit(X_scaled_df, y_df)
                 
-                # Use permutation importance to rank features
-                perm_result = permutation_importance(estimator, X_scaled_df, y_df, 
-                                      n_repeats=self.args.pfi_epochs, random_state=self.args.seed, scoring=scoring)
-                feature_importances = perm_result.importances_mean
+                # Use permutation importance to rank features (average over multiple runs for stability)
+                # Run PFI multiple times and average to reduce stochastic variability
+                n_pfi_runs = 3  # Run PFI 3 times and average for more stable results
+                all_importances = []
+                for pfi_run in range(n_pfi_runs):
+                    perm_result = permutation_importance(estimator, X_scaled_df, y_df, 
+                                          n_repeats=self.args.pfi_epochs, 
+                                          random_state=self.args.seed + pfi_run,  # Different seed per run
+                                          scoring=scoring)
+                    all_importances.append(perm_result.importances_mean)
                 
-                # Select features with positive importance and limit to num_descriptors
-                positive_importance_idx = np.where(feature_importances > 0)[0]
-                if len(positive_importance_idx) > num_descriptors:
-                    # Sort by importance (descending) and break ties alphabetically for determinism
-                    importance_with_names = [(feature_importances[i], X_scaled_df.columns[i]) for i in range(len(feature_importances))]
-                    importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
-                    descriptors_used[model] = [name for _, name in importance_with_names[:num_descriptors]]
+                # Average the importances across all runs and round to reduce floating point variance
+                feature_importances = np.mean(all_importances, axis=0)
+                feature_importances = np.round(feature_importances, decimals=10)
+                
+                # Create list of (importance, name) tuples for ALL features
+                importance_with_names = [(feature_importances[i], X_scaled_df.columns[i]) 
+                                        for i in range(len(feature_importances))]
+                
+                # Sort by importance (descending) and break ties alphabetically for determinism
+                importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
+                
+                # Select top num_descriptors features (or all with positive importance if fewer)
+                positive_features = [(imp, name) for imp, name in importance_with_names if imp > 0]
+                if len(positive_features) > num_descriptors:
+                    descriptors_used[model] = [name for _, name in positive_features[:num_descriptors]]
                 else:
-                    descriptors_used[model] = X_scaled_df.columns[positive_importance_idx].tolist()
+                    descriptors_used[model] = [name for _, name in positive_features]
                 
-                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using PFI)'
+                # Sort final list alphabetically for consistent ordering in output
+                descriptors_used[model] = sorted(descriptors_used[model])
+                
+                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using averaged PFI)'
             
             else:
-                # MVL has coef_ attribute, use it directly with RFECV
-                selector = RFECV(estimator, scoring=scoring, min_features_to_select=2, cv=cv_model)
+                # MVL, RF, GB, ADAB: use RFECV with feature importances
+                # Set step=1 for most stable/deterministic feature elimination
+                selector = RFECV(estimator, scoring=scoring, min_features_to_select=2, cv=cv_model, step=1, n_jobs=1)
                 selector.fit(X_scaled_df, y_df)
                 
-                descriptors_used[model] = list(X_scaled_df.columns[selector.support_])
+                # Get selected features
+                selected_mask = selector.support_
+                selected_features_list = list(X_scaled_df.columns[selected_mask])
+                
+                # Get feature importances for selected features only
                 if model.upper() == 'MVL':
+                    # For MVL, use absolute coefficients as importance
                     feature_importances = np.abs(selector.estimator_.coef_)
-                    selected_features = np.array(descriptors_used[model])
                 else: 
                     # RF, GB, ADAB have feature_importances_
                     feature_importances = selector.estimator_.feature_importances_
-                    selected_features = np.array(X_scaled_df.columns)[selector.support_]
-
-                # Sort by importance (descending) and break ties alphabetically for determinism
-                importance_with_names = list(zip(feature_importances, selected_features))
+                
+                # Round importances to reduce floating point variance
+                feature_importances = np.round(feature_importances, decimals=10)
+                
+                # Create (importance, name) pairs for selected features
+                importance_with_names = list(zip(feature_importances, selected_features_list))
+                
+                # Sort by importance (descending) with alphabetical tie-breaking for determinism
                 importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
-                descriptors_used[model] = [name for _, name in importance_with_names[:num_descriptors]]
-                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using RFECV with coefficients)'
+                
+                # Select top num_descriptors (or all if fewer selected)
+                n_to_select = min(num_descriptors, len(importance_with_names))
+                descriptors_used[model] = [name for _, name in importance_with_names[:n_to_select]]
+                
+                # Sort final list alphabetically for consistent ordering in output
+                descriptors_used[model] = sorted(descriptors_used[model])
+                
+                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using RFECV)'
             
             # Create model-specific dataframe with sorted columns for reproducibility
             keep_cols = descriptors_used[model] + [self.args.y] + self.args.ignore
@@ -1078,18 +1111,16 @@ def check_clas_problem(self,csv_df):
     # changes type to classification if there are only two different y values
     if self.args.type.lower() == 'reg' and self.args.auto_type:
         num_unique = len(set(csv_df[self.args.y]))
-        if num_unique in [1,2,3,4]:
+        if num_unique == 2:
             self.args.type = 'clas'
             if self.args.error_type not in ['acc', 'mcc', 'f1']:
                 self.args.error_type = 'mcc'
             if ('MVL' or 'mvl') in self.args.model:
                 self.args.model = [x if x.upper() != 'MVL' else 'ADAB' for x in self.args.model]
 
-            # Only print the message if there are exactly 2 values
-            if num_unique == 2:
-                unique_vals = list(set(csv_df[self.args.y]))
-                y_val_detect = f'{unique_vals[0]} and {unique_vals[1]}'
-                self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
+            unique_vals = list(set(csv_df[self.args.y]))
+            y_val_detect = f'{unique_vals[0]} and {unique_vals[1]}'
+            self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
 
     if self.args.type.lower() == 'clas':
         if len(set(csv_df[self.args.y])) == 2:

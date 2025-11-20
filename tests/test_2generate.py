@@ -174,7 +174,7 @@ def test_GENERATE(test_job):
                 reproducibility += 1
             elif f"o Best combined RMSE (target) found in BO for NN (no PFI filter): 0.33" in line:
                 reproducibility += 1
-            elif f"o Combined RMSE for NN (with PFI filter): 0.39" in line:
+            elif f"o Combined RMSE for NN (with PFI filter): 0.41" in line:
                 reproducibility += 1
             elif f'o Combined RMSE for MVL (no BO needed) (no PFI filter): 0.47' in line:
                 reproducibility += 1

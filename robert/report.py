@@ -67,11 +67,27 @@ class report:
 
     def __init__(self, **kwargs):
         # check if there is a problem with weasyprint (required for this module)
+        # Suppress fontconfig warnings during import on Windows
+        if platform.system() == 'Windows':
+            import tempfile
+            temp_stderr = tempfile.TemporaryFile(mode='w+')
+            old_stderr = os.dup(2)
+            os.dup2(temp_stderr.fileno(), 2)
+            
         try:
             from weasyprint import HTML
         except (OSError, ModuleNotFoundError):
+            if platform.system() == 'Windows':
+                os.dup2(old_stderr, 2)
+                os.close(old_stderr)
+                temp_stderr.close()
             print(f"\nx The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'")
             sys.exit()
+        finally:
+            if platform.system() == 'Windows':
+                os.dup2(old_stderr, 2)
+                os.close(old_stderr)
+                temp_stderr.close()
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
@@ -135,14 +151,31 @@ class report:
         report_html += self.print_misc()
 
         if self.args.debug_report:
-            with open("report_debug.txt", "w") as debug_text:
+            with open("report_debug.txt", "w", encoding="utf-8") as debug_text:
                 debug_text.write(report_html)
 
         # create css
-        with open("report.css", "w") as cssfile:
+        with open("report.css", "w", encoding="utf-8") as cssfile:
             cssfile.write(css_content(csv_name,robert_version))
 
-        _ = make_report(report_html,HTML)
+        # Suppress fontconfig warnings from WeasyPrint on Windows
+        # These warnings come from the C library level, so we need to redirect at OS level
+        if platform.system() == 'Windows':
+            import tempfile
+            
+            # Create a temporary file to redirect stderr
+            temp_stderr = tempfile.TemporaryFile(mode='w+')
+            old_stderr = os.dup(2)  # Duplicate stderr file descriptor
+            os.dup2(temp_stderr.fileno(), 2)  # Redirect stderr to temp file
+            
+            try:
+                _ = make_report(report_html,HTML)
+            finally:
+                os.dup2(old_stderr, 2)  # Restore stderr
+                os.close(old_stderr)
+                temp_stderr.close()
+        else:
+            _ = make_report(report_html,HTML)
 
         # Remove report.css file
         os.remove("report.css")
@@ -784,14 +817,11 @@ class report:
         Generates the reproducibility section
         """
         
-        version_n_date, citation, command_line, python_version, intelex_version, total_time, dat_files = repro_info(self.args.report_modules)
+        version_n_date, citation, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules)
         robert_version = version_n_date.split()[2]
 
         if self.args.csv_name == '' or self.args.csv_test == '':
             self = get_csv_names(self,command_line)
-
-        if eval_only and self.args.csv_train != '':
-            self.args.csv_name = self.args.csv_train
 
         repro_dat,citation_dat = '',''
         
@@ -825,15 +855,9 @@ class report:
 
         # reproducibility section, starts with the icon of reproducibility  
         repro_dat += f"""{first_line}<br><strong>1. Download these files <i>(the authors should have uploaded the files as supporting information!)</i>:</strong></p>"""
-        if not eval_only:
-            repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
-            if self.args.csv_test != '':
-                repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
-        else:
-            repro_dat += f"""{reduced_line}{space}- Training CSV database ({self.args.csv_train})</p>"""
-            repro_dat += f"""{reduced_line}{space}- Validation CSV database ({self.args.csv_valid})</p>"""
-            if self.args.csv_test != '':
-                repro_dat += f"""{reduced_line}{space}- Test CSV database ({self.args.csv_test})</p>"""  
+        repro_dat += f"""{reduced_line}{space}- CSV database ({self.args.csv_name})</p>"""
+        if self.args.csv_test != '':
+            repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
 
         if aqme_workflow:
             try:
@@ -879,13 +903,6 @@ class report:
         repro_dat += f"""{reduced_line}{space}- Install ROBERT and its dependencies: conda install -y -c conda-forge robert</p>"""
         repro_dat += f"""{reduced_line}{space}- Adjust ROBERT version: pip install robert=={robert_version}</p>"""
 
-        if intelex_version != 'not installed':
-            repro_dat += f"""{reduced_line}{space}- Install scikit-learn-intelex: pip install scikit-learn-intelex=={intelex_version}</p>"""
-            repro_dat += f"""{reduced_line}{space}<i>(if scikit-learn-intelex is not installed, slightly different results might be obtained)</i></p>"""
-        else:
-            repro_dat += f"""{reduced_line}{space}- scikit-learn-intelex: not installed</p>"""
-            repro_dat += f"""{reduced_line}{space}<i>(if scikit-learn-intelex is installed, slightly different results might be obtained)</i></p>"""
-
         if aqme_workflow:
             if not find_aqme:
                 repro_dat += f"""{reduced_line}{space}- AQME is required, but no version was found:</p>"""
@@ -911,10 +928,10 @@ class report:
 
         if crest_workflow:
             try:
-                import pkg_resources
-                crest_version = pkg_resources.get_distribution('crest').version
+                from importlib.metadata import PackageNotFoundError, version as importlib_version
+                crest_version = importlib_version("crest")
                 find_crest = True
-            except:
+            except PackageNotFoundError:
                 find_crest = False
             if not find_crest:
                 repro_dat += f"""{reduced_line}{space}- CREST is required, but no version was found:</p>"""

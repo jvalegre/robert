@@ -72,14 +72,14 @@ Parameters
         Number of random data splits for the cross-validation of the models. 
     repeat_kfolds : int, default=10
         Number of repetitions for the k-fold cross-validation of the models.
-    split : str, default='even'
+    split : str, default= 'even' (regression) or 'rnd' (classification)
         Specifies how the data is split into training and test sets. Options:
         1. 'even': splits the data evenly into training and test sets.
         2. 'RND': randomly splits the data.
         3. 'stratified': splits the data while preserving the distribution of the target variable.
-        4. 'KN': uses a k-means approach to select representative samples.
-        5. 'EXTRA_Q1': selects the 10% lowest values.
-        6. 'EXTRA_Q5': selects the 10% highest values.
+        4. 'KN': uses a k-means approach to select representative samples for training (good for intrapolation, bad for extrapolation).
+        5. 'extra_q1': selects the 20% lowest values.
+        6. 'extra_q5': selects the 20% highest values.
         
 """
 #####################################################.
@@ -87,6 +87,7 @@ Parameters
 #             used in model generation              #
 #####################################################.
 
+import os
 import time
 from robert.utils import (
     load_variables, 
@@ -145,8 +146,32 @@ class generate:
 
             self.args.log.write(f'   - {cycle}/{len(self.args.model)} - ML model: {ML_model} ')
 
+            # Try to load model-specific curated CSV first, fall back to general CSV
+            # Get the base name from the original csv_name (remove path if any)
+            if 'CURATE' in str(self.args.csv_name):
+                # If csv_name is already a CURATE file, extract the original base name
+                csv_basename = os.path.basename(f'{self.args.csv_name}').replace('_CURATE.csv', '').replace('.csv', '')
+            else:
+                csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
+            
+            curate_folder = self.args.initial_dir.joinpath('CURATE')
+            csv_model_specific = curate_folder.joinpath(f'{csv_basename}_CURATE_{ML_model}.csv')
+            
+            # Store the original csv_name temporarily
+            original_csv_name = self.args.csv_name
+            
+            if os.path.exists(csv_model_specific):
+                csv_to_load = csv_model_specific
+                # Temporarily update csv_name to the model-specific CSV
+                self.args.csv_name = str(csv_model_specific)
+                self.args.log.write(f'      o Using model-specific curated database: {os.path.basename(csv_model_specific)}')
+            else:
+                csv_to_load = self.args.csv_name
+                self.args.log.write(f'      x Using general database (model-specific not found): {os.path.basename(self.args.csv_name)}')
+            
             # load database, discard user-defined descriptors and perform data checks
-            csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
+            csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
+            
 
             # standardizes and separates an external test set
             Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
@@ -157,12 +182,15 @@ class generate:
             # apply the PFI descriptor filter if it's activated
             if self.args.pfi_filter:
                 # load database, discard user-defined descriptors and perform data checks
-                csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
+                csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
 
                 # standardizes and separates an external test set
                 Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
 
                 _ = PFI_workflow(self, csv_df, ML_model, Xy_data)
+            
+            # Restore the original csv_name
+            self.args.csv_name = original_csv_name
 
             cycle += 1
 

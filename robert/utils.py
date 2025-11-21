@@ -14,6 +14,10 @@ import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
+
+# Force single-threaded execution for reproducibility across platforms
+# This prevents numerical differences between Windows/Ubuntu in parallel operations
+os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 from matplotlib import pyplot as plt
 import importlib
 import matplotlib.patches as mpatches
@@ -23,13 +27,13 @@ from matplotlib.ticker import FormatStrFormatter
 import shap
 import seaborn as sb
 from scipy import stats
-from pkg_resources import resource_filename
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
+from importlib.resources import files
+# sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
+# try:
+#     from sklearnex import patch_sklearn
+#     patch_sklearn(verbose=True)
+# except (ModuleNotFoundError,ImportError):
+#     pass
 from sklearn.metrics import (mean_absolute_error, mean_squared_error,
                              matthews_corrcoef, accuracy_score, f1_score, make_scorer,
                              ConfusionMatrixDisplay)
@@ -58,7 +62,7 @@ import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.0.2"
+robert_version = "2.1.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 
@@ -409,15 +413,16 @@ def load_variables(kwargs, robert_module):
                 self.log.write(f"Command line used in ROBERT: python -m robert {cmd_print}\n")
 
         elif robert_module.upper() == 'REPORT':
-            self.path_icons = Path(resource_filename("robert", "report"))
+            self.path_icons = files("robert").joinpath("report")
 
+        # sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
         # using or not the intelex accelerator might affect the results
-        if robert_module.upper() in ['GENERATE','VERIFY','PREDICT']:
-            try:
-                from sklearnex import patch_sklearn
-                pass
-            except (ModuleNotFoundError,ImportError):
-                self.log.write(f"\nx  WARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
+        # if robert_module.upper() in ['GENERATE','VERIFY','PREDICT']:
+            # try:
+            #     import sklearnex
+            #     pass
+            # except (ModuleNotFoundError,ImportError):
+            #     self.log.write(f"\nx  WARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
@@ -475,6 +480,11 @@ def load_variables(kwargs, robert_module):
                             self.ignore  = format_lists(self.ignore)
                         elif option == 'csv_name':
                             self.csv_name = curate_df['csv_name'][0]
+                
+                # Load class labels if they exist (for classification with string labels)
+                if 'class_0_label' in curate_df.columns and 'class_1_label' in curate_df.columns:
+                    self.class_0_label = curate_df['class_0_label'][0]
+                    self.class_1_label = curate_df['class_1_label'][0]
 
         elif robert_module.upper() in ['PREDICT','VERIFY']:
             if robert_module.upper() == 'PREDICT':
@@ -563,15 +573,8 @@ def missing_inputs(self,module,print_err=False):
     """
 
     if module.lower() not in ['predict','verify','report','aqme_test']:
-        if module.lower() == 'evaluate':
-            if self.csv_train == '':
-                self = check_csv_option(self,'csv_train',print_err)
-            if self.csv_valid == '':
-                self = check_csv_option(self,'csv_valid',print_err)
-
-        else:
-            if self.csv_name == '':
-                self = check_csv_option(self,'csv_name',print_err)
+        if self.csv_name == '':
+            self = check_csv_option(self,'csv_name',print_err)
 
     if module.lower() not in ['predict','verify','report','aqme_test']:
         if self.y == '':
@@ -604,9 +607,22 @@ def correlation_filter(self, csv_df):
     """
     Discards a) correlated variables and b) variables that do not correlate with the y values, based
     on R**2 values c) reduces the number of descriptors to one third of the datapoints using RFECV.
+    
+    REPRODUCIBILITY GUARANTEES:
+    - Columns are sorted alphabetically before any operation
+    - Rows are sorted by y value to ensure consistent ordering
+    - Tie-breaking in correlations uses alphabetical order
+    - RFECV descriptor selection uses sorted feature importances with alphabetical tie-breaking
     """
 
     txt_corr = ''
+    
+    # Sort columns alphabetically and rows by y value for reproducibility
+    descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y]
+    descriptor_cols_sorted = sorted(descriptor_cols)
+    other_cols = [col for col in csv_df.columns if col in self.args.ignore or col == self.args.y]
+    csv_df = csv_df[descriptor_cols_sorted + other_cols].copy()
+    csv_df = csv_df.reset_index(drop=True).sort_values(by=self.args.y, kind='stable').reset_index(drop=True)
 
     # loosen correlation filters if there are too few descriptors
     n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
@@ -616,39 +632,86 @@ def correlation_filter(self, csv_df):
 
     descriptors_drop = []
     txt_corr += f'\n   Excluded descriptors:'
-    for i,column in enumerate(csv_df.columns):
+    
+    # First pass: remove constant descriptors and those with low correlation to y
+    for _,column in enumerate(csv_df.columns):
         if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
+            # Remove descriptors where all values are the same
             if len(set(csv_df[column])) == 1:
                 descriptors_drop.append(column)
                 txt_corr += f'\n   - {column}: all the values are the same'
 
-            if column not in descriptors_drop:
-                res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
-                rsquared_y = res_y.rvalue**2
-
-            # finds the descriptors with low correlation to the response values
+            # Remove descriptors with low correlation to the response values
             if self.args.corr_filter_y:
+                # Calculate correlation with y for remaining descriptors
+                if column not in descriptors_drop:
+                    res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
+                    rsquared_y = res_y.rvalue**2
                 if rsquared_y < self.args.thres_y:
                     descriptors_drop.append(column)
                     txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
 
-            # finds correlated descriptors
-            if self.args.corr_filter_x:
-                if column != csv_df.columns[-1] and column not in descriptors_drop:
-                    for j,column2 in enumerate(csv_df.columns):
-                        if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
-                            res_x = stats.linregress(csv_df[column],csv_df[column2])
-                            rsquared_x = res_x.rvalue**2
-                            if rsquared_x > self.args.thres_x:
-                                # discard the column with less correlation with the y values
-                                res_xy = stats.linregress(csv_df[column2],csv_df[self.args.y])
-                                rsquared_y2 = res_xy.rvalue**2
-                                if rsquared_y >= rsquared_y2:
-                                    descriptors_drop.append(column2)
-                                    txt_corr += f'\n   - {column2}: R**2 = {rsquared_x:.2} with {column}'
-                                else:
-                                    descriptors_drop.append(column)
-                                    txt_corr += f'\n   - {column}: R**2 = {rsquared_x:.2} with {column2}'
+    self.args.log.write(txt_corr)
+
+    # Second pass: remove highly correlated descriptors (always removing the most correlated first)
+    txt_corr = ''
+    csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
+    csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+    if self.args.corr_filter_x and len(csv_df_X_filtered.columns) > 1:        
+        # Calculate R2 correlation matrix between descriptors
+        corr_matrix = csv_df_X_filtered.corr().abs()
+        corr_matrix_r2 = corr_matrix ** 2
+        upper = corr_matrix_r2.where(np.triu(np.ones(corr_matrix_r2.shape), k=1).astype(bool))
+        
+        # Calculate R2 of each descriptor with y (for deciding which one to drop)
+        r2_with_y = {}
+        for col in csv_df_X_filtered.columns:
+            res_y = stats.linregress(csv_df_filtered[col], csv_df_filtered[self.args.y])
+            r2_with_y[col] = res_y.rvalue**2
+        
+        # Iteratively remove the most correlated descriptors
+        while True:
+            # Find the maximum R2 correlation
+            max_r2 = upper.max().max()
+            if max_r2 <= self.args.thres_x:
+                break
+            
+            # Get ALL pairs with maximum correlation, round to avoid floating point issues
+            upper_rounded = upper.round(10)
+            max_r2_rounded = upper_rounded.max().max()
+            row_idx, col_idx = np.where(upper_rounded == max_r2_rounded)
+            
+            # Sort pairs alphabetically for deterministic selection
+            pairs = [(upper.index[row_idx[i]], upper.columns[col_idx[i]]) for i in range(len(row_idx))]
+            pairs.sort()
+            col_name_1, col_name_2 = pairs[0]
+            
+            # Drop the descriptor with lower R2 to y, round for comparison
+            r2_1 = round(r2_with_y[col_name_1], 10)
+            r2_2 = round(r2_with_y[col_name_2], 10)
+            
+            if r2_1 == r2_2:
+                # Tied on R2 with y, drop alphabetically later one
+                drop_col = col_name_1 if col_name_1 > col_name_2 else col_name_2
+                keep_col = col_name_2 if col_name_1 > col_name_2 else col_name_1
+            elif r2_1 < r2_2:
+                drop_col = col_name_1
+                keep_col = col_name_2
+            else:
+                drop_col = col_name_2
+                keep_col = col_name_1
+            
+            descriptors_drop.append(drop_col)
+            txt_corr += f'\n   - {drop_col} removed (R2 = {max_r2:.2f} with {keep_col}), kept more predictive descriptor'
+            
+            upper = upper.drop(index=drop_col, columns=drop_col)
+            del r2_with_y[drop_col]
+
+        # Collect all descriptors that were removed
+        to_drop = [col for col in csv_df_X_filtered.columns if col not in upper.columns]
+
+        if to_drop:
+            txt_corr += f'\n   - Total: {len(to_drop)} descriptors removed due to high correlation with other descriptors'
 
     # drop descriptors that did not pass the filters
     csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
@@ -656,21 +719,27 @@ def correlation_filter(self, csv_df):
     if len(descriptors_drop) == 0:
         txt_corr += f'\n   -  No descriptors were removed'
 
+    self.args.log.write(txt_corr)
+
     # Check if descriptors are more than one third of datapoints
-    descpriptors_used = {}
-    n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1 # all columns - ignored - y
+    txt_corr = ''
+    descriptors_used = {}
+    csv_df_per_model = {}
 
     num_descriptors = round(len(csv_df[self.args.y]) / 3)
     if n_descps > num_descriptors:
         cv_type = f'{self.args.repeat_kfolds}x {self.args.kfold}_fold_cv'
-        txt_corr += f'\n\no  There are more descriptors than one-third of the data points. A Recursive Feature Elimination with Cross-Validation (RFECV) using {cv_type} is performed to select the most relevant descriptors'
+        txt_corr += f'\no  There are more descriptors than one-third of the data points. A Recursive Feature Elimination with Cross-Validation (RFECV) or permutation feature importance (PFI) using {cv_type} will be performed to select the most relevant descriptors for each model'
+        self.args.log.write(txt_corr)
+        txt_corr = ''
 
-        # Use RFECV with the standard sklearn models to select the most important descriptors
-        importances_normalized = {}
-        models_used = []
-        for model in self.args.model:
+        # Perform RFECV for each model specified by the user
+        X_df = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+        X_scaled_df,_ = scale_df(X_df,None)
+        y_df = csv_df_filtered[self.args.y]
 
-            # load the parameters of the minimalist models used for REFCV
+        for model in sorted(self.args.model):
+            # Load the parameters of the minimalist model used for RFECV
             rfecv_params = load_minimal_model(model)
             rfecv_params = model_adjust_params(self, model, rfecv_params)
 
@@ -679,51 +748,104 @@ def correlation_filter(self, csv_df):
             # Repeated kfold-CV type
             cv_model = RepeatedKFold(n_splits=self.args.kfold, n_repeats=self.args.repeat_kfolds, random_state=self.args.seed)
 
-            # select scoring function for PFI analysis based on the error type
+            # Select scoring function for RFECV analysis based on the error type
             scoring = get_scoring_key(self.args.type,self.args.error_type)
 
-            X_df = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
-            X_scaled_df,_ = scale_df(X_df,None)
-            y_df = csv_df_filtered[self.args.y]
+            # Use different strategies for models without feature_importances_
+            if model.upper() in ['NN', 'GP']:
+                # For NN and GP, use a simpler approach: select top features by correlation with y
+                # after initial fit, then use permutation importance to rank them
+                
+                # Train the model once on all features
+                estimator.fit(X_scaled_df, y_df)
+                
+                # Use permutation importance to rank features
+                perm_result = permutation_importance(estimator, X_scaled_df, y_df, 
+                                      n_repeats=self.args.pfi_epochs, 
+                                      random_state=self.args.seed,
+                                      scoring=scoring,
+                                      n_jobs=1)  # Force single thread for reproducibility
+                
+                # Round to reduce floating point variance
+                feature_importances = np.round(perm_result.importances_mean, decimals=10)
+                
+                # Create list of (importance, name) tuples for ALL features
+                importance_with_names = [(feature_importances[i], X_scaled_df.columns[i]) 
+                                        for i in range(len(feature_importances))]
+                
+                # Sort by importance (descending) and break ties alphabetically for determinism
+                importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
+                
+                # Select top num_descriptors features (or all with positive importance if fewer)
+                positive_features = [(imp, name) for imp, name in importance_with_names if imp > 0]
+                if len(positive_features) > num_descriptors:
+                    descriptors_used[model] = [name for _, name in positive_features[:num_descriptors]]
+                else:
+                    descriptors_used[model] = [name for _, name in positive_features]
+                
+                # Sort final list alphabetically for consistent ordering in output
+                descriptors_used[model] = sorted(descriptors_used[model])
+                
+                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using PFI)'
+            
+            else:
+                # MVL, RF, GB, ADAB: use RFECV with feature importances
+                # Set step=1 for most stable/deterministic feature elimination
+                selector = RFECV(estimator, scoring=scoring, min_features_to_select=2, cv=cv_model, step=1, n_jobs=1)
+                selector.fit(X_scaled_df, y_df)
+                
+                # Get selected features
+                selected_mask = selector.support_
+                selected_features_list = list(X_scaled_df.columns[selected_mask])
+                
+                # Get feature importances for selected features only
+                if model.upper() == 'MVL':
+                    # For MVL, use absolute coefficients as importance
+                    feature_importances = np.abs(selector.estimator_.coef_)
+                else: 
+                    # RF, GB, ADAB have feature_importances_
+                    feature_importances = selector.estimator_.feature_importances_
+                
+                # Round importances to reduce floating point variance
+                feature_importances = np.round(feature_importances, decimals=10)
+                
+                # Create (importance, name) pairs for selected features
+                importance_with_names = list(zip(feature_importances, selected_features_list))
+                
+                # Sort by importance (descending) with alphabetical tie-breaking for determinism
+                importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
+                
+                # Select top num_descriptors (or all if fewer selected)
+                n_to_select = min(num_descriptors, len(importance_with_names))
+                descriptors_used[model] = [name for _, name in importance_with_names[:n_to_select]]
+                
+                # Sort final list alphabetically for consistent ordering in output
+                descriptors_used[model] = sorted(descriptors_used[model])
+                
+                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using RFECV)'
+            
+            # Create model-specific dataframe with sorted columns for reproducibility
+            keep_cols = descriptors_used[model] + [self.args.y] + self.args.ignore
+            keep_cols = list(dict.fromkeys(keep_cols))  # Remove duplicates preserving order
+            keep_cols = [col for col in keep_cols if col in csv_df_filtered.columns]
+            
+            # Sort descriptor columns alphabetically, keep y and ignore at the end
+            descriptor_cols = [col for col in keep_cols if col not in self.args.ignore and col != self.args.y]
+            other_cols = [col for col in keep_cols if col in self.args.ignore or col == self.args.y]
+            sorted_cols = sorted(descriptor_cols) + sorted([col for col in other_cols if col in self.args.ignore]) + [self.args.y]
+            
+            csv_df_per_model[model] = csv_df_filtered[sorted_cols].copy()
 
-            # these are the compatible models with RFECV, the selection is an average of multiple RFECV processes
-            if model.upper() in ['RF','GB','ADAB']:
-                models_used.append(model.upper())
-                # specify to keep all descriptors, otherwise sometimes it changes the number of descps
-                # obtained in the different models (optimal number of features)
-                selector = RFECV(estimator, scoring=scoring, min_features_to_select=n_descps, cv=cv_model)
-
-                # Convert column names to strings to avoid any issues
-                X_scaled_df.columns = X_scaled_df.columns.astype(str)
-                selector.fit(X_scaled_df,y_df)
-
-                # Sort the descriptors by their importance scores
-                max_importance = max(selector.estimator_.feature_importances_)
-                importances_normalized[model] = [descp/max_importance for descp in selector.estimator_.feature_importances_]
-
-        # sum of all normalized importances, sort and discard
-        if importances_normalized != {}:
-            averaged_normalized_importances = [sum(values) / len(values) for values in zip(*importances_normalized.values())]
-
-            global_importances = list(zip(X_scaled_df.columns,averaged_normalized_importances))
-            sorted_descriptors = sorted(global_importances, key=lambda x: x[1], reverse=True)
-            descpriptors_used = [descriptor for descriptor, _ in sorted_descriptors[:num_descriptors]]
-            for descp_remove,_ in sorted_descriptors:
-                if descp_remove not in descpriptors_used:
-                    csv_df_filtered = csv_df_filtered.drop(descp_remove, axis=1)
-
-            txt_corr += f'\n   - Models averaged for RFECV: {", ".join(models_used)}'
-
-        else:
-            txt_corr += f'\n   x The RFECV filter was not applied, include one of these models with the --model option to apply it: RF, GB, ADAB'
+    else:
+        txt_corr += f'\n   x The RFECV filter was not applied, there are less descriptors than one-third of the data points ({len(csv_df_filtered.columns)-len(self.args.ignore)-1} <= {num_descriptors})'
+        # If RFECV is not applied, all models use the same filtered dataframe
+        for model in self.args.model:
+            csv_df_per_model[model] = csv_df_filtered
 
     self.args.log.write(txt_corr)
 
-    txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate, correlation filters and RFECV:\n'
-    txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
-    self.args.log.write(txt_csv)
-
-    return csv_df_filtered
+    # Return both the general filtered dataframe and model-specific dataframes
+    return csv_df_filtered, csv_df_per_model
 
 
 def load_minimal_model(model):
@@ -847,10 +969,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
     self = missing_inputs(self,module)
 
     if module.lower() == 'evaluate':
-        curate_valid = locate_csv(self,self.csv_train,'csv_train',curate_valid)
-        curate_valid = locate_csv(self,self.csv_valid,'csv_valid',curate_valid)
-        if self.csv_test != '':
-            curate_valid = locate_csv(self,self.csv_test,'csv_test',curate_valid)
+        curate_valid = locate_csv(self,self.csv_name,curate_valid)
 
         if self.eval_model.lower() not in ['mvl']:
             self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL' (more options will be added soon)")
@@ -862,7 +981,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
 
     elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
 
-        curate_valid = locate_csv(self,self.csv_name,'csv_name',curate_valid)
+        curate_valid = locate_csv(self,self.csv_name,curate_valid)
 
         if module.lower() == 'curate':
             if self.categorical.lower() not in ['onehot','numbers']:
@@ -875,9 +994,15 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     curate_valid = False
         
         elif module.lower() == 'generate':
-            if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q2']:
+            if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q5','auto']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
+
+            if self.split == 'auto':
+                if self.type.lower() == 'reg':
+                    self.split = 'even'
+                elif self.type.lower() == 'clas':
+                    self.split = 'rnd'
 
             for model_type in self.model:
                 if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN'] or len(self.model) == 0:
@@ -958,7 +1083,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         sys.exit()
 
 
-def locate_csv(self,csv_input,csv_type,curate_valid):
+def locate_csv(self,csv_input,curate_valid):
     '''
     Assesses whether the input CSV databases can be located
     '''
@@ -969,7 +1094,7 @@ def locate_csv(self,csv_input,csv_type,curate_valid):
     elif os.path.exists(f"{Path(os.getcwd()).joinpath(csv_input)}"):
         path_csv = f"{Path(os.getcwd()).joinpath(csv_input)}"
     if not os.path.exists(path_csv) or csv_input == '':
-        self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: --{csv_type} {csv_input}')
+        self.log.write(f'\nx  The path of your CSV file doesn\'t exist! You specified: --csv_name {csv_input}')
         curate_valid = False
     
     return curate_valid
@@ -977,32 +1102,75 @@ def locate_csv(self,csv_input,csv_type,curate_valid):
 
 def check_clas_problem(self,csv_df):
     '''
-    Changes type to classification if there are only two different y values
+    Changes type to classification if there are only two different y values.
+    Automatically converts any pair of values (strings or numbers) to 0 and 1.
+    Stores the original labels for later reconversion in outputs.
     '''
 
     # changes type to classification if there are only two different y values
     if self.args.type.lower() == 'reg' and self.args.auto_type:
-        if len(set(csv_df[self.args.y])) in [1,2,3,4]:
+        num_unique = len(set(csv_df[self.args.y]))
+        if num_unique == 2:
             self.args.type = 'clas'
             if self.args.error_type not in ['acc', 'mcc', 'f1']:
                 self.args.error_type = 'mcc'
             if ('MVL' or 'mvl') in self.args.model:
                 self.args.model = [x if x.upper() != 'MVL' else 'ADAB' for x in self.args.model]
 
-            y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
+            unique_vals = list(set(csv_df[self.args.y]))
+            y_val_detect = f'{unique_vals[0]} and {unique_vals[1]}'
             self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
 
     if self.args.type.lower() == 'clas':
         if len(set(csv_df[self.args.y])) == 2:
-            for target_val in set(csv_df[self.args.y]):
-                if target_val not in [0,'0',1,'1']:
-                    y_val_detect = f'{list(set(csv_df[self.args.y]))[0]} and {list(set(csv_df[self.args.y]))[1]}'
-                    self.args.log.write(f'\nx  Only 0s and 1s values are currently allowed for classification problems! {y_val_detect} were used as values')
-                    self.args.log.finalize()
-                    sys.exit()
+            unique_values = sorted(list(set(csv_df[self.args.y])))  # Sort alphabetically for consistency
+            
+            # Check if values are already 0 and 1
+            if set([str(v) for v in unique_values]) == {'0', '1'}:
+                # Already in correct format, just ensure they're integers
+                csv_df[self.args.y] = csv_df[self.args.y].astype(int)
+            else:
+                # Convert any pair of values to 0 and 1
+                # Store original labels for reconversion in outputs
+                self.args.class_0_label = str(unique_values[0])
+                self.args.class_1_label = str(unique_values[1])
+                
+                # Create mapping dictionaries
+                self.args.class_mapping = {unique_values[0]: 0, unique_values[1]: 1}
+                self.args.class_mapping_reverse = {0: unique_values[0], 1: unique_values[1]}
+                
+                # Convert values in dataframe
+                csv_df[self.args.y] = csv_df[self.args.y].map(self.args.class_mapping)
+                
+                self.args.log.write(f'\no  Classification labels converted: {self.args.class_0_label} → 0, {self.args.class_1_label} → 1')
+                self.args.log.write(f'   Original labels will be restored in output files')
 
         if len(set(csv_df[self.args.y])) != 2:
-            self.args.log.write(f'\nx  Only two different y values are currently allowed! {len(set(csv_df[self.args.y]))} different values were used {set(csv_df[self.args.y])}')
+            self.args.log.write(f'\nx  Only two different y values are currently allowed for classification problems! {len(set(csv_df[self.args.y]))} different values were used: {set(csv_df[self.args.y])}')
+            self.args.log.write(f'   The program detected this is a classification problem (non-numeric values or few unique values)')
+            self.args.log.write(f'   Please use only 2 different class labels (e.g., "active"/"inactive" or 0/1)')
+            self.args.log.finalize()
+            sys.exit()
+        
+        # Check that each class has at least 5 points
+        class_counts = csv_df[self.args.y].value_counts()
+        min_class_count = class_counts.min()
+        min_class_label = class_counts.idxmin()
+        
+        if min_class_count < 5:
+            # Get original label if available
+            if hasattr(self.args, 'class_mapping_reverse') and min_class_label in self.args.class_mapping_reverse:
+                original_label = self.args.class_mapping_reverse[min_class_label]
+            else:
+                original_label = min_class_label
+            
+            # Convert class_counts to dict with regular Python ints
+            class_dist = {int(k): int(v) for k, v in class_counts.items()}
+            
+            self.args.log.write(f'\nx  Insufficient data for classification! One of the classes has only {min_class_count} datapoints (class "{original_label}")')
+            self.args.log.write(f'   Each class must have at least 5 datapoints to ensure robust train/validation/test splits')
+            self.args.log.write(f'   Current distribution: {class_dist}')
+            self.args.log.write(f'   Please add more datapoints for the minority class or consider a different approach')
             self.args.log.finalize()
             sys.exit()
 
@@ -1036,15 +1204,44 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
 
-    # Fill missing values using KNN imputer, excluding target column
-    csv_df = csv_df.dropna(axis=1, thresh=int(0.7 * len(csv_df)))  # Remove columns with <70% data
+    # Missing data handling: robust strategy for columns and rows (optional KNN imputer)
     target_col = self.args.y
-    int_columns = csv_df.select_dtypes(include=['int']).columns.drop(target_col, errors='ignore')
-    numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(target_col, errors='ignore')
-    imputer = KNNImputer(n_neighbors=5)
-    if csv_df[numeric_columns].isna().any().any():
-        csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns)
-    csv_df[int_columns] = csv_df[int_columns]
+    descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
+    min_count = int(0.9 * len(csv_df))
+
+    # Remove columns with <90% data
+    cols_to_drop = [col for col in descriptor_cols if csv_df[col].notna().sum() < min_count]
+    if cols_to_drop:
+        csv_df = csv_df.drop(columns=cols_to_drop)
+        if module.lower() == 'curate':
+            txt_load += f"\n   - Removed {len(cols_to_drop)} column(s) with <90% data\n"
+        descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
+    
+    # Remove rows with <50% data
+    rows_too_missing = csv_df[descriptor_cols].isna().sum(axis=1) > (0.5 * len(descriptor_cols))
+    if rows_too_missing.any():
+        n_removed_rows = rows_too_missing.sum()
+        csv_df = csv_df[~rows_too_missing].reset_index(drop=True)
+        descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
+        if module.lower() == 'curate':
+            txt_load += f"\n   - Removed {n_removed_rows} row(s) with >50% missing descriptors\n"
+    
+    # Apply KNN imputer only to numeric columns with missing values (when auto_fill is activated)
+    if self.args.auto_fill:
+        numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(target_col, errors='ignore')
+        if csv_df[numeric_columns].isna().any().any():
+            imputer = KNNImputer(n_neighbors=5)
+            csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns, index=csv_df.index)
+            if module.lower() == 'curate':
+                txt_load += f"\n   - Applied KNN imputer to columns with missing values\n"
+    else:
+        # Remove columns with ANY missing value
+        cols_with_missing = [col for col in descriptor_cols if csv_df[col].isna().any() and col not in self.args.ignore+self.args.discard]
+        if cols_with_missing:
+            csv_df = csv_df.drop(columns=cols_with_missing)
+            if module.lower() == 'curate':
+                txt_load += f"\n   - Removed {len(cols_with_missing)} column(s) with missing values\n"
+
     if print_info:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
         csv_df = csv_df.drop(self.args.discard, axis=1)
@@ -1066,12 +1263,35 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                 txt_load += f'\no  External set {csv_name} loaded successfully, including:'
                 txt_load += f'\n   - {len(csv_df[csv_df.columns[0]])} datapoints'
             self.args.log.write(txt_load)
+            if accepted_descs == 0:
+                self.args.log.write(f"\nx  The aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
+                sys.exit()
 
+    # Sort columns alphabetically for reproducibility across ALL modules
+    if module.lower() not in ['aqme', 'aqme_test']:
+        # Get descriptor columns (excluding y and ignore)
+        descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y]
+        descriptor_cols_sorted = sorted(descriptor_cols)
+        # Get other columns (y and ignore)
+        other_cols = [col for col in csv_df.columns if col in self.args.ignore or col == self.args.y]
+        # Reorder dataframe with sorted descriptors + other columns
+        sorted_all_cols = descriptor_cols_sorted + other_cols
+        csv_df = csv_df[sorted_all_cols]
+    
     # ignore user-defined descriptors and assign X and y values (but keeps the original database)
     if module.lower() == 'generate':
-        csv_df_ignore = csv_df.drop(self.args.ignore, axis=1)
+        # Only drop columns that actually exist in the dataframe (for model-specific CSVs from CURATE)
+        cols_to_ignore = [col for col in self.args.ignore if col in csv_df.columns]
+        # Also drop 'Set' column if it exists (for model-specific CSVs)
+        if 'Set' in csv_df.columns and 'Set' not in cols_to_ignore:
+            cols_to_ignore.append('Set')
+        csv_df_ignore = csv_df.drop(cols_to_ignore, axis=1)
         csv_X = csv_df_ignore.drop([self.args.y], axis=1)
         csv_y = csv_df_ignore[self.args.y]
+        
+        # Columns are already sorted from above, just extract them
+        csv_X = csv_X[sorted([col for col in csv_X.columns])]
+        
     else:
         if external_test and self.args.y not in csv_df.columns:
             csv_X = csv_df
@@ -1206,7 +1426,6 @@ def test_select(self,X_scaled,csv_y):
     test_input_size = round(self.args.test_set * len(csv_y))
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
-    size = np.ceil(selected_size * 100 / (len(csv_y)))
 
     if self.args.split.upper() == 'KN':
         # k-neighbours data split
@@ -1215,23 +1434,29 @@ def test_select(self,X_scaled,csv_y):
         if self.args.type == 'clas':
             class_0_idx = list(csv_y[csv_y == 0].index)
             class_1_idx = list(csv_y[csv_y == 1].index)
-            class_0_size = round(len(class_0_idx)/len(csv_y)*size)
-            class_1_size = size-class_0_size
+            class_0_test_size = round((len(class_0_idx)/len(csv_y))*selected_size)
+            class_1_test_size = selected_size-class_0_test_size
+            class_0_train_size = len(class_0_idx) - class_0_test_size
+            class_1_train_size = len(class_1_idx) - class_1_test_size
 
-            train_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_size,self.args.seed,class_0_idx)
-            train_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_size,self.args.seed,class_1_idx)
-            test_points = train_class_0+train_class_1
+            # the k-means function internally selects the training points to be as diverse as possible, 
+            # but it returns the test points
+            test_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_train_size,self.args.seed,class_0_idx)
+            test_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_train_size,self.args.seed,class_1_idx)
+            test_points = test_class_0+test_class_1
 
         else:
             idx_list = csv_y.index
-            test_points = k_means(self,X_scaled,csv_y,size,self.args.seed,idx_list)
+            test_points = k_means(self,X_scaled,csv_y,selected_size,self.args.seed,idx_list)
 
     elif self.args.split.upper() == 'RND':
+        size = round(selected_size * 100 / (len(csv_y)))
         _, X_test, _, _ = train_test_split(X_scaled, csv_y, test_size=size/100, random_state=self.args.seed)
         test_points = X_test.index.tolist()
 
     elif self.args.split.upper() == 'STRATIFIED':
 
+        size = np.ceil(selected_size * 100 / (len(csv_y)))
         # Remove the max and min values so they don't end up in the training set
         # Calculate the number of bins based on the number of points
         csv_y_capped = csv_y.drop([csv_y.idxmin(), csv_y.idxmax()])
@@ -1246,14 +1471,16 @@ def test_select(self,X_scaled,csv_y):
             test_points = test_idx.tolist()
 
     elif self.args.split.upper() == 'EVEN':
+        # Remove the max and min values so they don't end up in the training set
+        csv_y_capped = csv_y.drop([csv_y.idxmin(), csv_y.idxmax()])
         # Calculate the number of bins based on the number of points
-        y_binned = pd.qcut(csv_y, q=selected_size, labels=False, duplicates='drop')
+        y_binned = pd.qcut(csv_y_capped, q=selected_size, labels=False, duplicates='drop')
 
         # Adjust bin count if any bin has fewer than two elements (happens in imbalanced data, see comment below)
         temp_size = selected_size
         while y_binned.value_counts().min() < 2 and temp_size > 2:
             temp_size -= 1
-            y_binned = pd.qcut(csv_y, q=temp_size, labels=False, duplicates='drop')
+            y_binned = pd.qcut(csv_y_capped, q=temp_size, labels=False, duplicates='drop')
 
         # Determine central validation points for each bin
         test_points = []
@@ -1275,18 +1502,59 @@ def test_select(self,X_scaled,csv_y):
             random_seed += 1
 
     elif self.args.split.upper() == 'EXTRA_Q1':
-        # 10% lowest and 10% highest points
+        # 20% lowest points
         portion = max(1, round(0.2 * len(csv_y)))
         test_points = csv_y.nsmallest(portion).index.tolist()
     
     elif self.args.split.upper() == 'EXTRA_Q5':
-        # 10% lowest and 10% highest points
+        # 20%% highest points
         portion = max(1, round(0.2 * len(csv_y)))
         test_points = csv_y.nlargest(portion).index.tolist()
 
     test_points.sort()
 
     return test_points
+
+
+def generate_lhs_points(pbounds, n_points, random_state=None):
+    """
+    Generate initial points using Latin Hypercube Sampling for better space coverage.
+    LHS ensures uniform distribution across all dimensions of the hyperparameter space.
+    
+    Args:
+        pbounds: Dictionary with parameter bounds from BO_hyperparams
+        n_points: Number of initial points to generate
+        random_state: Random seed for reproducibility
+    
+    Returns:
+        List of dictionaries with parameter values
+    """
+    np.random.seed(random_state)
+    
+    param_names = list(pbounds.keys())
+    n_params = len(param_names)
+    
+    # Generate LHS samples in [0, 1]^n_params
+    # Each dimension is divided into n_points intervals, and one point is sampled from each interval
+    samples = np.zeros((n_points, n_params))
+    for i in range(n_params):
+        # Create intervals and sample within each
+        intervals = np.linspace(0, 1, n_points + 1)
+        samples[:, i] = np.random.uniform(intervals[:-1], intervals[1:])
+        # Shuffle to break correlation between dimensions
+        np.random.shuffle(samples[:, i])
+    
+    # Scale samples to actual parameter bounds
+    initial_points = []
+    for sample in samples:
+        point = {}
+        for i, param_name in enumerate(param_names):
+            lower, upper = pbounds[param_name]
+            # Scale from [0, 1] to [lower, upper]
+            point[param_name] = lower + sample[i] * (upper - lower)
+        initial_points.append(point)
+    
+    return initial_points
 
 
 def BO_optimizer(self,bo_data,Xy_data):
@@ -1301,10 +1569,21 @@ def BO_optimizer(self,bo_data,Xy_data):
         random_state=self.args.seed
     )
 
+    # Generate initial points using Latin Hypercube Sampling for better space coverage
+    if self.args.init_points > 0:
+        initial_points = generate_lhs_points(
+            pbounds=BO_hyperparams(bo_data['model']),
+            n_points=self.args.init_points,
+            random_state=self.args.seed
+        )
+        # Probe the initial points
+        for params in initial_points:
+            optimizer.probe(params=params, lazy=True)
+
     # Run the optimization (with warnings suppressed for Convergence issues)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=ConvergenceWarning)
-        optimizer.maximize(init_points=self.args.init_points, n_iter=self.args.n_iter)  # init_points to explore, n_iter to exploit
+        optimizer.maximize(init_points=0, n_iter=self.args.n_iter)  # init_points=0 since we already probed LHS points
 
     if bo_data['error_type'].upper() in ['RMSE','MAE']:
         BO_target = -optimizer.max['target']
@@ -1422,12 +1701,16 @@ def load_model(self, model_name, **params):
     """
 
     if model_name == 'RF':
+        # Ensure n_jobs=1 for reproducibility if not already in params
+        if 'n_jobs' not in params:
+            params['n_jobs'] = 1
         if self.args.type.lower() == 'reg':
             loaded_model = RandomForestRegressor(**params)
         else:
             loaded_model = RandomForestClassifier(**params)
 
     elif model_name == 'GB':
+        # GradientBoosting doesn't have n_jobs parameter, it's already deterministic
         if self.args.type.lower() == 'reg':
             loaded_model = GradientBoostingRegressor(**params)
         else:
@@ -1760,13 +2043,16 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
 
 def k_means(self,X_scaled,csv_y,size,seed,idx_list):
     '''
-    Returns the data points that will be used as training set based on the k-means clustering
+    
+    Uses k-means clustering to select the test points to be as diverse as possible, 
+    but it returns the test pointsReturns the data points that will be used as training set based on the k-means clustering
+    
     '''
     
     # number of clusters in the training set from the k-means clustering (based on the
     # training set size specified above)
     X_scaled_array = np.asarray(X_scaled)
-    number_of_clusters = round(len(csv_y)*(size/100))
+    number_of_clusters = size
 
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
@@ -1798,8 +2084,9 @@ def k_means(self,X_scaled,csv_y,size,seed,idx_list):
                     results_cluster = np.sqrt(points_sum)
                     training_point = k
         training_idx.append(training_point)
-        test_points.append(idx_list[training_point])
-    
+
+    test_idx = [idx for idx in range(len(X_scaled_array[:, 0])) if idx not in training_idx]
+    test_points = [idx_list[i] for i in test_idx]
     test_points.sort()
 
     return test_points
@@ -1817,7 +2104,7 @@ def PFI_filter(self, Xy_data, model_data):
     # select scoring function for PFI analysis based on the error type
     scoring, score_model, _ = scoring_n_score(self,model_data,Xy_data,loaded_model)
     
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=self.args.seed)
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=self.args.seed, n_jobs=1)
 
     # transforms the values into a list and sort the PFI values with the descriptor names
     descp_cols_pfi, PFI_values, PFI_sd = [],[],[]
@@ -2066,15 +2353,24 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
 
     importlib.reload(plt) # needed to avoid threading issues
 
+    # Check if we need to use original class labels for display
+    display_labels = None
+    if 'class_0_label' in params_dict and 'class_1_label' in params_dict:
+        display_labels = [params_dict['class_0_label'], params_dict['class_1_label']]
+
     # get confusion matrix
     if 'CV' in set_type: # CV graphs
         y_train_binary = np.round(Xy_data[f'y_train']).astype(int)
         y_pred_train_binary = np.round(Xy_data[f'y_pred_train']).astype(int)
-        matrix = ConfusionMatrixDisplay.from_predictions(y_train_binary, y_pred_train_binary, normalize=None, cmap='Blues')
+        matrix = ConfusionMatrixDisplay.from_predictions(y_train_binary, y_pred_train_binary, 
+                                                          normalize=None, cmap='Blues', 
+                                                          display_labels=display_labels)
     else: # other graphs
         y_binary = np.round(Xy_data[f'y_{set_type}']).astype(int)
         y_pred_binary = np.round(Xy_data[f'y_pred_{set_type}']).astype(int)
-        matrix = ConfusionMatrixDisplay.from_predictions(y_binary, y_pred_binary, normalize=None, cmap='Blues') 
+        matrix = ConfusionMatrixDisplay.from_predictions(y_binary, y_pred_binary, 
+                                                          normalize=None, cmap='Blues',
+                                                          display_labels=display_labels) 
 
     # transfer it to the same format and size used in reg graphs
     _, ax = plt.subplots(figsize=(7.45,6))
@@ -2191,7 +2487,7 @@ def PFI_plot(self,Xy_data,model_data,path_n_suffix):
     # select scoring function for PFI analysis based on the error type
     scoring, _, error_type = scoring_n_score(self,model_data,Xy_data,loaded_model)
 
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=model_data['seed'])
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=model_data['seed'], n_jobs=1)
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]
@@ -2222,7 +2518,7 @@ def PFI_plot(self,Xy_data,model_data,path_n_suffix):
     print_PFI += f'\n      Influence on {error_type.upper()}'
 
     for i,desc in enumerate(desc_list):
-        print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} ± {PFI_sd[i]:.2}"
+        print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} +- {PFI_sd[i]:.2}"
     
     self.args.log.write(print_PFI)
 
@@ -2911,10 +3207,21 @@ def dict_formating(dict_csv):
     '''
     Adapt format of dictionaries that come from dataframes loaded from CSV
     '''
+    
+    import json
 
     if 'X_descriptors' in dict_csv:
-        dict_csv['X_descriptors'] = ast.literal_eval(dict_csv['X_descriptors'])
+        # Try JSON first (new format), fall back to ast.literal_eval (old format)
+        try:
+            dict_csv['X_descriptors'] = json.loads(dict_csv['X_descriptors'])
+        except (json.JSONDecodeError, TypeError):
+            dict_csv['X_descriptors'] = ast.literal_eval(dict_csv['X_descriptors'])
+            
     if 'params' in dict_csv:
-        dict_csv['params'] = ast.literal_eval(dict_csv['params'])
+        # Try JSON first (new format), fall back to ast.literal_eval (old format)
+        try:
+            dict_csv['params'] = json.loads(dict_csv['params'])
+        except (json.JSONDecodeError, TypeError):
+            dict_csv['params'] = ast.literal_eval(dict_csv['params'])
 
     return dict_csv

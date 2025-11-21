@@ -16,7 +16,6 @@ Include the command line used to run ROBERT (exactly as used)
 **Software versions**
 Versions of the programs used
  - ROBERT: [e.g. v0.0.7]
- - scikit-learn intelex: [e.g. v0.0.7] (if applicable)
  - AQME: [e.g. v0.0.7] (if applicable)
  - xTB: [e.g. v0.0.7] (if applicable)
 

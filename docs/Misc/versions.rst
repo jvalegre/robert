@@ -4,6 +4,22 @@
 Versions
 ========
 
+Version 2.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.0>`__]
+   -  In classification problems now we can use 2 different categorial class labels (e.g., "active"/"inactive").
+   -  Changing the way of selecting the 10 first initial points in Bayesian Optimization (now using Latin Hypercube Sampling)
+   -  Deleting first the most correlated features in CURATE module
+   -  Sorting the columns and rows in the csv files to ensure reproducibility
+   -  Using only KNN imputer if you have more than 100 datapoints
+   -  Fixing RFECV (each model now has its own set of descriptors after feature selection)
+   -  Fixing bug in the AQME module when using --csv_test
+   -  Changing pkg_resources to importlib.resources to avoid deprecation warnings
+   -  Fixed bug when selecting test set datapoints with the EVEN option
+   -  Fixed bug in the name of extra_q1 and extra_q5 splitting methods
+   -  Updating packages versions in setup.py
+   -  Molssi databases link in easyROB GUI
+   -  Default split is 'RND' for classification problems
+   -  The sklearn-intelex accelerator was removed
+
 Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
    -  Fixed bug in MAC and Linux OS from the GENERATE
    -  Updating AQME version to 1.7.3

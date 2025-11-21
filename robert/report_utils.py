@@ -626,7 +626,7 @@ def adv_cv_diff(self,suffix,data_score,spacing,pred_type,test_set=False):
     else:
         sd_set = 'valid.'
 
-    # Build R² difference text
+    # Build R2 difference text
     if score_cv_diff == 0:
         cv_diff_result = f'High variation ({sd_set} and CV), ΔR² = {cv_diff}.'
     elif score_cv_diff == 1:
@@ -747,7 +747,7 @@ def get_col_transpa(params_dict,suffix,section,spacing):
         caption = f'{title_pfi}'
 
     excluded_params = [f"combined_{params_dict['error_type']}", 'train', 'X_descriptors', 'y', 'error_train', 'cv_error', 'names']
-    misc_params = ['type','error_type','kfold','repeat_kfolds','seed']
+    misc_params = ['type','error_type','split','kfold','repeat_kfolds','seed']
     if params_dict['type'] == 'reg':
         model_type = 'Regressor'
     elif params_dict['type'] == 'clas':
@@ -1075,8 +1075,7 @@ def repro_info(modules):
     """
 
     version_n_date, citation, command_line = '','',''
-    python_version, intelex_version, total_time = '','',0
-    intelex_installed = True
+    python_version, total_time = '',0
     dat_files = {}
     for module in modules:
         path_file = Path(f'{os.getcwd()}/{module}/{module}_data.dat')
@@ -1085,9 +1084,6 @@ def repro_info(modules):
             txt_file = []
             for line in datfile:
                 txt_file.append(line)
-                if module.upper() in ['GENERATE','VERIFY','PREDICT']:
-                    if 'The scikit-learn-intelex accelerator is not installed' in line:
-                        intelex_installed = False
                 if 'Time' in line and 'seconds' in line:
                     total_time += float(line.split()[2])
                 if 'How to cite: ' in line:
@@ -1106,16 +1102,8 @@ def repro_info(modules):
         python_version = platform.python_version()
     except:
         python_version = '(version could not be determined)'
-    if intelex_installed:
-        try:
-            import pkg_resources
-            intelex_version = pkg_resources.get_distribution("scikit-learn-intelex").version
-        except:
-            intelex_version = '(version could not be determined)'
-    else:
-        intelex_version = 'not installed'
     
-    return version_n_date, citation, command_line, python_version, intelex_version, total_time, dat_files
+    return version_n_date, citation, command_line, python_version, total_time, dat_files
 
 
 def make_report(report_html, HTML):

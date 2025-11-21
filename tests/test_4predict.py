@@ -10,6 +10,7 @@ import pytest
 import shutil
 import subprocess
 from pathlib import Path
+from robert.predict import predict
 
 # saves the working directory
 path_main = os.getcwd()
@@ -30,6 +31,9 @@ path_predict = path_main + "/PREDICT"
         ),  # test for external test set
         (
             "standard"
+        ),  # standard test
+        (
+            "standard_cmd"
         ),  # standard test
     ],
 )
@@ -62,22 +66,28 @@ def test_PREDICT(test_job):
             filepath_reg.rename(f"{path_main}/GENERATE")
 
     # runs the program with the different tests
-    cmd_robert = [
-        "python",
-        "-m",
-        "robert",
-        "--predict",
-    ]
+    if test_job == 'standard_cmd':
+        cmd_robert = [
+            "python",
+            "-m",
+            "robert",
+            "--predict",
+        ]
 
-    if test_job == "t_value":
-        cmd_robert = cmd_robert + ["--t_value", "4"]
-    if test_job == "csv_test":
-        cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_test.csv"]
+        subprocess.run(cmd_robert)
 
-    subprocess.run(cmd_robert)
+    else:
+        predict_kwargs = {}
+
+        if test_job == "t_value":
+            predict_kwargs["t_value"] = 4
+        if test_job == "csv_test":
+            predict_kwargs["csv_test"] = "tests/Robert_example_test.csv"
+
+        predict(**predict_kwargs)
 
     # check that the DAT file is created
-    assert not os.path.exists(f"{path_main}/PREDICT_data.dat")
+    assert os.path.exists(f"{path_predict}/PREDICT_data.dat")
     outfile = open(f"{path_predict}/PREDICT_data.dat", "r")
     outlines = outfile.readlines()
     outfile.close()
@@ -88,8 +98,12 @@ def test_PREDICT(test_job):
     for i,line in enumerate(outlines):
         if ' - Training points:' in line:
             proportion_found = True
-            assert '- Training points: 30' in line
-            assert '- Test points: 7' in outlines[i+1]
+            if test_job == "clas":
+                data_points = [29,8]
+            else:
+                data_points = [30,7]
+            assert f'- Training points: {data_points[0]}' in line
+            assert f'- Test points: {data_points[1]}' in outlines[i+1]
         if 'o  Saving CSV databases with predictions and their SD in:' in line:
             results_found = True
             # Check for any model type with No_PFI.csv pattern
@@ -105,14 +119,14 @@ def test_PREDICT(test_job):
                     assert train_outliers == 0
                 else:
                     assert train_outliers > 0
-                    assert '-  2 (' in outlines[i+2]
+                    assert '-  19 (' in outlines[i+2]
                 assert 'Test: 0 outliers' in outlines[i+2+train_outliers]
         
         if test_job == "clas":
             if 'x  WARNING! High correlations observed (up to r = 1.0 or R2 = 1.0, for x1 and x3)' in line:
                 pearson_found = True
         else:
-            if 'x  WARNING! Noticeable correlations observed (up to r = -0.81 or R2 = 0.66, for x7 and x10)' in line:
+            if 'x  WARNING! Noticeable correlations observed (up to r = -0.84 or R2 = 0.7, for x5 and x8)' in line:
                 pearson_found = True
         if test_job == "clas":
             if 'o  Your data seems quite uniform' in line:

@@ -38,7 +38,7 @@ jobs:
       - run: |
           # update conda and create env
           conda update -y conda
-          conda create -n cheminf python=3.10
+          conda create -n cheminf python=3.12
           source activate base 
           conda activate cheminf
           # install AQME, ROBERT and their dependencies
@@ -50,9 +50,8 @@ jobs:
           pip install weasyprint
           conda install -y -c conda-forge gtk3
           conda install -y -c conda-forge pango
-          pip install aqme==1.7.3
+          pip install aqme==2.0.0
           pip install .
-          pip install scikit-learn-intelex==2025.2.0
           # uninstall robert to avoid codecov issues (only running from the robert folder)
           pip uninstall -y robert
           # install and run pytest
@@ -72,7 +71,7 @@ jobs:
   # needs to be stored and loaded in a new job using a python docker
   codecov-coverage:
     docker:
-      - image: cimg/python:3.10
+      - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: /tmp

@@ -98,23 +98,60 @@ Don't miss out the latest hands-on tutorials from our
 Installation
 ++++++++++++
 
+In a nutshell, ROBERT and all its dependencies can be installed automatically using the provided **YAML environment file** (recommended).
+
+**Recommended installation**
+============================
+
+.. |download| image:: /Modules/images/download.png
+   :width: 140
+   :align: middle
+
+**1.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/master/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+
+**2.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
+
+.. code-block:: shell
+
+   cd C:/Users/Downloads
+
+**3.** Create the conda environment from the YAML file:
+
+.. code-block:: shell
+
+   conda env create -f env.yaml
+   conda activate robert
+
+**4.** Check that the installation was successful:
+
+.. code-block:: shell
+
+   python -m robert -h
+
+.. note::
+
+   The environment file automatically installs all required dependencies,
+   including GTK, GLib, and fonts needed to generate PDF reports.
+   No additional manual installation is required.
+
+**Alternative installation**
+===========================
+
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
 **1.** Create and activate the conda environment where you want to install the program. If you are not sure of what 
-this point means, check out the "Users with no Python experience" section. This is an example for Python 3.10, but 
-it also works for newer Python versions (i.e., 3.11 and 3.12):
+this point means, check out the "Users with no Python experience" section. It only works with Python 3.11 or 3.12:
 
 .. code-block:: shell 
    
-   conda create -n robert python=3.10
+   conda create -n robert -c conda-forge -y python=3.12
    conda activate robert
 
-**2.** Install ROBERT and the intelex accelerator with pip (only if your system is compatible with intelex):  
+**2.** Install ROBERT with pip:  
 
 .. code-block:: shell 
    
    pip install robert
-   pip install scikit-learn-intelex==2025.2.0
 
 **3.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:  
 
@@ -126,13 +163,16 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
    In some computers, you might see lots of pop-up windows with errors when installing GLib. Just press "Accept" in all the windows and finish the process until you see "Done" in the terminal.
 
-**(Alternative installation).** You can use conda-forge in step 2 instead of pip, executing these commands:  
+.. warning::
+
+   In some rare cases when using Linux systems, the PDF is still not generated after installing all the previous libraries. Users might try to execute these two command lines before: ``export GI_TYPELIB_PATH=$CONDA_PREFIX/lib/girepository-1.0`` and ``export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH``.
+
+You can also use conda-forge in step 2 instead of pip, executing these commands:  
 
 .. code-block:: shell
 
    conda install -c conda-forge robert
    pip install robert --upgrade
-   pip install scikit-learn-intelex==2025.2.0
    conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
 .. warning::
@@ -141,7 +181,7 @@ it also works for newer Python versions (i.e., 3.11 and 3.12):
 
    .. code-block:: shell
 
-      conda install -c conda-forge gtk2
+      conda install -c conda-forge gtk
 
 .. installation-end 
 
@@ -156,38 +196,96 @@ You need a terminal with Python to install and run ROBERT. These are some sugges
 
    <br />
 
+**Recommended installation**
+============================
+
+If you prefer a faster and easier installation, you can use the preconfigured **YAML environment file**.  
+This method automatically installs Python, ROBERT, and all required dependencies.
+
+.. |download| image:: /Modules/images/download.png
+   :width: 140
+   :align: middle
+
 **1.** Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>`__ for your 
 operating system (Windows, macOS or Linux). Alternatively, if you're familiar with conda installers, 
 you can install `Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
 (requires less space than Anaconda).  
 
+**2.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/master/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+
+**3.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
+
+.. code-block:: shell
+
+   cd C:/Users/Downloads
+
+**4.** Create the conda environment from the YAML file:
+
+.. code-block:: shell
+
+   conda env create -f env.yaml
+   conda activate robert
+
+**5.** Check that ROBERT is installed correctly:
+
+.. code-block:: shell
+
+   python -m robert -h
+
+.. note::
+
+   The environment file automatically installs all required dependencies,
+   including GTK, GLib, and fonts needed to generate PDF reports.
+   No additional manual installation is required.
+
+----
+
+**Alternative installation**
+===========================
+
+If you prefer to install ROBERT manually, follow these steps:
+
+**1.** Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>`__ for your 
+operating system (Windows, macOS or Linux). Alternatively, you can install 
+`Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
+(requires less space than Anaconda).  
 
 **2.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
 
+**3.** Create a conda environment called "robert" with Python:
 
-**3.** Create a conda environment called "robert" with Python (:code:`conda create -n robert python=3.10`). 
-|br|
+.. code-block:: shell
+
+   conda create -n robert -c conda-forge -y python=3.12
+
 *You only need to do this once.*
 |br|
-*This is an example for Python 3.10, but it also works for newer Python versions (i.e., 3.11 and 3.12).*
 
+**4.** Activate the conda environment called "robert":
 
-**4.** Activate the conda environment called "robert" (:code:`conda activate robert`).
+.. code-block:: shell
 
+   conda activate robert
 
-**5.** Install ROBERT as defined in the "Installation" section (:code:`pip install robert`).
+**5.** Install ROBERT as defined in the "Installation" section:
 
+.. code-block:: shell
 
-**6.** Install the intelex code accelerator (only if your system is compatible with intelex) (:code:`pip install scikit-learn-intelex==2025.2.0`).
+   pip install robert
 
+**6.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:
 
-**7.** Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report (:code:`conda install -y -c conda-forge glib gtk3 pango mscorefonts`).
+.. code-block:: shell
 
+   conda install -y -c conda-forge glib gtk3 pango mscorefonts
 
-**8.** Go to the folder with your CSV database (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+**7.** Go to the folder with your CSV database (using the "cd" command):
 
+.. code-block:: shell
 
-**9.** Run ROBERT as explained in the Examples section.
+   cd C:/Users/test_robert
+
+**8.** Run ROBERT as explained in the Examples section.
 
 .. note-end 
 
@@ -196,44 +294,58 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 Graphical User Interface (GUI): easyROB
 +++++++++++++++++++++++++++++++++++++++
 
-You need a terminal with Python to run easyROB, the GUI of ROBERT. This GUI simplifies the setup 
-of ROBERT workflows, enabling users to select files and configure options easily. To run easyROB follow
-these steps: 
+easyROB is the graphical interface of ROBERT. It allows you to configure and launch ROBERT workflows 
+without using command lines — just by selecting files and options through an intuitive window.
 
-**1.** Install ROBERT as defined in the "Installation" section.
+.. note::
 
+   For video tutorials on how to use easyROB, check out our `YouTube channel <https://www.youtube.com/@thealegregroup4964/videos>`_.
 
-**2.** Install RDKit (:code: `pip install rdkit`)
+To run **easyROB**, follow these steps:
 
-.. warning::
+**1.** Install ROBERT as explained in the "Installation" section.
 
-   The GUI only works with ROBERT version 1.0.5 or later (check your version!). 
+**2.** Open an Anaconda prompt (Windows users) or a terminal (macOS/Linux).
 
-**3.** Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).
+**3.** Activate the conda environment where ROBERT was installed:
 
+.. code-block:: shell
 
-**4.** Activate the conda environment called "robert" (:code:`conda activate robert`).
-
+   conda activate robert
 
 .. |easyrob| image:: /Modules/images/Robert_icon.png
    :target: https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py
-   :width: 50
+   :width: 40
+   :align: middle
 
 .. |download| image:: /Modules/images/download.png
-   :width: 200  
+   :width: 140
+   :align: middle
 
-**5.** Download `easyrob.py: <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob|, tapping on this button on GitHub |download|
-
-
-**6.** Go to the folder with the easyrob.py file (using the "cd" command, i.e. :code:`cd C:/Users/test_robert`).
+**4.** Download the script `easyrob.py <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob| by clicking this button on GitHub |download|.
 
 
-**7.** Run easyROB with the following command line (:code:`python easyrob.py`).
+**5.** Navigate to the folder where you saved ``easyrob.py`` (for example):
+
+.. code-block:: shell
+
+   cd C:/Users/test_robert
+
+**6.** Launch easyROB with the following command:
+
+.. code-block:: shell
+
+   python easyrob.py
 
 .. |easyrob_interface| image:: /Modules/images/easyROB.png
    :width: 500
-  
+
 .. centered:: |easyrob_interface|
+
+.. warning::
+
+   The GUI only works with ROBERT version **1.0.5 or later**.  
+   You can check your version by running ``pip show robert``.
 
 .. gui-end 
 
@@ -353,3 +465,4 @@ We really THANK all the testers for their feedback and for participating in the 
 * **Xinchun Ran** (2023, Yang group at Vanderbilt University)
 
 .. acknowledgment-end
+

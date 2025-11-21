@@ -79,13 +79,15 @@ class aqme:
         # load database just to perform data checks (i.e. no need to run AQME if the specified y is not
         # in the database, since the program would crush in the subsequent CURATE job)
         job_type = 'aqme'
+        path_sdf = Path(f'{os.getcwd()}/CSEARCH/sdf_temp')
         if aqme_test:
             job_type = 'aqme_test'
+            if not path_sdf.exists():
+                path_sdf.mkdir(exist_ok=True, parents=True)
 
         # move the SDF files from the csv_name run (otherwise, the xTB calcs are repeated in csv_test)
         else:
-            path_sdf = Path(f'{os.getcwd()}/CSEARCH/sdf_temp')
-            if os.path.exists(path_sdf):
+            if path_sdf.exists():
                 shutil.rmtree(path_sdf)
             path_sdf.mkdir(exist_ok=True, parents=True)
             for sdf_file in glob.glob(f'{os.getcwd()}/CSEARCH/*.sdf'):

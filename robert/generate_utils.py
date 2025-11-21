@@ -7,6 +7,7 @@ import shutil
 import pandas as pd
 import numpy as np
 import glob
+import json
 from robert.utils import (
     load_params,
     PFI_filter,
@@ -50,7 +51,23 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_db")
     params_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model.upper()}")
     _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
-    bo_data_df = pd.DataFrame([bo_data])
+    
+    # Convert params dict to string to avoid serialization issues
+    bo_data_to_save = bo_data.copy()
+    if 'params' in bo_data_to_save:
+        bo_data_to_save['params'] = json.dumps(bo_data_to_save['params'])
+    if 'X_descriptors' in bo_data_to_save:
+        bo_data_to_save['X_descriptors'] = json.dumps(bo_data_to_save['X_descriptors'])
+    
+    # Save class label mapping if it exists (for classification with string labels)
+    if hasattr(self.args, 'class_0_label'):
+        bo_data_to_save['class_0_label'] = self.args.class_0_label
+        bo_data_to_save['class_1_label'] = self.args.class_1_label
+
+    # Save split type
+    bo_data_to_save['split'] = self.args.split
+ 
+    bo_data_df = pd.DataFrame([bo_data_to_save])
     _ = bo_data_df.to_csv(f'{params_name}.csv', index = None, header=True)
 
     return bo_data
@@ -133,6 +150,12 @@ def save_pfi_csv(self,csv_df,name_csv_hyperopt,PFI_dict,Xy_data_PFI,ML_model):
 
     name_csv_hyperopt_PFI = name_csv_hyperopt.replace('No_PFI','PFI')
     path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
+    
+    # Save class label mapping if it exists (for classification with string labels)
+    if hasattr(self.args, 'class_0_label'):
+        PFI_dict['class_0_label'] = self.args.class_0_label
+        PFI_dict['class_1_label'] = self.args.class_1_label
+    
     csv_PFI_df = pd.DataFrame([PFI_dict])
     _ = csv_PFI_df.to_csv(f'{path_csv_PFI}.csv', index = None, header=True)
 

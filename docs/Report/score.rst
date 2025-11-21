@@ -87,7 +87,7 @@ The following examples might help clarify these points:
 **Section B.2. CV predictions of the model (2 points):**
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In regression, two metrics (RMSE and R²) are used to ensure a more robust assessment, as a model may show low R² while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
+In regression, two metrics (RMSE and R\ :sup:`2`) are used to ensure a more robust assessment, as a model may show low R\ :sup:`2` while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
 
 ============ =======================================================
 Points       Scaled RMSE
@@ -104,7 +104,7 @@ Points       Scaled RMSE
 ============ =======================================================
 
 ============ =======================================================
-Points        R² (penalty)
+Points        R\ :sup:`2` (penalty)
 ============ =======================================================
 |br|         **Regression**
 -•• -2          R\ :sup:`2` < 0.5
@@ -129,7 +129,7 @@ The cross-validation tests guarantee the meaningfulness of the chosen data parti
 
 |u| Section B.3a. Predictions test set (2 points) |/u|
 
-In regression, two metrics (RMSE and R²) are used to ensure a more robust assessment, as a model may show low R² while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
+In regression, two metrics (RMSE and R\ :sup:`2`) are used to ensure a more robust assessment, as a model may show low R\ :sup:`2` while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
 
 ============ =======================================================
 Points       Scaled RMSE
@@ -147,7 +147,7 @@ Points       Scaled RMSE
 
 
 ============ =======================================================
-Points        R² (penalty)
+Points        R\ :sup:`2` (penalty)
 ============ =======================================================
 |br|         **Regression**
 -•• -2          R\ :sup:`2` < 0.5 

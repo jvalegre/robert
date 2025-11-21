@@ -50,7 +50,8 @@ Parameters
         Number of repetitions for the k-fold cross-validation of the RFECV feature selector.
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
-
+    auto_fill : bool, default = True
+        Complete missing values in columns with descriptors of "float" type using a KNN imputer
 
 """
 #####################################################.
@@ -97,12 +98,23 @@ class curate:
 
             # apply the correlation filters and returns the database without correlated descriptors
             if self.args.corr_filter_x or self.args.corr_filter_y:
-                csv_df = correlation_filter(self,csv_df)
+                csv_df_result = correlation_filter(self,csv_df)
+                # Check if result is a tuple (model-specific CSVs) or single dataframe
+                if isinstance(csv_df_result, tuple):
+                    csv_df, csv_df_per_model = csv_df_result
+                else:
+                    csv_df = csv_df_result
+                    csv_df_per_model = None
+            else:
+                csv_df_per_model = None
             
-            # save the curated CSV
-            _ = self.save_curate(csv_df)
+            # save the curated CSVs (one per model if RFECV is applied)
+            if csv_df_per_model is not None:
+                _ = self.save_curate((csv_df, csv_df_per_model))
+            else:
+                _ = self.save_curate(csv_df)
 
-        # create Pearson heatmap
+        # create Pearson heatmap (use the general filtered dataframe)
         _ = pearson_map(self,csv_df,'curate')
 
         # finish the printing of the CURATE info file
@@ -140,21 +152,59 @@ class curate:
         '''
         Saves the curated database and options used in CURATE
         '''
-        
-        # saves curated database
-        csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
-        csv_curate_name = f'{csv_basename}_CURATE.csv'
-        csv_curate_name = self.args.destination.joinpath(csv_curate_name)
-        _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
-        path_reduced = '/'.join(f'{csv_curate_name}'.replace('\\','/').split('/')[-2:])
-        self.args.log.write(f'\no  The curated database was stored in {path_reduced}.')
 
-        # saves important options used in CURATE
+        csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
+        
+        # Check if csv_df is a tuple (csv_df_filtered, csv_df_per_model) from correlation_filter
+        if isinstance(csv_df, tuple):
+            csv_df_filtered, csv_df_per_model = csv_df
+            
+            # Save model-specific curated databases (sorted for reproducibility)
+            for model in csv_df_per_model:
+                csv_curate_name = f'{csv_basename}_CURATE_{model}.csv'
+                csv_curate_name = self.args.destination.joinpath(csv_curate_name)
+                # Sort rows by y value for reproducibility
+                csv_df_to_save = csv_df_per_model[model].reset_index(drop=True).sort_values(by=self.args.y).reset_index(drop=True)
+                _ = csv_df_to_save.to_csv(f'{csv_curate_name}', index=None, header=True)
+
+                # y values to predict, considering that ROBERT will work with multiple values of y in future versions
+                if not isinstance(self.args.y,list):
+                    count_y = 1
+                else:
+                    count_y = len(self.args.y)
+                
+                txt_csv = f'\n   o Model {model}: {len(csv_df_per_model[model].columns)-len(self.args.ignore)-count_y} descriptors remaining:\n'
+                txt_csv += '      ' + ', '.join(f'{var}' for var in csv_df_per_model[model].columns if var not in self.args.ignore and var != self.args.y)
+                self.args.log.write(txt_csv)
+            
+            self.args.log.write(f'\no  Model-specific curated databases were stored in {self.args.destination}')
+            
+            # Save general curated database (for reference/Pearson map, sorted for reproducibility)
+            csv_curate_name_general = f'{csv_basename}_CURATE.csv'
+            csv_curate_name_general = self.args.destination.joinpath(csv_curate_name_general)
+            csv_df_to_save_general = csv_df_filtered.reset_index(drop=True).sort_values(by=self.args.y).reset_index(drop=True)
+            _ = csv_df_to_save_general.to_csv(f'{csv_curate_name_general}', index=None, header=True)
+
+        else:
+            # Original behavior: save single curated database
+            csv_curate_name_general = f'{csv_basename}_CURATE.csv'
+            csv_curate_name_general = self.args.destination.joinpath(csv_curate_name_general)
+            _ = csv_df.to_csv(f'{csv_curate_name_general}', index=None, header=True)
+            path_reduced = '/'.join(f'{csv_curate_name_general}'.replace('\\','/').split('/')[-2:])
+            self.args.log.write(f'\no  The curated database was stored in {path_reduced}.')
+
+        # Save important options used in CURATE
         options_name = f'CURATE_options.csv'
         options_name = self.args.destination.joinpath(options_name)
         options_df = pd.DataFrame()
         options_df['y'] = [self.args.y]
         options_df['ignore'] = [self.args.ignore]
         options_df['names'] = [self.args.names]
-        options_df['csv_name'] = [csv_curate_name]
-        _ = options_df.to_csv(f'{options_name}', index = None, header=True)
+        options_df['csv_name'] = [csv_curate_name_general]
+        
+        # Save class label mapping if it exists (for classification with string labels)
+        if hasattr(self.args, 'class_0_label'):
+            options_df['class_0_label'] = [self.args.class_0_label]
+            options_df['class_1_label'] = [self.args.class_1_label]
+        
+        _ = options_df.to_csv(f'{options_name}', index=None, header=True)

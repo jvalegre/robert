@@ -14,6 +14,10 @@ import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
+
+# Force single-threaded execution for reproducibility across platforms
+# This prevents numerical differences between Windows/Ubuntu in parallel operations
+os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 from matplotlib import pyplot as plt
 import importlib
 import matplotlib.patches as mpatches
@@ -755,21 +759,15 @@ def correlation_filter(self, csv_df):
                 # Train the model once on all features
                 estimator.fit(X_scaled_df, y_df)
                 
-                # Use permutation importance to rank features (average over multiple runs for stability)
-                # Run PFI multiple times and average to reduce stochastic variability
-                n_pfi_runs = 3  # Run PFI 3 times and average for more stable results
-                all_importances = []
-                for pfi_run in range(n_pfi_runs):
-                    perm_result = permutation_importance(estimator, X_scaled_df, y_df, 
-                                          n_repeats=self.args.pfi_epochs, 
-                                          random_state=self.args.seed + pfi_run,  # Different seed per run
-                                          scoring=scoring,
-                                          n_jobs=1)  # Force single thread for reproducibility
-                    all_importances.append(perm_result.importances_mean)
+                # Use permutation importance to rank features
+                perm_result = permutation_importance(estimator, X_scaled_df, y_df, 
+                                      n_repeats=self.args.pfi_epochs, 
+                                      random_state=self.args.seed,
+                                      scoring=scoring,
+                                      n_jobs=1)  # Force single thread for reproducibility
                 
-                # Average the importances across all runs and round to reduce floating point variance
-                feature_importances = np.mean(all_importances, axis=0)
-                feature_importances = np.round(feature_importances, decimals=10)
+                # Round to reduce floating point variance
+                feature_importances = np.round(perm_result.importances_mean, decimals=10)
                 
                 # Create list of (importance, name) tuples for ALL features
                 importance_with_names = [(feature_importances[i], X_scaled_df.columns[i]) 
@@ -788,7 +786,7 @@ def correlation_filter(self, csv_df):
                 # Sort final list alphabetically for consistent ordering in output
                 descriptors_used[model] = sorted(descriptors_used[model])
                 
-                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using averaged PFI)'
+                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using PFI)'
             
             else:
                 # MVL, RF, GB, ADAB: use RFECV with feature importances

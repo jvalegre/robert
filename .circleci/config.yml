@@ -39,7 +39,7 @@ jobs:
           name: Install system libraries for Qt / PySide6
           command: |
             apt-get update
-            apt-get install -y libxkbcommon0
+            apt-get install -y libxkbcommon0 libegl1
       - run: |
           # update conda and create env
           conda update -y conda

@@ -76,6 +76,12 @@ jobs:
               libnss3 \
               libnspr4 \
               libxkbcommon0 \
+              libxkbfile1 \
+              libxkbcommon-x11-0 \
+              libxcb-util1 \
+              libxcb-xkb1 \
+              libxss1 \
+              libxcursor1 \
               libatomic1 \
               zlib1g \
               libpcre2-8-0 \
@@ -90,13 +96,14 @@ jobs:
               libevent-2.1-7 \
               libasound2 \
               libasound2-data \
+              libdrm2 \
+              libxshmfence1 \
+              libgl1-mesa-dri \
               ca-certificates
 
             apt-get install -y libicu72 || \
             apt-get install -y libicu70 || \
             apt-get install -y libicu67 || true
-
-
 
       - run: |
           # update conda and create env

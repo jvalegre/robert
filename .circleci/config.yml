@@ -136,7 +136,7 @@ jobs:
       #     rm -r /tmp/*
       #     cp -r * /tmp
       - run:
-          name: Run GUI tests with Qt in headless mode
+          name: Run core and GUI tests with combined coverage
           command: |
             # Proper conda initialization for non-interactive shells
             eval "$(conda shell.bash hook)"
@@ -159,29 +159,38 @@ jobs:
             pip install aqme==2.0.0
             pip install .
 
-            # Remove robert (avoid Codecov double reporting)
-            pip uninstall -y robert
+            # DO NOT uninstall robert here - GUI tests need it
 
             # Test tooling
             pip install pytest pytest-cov pytest-qt
 
-            # Qt / QtWebEngine headless configuration
+            # # 1) Run core (non-GUI) tests first, without Xvfb
+            # #    We ignore the GUI test file here.
+            # python -m pytest \
+            #   -v \
+            #   --ignore=tests/test_easyrob.py \
+            #   --cov=robert \
+            #   --cov-report=xml
+
+            # 2) Run GUI tests under Xvfb, appending coverage
             export QT_QPA_PLATFORM=offscreen
             export QT_OPENGL=software
             export QT_RHI=software
             export QTWEBENGINE_DISABLE_SANDBOX=1
             export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
 
-            # Run ONLY the GUI tests for debugging
             xvfb-run -s "-screen 0 1920x1080x24" \
               python -m pytest \
                 -vv -s --maxfail=1 \
-                --cov=robert --cov=GUI_easyROB --cov-report=xml \
+                --cov=robert --cov=GUI_easyROB \
+                --cov-append \
+                --cov-report=xml \
                 tests/test_easyrob.py
 
             # Save coverage and workspace artifacts
             rm -r /tmp/*
-            cp -r * /tmp
+            cp coverage.xml /tmp/
+            cp -r robert /tmp/
 
       - persist_to_workspace:
           root: /tmp

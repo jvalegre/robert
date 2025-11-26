@@ -36,7 +36,7 @@ jobs:
           # app-dir: ~/project/package-directory/  # If your requirements.txt isn't in the root directory.
           # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run:
-          name: Install full Qt/PySide6 headless dependencies
+          name: Install system dependencies for Qt/PySide6
           command: |
             apt-get update
             apt-get install -y \
@@ -88,12 +88,14 @@ jobs:
               libmd4c0 \
               libjpeg62-turbo \
               libevent-2.1-7 \
+              libasound2 \
+              libasound2-data \
               ca-certificates
 
-            # Try different ICU versions, ignore failures if not available
             apt-get install -y libicu72 || \
             apt-get install -y libicu70 || \
             apt-get install -y libicu67 || true
+
 
 
       - run: |

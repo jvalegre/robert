@@ -41,8 +41,6 @@ jobs:
             apt-get update
             apt-get install -y \
               xvfb \
-              fonts-dejavu-core \
-              fonts-dejavu-extra  \
               libx11-6 \
               libx11-xcb1 \
               libxcb1 \
@@ -76,6 +74,9 @@ jobs:
               libpango-1.0-0 \
               libpangocairo-1.0-0 \
               libcairo2 \
+              libpangoft2-1.0-0 \
+              libgdk-pixbuf2.0-0 \
+              shared-mime-info \
               libnss3 \
               libnspr4 \
               libxkbcommon0 \
@@ -102,6 +103,8 @@ jobs:
               libdrm2 \
               libxshmfence1 \
               libgl1-mesa-dri \
+              fonts-dejavu-core \
+              fonts-dejavu-extra \
               ca-certificates
 
             apt-get install -y libicu72 || \

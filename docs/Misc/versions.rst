@@ -17,6 +17,8 @@ Version 2.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.0>`__]
    -  Fixed bug in the name of extra_q1 and extra_q5 splitting methods
    -  Updating packages versions in setup.py
    -  Molssi databases link in easyROB GUI
+   -  Default split is 'RND' for classification problems
+   -  The sklearn-intelex accelerator was removed
 
 Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
    -  Fixed bug in MAC and Linux OS from the GENERATE

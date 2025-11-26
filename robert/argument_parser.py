@@ -38,7 +38,7 @@ var_dict = {
     "eval_model" : 'MVL',
     "custom_params" : None,
     "type" : "reg",
-    "split" : "even",
+    "split" : "auto",
     "nprocs": 8,
     "error_type" : "rmse",
     "pfi_epochs" : 5,

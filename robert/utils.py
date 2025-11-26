@@ -14,6 +14,10 @@ import shutil
 from pathlib import Path
 import pandas as pd
 import numpy as np
+
+# Force single-threaded execution for reproducibility across platforms
+# This prevents numerical differences between Windows/Ubuntu in parallel operations
+os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 from matplotlib import pyplot as plt
 import importlib
 import matplotlib.patches as mpatches
@@ -24,12 +28,12 @@ import shap
 import seaborn as sb
 from scipy import stats
 from importlib.resources import files
-# for users with no intel architectures. This part has to be before the sklearn imports
-try:
-    from sklearnex import patch_sklearn
-    patch_sklearn(verbose=False)
-except (ModuleNotFoundError,ImportError):
-    pass
+# sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
+# try:
+#     from sklearnex import patch_sklearn
+#     patch_sklearn(verbose=True)
+# except (ModuleNotFoundError,ImportError):
+#     pass
 from sklearn.metrics import (mean_absolute_error, mean_squared_error,
                              matthews_corrcoef, accuracy_score, f1_score, make_scorer,
                              ConfusionMatrixDisplay)
@@ -411,13 +415,14 @@ def load_variables(kwargs, robert_module):
         elif robert_module.upper() == 'REPORT':
             self.path_icons = files("robert").joinpath("report")
 
+        # sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
         # using or not the intelex accelerator might affect the results
-        if robert_module.upper() in ['GENERATE','VERIFY','PREDICT']:
-            try:
-                from sklearnex import patch_sklearn
-                pass
-            except (ModuleNotFoundError,ImportError):
-                self.log.write(f"\nx  WARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
+        # if robert_module.upper() in ['GENERATE','VERIFY','PREDICT']:
+            # try:
+            #     import sklearnex
+            #     pass
+            # except (ModuleNotFoundError,ImportError):
+            #     self.log.write(f"\nx  WARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
         if robert_module.upper() in ['GENERATE', 'VERIFY']:
             # adjust the default value of error_type for classification
@@ -646,16 +651,19 @@ def correlation_filter(self, csv_df):
                     descriptors_drop.append(column)
                     txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
 
+    self.args.log.write(txt_corr)
+
     # Second pass: remove highly correlated descriptors (always removing the most correlated first)
+    txt_corr = ''
     csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
     csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
     if self.args.corr_filter_x and len(csv_df_X_filtered.columns) > 1:        
-        # Calculate R² correlation matrix between descriptors
+        # Calculate R2 correlation matrix between descriptors
         corr_matrix = csv_df_X_filtered.corr().abs()
         corr_matrix_r2 = corr_matrix ** 2
         upper = corr_matrix_r2.where(np.triu(np.ones(corr_matrix_r2.shape), k=1).astype(bool))
         
-        # Calculate R² of each descriptor with y (for deciding which one to drop)
+        # Calculate R2 of each descriptor with y (for deciding which one to drop)
         r2_with_y = {}
         for col in csv_df_X_filtered.columns:
             res_y = stats.linregress(csv_df_filtered[col], csv_df_filtered[self.args.y])
@@ -663,7 +671,7 @@ def correlation_filter(self, csv_df):
         
         # Iteratively remove the most correlated descriptors
         while True:
-            # Find the maximum R² correlation
+            # Find the maximum R2 correlation
             max_r2 = upper.max().max()
             if max_r2 <= self.args.thres_x:
                 break
@@ -678,12 +686,12 @@ def correlation_filter(self, csv_df):
             pairs.sort()
             col_name_1, col_name_2 = pairs[0]
             
-            # Drop the descriptor with lower R² to y, round for comparison
+            # Drop the descriptor with lower R2 to y, round for comparison
             r2_1 = round(r2_with_y[col_name_1], 10)
             r2_2 = round(r2_with_y[col_name_2], 10)
             
             if r2_1 == r2_2:
-                # Tied on R² with y, drop alphabetically later one
+                # Tied on R2 with y, drop alphabetically later one
                 drop_col = col_name_1 if col_name_1 > col_name_2 else col_name_2
                 keep_col = col_name_2 if col_name_1 > col_name_2 else col_name_1
             elif r2_1 < r2_2:
@@ -694,7 +702,7 @@ def correlation_filter(self, csv_df):
                 keep_col = col_name_1
             
             descriptors_drop.append(drop_col)
-            txt_corr += f'\n   - {drop_col} removed (R²={max_r2:.2f} with {keep_col}), kept more predictive descriptor'
+            txt_corr += f'\n   - {drop_col} removed (R2 = {max_r2:.2f} with {keep_col}), kept more predictive descriptor'
             
             upper = upper.drop(index=drop_col, columns=drop_col)
             del r2_with_y[drop_col]
@@ -711,21 +719,26 @@ def correlation_filter(self, csv_df):
     if len(descriptors_drop) == 0:
         txt_corr += f'\n   -  No descriptors were removed'
 
+    self.args.log.write(txt_corr)
+
     # Check if descriptors are more than one third of datapoints
+    txt_corr = ''
     descriptors_used = {}
     csv_df_per_model = {}
 
     num_descriptors = round(len(csv_df[self.args.y]) / 3)
     if n_descps > num_descriptors:
         cv_type = f'{self.args.repeat_kfolds}x {self.args.kfold}_fold_cv'
-        txt_corr += f'\n\no  There are more descriptors than one-third of the data points. A Recursive Feature Elimination with Cross-Validation (RFECV) using {cv_type} is performed to select the most relevant descriptors for each model'
+        txt_corr += f'\no  There are more descriptors than one-third of the data points. A Recursive Feature Elimination with Cross-Validation (RFECV) or permutation feature importance (PFI) using {cv_type} will be performed to select the most relevant descriptors for each model'
+        self.args.log.write(txt_corr)
+        txt_corr = ''
 
         # Perform RFECV for each model specified by the user
         X_df = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
         X_scaled_df,_ = scale_df(X_df,None)
         y_df = csv_df_filtered[self.args.y]
 
-        for model in self.args.model:
+        for model in sorted(self.args.model):
             # Load the parameters of the minimalist model used for RFECV
             rfecv_params = load_minimal_model(model)
             rfecv_params = model_adjust_params(self, model, rfecv_params)
@@ -739,68 +752,77 @@ def correlation_filter(self, csv_df):
             scoring = get_scoring_key(self.args.type,self.args.error_type)
 
             # Use different strategies for models without feature_importances_
-            if model in ['NN', 'GP']:
+            if model.upper() in ['NN', 'GP']:
                 # For NN and GP, use a simpler approach: select top features by correlation with y
                 # after initial fit, then use permutation importance to rank them
-                from sklearn.inspection import permutation_importance as perm_imp
                 
                 # Train the model once on all features
                 estimator.fit(X_scaled_df, y_df)
                 
                 # Use permutation importance to rank features
-                perm_result = perm_imp(estimator, X_scaled_df, y_df, 
-                                      n_repeats=10, random_state=self.args.seed, scoring=scoring)
-                feature_importances = perm_result.importances_mean
+                perm_result = permutation_importance(estimator, X_scaled_df, y_df, 
+                                      n_repeats=self.args.pfi_epochs, 
+                                      random_state=self.args.seed,
+                                      scoring=scoring,
+                                      n_jobs=1)  # Force single thread for reproducibility
                 
-                # Select features with positive importance and limit to num_descriptors
-                positive_importance_idx = np.where(feature_importances > 0)[0]
-                if len(positive_importance_idx) > num_descriptors:
-                    # Sort by importance (descending) and break ties alphabetically for determinism
-                    importance_with_names = [(feature_importances[i], X_scaled_df.columns[i]) for i in range(len(feature_importances))]
-                    importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
-                    descriptors_used[model] = [name for _, name in importance_with_names[:num_descriptors]]
+                # Round to reduce floating point variance
+                feature_importances = np.round(perm_result.importances_mean, decimals=10)
+                
+                # Create list of (importance, name) tuples for ALL features
+                importance_with_names = [(feature_importances[i], X_scaled_df.columns[i]) 
+                                        for i in range(len(feature_importances))]
+                
+                # Sort by importance (descending) and break ties alphabetically for determinism
+                importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
+                
+                # Select top num_descriptors features (or all with positive importance if fewer)
+                positive_features = [(imp, name) for imp, name in importance_with_names if imp > 0]
+                if len(positive_features) > num_descriptors:
+                    descriptors_used[model] = [name for _, name in positive_features[:num_descriptors]]
                 else:
-                    descriptors_used[model] = X_scaled_df.columns[positive_importance_idx].tolist()
+                    descriptors_used[model] = [name for _, name in positive_features]
                 
-                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected using permutation importance'
-            
-            elif model == 'MVL':
-                # MVL has coef_ attribute, use it directly with RFECV
-                selector = RFECV(estimator, scoring=scoring, min_features_to_select=2, cv=cv_model, importance_getter='auto')
-                selector.fit(X_scaled_df, y_df)
+                # Sort final list alphabetically for consistent ordering in output
+                descriptors_used[model] = sorted(descriptors_used[model])
                 
-                descriptors_used[model] = list(X_scaled_df.columns[selector.support_])
-                
-                # Limit to num_descriptors if needed
-                if len(descriptors_used[model]) > num_descriptors:
-                    feature_importances = np.abs(selector.estimator_.coef_)
-                    selected_features = np.array(descriptors_used[model])
-                    # Sort by importance (descending) and break ties alphabetically for determinism
-                    importance_with_names = list(zip(feature_importances, selected_features))
-                    importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
-                    descriptors_used[model] = [name for _, name in importance_with_names[:num_descriptors]]
-                    txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected using coefficients (limited to {num_descriptors})'
-                else:
-                    txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected using coefficients'
+                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using PFI)'
             
             else:
-                # RF, GB, ADAB have feature_importances_
-                selector = RFECV(estimator, scoring=scoring, min_features_to_select=2, cv=cv_model)
+                # MVL, RF, GB, ADAB: use RFECV with feature importances
+                # Set step=1 for most stable/deterministic feature elimination
+                selector = RFECV(estimator, scoring=scoring, min_features_to_select=2, cv=cv_model, step=1, n_jobs=1)
                 selector.fit(X_scaled_df, y_df)
-
-                descriptors_used[model] = list(X_scaled_df.columns[selector.support_])
                 
-                # Limit to num_descriptors if needed
-                if len(descriptors_used[model]) > num_descriptors:
+                # Get selected features
+                selected_mask = selector.support_
+                selected_features_list = list(X_scaled_df.columns[selected_mask])
+                
+                # Get feature importances for selected features only
+                if model.upper() == 'MVL':
+                    # For MVL, use absolute coefficients as importance
+                    feature_importances = np.abs(selector.estimator_.coef_)
+                else: 
+                    # RF, GB, ADAB have feature_importances_
                     feature_importances = selector.estimator_.feature_importances_
-                    selected_cols = np.array(X_scaled_df.columns)[selector.support_]
-                    # Sort by importance (descending) and break ties alphabetically for determinism
-                    importance_with_names = list(zip(feature_importances, selected_cols))
-                    importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
-                    descriptors_used[model] = [name for _, name in importance_with_names[:num_descriptors]]
-                    txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (limited to {num_descriptors})'
-                else:
-                    txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected'
+                
+                # Round importances to reduce floating point variance
+                feature_importances = np.round(feature_importances, decimals=10)
+                
+                # Create (importance, name) pairs for selected features
+                importance_with_names = list(zip(feature_importances, selected_features_list))
+                
+                # Sort by importance (descending) with alphabetical tie-breaking for determinism
+                importance_with_names.sort(key=lambda x: (-x[0], x[1]))  # Sort by importance DESC, then name ASC
+                
+                # Select top num_descriptors (or all if fewer selected)
+                n_to_select = min(num_descriptors, len(importance_with_names))
+                descriptors_used[model] = [name for _, name in importance_with_names[:n_to_select]]
+                
+                # Sort final list alphabetically for consistent ordering in output
+                descriptors_used[model] = sorted(descriptors_used[model])
+                
+                txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using RFECV)'
             
             # Create model-specific dataframe with sorted columns for reproducibility
             keep_cols = descriptors_used[model] + [self.args.y] + self.args.ignore
@@ -972,9 +994,15 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     curate_valid = False
         
         elif module.lower() == 'generate':
-            if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q5']:
+            if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q5','auto']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
                 curate_valid = False
+
+            if self.split == 'auto':
+                if self.type.lower() == 'reg':
+                    self.split = 'even'
+                elif self.type.lower() == 'clas':
+                    self.split = 'rnd'
 
             for model_type in self.model:
                 if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN'] or len(self.model) == 0:
@@ -1082,18 +1110,16 @@ def check_clas_problem(self,csv_df):
     # changes type to classification if there are only two different y values
     if self.args.type.lower() == 'reg' and self.args.auto_type:
         num_unique = len(set(csv_df[self.args.y]))
-        if num_unique in [1,2,3,4]:
+        if num_unique == 2:
             self.args.type = 'clas'
             if self.args.error_type not in ['acc', 'mcc', 'f1']:
                 self.args.error_type = 'mcc'
             if ('MVL' or 'mvl') in self.args.model:
                 self.args.model = [x if x.upper() != 'MVL' else 'ADAB' for x in self.args.model]
 
-            # Only print the message if there are exactly 2 values
-            if num_unique == 2:
-                unique_vals = list(set(csv_df[self.args.y]))
-                y_val_detect = f'{unique_vals[0]} and {unique_vals[1]}'
-                self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
+            unique_vals = list(set(csv_df[self.args.y]))
+            y_val_detect = f'{unique_vals[0]} and {unique_vals[1]}'
+            self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
 
     if self.args.type.lower() == 'clas':
         if len(set(csv_df[self.args.y])) == 2:
@@ -1400,7 +1426,6 @@ def test_select(self,X_scaled,csv_y):
     test_input_size = round(self.args.test_set * len(csv_y))
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
-    size = np.ceil(selected_size * 100 / (len(csv_y)))
 
     if self.args.split.upper() == 'KN':
         # k-neighbours data split
@@ -1409,23 +1434,29 @@ def test_select(self,X_scaled,csv_y):
         if self.args.type == 'clas':
             class_0_idx = list(csv_y[csv_y == 0].index)
             class_1_idx = list(csv_y[csv_y == 1].index)
-            class_0_size = round(len(class_0_idx)/len(csv_y)*size)
-            class_1_size = size-class_0_size
+            class_0_test_size = round((len(class_0_idx)/len(csv_y))*selected_size)
+            class_1_test_size = selected_size-class_0_test_size
+            class_0_train_size = len(class_0_idx) - class_0_test_size
+            class_1_train_size = len(class_1_idx) - class_1_test_size
 
-            train_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_size,self.args.seed,class_0_idx)
-            train_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_size,self.args.seed,class_1_idx)
-            test_points = train_class_0+train_class_1
+            # the k-means function internally selects the training points to be as diverse as possible, 
+            # but it returns the test points
+            test_class_0 = k_means(self,X_scaled.iloc[class_0_idx],csv_y,class_0_train_size,self.args.seed,class_0_idx)
+            test_class_1 = k_means(self,X_scaled.iloc[class_1_idx],csv_y,class_1_train_size,self.args.seed,class_1_idx)
+            test_points = test_class_0+test_class_1
 
         else:
             idx_list = csv_y.index
-            test_points = k_means(self,X_scaled,csv_y,size,self.args.seed,idx_list)
+            test_points = k_means(self,X_scaled,csv_y,selected_size,self.args.seed,idx_list)
 
     elif self.args.split.upper() == 'RND':
+        size = round(selected_size * 100 / (len(csv_y)))
         _, X_test, _, _ = train_test_split(X_scaled, csv_y, test_size=size/100, random_state=self.args.seed)
         test_points = X_test.index.tolist()
 
     elif self.args.split.upper() == 'STRATIFIED':
 
+        size = np.ceil(selected_size * 100 / (len(csv_y)))
         # Remove the max and min values so they don't end up in the training set
         # Calculate the number of bins based on the number of points
         csv_y_capped = csv_y.drop([csv_y.idxmin(), csv_y.idxmax()])
@@ -1670,12 +1701,16 @@ def load_model(self, model_name, **params):
     """
 
     if model_name == 'RF':
+        # Ensure n_jobs=1 for reproducibility if not already in params
+        if 'n_jobs' not in params:
+            params['n_jobs'] = 1
         if self.args.type.lower() == 'reg':
             loaded_model = RandomForestRegressor(**params)
         else:
             loaded_model = RandomForestClassifier(**params)
 
     elif model_name == 'GB':
+        # GradientBoosting doesn't have n_jobs parameter, it's already deterministic
         if self.args.type.lower() == 'reg':
             loaded_model = GradientBoostingRegressor(**params)
         else:
@@ -2008,13 +2043,16 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
 
 def k_means(self,X_scaled,csv_y,size,seed,idx_list):
     '''
-    Returns the data points that will be used as training set based on the k-means clustering
+    
+    Uses k-means clustering to select the test points to be as diverse as possible, 
+    but it returns the test pointsReturns the data points that will be used as training set based on the k-means clustering
+    
     '''
     
     # number of clusters in the training set from the k-means clustering (based on the
     # training set size specified above)
     X_scaled_array = np.asarray(X_scaled)
-    number_of_clusters = round(len(csv_y)*(size/100))
+    number_of_clusters = size
 
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
@@ -2046,8 +2084,9 @@ def k_means(self,X_scaled,csv_y,size,seed,idx_list):
                     results_cluster = np.sqrt(points_sum)
                     training_point = k
         training_idx.append(training_point)
-        test_points.append(idx_list[training_point])
-    
+
+    test_idx = [idx for idx in range(len(X_scaled_array[:, 0])) if idx not in training_idx]
+    test_points = [idx_list[i] for i in test_idx]
     test_points.sort()
 
     return test_points
@@ -2065,7 +2104,7 @@ def PFI_filter(self, Xy_data, model_data):
     # select scoring function for PFI analysis based on the error type
     scoring, score_model, _ = scoring_n_score(self,model_data,Xy_data,loaded_model)
     
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=self.args.seed)
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=self.args.seed, n_jobs=1)
 
     # transforms the values into a list and sort the PFI values with the descriptor names
     descp_cols_pfi, PFI_values, PFI_sd = [],[],[]
@@ -2448,7 +2487,7 @@ def PFI_plot(self,Xy_data,model_data,path_n_suffix):
     # select scoring function for PFI analysis based on the error type
     scoring, _, error_type = scoring_n_score(self,model_data,Xy_data,loaded_model)
 
-    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=model_data['seed'])
+    perm_importance = permutation_importance(loaded_model, Xy_data['X_train_scaled'], Xy_data['y_train'], scoring=scoring, n_repeats=self.args.pfi_epochs, random_state=model_data['seed'], n_jobs=1)
 
     # sort descriptors and results from PFI
     desc_list, PFI_values, PFI_sd = [],[],[]
@@ -2479,7 +2518,7 @@ def PFI_plot(self,Xy_data,model_data,path_n_suffix):
     print_PFI += f'\n      Influence on {error_type.upper()}'
 
     for i,desc in enumerate(desc_list):
-        print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} ± {PFI_sd[i]:.2}"
+        print_PFI += f"\n      -  {desc} = {PFI_values[i]:.2} +- {PFI_sd[i]:.2}"
     
     self.args.log.write(print_PFI)
 

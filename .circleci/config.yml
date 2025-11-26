@@ -36,10 +36,10 @@ jobs:
           # app-dir: ~/project/package-directory/  # If your requirements.txt isn't in the root directory.
           # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
       - run:
-        name: Install system libraries for Qt / PySide6
-        command: |
-          apt-get update
-          apt-get install -y libxkbcommon0
+          name: Install system libraries for Qt / PySide6
+          command: |
+            apt-get update
+            apt-get install -y libxkbcommon0
       - run: |
           # update conda and create env
           conda update -y conda

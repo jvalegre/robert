@@ -73,9 +73,6 @@ jobs:
               libpango-1.0-0 \
               libpangocairo-1.0-0 \
               libcairo2 \
-              libicu72 || true  
-              libicu70 || true
-              libicu67 || true
               libnss3 \
               libsmime3 \
               libnspr4 \
@@ -93,6 +90,12 @@ jobs:
               libjpeg62-turbo \
               libevent-2.1-7 \
               ca-certificates
+
+            # Try different ICU versions, ignore failures if not available
+            apt-get install -y libicu72 || \
+            apt-get install -y libicu70 || \
+            apt-get install -y libicu67 || true
+
 
       - run: |
           # update conda and create env

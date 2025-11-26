@@ -128,6 +128,7 @@ jobs:
           # install and run pytest
           pip install pytest
           pip install pytest-cov
+          pip install pytest-qt
           # the format of the codecov report has to be scpecified or it doesn't create for some reason
           python -m pytest -v --cov=robert --cov=GUI_easyROB --cov-report=xml
           rm -r /tmp/*

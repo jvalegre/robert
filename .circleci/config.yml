@@ -74,7 +74,6 @@ jobs:
               libpangocairo-1.0-0 \
               libcairo2 \
               libnss3 \
-              libsmime3 \
               libnspr4 \
               libxkbcommon0 \
               libatomic1 \

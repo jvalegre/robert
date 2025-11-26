@@ -107,7 +107,7 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
    :width: 140
    :align: middle
 
-**1.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/master/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+**1.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>`__ by clicking this button on GitHub |download|.
 
 **2.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
 
@@ -209,7 +209,7 @@ operating system (Windows, macOS or Linux). Alternatively, if you're familiar wi
 you can install `Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
 (requires less space than Anaconda).  
 
-**2.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/master/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+**2.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>`__ by clicking this button on GitHub |download|.
 
 **3.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
 
@@ -305,7 +305,40 @@ without using command lines — just by selecting files and options through an i
 
    For video tutorials on how to use easyROB, check out our `YouTube channel <https://www.youtube.com/@thealegregroup4964/videos>`_.
 
-To run **easyROB**, follow these steps:
+
+
+**Standalone GUI Launcher (Windows and Linux)**
+=============================================
+
+If you prefer to **avoid the manual installation** and start using ROBERT’s graphical interface (**easyROB**) immediately,  
+there is a **ready-to-use program** available for:
+
+- **Windows**
+- **Linux**
+
+This version includes a complete preinstalled environment, allowing you to launch easyROB directly — no setup required.  
+It’s ideal for users who are not familiar with conda or command lines.
+
+- Project page: `easyROB Repository <https://github.com/MiguelMartzFdez/easyROB>`_
+- Downloads for each system: `Releases <https://github.com/MiguelMartzFdez/easyROB/releases>`_
+
+.. warning::
+
+   **WSL (Windows Subsystem for Linux) users:** even though WSL runs Linux,  
+   **your operating system is still Windows.**  
+   You must download and use the **Windows version** of the program, **not** the Linux one.
+
+.. note::
+
+   **macOS users:** there is currently **no preconfigured program** for macOS.  
+   You must follow the manual instructions below to install ROBERT and run the GUI  
+   by downloading ``easyrob.py``.
+
+
+**Run easyROB Manually**
+========================
+
+To run **easyROB** manually, follow these steps:
 
 **1.** Install ROBERT as explained in the "Installation" section.
 
@@ -327,7 +360,6 @@ To run **easyROB**, follow these steps:
    :align: middle
 
 **4.** Download the script `easyrob.py <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob| by clicking this button on GitHub |download|.
-
 
 **5.** Navigate to the folder where you saved ``easyrob.py`` (for example):
 

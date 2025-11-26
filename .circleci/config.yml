@@ -52,7 +52,11 @@ jobs:
               libxcb-shape0 \
               libxcb-shm0 \
               libxcb-randr0 \
+              libxcb-xfixes3 \
               libxcomposite1 \
+              libxdamage1 \
+              libxi6 \
+              libxtst6 \
               libsm6 \
               libxrender1 \
               libxext6 \

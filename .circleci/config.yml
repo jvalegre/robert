@@ -50,6 +50,7 @@ jobs:
           pip install weasyprint
           conda install -y -c conda-forge gtk3
           conda install -y -c conda-forge pango
+          conda install -y -c conda-forge libxkbcommon
           pip install aqme==2.0.0
           pip install .
           # uninstall robert to avoid codecov issues (only running from the robert folder)
@@ -58,7 +59,7 @@ jobs:
           pip install pytest
           pip install pytest-cov
           # the format of the codecov report has to be scpecified or it doesn't create for some reason
-          python -m pytest -v --cov=robert --cov-report=xml
+          python -m pytest -v --cov=robert --cov=GUI_easyROB --cov-report=xml
           rm -r /tmp/*
           cp -r * /tmp
       - persist_to_workspace:

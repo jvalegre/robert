@@ -54,7 +54,8 @@ jobs:
               libsm6 \
               libxrender1 \
               libxext6 \
-              libdbus-1-3
+              libdbus-1-3 \
+              libatomic1
       - run: |
           # update conda and create env
           conda update -y conda

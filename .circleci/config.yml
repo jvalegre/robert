@@ -40,6 +40,7 @@ jobs:
           command: |
             apt-get update
             apt-get install -y \
+              xvfb \
               libx11-6 \
               libx11-xcb1 \
               libxcb1 \
@@ -105,35 +106,83 @@ jobs:
             apt-get install -y libicu70 || \
             apt-get install -y libicu67 || true
 
-      - run: |
-          # update conda and create env
-          conda update -y conda
-          conda create -n cheminf python=3.12
-          source activate base 
-          conda activate cheminf
-          # install AQME, ROBERT and their dependencies
-          python -m pip install --upgrade pip          
-          conda install -y -c conda-forge openbabel=3.1.1
-          conda install -y -c conda-forge xtb=6.7.1
-          conda install -y -c conda-forge libgfortran=14.2.0
-          conda install -y -c conda-forge glib
-          pip install weasyprint
-          conda install -y -c conda-forge gtk3
-          conda install -y -c conda-forge pango
-          conda install -y -c conda-forge libxkbcommon
-          pip install aqme==2.0.0
-          pip install .
-          # uninstall robert to avoid codecov issues (only running from the robert folder)
-          pip uninstall -y robert
-          # install and run pytest
-          pip install pytest
-          pip install pytest-cov
-          pip install pytest-qt
-          # the format of the codecov report has to be scpecified or it doesn't create for some reason
-          # python -m pytest -v --cov=robert --cov=GUI_easyROB --cov-report=xml
-          python -m pytest -vv -s --maxfail=1 tests/test_easyrob.py
-          rm -r /tmp/*
-          cp -r * /tmp
+      # - run: |
+      #     # update conda and create env
+      #     conda update -y conda
+      #     conda create -n cheminf python=3.12
+      #     source activate base 
+      #     conda activate cheminf
+      #     # install AQME, ROBERT and their dependencies
+      #     python -m pip install --upgrade pip          
+      #     conda install -y -c conda-forge openbabel=3.1.1
+      #     conda install -y -c conda-forge xtb=6.7.1
+      #     conda install -y -c conda-forge libgfortran=14.2.0
+      #     conda install -y -c conda-forge glib
+      #     pip install weasyprint
+      #     conda install -y -c conda-forge gtk3
+      #     conda install -y -c conda-forge pango
+      #     conda install -y -c conda-forge libxkbcommon
+      #     pip install aqme==2.0.0
+      #     pip install .
+      #     # uninstall robert to avoid codecov issues (only running from the robert folder)
+      #     pip uninstall -y robert
+      #     # install and run pytest
+      #     pip install pytest
+      #     pip install pytest-cov
+      #     pip install pytest-qt
+      #     # the format of the codecov report has to be scpecified or it doesn't create for some reason
+      #     # python -m pytest -v --cov=robert --cov=GUI_easyROB --cov-report=xml
+      #     python -m pytest -vv -s --maxfail=1 tests/test_easyrob.py
+      #     rm -r /tmp/*
+      #     cp -r * /tmp
+      - run:
+          name: Run GUI tests with Qt in headless mode
+          command: |
+            # Proper conda initialization for non-interactive shells
+            eval "$(conda shell.bash hook)"
+
+            # Create and activate conda environment
+            conda update -y conda
+            conda create -n cheminf python=3.12 -y
+            conda activate cheminf
+
+            # Install ROBERT / AQME dependencies
+            python -m pip install --upgrade pip
+            conda install -y -c conda-forge openbabel=3.1.1
+            conda install -y -c conda-forge xtb=6.7.1
+            conda install -y -c conda-forge libgfortran=14.2.0
+            conda install -y -c conda-forge glib
+            pip install weasyprint
+            conda install -y -c conda-forge gtk3
+            conda install -y -c conda-forge pango
+            conda install -y -c conda-forge libxkbcommon
+            pip install aqme==2.0.0
+            pip install .
+
+            # Remove robert (avoid Codecov double reporting)
+            pip uninstall -y robert
+
+            # Test tooling
+            pip install pytest pytest-cov pytest-qt
+
+            # Qt / QtWebEngine headless configuration
+            export QT_QPA_PLATFORM=offscreen
+            export QT_OPENGL=software
+            export QT_RHI=software
+            export QTWEBENGINE_DISABLE_SANDBOX=1
+            export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+
+            # Run ONLY the GUI tests for debugging
+            xvfb-run -s "-screen 0 1920x1080x24" \
+              python -m pytest \
+                -vv -s --maxfail=1 \
+                --cov=robert --cov=GUI_easyROB --cov-report=xml \
+                tests/test_easyrob.py
+
+            # Save coverage and workspace artifacts
+            rm -r /tmp/*
+            cp -r * /tmp
+
       - persist_to_workspace:
           root: /tmp
           paths:

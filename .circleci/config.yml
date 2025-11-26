@@ -41,6 +41,7 @@ jobs:
             apt-get update
             apt-get install -y \
               xvfb \
+              ttf-mscorefonts-installer \
               libx11-6 \
               libx11-xcb1 \
               libxcb1 \

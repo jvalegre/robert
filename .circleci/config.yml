@@ -52,7 +52,7 @@ jobs:
               libxcb-shape0 \
               libxcb-shm0 \
               libxcb-randr0 \
-              libxcb-xfixes3 \
+              libxcb-xfixes0 \
               libxcomposite1 \
               libxdamage1 \
               libxi6 \

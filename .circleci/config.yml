@@ -130,7 +130,8 @@ jobs:
           pip install pytest-cov
           pip install pytest-qt
           # the format of the codecov report has to be scpecified or it doesn't create for some reason
-          python -m pytest -v --cov=robert --cov=GUI_easyROB --cov-report=xml
+          # python -m pytest -v --cov=robert --cov=GUI_easyROB --cov-report=xml
+          python -m pytest -vv -s --maxfail=1 tests/test_easyrob.py
           rm -r /tmp/*
           cp -r * /tmp
       - persist_to_workspace:

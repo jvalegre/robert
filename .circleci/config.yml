@@ -140,6 +140,7 @@ jobs:
       #     python -m pytest -vv -s --maxfail=1 tests/test_easyrob.py
       #     rm -r /tmp/*
       #     cp -r * /tmp
+
       - run:
           name: Run core and GUI tests with combined coverage
           command: |
@@ -153,14 +154,19 @@ jobs:
 
             # Install ROBERT / AQME dependencies
             python -m pip install --upgrade pip
-            conda install -y -c conda-forge openbabel=3.1.1
-            conda install -y -c conda-forge xtb=6.7.1
-            conda install -y -c conda-forge libgfortran=14.2.0
-            conda install -y -c conda-forge glib
-            pip install weasyprint
-            conda install -y -c conda-forge gtk3
-            conda install -y -c conda-forge pango
-            conda install -y -c conda-forge libxkbcommon
+
+            conda install -y -c conda-forge \
+              openbabel=3.1.1 \
+              xtb=6.7.1 \
+              libgfortran=14.2.0 \
+              glib \
+              gtk3 \
+              pango \
+              libxkbcommon \
+              weasyprint \
+              mscorefonts \
+              fonts-conda-forge
+
             pip install aqme==2.0.0
             pip install .
 
@@ -169,13 +175,12 @@ jobs:
             # Test tooling
             pip install pytest pytest-cov pytest-qt
 
-            # # 1) Run core (non-GUI) tests first, without Xvfb
-            # #    We ignore the GUI test file here.
-            # python -m pytest \
-            #   -v \
-            #   --ignore=tests/test_easyrob.py \
-            #   --cov=robert \
-            #   --cov-report=xml
+            # 1) Run core (non-GUI) tests first, without Xvfb
+            python -m pytest \
+              -v \
+              --ignore=tests/test_easyrob.py \
+              --cov=robert \
+              --cov-report=xml
 
             # 2) Run GUI tests under Xvfb, appending coverage
             export QT_QPA_PLATFORM=offscreen
@@ -183,6 +188,19 @@ jobs:
             export QT_RHI=software
             export QTWEBENGINE_DISABLE_SANDBOX=1
             export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+
+            # --- Sanity check WeasyPrint ---
+            python - << 'EOF'
+            import traceback
+            print("Testing WeasyPrint import...")
+            try:
+                from weasyprint import HTML
+                HTML(string="<p>test</p>").write_pdf("/tmp/test.pdf")
+                print("WeasyPrint OK")
+            except Exception:
+                print("WeasyPrint error:")
+                traceback.print_exc()
+            EOF
 
             xvfb-run -s "-screen 0 1920x1080x24" \
               python -m pytest \
@@ -196,13 +214,12 @@ jobs:
             rm -r /tmp/*
             cp coverage.xml /tmp/
             cp -r robert /tmp/
-
+            
       - persist_to_workspace:
           root: /tmp
           paths:
             - coverage.xml
             - robert
-
   # the codecov orb doesn't work with the miniconda docker, so the coverage report
   # needs to be stored and loaded in a new job using a python docker
   codecov-coverage:

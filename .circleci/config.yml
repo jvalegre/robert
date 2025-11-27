@@ -69,6 +69,7 @@ jobs:
               libgles2 \
               libopengl0 \
               libfontconfig1 \
+              libgobject-2.0-0 \
               libfreetype6 \
               libharfbuzz0b \
               libpango-1.0-0 \

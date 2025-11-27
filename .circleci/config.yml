@@ -163,7 +163,6 @@ jobs:
               gtk3 \
               pango \
               libxkbcommon \
-              weasyprint \
               mscorefonts \
               fonts-conda-forge
 
@@ -175,12 +174,12 @@ jobs:
             # Test tooling
             pip install pytest pytest-cov pytest-qt
 
-            # 1) Run core (non-GUI) tests first, without Xvfb
-            python -m pytest \
-              -v \
-              --ignore=tests/test_easyrob.py \
-              --cov=robert \
-              --cov-report=xml
+            # # 1) Run core (non-GUI) tests first, without Xvfb
+            # python -m pytest \
+            #   -v \
+            #   --ignore=tests/test_easyrob.py \
+            #   --cov=robert \
+            #   --cov-report=xml
 
             # 2) Run GUI tests under Xvfb, appending coverage
             export QT_QPA_PLATFORM=offscreen

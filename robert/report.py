@@ -23,6 +23,7 @@ import glob
 import json
 import platform
 import pandas as pd
+import traceback
 from pathlib import Path
 from robert.utils import (load_variables,
     pd_to_dict,
@@ -76,13 +77,34 @@ class report:
             
         try:
             from weasyprint import HTML
-        except (OSError, ModuleNotFoundError):
-            if platform.system() == 'Windows':
+        except (OSError, ModuleNotFoundError) as e:
+            if platform.system() == "Windows":
                 os.dup2(old_stderr, 2)
                 os.close(old_stderr)
                 temp_stderr.close()
-            print(f"\nx The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'")
-            sys.exit()
+                
+            # DEBUG ALWAYS ENABLED
+            print("\n[ROBERT REPORT DEBUG] Failed to import WeasyPrint in report.__init__")
+            print(f"  Exception type   : {type(e).__name__}")
+            print(f"  Exception message: {e}")
+            print("  sys.path:")
+            for p in sys.path:
+                print(f"    - {p}")
+            print("  Full traceback:")
+            traceback.print_exc()
+            print("-------------------------------------------")
+
+            # Original user-facing message
+            print(
+                "\n✗ The REPORT module requires some libraries that are missing, "
+                "the PDF with the summary of the results has not been created.\n"
+                "Try installing the libraries with:\n"
+                "  conda install -y -c conda-forge glib gtk3 pango mscorefonts"
+            )
+
+            # Keep current behavior: hard failure
+            sys.exit(1)
+            
         finally:
             if platform.system() == 'Windows':
                 os.dup2(old_stderr, 2)

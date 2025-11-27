@@ -69,7 +69,6 @@ jobs:
               libgles2 \
               libopengl0 \
               libfontconfig1 \
-              libgobject-2.0-0 \
               libfreetype6 \
               libharfbuzz0b \
               libpango-1.0-0 \
@@ -166,6 +165,11 @@ jobs:
               libxkbcommon \
               mscorefonts \
               fonts-conda-forge
+              
+            # Ensure the dynamic linker can find native libraries installed inside the conda environment.
+            # WeasyPrint loads GLib/Pango/Cairo through dlopen(), and without this path the loader may miss
+            # libraries such as libgobject-2.0.so.0 that live in $CONDA_PREFIX/lib.
+            export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH}"
 
             pip install aqme==2.0.0
             pip install .

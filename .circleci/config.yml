@@ -190,17 +190,7 @@ jobs:
             export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
 
             # --- Sanity check WeasyPrint ---
-            python - << 'EOF'
-            import traceback
-            print("Testing WeasyPrint import...")
-            try:
-                from weasyprint import HTML
-                HTML(string="<p>test</p>").write_pdf("/tmp/test.pdf")
-                print("WeasyPrint OK")
-            except Exception:
-                print("WeasyPrint error:")
-                traceback.print_exc()
-            EOF
+            python -c "print('Testing WeasyPrint import...'); from weasyprint import HTML; HTML(string='<p>test</p>').write_pdf('/tmp/test.pdf'); print('WeasyPrint OK')"
 
             xvfb-run -s "-screen 0 1920x1080x24" \
               python -m pytest \
@@ -214,7 +204,7 @@ jobs:
             rm -r /tmp/*
             cp coverage.xml /tmp/
             cp -r robert /tmp/
-            
+
       - persist_to_workspace:
           root: /tmp
           paths:

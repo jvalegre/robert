@@ -178,11 +178,11 @@ jobs:
             # ------------------------------------------------------------------
             # Run core (non-GUI) tests first
             # ------------------------------------------------------------------
-            # python -m pytest \
-            #   -v \
-            #   --ignore=tests/test_easyrob.py \
-            #   --cov=robert \
-            #   --cov-report=xml
+            python -m pytest \
+              -v \
+              --ignore=tests/test_easyrob.py \
+              --cov=robert \
+              --cov-report=xml
 
             # CORE_EXIT_CODE=$?
             # if [ "$CORE_EXIT_CODE" -ne 0 ]; then
@@ -204,11 +204,12 @@ jobs:
             # ------------------------------------------------------------------
             xvfb-run -s "-screen 0 1920x1080x24" \
               python -m pytest \
-                -vv -s --maxfail=1 \
+                -vv \
                 --cov=robert --cov=GUI_easyROB \
                 --cov-append \
                 --cov-report=xml \
                 tests/test_easyrob.py
+
 
             GUI_EXIT_CODE=$?
 

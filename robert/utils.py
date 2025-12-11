@@ -673,7 +673,7 @@ def correlation_filter(self, csv_df):
         while True:
             # Find the maximum R2 correlation
             max_r2 = upper.max().max()
-            if max_r2 <= self.args.thres_x:
+            if max_r2 <= self.args.thres_x or str(max_r2).lower() == 'nan':
                 break
             
             # Get ALL pairs with maximum correlation, round to avoid floating point issues
@@ -1144,13 +1144,6 @@ def check_clas_problem(self,csv_df):
                 
                 self.args.log.write(f'\no  Classification labels converted: {self.args.class_0_label} → 0, {self.args.class_1_label} → 1')
                 self.args.log.write(f'   Original labels will be restored in output files')
-
-        if len(set(csv_df[self.args.y])) != 2:
-            self.args.log.write(f'\nx  Only two different y values are currently allowed for classification problems! {len(set(csv_df[self.args.y]))} different values were used: {set(csv_df[self.args.y])}')
-            self.args.log.write(f'   The program detected this is a classification problem (non-numeric values or few unique values)')
-            self.args.log.write(f'   Please use only 2 different class labels (e.g., "active"/"inactive" or 0/1)')
-            self.args.log.finalize()
-            sys.exit()
         
         # Check that each class has at least 5 points
         class_counts = csv_df[self.args.y].value_counts()
@@ -1427,6 +1420,11 @@ def test_select(self,X_scaled,csv_y):
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
 
+    # in the future, we'll adapt other data splitting techniques for classificaiton problems with 3+ target values
+    if self.args.type == 'clas':
+        if len(set(csv_y)) != 2:
+            self.args.split = 'RND' 
+
     if self.args.split.upper() == 'KN':
         # k-neighbours data split
 
@@ -1447,7 +1445,8 @@ def test_select(self,X_scaled,csv_y):
 
         else:
             idx_list = csv_y.index
-            test_points = k_means(self,X_scaled,csv_y,selected_size,self.args.seed,idx_list)
+            training_size = len(csv_y)-selected_size
+            test_points = k_means(self,X_scaled,csv_y,training_size,self.args.seed,idx_list)
 
     elif self.args.split.upper() == 'RND':
         size = round(selected_size * 100 / (len(csv_y)))
@@ -2057,7 +2056,7 @@ def k_means(self,X_scaled,csv_y,size,seed,idx_list):
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
     if self.args.type.lower() == 'reg':
-        test_points = [csv_y.idxmin(),csv_y.idxmax()]
+        test_points = []
         training_idx = [csv_y.idxmin(),csv_y.idxmax()]
         number_of_clusters -= 2
     else:

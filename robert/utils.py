@@ -2725,9 +2725,6 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
             print_distrib += f"\n      o  Your data seems quite uniform"
 
     elif params_dict['type'].lower() == 'clas':
-        if len(y_dist_dict['count_labels']) > 2:
-            self.args.log.write(f"\n      ADAPT THIS PART for 3+ prediction classes!!")
-            sys.exit()
         print_distrib += f"\n      Ideally, the number of datapoints in each prediction class should be uniform (50% population per class) to have similar reliability in the predictions across classes"
         distrib_counts = [y_dist_dict['count_labels'][0],y_dist_dict['count_labels'][1]]
         print_distrib += f"\n      - The number of points in each class is {y_dist_dict['type_labels'][0]}: {y_dist_dict['count_labels'][0]}, {y_dist_dict['type_labels'][1]}: {y_dist_dict['count_labels'][1]}"

@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
 from PySide6.QtGui import QPixmap, QPalette, QIcon, QImage, QMouseEvent, QWheelEvent
-from PySide6.QtCore import (Qt, Slot, QThread, Signal, QObject, QUrl, QTimer, QEventLoop)
+from PySide6.QtCore import (Qt, Slot, QThread, Signal, QObject, QUrl, QTimer, QEventLoop, QRunnable, QThreadPool)
 
 os.environ["QT_QUICK_BACKEND"] = "software"
 
@@ -517,6 +517,20 @@ class AQMETab(QWidget):
 
     def open_chemdraw_popup(self):
         """Open the ChemDraw file dialog and process selected file."""
+        # Pre-dialog notice about file quality and format
+        QMessageBox.information(
+            self,
+            "Before Selecting Your File",
+            (
+                "<b>Before continuing:</b><br><br>"
+                "Please ensure your ChemDraw file is saved in <b>CDXML</b> format. Verify that the molecular structures are valid and free from editing errors such as:<br><br>"
+                "• Red highlights in ChemDraw (invalid valences or atoms)<br>"
+                "• Incorrect or broken bonds<br>"
+                "• Unconnected fragments or misdrawn connections<br><br>"
+                "<i>When everything looks correct, click OK to select your file.</i>"
+            )
+        )
+
         dialog = ChemDrawFileDialog(self)
         if dialog.exec():
             main_path = dialog.main_chemdraw_path
@@ -560,23 +574,26 @@ class AQMETab(QWidget):
             elif path.endswith('.sdf'):
                 return [mol for mol in Chem.SDMolSupplier(path) if mol is not None]
             
-            elif path.endswith(".cdx"): 
-                QMessageBox.critical(
+            elif path.endswith(".cdx"):
+                QMessageBox.warning(
                     self,
-                    "Unsupported CDX Format",
+                    " Unsupported File Format",
                     (
-                        "The selected file is in CDX format, which is currently not supported for automatic import.To proceed, please use the ChemDraw application to export your structures in CDXML format.\n\n"
-                        "➤ If you already have a ChemDraw file in CDX format, open it in ChemDraw and re-save or export it as a .cdxml file.\n\n"
-                        "➤ If re-exporting the entire file is not feasible, you can also manually copy each individual molecule:\n\n"
-                        "   1. Open the CDX file in ChemDraw.\n"
-                        "   2. Select a molecule.\n"
-                        "   3. Press Ctrl+C (or Cmd+C on Mac).\n"
-                        "   4. Paste it (Ctrl+V or Cmd+V) into a new ChemDraw document.\n"
-                        "   5. Save the new document as a CDXML file.\n\n"
-                        "This ensures proper structure recognition and compatibility with the application.\n\n"
+                        "<b>CDX format is not supported! No issue — it only requires exporting to CDXML format.</b><br><br>"
+                        "<b>How to convert your file:</b><br>"
+                        "1. Open your CDX file in ChemDraw.<br>"
+                        "2. Go to <b>File → Save As</b> or <b>Export</b>.<br>"
+                        "3. Choose <b>CDXML (*.cdxml)</b> as the format.<br><br>"
+                        "<b>If this method does not work, you can manually convert individual molecules:</b><br>"
+                        "1. Open the CDX file in ChemDraw.<br>"
+                        "2. Select a molecule.<br>"
+                        "3. Press <b>Ctrl+C</b> (or <b>Cmd+C</b> on Mac).<br>"
+                        "4. Paste it into a new ChemDraw document.<br>"
+                        "5. Save it as <b>CDXML</b>.<br><br>"
+                        "This ensures proper structure recognition and full compatibility with easyROB."
                     )
                 )
-                return []
+                return None
 
             else:
                 mol = Chem.MolFromMolFile(path)
@@ -584,6 +601,11 @@ class AQMETab(QWidget):
 
         mols_main = load_mols_from_path(main_path)
 
+        # If the function returned None, it means we already handled a special case (like .cdx)
+        if mols_main is None:
+            return
+        
+        # If the function returned an empty list, it means there were no valid molecules
         if not mols_main:
             QMessageBox.warning(self, "Error", "No valid molecules found in the file.")
             return
@@ -1138,7 +1160,13 @@ class ResultsTab(QWidget):
 
         self.main_tab_widget = main_tab_widget
         self.base_path = os.path.dirname(file_path)
-        self.pdf_tabs = {}
+        self.pdf_tabs = {}        # {pdf_path: PDFViewer|None}  None => placeholder not materialized
+        self.title_to_path = {}   # {basename: full path}
+
+        # Shared thread pool for all PDF viewers
+        self.shared_pool = QThreadPool()
+        # Tune according to CPU cores; 4–6 is a good start
+        self.shared_pool.setMaxThreadCount(4)
 
         # Internal tab widget for PDF files
         self.pdf_tab_widget = QTabWidget()
@@ -1146,9 +1174,12 @@ class ResultsTab(QWidget):
         layout.addWidget(self.pdf_tab_widget)
         self.setLayout(layout)
 
-        # Check for existing PDFs 
+        self.pdf_tab_widget.currentChanged.connect(self._maybe_materialize_tab)
+
+        # Initial discover
         self.check_for_pdfs()
 
+    # ----------------- Public API -----------------
     def refresh_with_new_path(self, file_path):
         """Updates the path and reloads PDF tabs."""
         self.base_path = os.path.dirname(file_path)
@@ -1157,54 +1188,179 @@ class ResultsTab(QWidget):
 
     def clear_pdf_tabs(self):
         """Remove all existing PDF tabs."""
-        for pdf_viewer in self.pdf_tabs.values():
-            index = self.pdf_tab_widget.indexOf(pdf_viewer)
-            if index != -1:
-                self.pdf_tab_widget.removeTab(index)
-        self.pdf_tabs.clear()
+        # Disable updates for batch UI operations
+        self.pdf_tab_widget.setUpdatesEnabled(False)
+        try:
+            for path, viewer in list(self.pdf_tabs.items()):
+                if viewer:
+                    index = self.pdf_tab_widget.indexOf(viewer)
+                else:
+                    index = self._index_of_title(os.path.basename(path))
+                if index != -1:
+                    self.pdf_tab_widget.removeTab(index)
+                del self.pdf_tabs[path]
+                self.title_to_path.pop(os.path.basename(path), None)
+        finally:
+            self.pdf_tab_widget.setUpdatesEnabled(True)
 
     def check_for_pdfs(self):
-        """Checks for new PDFs and updates the UI dynamically."""
+        """Checks for new PDFs and updates the UI dynamically (fast path: sync glob)."""
         pdf_pattern = os.path.join(self.base_path, "ROBERT_report*.pdf")
         pdf_files = sorted(glob.glob(pdf_pattern))
 
-        # Remove missing PDFs
-        for pdf in list(self.pdf_tabs.keys()):
-            if pdf not in pdf_files:
-                index = self.pdf_tab_widget.indexOf(self.pdf_tabs[pdf])
-                if index != -1:
-                    self.pdf_tab_widget.removeTab(index)
-                del self.pdf_tabs[pdf]
+        # Remove missing
+        to_remove = [p for p in self.pdf_tabs.keys() if p not in pdf_files]
+        if to_remove:
+            self.pdf_tab_widget.setUpdatesEnabled(False)
+            try:
+                for pdf in to_remove:
+                    viewer = self.pdf_tabs[pdf]
+                    if viewer:
+                        idx = self.pdf_tab_widget.indexOf(viewer)
+                    else:
+                        idx = self._index_of_title(os.path.basename(pdf))
+                    if idx != -1:
+                        self.pdf_tab_widget.removeTab(idx)
+                    del self.pdf_tabs[pdf]
+                    self.title_to_path.pop(os.path.basename(pdf), None)
+            finally:
+                self.pdf_tab_widget.setUpdatesEnabled(True)
 
-        # Add new PDFs as tabs
+        # Add placeholders for new PDFs
         for pdf in pdf_files:
             if pdf not in self.pdf_tabs:
                 self.add_pdf_tab(pdf)
 
-    def add_pdf_tab(self, pdf_path):
-        """Creates a new internal tab displaying the PDF."""
-        pdf_viewer = PDFViewer(pdf_path)
-        index = self.pdf_tab_widget.addTab(pdf_viewer, os.path.basename(pdf_path))
-        self.pdf_tabs[pdf_path] = pdf_viewer
+    # ----------------- Internal helpers -----------------
+    def add_pdf_tab(self, pdf_path: str):
+        """Create a lightweight placeholder tab; real viewer is built on demand."""
+        placeholder = QWidget()
+        lay = QVBoxLayout(placeholder)
+        lab = QLabel("Loading PDF…")
+        lab.setAlignment(Qt.AlignCenter)
+        lay.addWidget(lab)
+
+        title = os.path.basename(pdf_path)
+        index = self.pdf_tab_widget.addTab(placeholder, title)
+
+        self.pdf_tabs[pdf_path] = None
+        self.title_to_path[title] = pdf_path
+
+        # Optional: eagerly materialize the very first tab, after UI breathes
+        if self.pdf_tab_widget.count() == 1:
+            QTimer.singleShot(0, lambda: self._materialize_pdf_viewer(index, pdf_path))
+
+    def _maybe_materialize_tab(self, index: int):
+        if index < 0:
+            return
+        title = self.pdf_tab_widget.tabText(index)
+        pdf_path = self.title_to_path.get(title)
+        if not pdf_path:
+            return
+        if self.pdf_tabs.get(pdf_path) is None:
+            self._materialize_pdf_viewer(index, pdf_path)
+
+    def _materialize_pdf_viewer(self, index: int, pdf_path: str):
+        viewer = PDFViewer(pdf_path, thread_pool=self.shared_pool)
+        self.pdf_tabs[pdf_path] = viewer
+        self.pdf_tab_widget.removeTab(index)
+        self.pdf_tab_widget.insertTab(index, viewer, os.path.basename(pdf_path))
         self.pdf_tab_widget.setCurrentIndex(index)
+
+    def _index_of_title(self, title: str) -> int:
+        for i in range(self.pdf_tab_widget.count()):
+            if self.pdf_tab_widget.tabText(i) == title:
+                return i
+        return -1
+
+
+# ------------------------- Worker signals -------------------------
+
+class RenderSignals(QObject):
+    """Signals for page rendering."""
+    finished = Signal(int, float, int, QPixmap)  # page_num, zoom, generation, pixmap
+
+
+class MetaSignals(QObject):
+    """Signals for PDF metadata loading."""
+    done = Signal(int, list)  # page_count, page_sizes
+
+
+# ------------------------- Worker tasks -------------------------
+
+class RenderTask(QRunnable):
+    """Background render task for a single PDF page (open by path; no big upfront I/O)."""
+    def __init__(self, pdf_path: str, page_num: int, zoom: float, generation: int):
+        super().__init__()
+        self.pdf_path = pdf_path
+        self.page_num = page_num
+        self.zoom = zoom
+        self.generation = generation
+        self.signals = RenderSignals()
+
+    @Slot()
+    def run(self):
+        try:
+            # Open by path. Let OS cache/mmap do the heavy lifting.
+            with fitz.open(self.pdf_path) as doc:
+                page = doc.load_page(self.page_num)
+                mat = fitz.Matrix(self.zoom, self.zoom)
+                pix = page.get_pixmap(matrix=mat, alpha=False)
+            qimg = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGB888).copy()
+            qp = QPixmap.fromImage(qimg)
+            self.signals.finished.emit(self.page_num, self.zoom, self.generation, qp)
+        except Exception:
+            self.signals.finished.emit(self.page_num, self.zoom, self.generation, QPixmap())
+
+
+class MetaTask(QRunnable):
+    """Load page count and page sizes off the UI thread."""
+    def __init__(self, pdf_path: str):
+        super().__init__()
+        self.pdf_path = pdf_path
+        self.signals = MetaSignals()
+
+    @Slot()
+    def run(self):
+        try:
+            with fitz.open(self.pdf_path) as doc:
+                count = len(doc)
+                sizes = [tuple(doc.load_page(i).rect.br) for i in range(count)]  # (w_pts, h_pts)
+        except Exception:
+            count, sizes = 1, [(595, 842)]  # Fallback to A4 portrait in points
+        self.signals.done.emit(count, sizes)
+
+
+# ------------------------- PDFViewer (async metadata + visible-only render) -------------------------
 
 class PDFViewer(QWidget):
     """Widget to display a PDF inside a scrollable area with zoom control and threading."""
-    def __init__(self, pdf_path):
+    def __init__(self, pdf_path: str, thread_pool: QThreadPool):
         super().__init__()
         self.pdf_path = pdf_path
-        self.current_zoom = 2.0  # Default zoom
-        self.image_cache = {}  # {(page_num, zoom): QPixmap}
-        self.threads = []  # Keep references to threads to avoid premature garbage collection
+        self.current_zoom = 2.0
 
+        self.thread_pool = thread_pool  # shared
+        self.image_cache = {}           # {(page_num, zoom): QPixmap}
+        self.labels = []                # one QLabel per page
+        self.page_sizes = None          # [(width_pts, height_pts)]
+        self.page_count = None
+        self._renderGeneration = 0      # cancel stale renders
+        self._zoomPending = False
+        self._scrollPending = False
+
+        # UI skeleton first (fast)
         layout = QVBoxLayout(self)
 
+        # Zoom slider (live, coalesced)
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self.zoom_slider.setRange(10, 60)
         self.zoom_slider.setValue(int(self.current_zoom * 10))
-        self.zoom_slider.valueChanged.connect(self.on_zoom_change)
+        self.zoom_slider.setTracking(True)
+        self.zoom_slider.valueChanged.connect(self._schedule_apply_zoom)
         layout.addWidget(self.zoom_slider)
 
+        # Scroll area
         self.scroll_area = QScrollArea(self)
         self.scroll_area.setWidgetResizable(True)
         layout.addWidget(self.scroll_area)
@@ -1213,55 +1369,169 @@ class PDFViewer(QWidget):
         self.scroll_area.setWidget(self.container)
         self.vbox = QVBoxLayout(self.container)
 
-        self.render_pdf()
+        # Temporary "loading…" label until metadata arrives
+        self.loading_label = QLabel("Loading pages…")
+        self.loading_label.setAlignment(Qt.AlignCenter)
+        self.vbox.addWidget(self.loading_label)
 
-    def on_zoom_change(self, value):
-        new_zoom = value / 10.0
-        if new_zoom != self.current_zoom:
-            self.current_zoom = new_zoom
-            self.render_pdf()
+        # Load metadata off the UI thread
+        self._load_metadata_async()
 
-    def render_pdf(self):
-        # Clear UI
-        while self.vbox.count():
-            child = self.vbox.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+    # ---------- Async metadata ----------
+    def _load_metadata_async(self):
+        task = MetaTask(self.pdf_path)
+        task.signals.done.connect(self._apply_metadata, Qt.QueuedConnection)
+        self.thread_pool.start(task)
 
-        # Clear threads (let them finish in background if running)
-        self.threads.clear()
+    @Slot(int, list)
+    def _apply_metadata(self, page_count: int, page_sizes: list):
+        self.page_count = page_count
+        self.page_sizes = page_sizes
 
-        doc = fitz.open(self.pdf_path)
-        self.page_count = len(doc)
-        doc.close()
+        # Replace loading label with real page placeholders
+        if self.loading_label is not None:
+            self.vbox.removeWidget(self.loading_label)
+            self.loading_label.deleteLater()
+            self.loading_label = None
 
-        for page_num in range(self.page_count):
-            placeholder = QLabel()
-            placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.vbox.addWidget(placeholder)
+        self._build_placeholders_for_zoom(self.current_zoom)
 
+        # Now that we know page geometry, hook scroll coalescing
+        self.scroll_area.verticalScrollBar().valueChanged.connect(self._schedule_visible_render)
+
+        # Initial render: only what's visible + tiny warm
+        self._kick_off_visible_render(force=True, warm=1)
+
+    # ---------- Event coalescing ----------
+    def _schedule_apply_zoom(self, _value: int):
+        if self._zoomPending:
+            return
+        self._zoomPending = True
+        QTimer.singleShot(0, self._apply_zoom_now)
+
+    def _apply_zoom_now(self):
+        self._zoomPending = False
+        new_zoom = self.zoom_slider.value() / 10.0
+        if new_zoom == self.current_zoom:
+            return
+        self.current_zoom = new_zoom
+        # Bump generation to discard in-flight renders
+        self._renderGeneration += 1
+        # Keep only current-zoom cache
+        self.image_cache = {k: v for k, v in self.image_cache.items() if k[1] == self.current_zoom}
+        # Recompute placeholder heights and clear labels
+        self._build_placeholders_for_zoom(self.current_zoom)
+        # Kick minimal warm-up
+        self._kick_off_visible_render(force=True, warm=1)
+
+    def _schedule_visible_render(self, _):
+        if self._scrollPending:
+            return
+        self._scrollPending = True
+        QTimer.singleShot(0, self._do_visible_render)
+
+    def _do_visible_render(self):
+        self._scrollPending = False
+        self._kick_off_visible_render()
+
+    # ---------- Layout helpers ----------
+    def _logical_height_for_page(self, page_index: int, zoom: float) -> int:
+        # PDF user space: 72 dpi. Height in pixels ~ points * zoom
+        if self.page_sizes and 0 <= page_index < len(self.page_sizes):
+            _, h_pt = self.page_sizes[page_index]
+        else:
+            h_pt = 842  # A4 portrait fallback in points
+        return max(1, int(h_pt * zoom))
+
+    def _build_placeholders_for_zoom(self, zoom: float):
+        if self.page_count is None:
+            # No metadata yet; keep simple loading label
+            return
+
+        # Create labels once
+        if not self.labels:
+            for _ in range(self.page_count):
+                lbl = QLabel("Rendering…")
+                lbl.setAlignment(Qt.AlignCenter)
+                lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+                self.vbox.addWidget(lbl)
+                self.labels.append(lbl)
+            self.vbox.addStretch(1)
+
+        # Fix heights up-front to avoid layout jumps
+        for i, lbl in enumerate(self.labels):
+            h = self._logical_height_for_page(i, zoom)
+            lbl.setMinimumHeight(h)
+            lbl.setMaximumHeight(h)
+            lbl.setPixmap(QPixmap())
+            lbl.setText("Rendering…")
+
+    def _visible_window(self) -> tuple[int, int]:
+        """Compute first/last visible page indices by scanning cumulative heights."""
+        if not self.labels:
+            return (0, 0)
+
+        vp = self.scroll_area.viewport()
+        top = self.scroll_area.verticalScrollBar().value()
+        bottom = top + vp.height()
+
+        # Find first visible
+        acc = 0
+        first = 0
+        for i, lbl in enumerate(self.labels):
+            acc_next = acc + lbl.height()
+            if acc_next >= top:
+                first = i
+                break
+            acc = acc_next
+
+        # Find last visible
+        acc = 0
+        last = len(self.labels) - 1
+        for j, lbl in enumerate(self.labels):
+            acc += lbl.height()
+            if acc >= bottom:
+                last = j
+                break
+
+        # Prefetch a little around the viewport
+        return max(0, first - 1), min(len(self.labels) - 1, last + 1)
+
+    # ---------- Rendering orchestration ----------
+    def _kick_off_visible_render(self, force: bool = False, warm: int = 0):
+        if self.page_count is None:
+            return
+
+        first, last = self._visible_window()
+        if warm:
+            first = max(0, first - warm)
+            last = min(self.page_count - 1, last + warm)
+
+        gen = self._renderGeneration
+        for page_num in range(first, last + 1):
             key = (page_num, self.current_zoom)
-            if key in self.image_cache:
-                placeholder.setPixmap(self.image_cache[key])
-            else:
-                thread = PageRenderThread(self.pdf_path, page_num, self.current_zoom)
-                thread.finished.connect(self.on_page_rendered)
-                thread.start()
-                self.threads.append(thread)  # keep reference to avoid garbage collection
+            if key in self.image_cache and not force:
+                # Ensure label shows cached pixmap
+                if self.labels[page_num].pixmap() is None:
+                    self.labels[page_num].setPixmap(self.image_cache[key])
+                    self.labels[page_num].setText("")
+                continue
 
-    def on_page_rendered(self, page_num, zoom, pixmap):
-        if zoom != self.current_zoom:
-            return  # ignore outdated render
+            task = RenderTask(self.pdf_path, page_num, self.current_zoom, gen)
+            task.signals.finished.connect(self.on_page_rendered, Qt.QueuedConnection)
+            self.thread_pool.start(task)
 
-        self.image_cache[(page_num, zoom)] = pixmap
-
-        label = QLabel()
-        label.setPixmap(pixmap)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Replace placeholder
-        self.vbox.itemAt(page_num).widget().deleteLater()
-        self.vbox.insertWidget(page_num, label)
+    # ---------- Render completion ----------
+    @Slot(int, float, int, QPixmap)
+    def on_page_rendered(self, page_num: int, zoom: float, generation: int, pixmap: QPixmap):
+        # Discard outdated renders (other zoom or older generation) or failed pixmaps
+        if generation != self._renderGeneration or zoom != self.current_zoom or pixmap.isNull():
+            return
+        key = (page_num, zoom)
+        self.image_cache[key] = pixmap
+        lbl = self.labels[page_num]
+        lbl.setPixmap(pixmap)
+        lbl.setText("")
 
 class ImagesTab(QWidget):
     """Images tab for displaying images from multiple folders as results of Robert workflow."""
@@ -1456,7 +1726,6 @@ class EasyROB(QMainWindow):
         box_features_ignore = "QListWidget { border: 1px solid gray; }"  # Styling for the list widget
 
         self.setWindowTitle("easyROB")
-        self.setGeometry(100, 100, 800, 400)  
         
         # Create a QTabWidget to hold the tabs.
         self.tab_widget = QTabWidget()
@@ -1804,70 +2073,70 @@ class EasyROB(QMainWindow):
         self.web_view.setUrl(QUrl("https://robert.readthedocs.io/en/latest/index.html#"))
         help_layout.addWidget(self.web_view)
 
-        # Databases tab
-        self.descriptor_libraries_tab = QWidget()
-        descriptor_libraries_layout = QVBoxLayout(self.descriptor_libraries_tab)
+        # # Databases tab
+        # self.descriptor_libraries_tab = QWidget()
+        # descriptor_libraries_layout = QVBoxLayout(self.descriptor_libraries_tab)
 
-        # Subclass QWebEngineView so pop-ups/new-window requests are redirected
-        # to the same view (so links that open in a new window load here).
-        class SingleWindowWebView(QWebEngineView):
-            def createWindow(self, webWindowType):
-                tmp = QWebEngineView(self)
-                tmp.setAttribute(Qt.WA_DeleteOnClose, True)
-                tmp.urlChanged.connect(lambda url: (self.setUrl(url), tmp.deleteLater()))
-                return tmp
+        # # Subclass QWebEngineView so pop-ups/new-window requests are redirected
+        # # to the same view (so links that open in a new window load here).
+        # class SingleWindowWebView(QWebEngineView):
+        #     def createWindow(self, webWindowType):
+        #         tmp = QWebEngineView(self)
+        #         tmp.setAttribute(Qt.WA_DeleteOnClose, True)
+        #         tmp.urlChanged.connect(lambda url: (self.setUrl(url), tmp.deleteLater()))
+        #         return tmp
 
-        self.databases_home_url = QUrl("https://descriptor-libraries.molssi.org/")
+        # self.databases_home_url = QUrl("https://descriptor-libraries.molssi.org/")
 
-        home_bar = QWidget()
-        home_bar.setContentsMargins(0, 0, 0, 0)
-        home_bar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        home_layout = QHBoxLayout(home_bar)
-        home_layout.setContentsMargins(0, 0, 0, 0)
-        home_layout.setSpacing(2)
+        # home_bar = QWidget()
+        # home_bar.setContentsMargins(0, 0, 0, 0)
+        # home_bar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # home_layout = QHBoxLayout(home_bar)
+        # home_layout.setContentsMargins(0, 0, 0, 0)
+        # home_layout.setSpacing(2)
 
-        home_button = QPushButton("🏠 MolSSI Databases")
-        home_button.setToolTip("Return to the Databases start page")
-        home_button.setAccessibleName("Databases home button")
-        home_button.setCursor(Qt.PointingHandCursor)
-        home_button.setFixedSize(150, 24)
-        home_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        home_button.clicked.connect(lambda: self.databases_web_view.setUrl(self.databases_home_url))
+        # home_button = QPushButton("🏠 MolSSI Databases")
+        # home_button.setToolTip("Return to the Databases start page")
+        # home_button.setAccessibleName("Databases home button")
+        # home_button.setCursor(Qt.PointingHandCursor)
+        # home_button.setFixedSize(150, 24)
+        # home_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # home_button.clicked.connect(lambda: self.databases_web_view.setUrl(self.databases_home_url))
 
-        home_layout.addWidget(home_button)
-        home_layout.addStretch()
+        # home_layout.addWidget(home_button)
+        # home_layout.addStretch()
 
-        descriptor_libraries_layout.addWidget(home_bar, 0, Qt.AlignLeft)
+        # descriptor_libraries_layout.addWidget(home_bar, 0, Qt.AlignLeft)
 
-        self.databases_web_view = SingleWindowWebView()
-        self.databases_web_view.setUrl(self.databases_home_url)
-        descriptor_libraries_layout.addWidget(self.databases_web_view)
+        # self.databases_web_view = SingleWindowWebView()
+        # self.databases_web_view.setUrl(self.databases_home_url)
+        # descriptor_libraries_layout.addWidget(self.databases_web_view)
 
-        # --- Downloads (CSV/JSON/PDF…) ---
-        profile = self.databases_web_view.page().profile()
-        def _on_download(req: QWebEngineDownloadRequest):
-            # Prompt user once for the destination (suggested filename if available)
-            suggested = req.downloadFileName() or "download"
-            path, _ = QFileDialog.getSaveFileName(self.descriptor_libraries_tab, "Save File", suggested)
-            if not path:
-                req.cancel()
-                return
+        # # --- Downloads (CSV/JSON/PDF…) ---
+        # profile = self.databases_web_view.page().profile()
+        # def _on_download(req: QWebEngineDownloadRequest):
+        #     # Prompt user once for the destination (suggested filename if available)
+        #     suggested = req.downloadFileName() or "download"
+        #     path, _ = QFileDialog.getSaveFileName(self.descriptor_libraries_tab, "Save File", suggested)
+        #     if not path:
+        #         req.cancel()
+        #         return
 
-            dirname = os.path.dirname(path)
-            basename = os.path.basename(path)
-            # Try to set both name and directory; some Qt versions separate these APIs
-            try:
-                req.setDownloadDirectory(dirname)
-                req.setDownloadFileName(basename)
-            except Exception:
-                # Fallback: at least set the directory
-                try:
-                    req.setDownloadDirectory(dirname)
-                except Exception:
-                    pass
-            req.accept()
+        #     dirname = os.path.dirname(path)
+        #     basename = os.path.basename(path)
+        #     # Try to set both name and directory; some Qt versions separate these APIs
+        #     try:
+        #         req.setDownloadDirectory(dirname)
+        #         req.setDownloadFileName(basename)
+        #     except Exception:
+        #         # Fallback: at least set the directory
+        #         try:
+        #             req.setDownloadDirectory(dirname)
+        #         except Exception:
+        #             pass
+        #     req.accept()
 
-        profile.downloadRequested.connect(_on_download)
+        # profile.downloadRequested.connect(_on_download)
 
         # AQME tab (depends on ResultsTab via main_window)
         self.tab_widget_aqme = AQMETab(
@@ -1885,6 +2154,16 @@ class EasyROB(QMainWindow):
             self.web_view
         )
 
+        # The content should have a normal "Preferred" policy so its sizeHint can be larger than the viewport.
+        self.options_tab.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.options_tab.setMinimumSize(0, 0)
+
+        # Wrap options tab in a scroll area to handle large content
+        options_scroll = QScrollArea()
+        options_scroll.setWidgetResizable(True)
+        options_scroll.setMinimumSize(0, 0)  # Prevent the scroll area from imposing a big minimum on the window
+        options_scroll.setWidget(self.options_tab)
+
         # Images tab
         self.image_folders = ["PREDICT", "GENERATE/Raw_data", "VERIFY", "CURATE"]
         self.images_tab = ImagesTab(self.tab_widget, self.image_folders, self.file_path)
@@ -1896,8 +2175,8 @@ class EasyROB(QMainWindow):
         self.tab_widget.addTab(self.tab_widget_aqme, "AQME")
         self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.tab_widget_aqme), False)
 
-        self.tab_widget.addTab(self.descriptor_libraries_tab, "Databases")
-        self.tab_widget.addTab(self.options_tab, "Advanced Options")
+        # self.tab_widget.addTab(self.descriptor_libraries_tab, "Databases")
+        self.tab_widget.addTab(options_scroll, "Advanced Options")
         self.tab_widget.addTab(self.help_tab, "Help")
 
         self.tab_widget.addTab(self.results_tab, "Results")
@@ -1997,35 +2276,57 @@ class EasyROB(QMainWindow):
         if file_path:
             self.set_csv_test_path(file_path)
 
-    def set_file_path(self, file_path):
-        """Sets the path for the input CSV file and updates the interface."""
-        if getattr(self, 'file_path', None) != file_path:
-            self.file_path = file_path
-            file_name = Path(file_path).name
-            self.file_label.setText(f"Selected: {file_name}")
-            self.file_label.setToolTip(file_path)
-            self._last_loaded_file_path = None  # reset 
+    def set_file_path(self, file_path: str, force: bool = False):
+        """
+        Sets the path for the input CSV file and updates the interface.
+        Reloads if the file path changed OR the file was modified (mtime) OR force=True.
+        """
+        p = Path(file_path)
+        current_path = getattr(self, 'file_path', None)
+        current_mtime = getattr(self, '_file_mtime', None)
 
-            # Clear previous content 
-            if hasattr(self.tab_widget_aqme, "df_mapped_smiles"):
-                self.tab_widget_aqme.df_mapped_smiles = None
+        # Compute new file's modification time (None if missing)
+        try:
+            new_mtime = p.stat().st_mtime if p.exists() else None
+        except OSError:
+            new_mtime = None
 
-            self.load_csv_columns()
+        same_path = (current_path == file_path)
+        same_mtime = (current_mtime == new_mtime)
 
-            # Update tabs with new information
-            self.refresh_tabs()
+        # If nothing changed and not forced, bail early
+        if same_path and same_mtime and not force:
+            return
 
-            # Check for PDFs and images and unlock tabs, also check AQME workflow pattern detection
-            self.check_aqme_workflow()
-            self.check_for_pdfs()
-            self.check_for_images()
+        # Update internal state
+        self.file_path = file_path
+        self._file_mtime = new_mtime
 
-            # informatio for "Results" tab and "Images" tab for update the display
-            if hasattr(self, "images_tab") and hasattr(self.images_tab, "refresh_with_new_path"):
-                self.images_tab.refresh_with_new_path(file_path)
+        file_name = p.name
+        self.file_label.setText(f"Selected: {file_name}")
+        self.file_label.setToolTip(file_path)
+        self._last_loaded_file_path = None  # reset
 
-            if hasattr(self, "results_tab") and hasattr(self.results_tab, "refresh_with_new_path"):
-                self.results_tab.refresh_with_new_path(file_path)
+        # Clear previous content
+        if hasattr(self.tab_widget_aqme, "df_mapped_smiles"):
+            self.tab_widget_aqme.df_mapped_smiles = None
+
+        # Reload downstream state
+        self.load_csv_columns()
+        self.refresh_tabs()
+
+        # Check for PDFs, images, and AQME workflow
+        self.check_aqme_workflow()
+        self.check_for_pdfs()
+        self.check_for_images()
+
+        # Notify tabs that depend on path
+        if hasattr(self, "images_tab") and hasattr(self.images_tab, "refresh_with_new_path"):
+            self.images_tab.refresh_with_new_path(file_path)
+
+        if hasattr(self, "results_tab") and hasattr(self, "results_tab") and hasattr(self.results_tab, "refresh_with_new_path"):
+            self.results_tab.refresh_with_new_path(file_path)
+
 
     def set_csv_test_path(self, file_path):
         """Sets the path for the test CSV file and updates the label."""
@@ -2418,8 +2719,8 @@ class EasyROB(QMainWindow):
                 available_columns = [self.available_list.item(i).text() for i in range(self.available_list.count())]
                 lowercase_columns = [col.lower() for col in available_columns]
 
-                if "smiles" not in lowercase_columns:
-                    errors.append("The column 'SMILES' must be present in the CSV file to use the AQME Workflow.")
+                if not any(col.startswith("smiles") for col in lowercase_columns):
+                    errors.append("The CSV file does not contain a column with the name 'smiles' or a column starting with 'smiles_'. Please make sure the column exists.")
 
             # CURATE
             if self.desc_thres_value:
@@ -2845,7 +3146,7 @@ class ChemDrawFileDialog(QDialog):
 
         # Required file
         self.main_label = DropLabel(
-            "Drag & Drop a main .sdf, .cdxml, .mol or .cdx file here",
+            "Drag & Drop a main .sdf, .cdxml, or .mol",
             self,
             file_filter="ChemDraw Files (*.sdf *.cdxml *.mol *.cdx)",
             extensions=(".sdf", ".cdxml", ".mol", ".cdx")
@@ -2853,12 +3154,12 @@ class ChemDrawFileDialog(QDialog):
         self.main_label.set_callback(self.set_main_file)
         layout.addWidget(self.main_label)
 
-        # Static warning message for user awareness
-        self.warning_label = QLabel("⚠️ The file should only contain molecular structures without associated names.")
-        self.warning_label.setStyleSheet("color: red; font-weight: bold;")
-        self.warning_label.setWordWrap(True)
-        self.warning_label.setAlignment(Qt.AlignCenter)  # Center the text
-        layout.addWidget(self.warning_label)
+        # # Static warning message for user awareness
+        # self.warning_label = QLabel("⚠️ The file should only contain molecular structures without associated names.")
+        # self.warning_label.setStyleSheet("color: red; font-weight: bold;")
+        # self.warning_label.setWordWrap(True)
+        # self.warning_label.setAlignment(Qt.AlignCenter)  # Center the text
+        # layout.addWidget(self.warning_label)
 
         # Continue button
         self.continue_button = QPushButton("Continue")

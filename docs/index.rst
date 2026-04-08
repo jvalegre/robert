@@ -73,11 +73,12 @@ Special acknowledgments
    Examples/full_workflow/smiles_vaskas
    Examples/modules/modules
 
-.. toctree:: 
-   :maxdepth: 1
-   :caption: Video Tutorials
+.. toctree::
+   :maxdepth: 2
+   :caption: Tutorials
 
-   Videos/video_tutorials
+   Tutorials/videos
+   Tutorials/tutorials
 
 .. toctree:: 
    :maxdepth: 1

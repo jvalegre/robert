@@ -1,0 +1,40 @@
+.step {
+    border: 1px solid #ddd;
+    padding: 20px;
+    margin-bottom: 20px;
+    background: #f9f9f9;
+}
+
+.step-content {
+    display: none;
+}
+
+.step img {
+    width: 100%;
+    height: auto;
+    margin-bottom: 15px;
+}
+
+.step-text {
+    text-align: justify;        
+}
+
+.step-text p {
+    line-height: 1.4;
+    margin-bottom: 10px;
+}
+
+.step-text ul {
+    margin-left: 20px;
+    line-height: 1.4;
+}
+
+.step-nav {
+    margin-top: 20px;
+}
+
+.step-nav button {
+    padding: 8px 16px;
+    margin-right: 10px;
+    cursor: pointer;
+}

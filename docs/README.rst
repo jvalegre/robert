@@ -327,8 +327,7 @@ It’s ideal for users who are not familiar with conda or command lines.
 .. note::
 
    **macOS users:** there is currently **no preconfigured program** for macOS.  
-   You must follow the manual instructions below to install ROBERT and run the GUI  
-   by downloading ``easyrob.py``.
+   You must follow the manual instructions below to install ROBERT and run the GUI.
 
 
 **Run easyROB Manually**
@@ -346,28 +345,11 @@ To run **easyROB** manually, follow these steps:
 
    conda activate robert
 
-.. |easyrob| image:: /Modules/images/Robert_icon.png
-   :target: https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py
-   :width: 40
-   :align: middle
-
-.. |download| image:: /Modules/images/download.png
-   :width: 140
-   :align: middle
-
-**4.** Download the script `easyrob.py <https://github.com/jvalegre/robert/tree/master/GUI_easyROB/easyrob.py>`__ |easyrob| by clicking this button on GitHub |download|.
-
-**5.** Navigate to the folder where you saved ``easyrob.py`` (for example):
+**4.** Launch easyROB with the following command:
 
 .. code-block:: shell
 
-   cd C:/Users/test_robert
-
-**6.** Launch easyROB with the following command:
-
-.. code-block:: shell
-
-   python easyrob.py
+   easyrob
 
 .. |easyrob_interface| image:: /Modules/images/easyROB.png
    :width: 500
@@ -376,7 +358,7 @@ To run **easyROB** manually, follow these steps:
 
 .. warning::
 
-   The GUI only works with ROBERT version **1.0.5 or later**.  
+   The GUI only works with ROBERT version **2.2.0 or later**.  
    You can check your version by running ``pip show robert``.
 
 .. gui-end 

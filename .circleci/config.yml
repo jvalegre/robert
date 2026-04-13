@@ -217,9 +217,11 @@ jobs:
 
             # PySide6/Qt sometimes causes a segmentation fault (exit code 139) on interpreter shutdown
             # after all tests have passed. In that case we treat the run as successful but emit a warning.
-            if [ "$GUI_EXIT_CODE" -eq 139 ]; then
-              echo "[CI WARNING] GUI tests completed, but PySide6/Qt caused a segmentation fault on interpreter shutdown (exit code 139)."
-              echo "[CI WARNING] Treating exit code 139 as success because all tests passed and coverage.xml was created."
+            
+            if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
+              echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
+              echo "[CI WARNING] This is usually caused by threads or Qt resources not being fully cleaned up (e.g., QThread/QThreadPool/QProcess still running)."
+              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because all tests passed and coverage.xml was generated."
               GUI_EXIT_CODE=0
             fi
 

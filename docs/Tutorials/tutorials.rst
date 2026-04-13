@@ -15,6 +15,9 @@ You will learn how to:
 
 Select a tutorial workflow:
 
+Each tutorial is a step-by-step interactive guide.  
+Use the controls at the bottom to navigate through the different stages of the workflow.
+
 .. tab-set::
 
    .. tab-item:: Overview

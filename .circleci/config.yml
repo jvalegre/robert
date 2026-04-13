@@ -181,7 +181,7 @@ jobs:
               -v \
               --ignore=tests/test_easyrob.py \
               --cov=robert \
-              --cov-report=xml
+              --cov-report=
 
             # CORE_EXIT_CODE=$?
             # if [ "$CORE_EXIT_CODE" -ne 0 ]; then
@@ -204,9 +204,9 @@ jobs:
             xvfb-run -s "-screen 0 1920x1080x24" \
               python -m pytest \
                 -vv \
-                --cov=robert --cov=GUI_easyROB \
+                --cov=robert \
                 --cov-append \
-                --cov-report=xml \
+                --cov-report= \
                 tests/test_easyrob.py
 
 
@@ -230,6 +230,9 @@ jobs:
               echo "[CI] GUI tests failed with exit code $GUI_EXIT_CODE"
               exit "$GUI_EXIT_CODE"
             fi
+
+            # Generate a single combined XML report after both pytest runs
+            coverage xml
 
             # ------------------------------------------------------------------
             # Save coverage and workspace artifacts (only if tests were successful)

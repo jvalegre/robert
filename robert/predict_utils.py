@@ -109,6 +109,10 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     Xy_train[y_col] = y_train_values
     Xy_train[f"{y_col}_pred"] = y_pred_train_values
     Xy_train[f"{y_col}_pred_sd"] = Xy_data['y_pred_train_sd']
+    hw_scalar = float(Xy_data.get("conformal_half_width", float("nan")))
+    if model_data["type"].lower() != "reg":
+        hw_scalar = float("nan")
+    Xy_train[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_train)
 
     # For test set
     y_test_values = Xy_data['y_test'].tolist()
@@ -120,6 +124,7 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     Xy_test[y_col] = y_test_values
     Xy_test[f"{y_col}_pred"] = y_pred_test_values
     Xy_test[f"{y_col}_pred_sd"] = Xy_data['y_pred_test_sd']
+    Xy_test[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_test)
 
     df_results = pd.concat([Xy_train, Xy_test], axis=0)
 
@@ -160,6 +165,7 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
         
         Xy_external[f"{model_data['y']}_pred"] = y_pred_external_values
         Xy_external[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_external_sd']
+        Xy_external[f"{model_data['y']}_pred_conformal_hw"] = [hw_scalar] * len(Xy_external)
 
         path_external = Path(os.getcwd()).joinpath('PREDICT/csv_test/')
         Path(path_external).mkdir(exist_ok=True, parents=True)
@@ -189,25 +195,36 @@ def print_predict(self,Xy_data,model_data,suffix_title):
     '''
     Prints results of the predictions for all the sets
     '''
-    
-    print_results = f"\n   o  Summary of results {model_data['model']}_{suffix_title}:"
-    set_print = 'CV (train+valid.):Test'
+
+    print_results = (
+        "\n   o  Summary of results "
+        f"{model_data['model']}_{suffix_title}:"
+    )
 
     # get number of points and proportions
     n_train = len(Xy_data['y_train'])
     n_test = len(Xy_data['y_test'])
-    n_points = f'{n_train}:{n_test}'
-    print_results += f"\n      -  Points {set_print} = {n_points}"
+    print_results += (
+        "\n      -  Point counts: CV (train+valid.) = "
+        f"{n_train}, held-out test = {n_test}"
+    )
 
     total_points = n_train + n_test
-    prop_train = round(n_train*100/total_points)
-    prop_test = round(n_test*100/total_points)
-    prop_print = f'{prop_train}:{prop_test}'
-    print_results += f"\n      -  Proportion {set_print} = {prop_print}"
-    
+    prop_train = round(n_train * 100 / total_points)
+    prop_test = round(n_test * 100 / total_points)
+    print_results += (
+        f"\n      -  Point split by count: CV {prop_train}%, "
+        f"test {prop_test}% ({n_train} + {n_test} rows; "
+        "not a matrix shape)"
+    )
+
     n_descps = len(Xy_data['X_train'].keys())
     print_results += f"\n      -  Number of descriptors = {n_descps}"
-    print_results += f"\n      -  Proportion (train+valid.) points:descriptors = {n_train}:{n_descps}"
+    print_results += (
+        "\n      -  Train+valid. rows vs descriptor count: "
+        f"{n_train} rows, {n_descps} descriptors "
+        "(not rows-by-columns of one matrix)"
+    )
 
     # print results and save dat file
     CV_type = f"{model_data['repeat_kfolds']}x {model_data['kfold']}-fold CV"

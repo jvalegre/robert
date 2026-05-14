@@ -23,6 +23,7 @@ import glob
 import json
 import platform
 import pandas as pd
+import traceback
 from pathlib import Path
 from robert.utils import (load_variables,
     pd_to_dict,

@@ -2948,6 +2948,32 @@ def get_prediction_results(model_data,y,y_pred_all):
         return acc, f1_score_val, mcc
 
 
+def get_error_labels(model_type):
+    """
+    Returns the three error metric labels for the given model type.
+    
+    Parameters
+    ----------
+    model_type : str
+        The type of model: 'reg' for regression or 'clas' for classification
+        
+    Returns
+    -------
+    tuple of str
+        Three error labels appropriate for the model type:
+        - Regression: ('r2', 'mae', 'rmse')
+        - Classification: ('acc', 'f1', 'mcc')
+    """
+    error_labels = {
+        'reg': ('r2', 'mae', 'rmse'),
+        'clas': ('acc', 'f1', 'mcc')
+    }
+    
+    model_type_lower = model_type.lower()
+    
+    return error_labels[model_type_lower]
+
+
 def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):
     '''
     Loads the parameters and Xy databases from a folder, add scaled X data and print information

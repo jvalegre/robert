@@ -213,17 +213,15 @@ def print_predict(self,Xy_data,model_data,suffix_title):
     prop_train = round(n_train * 100 / total_points)
     prop_test = round(n_test * 100 / total_points)
     print_results += (
-        f"\n      -  Point split by count: CV {prop_train}%, "
-        f"test {prop_test}% ({n_train} + {n_test} rows; "
-        "not a matrix shape)"
+        f"\n      -  Proportion CV (train+valid.):test = "
+        f"{prop_train}:{prop_test}"
     )
 
     n_descps = len(Xy_data['X_train'].keys())
     print_results += f"\n      -  Number of descriptors = {n_descps}"
     print_results += (
-        "\n      -  Train+valid. rows vs descriptor count: "
-        f"{n_train} rows, {n_descps} descriptors "
-        "(not rows-by-columns of one matrix)"
+        "\n      -  Proportion (train+valid.) points:descriptors = "
+        f"{n_train}:{n_descps}"
     )
 
     # print results and save dat file

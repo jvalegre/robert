@@ -1,13 +1,9 @@
 """
 Sklearn-style facade over the ROBERT CLI pipeline.
 
-``RobertModel.fit`` runs CURATE → GENERATE → VERIFY → PREDICT (optional
-REPORT). ``predict`` reuses ``GENERATE/Best_model``. Point predictions use a
-single estimator refit on all training data; ``{y}_pred_sd`` is per-row
-cross-validation disagreement (epistemic spread); regression CSVs also include
-``{y}_pred_conformal_hw`` (split conformal half-width; see docs). Encoding and scaling live
-inside ROBERT (CURATE and ``StandardScaler`` in ``prepare_sets``), not as
-separate sklearn steps on this class.
+``RobertModel`` runs CURATE through PREDICT (optional REPORT). Point
+predictions, uncertainty columns, and matplotlib handling are documented in
+``docs/API/robert.api.rst``.
 """
 
 from __future__ import annotations
@@ -22,6 +18,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional, Tuple, Union
 
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
@@ -56,9 +53,7 @@ def _chdir(path: Path):
 
 @contextmanager
 def _noninteractive_mpl():
-    """Force non-interactive Agg for ROBERT pipeline steps; restore prior backend after."""
-    import matplotlib.pyplot as plt
-
+    """Use Agg during ROBERT steps; restore the previous backend afterward."""
     prev = matplotlib.get_backend()
     was_interactive = matplotlib.is_interactive()
     matplotlib.use("Agg", force=True)
@@ -529,7 +524,8 @@ class RobertModel(BaseEstimator):
                 raise ValueError("X must be 2-D")
             if X.shape[1] != len(descriptors):
                 raise ValueError(
-                    f"X has {X.shape[1]} columns but model expects {len(descriptors)} descriptors"
+                    f"X has {X.shape[1]} columns but model expects "
+                    f"{len(descriptors)} descriptors"
                 )
             X_df = pd.DataFrame(X, columns=descriptors, copy=False)
         else:
@@ -583,7 +579,9 @@ class RobertModel(BaseEstimator):
         name_col_result = _resolve_prediction_id_column(
             result_df, names_key, model_names
         )
-        aligned = result_df.set_index(result_df[name_col_result].astype(str), drop=False)
+        aligned = result_df.set_index(
+            result_df[name_col_result].astype(str), drop=False
+        )
         try:
             ordered = aligned.reindex(order_keys.values)
         except ValueError as err:
@@ -612,14 +610,16 @@ class RobertModel(BaseEstimator):
         if umode in ("conformal", "both"):
             if self.problem_type != "reg":
                 raise ValueError(
-                    "return_uncertainty='conformal' or 'both' is only supported for problem_type='reg'."
+                    "return_uncertainty='conformal' or 'both' is only supported "
+                    "for problem_type='reg'."
                 )
             if hw_col not in result_df.columns:
                 raise RuntimeError(f"Column {hw_col!r} missing in {csv_path}")
             y_hw = ordered[hw_col].to_numpy(dtype=float)
             if np.all(np.isnan(y_hw)):
                 raise RuntimeError(
-                    f"Column {hw_col!r} has no finite values; disable conformal or use a larger training set."
+                    f"Column {hw_col!r} has no finite values; disable conformal "
+                    "or use a larger training set."
                 )
 
         if umode == "cv_sd":

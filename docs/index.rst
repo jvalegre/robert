@@ -46,6 +46,12 @@ Special acknowledgments
    Install/gui
 
 .. toctree::
+   :maxdepth: 2
+   :caption: Tutorials
+
+   Tutorials/videos
+   Tutorials/tutorials
+.. toctree::
    :maxdepth: 1
    :caption: How does ROBERT work?
    
@@ -72,12 +78,6 @@ Special acknowledgments
    Examples/full_workflow/smiles_workflow
    Examples/full_workflow/smiles_vaskas
    Examples/modules/modules
-
-.. toctree:: 
-   :maxdepth: 1
-   :caption: Video Tutorials
-
-   Videos/video_tutorials
 
 .. toctree:: 
    :maxdepth: 1

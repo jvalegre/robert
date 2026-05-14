@@ -2,6 +2,7 @@
 #      This file contains the argument parser       #
 #####################################################.
 
+import copy
 import sys
 
 var_dict = {
@@ -59,8 +60,13 @@ var_dict = {
     "qdescp_keywords" : '',
     "descp_lvl": "interpret",
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
-    "debug_report": False
+    "debug_report": False,
+    # Split conformal (regression): symmetric interval half-width.
+    "conformal_enable": True,
+    "conformal_calib_frac": 0.15,
+    "conformal_coverage": 0.9,
 }
+
 
 # part for using the options in a script or jupyter notebook
 class options_add:
@@ -73,7 +79,7 @@ def set_options(kwargs):
     # dictionary containing default values for options
 
     for key in var_dict:
-        vars(options)[key] = var_dict[key]
+        vars(options)[key] = copy.deepcopy(var_dict[key])
     for key in kwargs:
         if key in var_dict:
             vars(options)[key] = kwargs[key]
@@ -82,5 +88,5 @@ def set_options(kwargs):
         else:
             print("Warning! Option: [", key,":",kwargs[key],"] provided but no option exists, try the online documentation to see available options for each module.",)
             sys.exit()
- 
+
     return options

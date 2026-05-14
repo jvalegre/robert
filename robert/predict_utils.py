@@ -144,18 +144,18 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     # also save results for performance of individual folds (useful for t-tests and Wilcoxon tests between the folds)
     error1, error2, error3 = get_error_labels(model_data['type'])
 
-    df_folds = pd.DataFrame()
-    df_folds['Fold'] = [f'{i+1}' for i in range(len(Xy_data['idx_valid']))]
-    df_folds['idx_valid'] = Xy_data['idx_valid']
-    df_folds[f'{error1}_valid'] = Xy_data[f'fold_{error1}_valid']
-    df_folds[f'{error2}_valid'] = Xy_data[f'fold_{error2}_valid']
-    df_folds[f'{error3}_valid'] = Xy_data[f'fold_{error3}_valid']
-    df_folds[f'{error1}_test'] = Xy_data[f'fold_{error1}_test']
-    df_folds[f'{error2}_test'] = Xy_data[f'fold_{error2}_test']
-    df_folds[f'{error3}_test'] = Xy_data[f'fold_{error3}_test']
+    # df_folds = pd.DataFrame()
+    # df_folds['Fold'] = [f'{i+1}' for i in range(len(Xy_data['idx_valid']))]
+    # df_folds['idx_valid'] = Xy_data['idx_valid']
+    # df_folds[f'{error1}_valid'] = Xy_data[f'fold_{error1}_valid']
+    # df_folds[f'{error2}_valid'] = Xy_data[f'fold_{error2}_valid']
+    # df_folds[f'{error3}_valid'] = Xy_data[f'fold_{error3}_valid']
+    # df_folds[f'{error1}_test'] = Xy_data[f'fold_{error1}_test']
+    # df_folds[f'{error2}_test'] = Xy_data[f'fold_{error2}_test']
+    # df_folds[f'{error3}_test'] = Xy_data[f'fold_{error3}_test']
 
-    path_folds = f'{base_csv_path}_CV_folds'
-    _ = df_folds.to_csv(f'{path_folds}.csv', index = None, header=True)
+    # path_folds = f'{base_csv_path}_CV_folds'
+    # _ = df_folds.to_csv(f'{path_folds}.csv', index = None, header=True)
 
     # prints
     print_preds = f'   o  Saving CSV databases with predictions and their SD in:'   

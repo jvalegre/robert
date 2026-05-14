@@ -13,6 +13,7 @@ from robert.utils import (
     pearson_map,
     graph_reg,
     graph_clas,
+    get_error_labels,
     )
 
 
@@ -134,6 +135,22 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     path_n_suffix = f'{base_csv_path}'
     _ = df_results.to_csv(f'{base_csv_path}.csv', index = None, header=True)
+    
+    # also save results for performance of individual folds (useful for t-tests and Wilcoxon tests between the folds)
+    error1, error2, error3 = get_error_labels(model_data['type'])
+
+    df_folds = pd.DataFrame()
+    df_folds['Fold'] = [f'{i+1}' for i in range(len(Xy_data['idx_valid']))]
+    df_folds['idx_valid'] = Xy_data['idx_valid']
+    df_folds[f'{error1}_valid'] = Xy_data[f'fold_{error1}_valid']
+    df_folds[f'{error2}_valid'] = Xy_data[f'fold_{error2}_valid']
+    df_folds[f'{error3}_valid'] = Xy_data[f'fold_{error3}_valid']
+    df_folds[f'{error1}_test'] = Xy_data[f'fold_{error1}_test']
+    df_folds[f'{error2}_test'] = Xy_data[f'fold_{error2}_test']
+    df_folds[f'{error3}_test'] = Xy_data[f'fold_{error3}_test']
+
+    path_folds = f'{base_csv_path}_CV_folds'
+    _ = df_folds.to_csv(f'{path_folds}.csv', index = None, header=True)
 
     # prints
     print_preds = f'   o  Saving CSV databases with predictions and their SD in:'   

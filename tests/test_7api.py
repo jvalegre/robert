@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
-"""Tests for robert.api.RobertModel."""
+######################################################.
+# 	          Testing API with pytest 	             #
+######################################################.
+
+"""Tests for :class:`robert.api.RobertModel` and related helpers."""
 
 import subprocess
 import sys
@@ -137,10 +141,13 @@ def test_names_col_default_matches_model_after_fit(tmp_path):
 
 
 def test_resolve_prediction_id_column_prefers_exact_then_model_then_casefold():
+    # Exact match on API names column (model_names irrelevant when names_key present).
     df = pd.DataFrame({"Name": ["a", "b"], "Target_values_pred": [1.0, 2.0]})
     assert _resolve_prediction_id_column(df, "Name", "id") == "Name"
+    # Column from GENERATE params when API key differs only by case.
     df2 = pd.DataFrame({"name": ["x"], "Target_values_pred": [3.0]})
     assert _resolve_prediction_id_column(df2, "Name", "name") == "name"
+    # No column matching names_key, model_names, or a unique casefold hit.
     df3 = pd.DataFrame({"other": [1]})
     with pytest.raises(RuntimeError, match="Could not find row id column"):
         _resolve_prediction_id_column(df3, "Name", "missing")

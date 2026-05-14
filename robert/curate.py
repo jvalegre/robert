@@ -8,11 +8,13 @@ Parameters
         Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
     discard : list, default=[]
         List containing the columns of the input CSV file that will not be included as descriptors
-        in the curated CSV file (i.e. ['name','SMILES']).
+        in the curated CSV file (i.e. "['name','SMILES']").
     ignore : list, default=[]
         List containing the columns of the input CSV file that will be ignored during the curation process
-        (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value
+        (i.e. "['name','SMILES']"). The descriptors will be included in the curated CSV file. The y value
         is automatically ignored.
+    names : str, default=''
+        Column of the names for each datapoint. Names are used to print outliers.
     destination : str, default=None,
         Directory to create the output file(s).
     varfile : str, default=None
@@ -24,18 +26,32 @@ Parameters
         1. 'onehot' (for one-hot encoding, ROBERT will create a descriptor for each type of
         C atom using 0s and 1s to indicate whether the C type is present)
         2. 'numbers' (to describe the C atoms with numbers: 1, 2, 3, 4).
-    corr_filter : bool, default=True
-        Activate the correlation filters of descriptors. Two filters will be performed based on the correlation
-        of the descriptors with other descriptors (x filter) and the y values (y filter).
+    corr_filter_x : bool, default=True
+        Activate the correlation filters of descriptors, based on the correlation
+        of the descriptors with other descriptors (x filter).
+    corr_filter_y : bool, default=False
+        Activate the correlation filters of descriptors, based on the correlation
+        of the descriptors with the y values (y filter, for noise). This filter is only 
+        suggested for MVL.
     desc_thres : float, default=25
         Threshold for the descriptor-to-datapoints ratio to loose the correlation filter. By default,
         the correlation filter is loosen if there are 25 times more datapoints than descriptors.
-    thres_x : float, default=0.9
+    thres_x : float, default=0.7
         Thresolhold to discard descriptors based on high R**2 correlation with other descriptors (i.e. 
-        if thres_x=0.9, variables that show R**2 > 0.9 will be discarded).
+        if thres_x=0.7, variables that show R**2 > 0.7 will be discarded).
     thres_y : float, default=0.001
         Thresolhold to discard descriptors with poor correlation with the y values based on R**2 (i.e.
         if thres_y=0.001, variables that show R**2 < 0.001 will be discarded).
+    seed : int, default=0
+        Random seed used in RFECV feature selector and other protocols.
+    kfold : int, default=5
+        Number of random data splits for the cross-validation of the RFECV feature selector. 
+    repeat_kfolds : int, default=10
+        Number of repetitions for the k-fold cross-validation of the RFECV feature selector.
+    auto_type : bool, default=True
+        If there are only two y values, the program automatically changes the type of problem to classification.
+    auto_fill : bool, default = True
+        Complete missing values in columns with descriptors of "float" type using a KNN imputer
 
 """
 #####################################################.
@@ -46,11 +62,8 @@ Parameters
 import time
 import os
 import pandas as pd
-import numpy as np
-from scipy import stats
-from matplotlib import pyplot as plt
-import seaborn as sb
-from robert.utils import load_variables, finish_print, load_database
+from robert.utils import (load_variables, finish_print, load_database, pearson_map,
+                          check_clas_problem, categorical_transform, correlation_filter)
 
 
 class curate:
@@ -71,73 +84,41 @@ class curate:
         self.args = load_variables(kwargs, "curate")
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df = load_database(self,self.args.csv_name,"curate")
+        csv_df,_,_ = load_database(self,self.args.csv_name,"curate")
 
-        # transform categorical descriptors
-        csv_df = self.categorical_transform(csv_df,'curate')
+        # adjust options of classification problems and detects whether the right type of problem was used
+        self = check_clas_problem(self,csv_df)
 
-        # apply duplicate filters (i.e., duplication of datapoints or descriptors)
-        csv_df = self.dup_filter(csv_df)
+        if not self.args.evaluate:
+            # transform categorical descriptors
+            csv_df = categorical_transform(self,csv_df,'curate')
 
-        # apply the correlation filters and returns the database without correlated descriptors
-        if self.args.corr_filter:
-            csv_df = self.correlation_filter(csv_df)
+            # apply duplicate filters (i.e., duplication of datapoints or descriptors)
+            csv_df = self.dup_filter(csv_df)
 
-        # create Pearson heatmap
-        _ = self.pearson_map(csv_df)
+            # apply the correlation filters and returns the database without correlated descriptors
+            if self.args.corr_filter_x or self.args.corr_filter_y:
+                csv_df_result = correlation_filter(self,csv_df)
+                # Check if result is a tuple (model-specific CSVs) or single dataframe
+                if isinstance(csv_df_result, tuple):
+                    csv_df, csv_df_per_model = csv_df_result
+                else:
+                    csv_df = csv_df_result
+                    csv_df_per_model = None
+            else:
+                csv_df_per_model = None
+            
+            # save the curated CSVs (one per model if RFECV is applied)
+            if csv_df_per_model is not None:
+                _ = self.save_curate((csv_df, csv_df_per_model))
+            else:
+                _ = self.save_curate(csv_df)
 
-        # save the curated CSV
-        _ = self.save_curate(csv_df)
+        # create Pearson heatmap (use the general filtered dataframe)
+        _ = pearson_map(self,csv_df,'curate')
 
         # finish the printing of the CURATE info file
         _ = finish_print(self,start_time,'CURATE')
-
-
-    def categorical_transform(self,csv_df,module):
-        # converts all columns with strings into categorical values (one hot encoding
-        # by default, can be set to numerical 1,2,3... with categorical = True).
-        # Troubleshooting! For one-hot encoding, don't use variable names that are
-        # also column headers! i.e. DESCRIPTOR "C_atom" contain C2 as a value,
-        # but C2 is already a header of a different column in the database. Same applies
-        # for multiple columns containing the same variable names.
-
-        if module.lower() == 'curate':
-            txt_categor = f'\no  Analyzing categorical variables'
-
-        descriptors_to_drop, categorical_vars, new_categor_desc = [],[],[]
-        for column in csv_df.columns:
-            if column not in self.args.ignore and column != self.args.y:
-                if(csv_df[column].dtype == 'object'):
-                    descriptors_to_drop.append(column)
-                    categorical_vars.append(column)
-                    if self.args.categorical.lower() == 'numbers':
-                        csv_df[column] = csv_df[column].astype('category')
-                        csv_df[column] = csv_df[column].cat.codes
-                    else:
-                        _ = csv_df[column].unique() # is this necessary?
-                        categor_descs = pd.get_dummies(csv_df[column])
-                        csv_df = csv_df.drop(column, axis=1)
-                        csv_df = pd.concat([csv_df, categor_descs], axis=1)
-                        for desc in categor_descs:
-                            new_categor_desc.append(desc)
-
-        if module.lower() == 'curate':
-            if len(categorical_vars) == 0:
-                txt_categor += f'\n   - No categorical variables were found'
-            else:
-                if self.args.categorical.lower() == 'numbers':
-                    txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option:\n'
-                    txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
-                else:
-                    txt_categor += f'\n   A total of {len(categorical_vars)} categorical variables were converted using the {self.args.categorical} mode in the categorical option'
-                    txt_categor += f'\n   Initial descriptors:\n'
-                    txt_categor += '\n'.join(f'   - {var}' for var in categorical_vars)
-                    txt_categor += f'\n   Generated descriptors:\n'
-                    txt_categor += '\n'.join(f'   - {var}' for var in new_categor_desc)
-
-            self.args.log.write(f'{txt_categor}')
-
-        return csv_df
 
 
     def dup_filter(self,csv_df_dup):
@@ -167,148 +148,63 @@ class curate:
         return csv_df_dup
 
 
-    def correlation_filter(self, csv_df):
-        """
-        Discards a) correlated variables and b) variables that do not correlate with the y values, based
-        on R**2 values.
-        """
-
-        txt_corr = ''
-
-        # loosen correlation filters if there are too few descriptors
-        n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
-        if self.args.desc_thres and n_descps*self.args.desc_thres < len(csv_df[self.args.y]):
-            self.args.thres_x = 0.95
-            self.args.thres_y = 0.0001
-            txt_corr += f'\nx  WARNING! The number of descriptors ({n_descps}) is {self.args.desc_thres} times lower than the number of datapoints ({len(csv_df[self.args.y])}), the correlation filters are loosen to thres_x = 0.95 and thres_y = 0.0001! Default thresholds (0.9 and 0.001) can be used with "--desc_thres False"'
-
-        txt_corr += f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}, thres_y = {self.args.thres_y}'
-
-        descriptors_drop = []
-        txt_corr += f'\n   Excluded descriptors:'
-        for i,column in enumerate(csv_df.columns):
-            if column not in descriptors_drop and column not in self.args.ignore and column != self.args.y:
-                # finds the descriptors with low correlation to the response values
-                try:
-                    res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
-                    rsquared_y = res_y.rvalue**2
-                    if rsquared_y < self.args.thres_y:
-                        descriptors_drop.append(column)
-                        txt_corr += f'\n   - {column}: R**2 = {round(rsquared_y,2)} with the {self.args.y} values'
-                except ValueError: # this avoids X descriptors where the majority of the values are the same
-                    descriptors_drop.append(column)
-                    txt_corr += f'\n   - {column}: error in R**2 with the {self.args.y} values (are all the values the same?)'
-
-                # finds correlated descriptors
-                if column != csv_df.columns[-1] and column not in descriptors_drop:
-                    for j,column2 in enumerate(csv_df.columns):
-                        if j > i and column2 not in self.args.ignore and column not in descriptors_drop and column2 not in descriptors_drop and column2 != self.args.y:
-                            res_x = stats.linregress(csv_df[column],csv_df[column2])
-                            rsquared_x = res_x.rvalue**2
-                            if rsquared_x > self.args.thres_x:
-                                # discard the column with less correlation with the y values
-                                res_xy = stats.linregress(csv_df[column2],csv_df[self.args.y])
-                                rsquared_y2 = res_xy.rvalue**2
-                                if rsquared_y >= rsquared_y2:
-                                    descriptors_drop.append(column2)
-                                    txt_corr += f'\n   - {column2}: R**2 = {round(rsquared_x,2)} with {column}'
-                                else:
-                                    descriptors_drop.append(column)
-                                    txt_corr += f'\n   - {column}: R**2 = {round(rsquared_x,2)} with {column2}'
-        
-        if len(descriptors_drop) == 0:
-            txt_corr += f'\n   -  No descriptors were removed'
-
-        self.args.log.write(txt_corr)
-
-        # drop descriptors that did not pass the filters
-        csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
-        txt_csv = f'\no  {len(csv_df_filtered.columns)} columns remaining after applying duplicate and correlation filters:\n'
-        txt_csv += '\n'.join(f'   - {var}' for var in csv_df_filtered.columns)
-        self.args.log.write(txt_csv)
-
-        return csv_df_filtered
-
-
     def save_curate(self,csv_df):
         '''
         Saves the curated database and options used in CURATE
         '''
-        
-        # saves curated database
-        csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
-        csv_curate_name = f'{csv_basename}_CURATE.csv'
-        csv_curate_name = self.args.destination.joinpath(csv_curate_name)
-        _ = csv_df.to_csv(f'{csv_curate_name}', index = None, header=True)
-        path_reduced = '/'.join(f'{csv_curate_name}'.replace('\\','/').split('/')[-2:])
-        self.args.log.write(f'\no  The curated database was stored in {path_reduced}.')
 
-        # saves important options used in CURATE
+        csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
+        
+        # Check if csv_df is a tuple (csv_df_filtered, csv_df_per_model) from correlation_filter
+        if isinstance(csv_df, tuple):
+            csv_df_filtered, csv_df_per_model = csv_df
+            
+            # Save model-specific curated databases (sorted for reproducibility)
+            for model in csv_df_per_model:
+                csv_curate_name = f'{csv_basename}_CURATE_{model}.csv'
+                csv_curate_name = self.args.destination.joinpath(csv_curate_name)
+                # Sort rows by y value for reproducibility
+                csv_df_to_save = csv_df_per_model[model].reset_index(drop=True).sort_values(by=self.args.y).reset_index(drop=True)
+                _ = csv_df_to_save.to_csv(f'{csv_curate_name}', index=None, header=True)
+
+                # y values to predict, considering that ROBERT will work with multiple values of y in future versions
+                if not isinstance(self.args.y,list):
+                    count_y = 1
+                else:
+                    count_y = len(self.args.y)
+                
+                txt_csv = f'\n   o Model {model}: {len(csv_df_per_model[model].columns)-len(self.args.ignore)-count_y} descriptors remaining:\n'
+                txt_csv += '      ' + ', '.join(f'{var}' for var in csv_df_per_model[model].columns if var not in self.args.ignore and var != self.args.y)
+                self.args.log.write(txt_csv)
+            
+            self.args.log.write(f'\no  Model-specific curated databases were stored in {self.args.destination}')
+            
+            # Save general curated database (for reference/Pearson map, sorted for reproducibility)
+            csv_curate_name_general = f'{csv_basename}_CURATE.csv'
+            csv_curate_name_general = self.args.destination.joinpath(csv_curate_name_general)
+            csv_df_to_save_general = csv_df_filtered.reset_index(drop=True).sort_values(by=self.args.y).reset_index(drop=True)
+            _ = csv_df_to_save_general.to_csv(f'{csv_curate_name_general}', index=None, header=True)
+
+        else:
+            # Original behavior: save single curated database
+            csv_curate_name_general = f'{csv_basename}_CURATE.csv'
+            csv_curate_name_general = self.args.destination.joinpath(csv_curate_name_general)
+            _ = csv_df.to_csv(f'{csv_curate_name_general}', index=None, header=True)
+            path_reduced = '/'.join(f'{csv_curate_name_general}'.replace('\\','/').split('/')[-2:])
+            self.args.log.write(f'\no  The curated database was stored in {path_reduced}.')
+
+        # Save important options used in CURATE
         options_name = f'CURATE_options.csv'
         options_name = self.args.destination.joinpath(options_name)
         options_df = pd.DataFrame()
         options_df['y'] = [self.args.y]
         options_df['ignore'] = [self.args.ignore]
         options_df['names'] = [self.args.names]
-        options_df['csv_name'] = [csv_curate_name]
-        _ = options_df.to_csv(f'{options_name}', index = None, header=True)
-
-
-    def pearson_map(self,csv_df_pearson):
-        '''
-        Creates Pearson heatmap
-        '''
-
-        csv_df_pearson = csv_df_pearson.drop(self.args.ignore,axis=1)
-        corr_matrix = csv_df_pearson.corr()
-        mask = np.zeros_like(corr_matrix, dtype=bool)
-        mask[np.triu_indices_from(mask)]= True
+        options_df['csv_name'] = [csv_curate_name_general]
         
-        # these size ranges avoid matplot errors
-        if len(csv_df_pearson.columns) > 30:
-            disable_plot = True
-        else:
-            disable_plot = False
-            _, ax = plt.subplots(figsize=(7.45,6))
-            size_title = 14
-            size_font = 14-2*((len(csv_df_pearson.columns)/5))
-
-        if disable_plot:
-            self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
-        else:
-            sb.set(font_scale=1.2, style='ticks')
-
-            # determines size of the letters inside the boxes (approx.)
-            annot = True
-            if len(csv_df_pearson.columns) > 30:
-                annot = False
-
-            _ = sb.heatmap(corr_matrix,
-                            mask = mask,
-                            square = True,
-                            linewidths = .5,
-                            cmap = 'coolwarm',
-                            cbar = False,
-                            cbar_kws = {'shrink': .4,
-                                        'ticks' : [-1, -.5, 0, 0.5, 1]},
-                            vmin = -1,
-                            vmax = 1,
-                            annot = annot,
-                            annot_kws = {'size': size_font})
-
-            plt.tick_params(labelsize=size_font)
-            #add the column names as labels
-            ax.set_yticklabels(corr_matrix.columns, rotation = 0)
-            ax.set_xticklabels(corr_matrix.columns)
-
-            title_fig = 'Pearson\'s r heatmap'
-            plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
-            sb.set_style({'xtick.bottom': True}, {'ytick.left': True})
-
-            heatmap_name = 'Pearson_heatmap.png'
-            heatmap_path = self.args.destination.joinpath(heatmap_name)
-            plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
-            plt.clf()
-            path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
-            self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
+        # Save class label mapping if it exists (for classification with string labels)
+        if hasattr(self.args, 'class_0_label'):
+            options_df['class_0_label'] = [self.args.class_0_label]
+            options_df['class_1_label'] = [self.args.class_1_label]
         
+        _ = options_df.to_csv(f'{options_name}', index=None, header=True)

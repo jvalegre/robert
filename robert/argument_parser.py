@@ -2,6 +2,9 @@
 #      This file contains the argument parser       #
 #####################################################.
 
+import copy
+import sys
+
 var_dict = {
     "varfile": None,
     "command_line": False,
@@ -13,47 +16,57 @@ var_dict = {
     "aqme": False,
     "report": False,
     "cheers": False,
-    "seed": [],
-    "generate_acc": 'mid',
+    "evaluate": False,
+    "seed": 0,
     "destination": None,
     "csv_name" : '',
+    "csv_test": '',
     "y" : '',
     "discard" : [],
     "ignore" : [],
     "categorical" : "onehot",
-    "corr_filter" : True,
+    "corr_filter_x" : True,
+    "corr_filter_y" : False,
+    "std" : True,
     "desc_thres" : 25,
     "thres_y" : 0.001,
-    "thres_x" : 0.9,
-    "test_set" : 0.1,
+    "thres_x" : 0.7,
+    "test_set" : 0.2,
     "auto_test" : True,
-    "train" : [60,70,80,90],
-    "auto_kn" : True,
-    "filter_train" : True,
-    "split" : "RND",
+    "auto_type": True,
+    "auto_fill": True,
     "model" : ['RF','GB','NN','MVL'],
+    "eval_model" : 'MVL',
     "custom_params" : None,
     "type" : "reg",
-    "epochs" : 0,
+    "split" : "auto",
+    "nprocs": 8,
     "error_type" : "rmse",
     "pfi_epochs" : 5,
-    "pfi_threshold" : 0.04,
+    "pfi_threshold" : 0.2,
     "pfi_filter" : True,
     "pfi_max" : 0,
-    "thres_test" : 0.25,
+    "init_points" : 10,
+    "n_iter" : 10,
+    "expect_improv" : 0.05,
     "kfold" : 5,
+    "repeat_kfolds" : 10,
+    "alpha" : 0.05,
     "params_dir" : '',
-    "csv_test" : '',
     "t_value" : 2,
     "shap_show" : 10,
     "pfi_show" : 10,
     "names" : '',
     "qdescp_keywords" : '',
-    "csearch_keywords": '--sample 50',
-    "auto_xtb": True,
+    "descp_lvl": "interpret",
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
-    "debug_report": False
+    "debug_report": False,
+    # Split conformal (regression): symmetric interval half-width.
+    "conformal_enable": True,
+    "conformal_calib_frac": 0.15,
+    "conformal_coverage": 0.9,
 }
+
 
 # part for using the options in a script or jupyter notebook
 class options_add:
@@ -66,7 +79,7 @@ def set_options(kwargs):
     # dictionary containing default values for options
 
     for key in var_dict:
-        vars(options)[key] = var_dict[key]
+        vars(options)[key] = copy.deepcopy(var_dict[key])
     for key in kwargs:
         if key in var_dict:
             vars(options)[key] = kwargs[key]
@@ -74,5 +87,6 @@ def set_options(kwargs):
             vars(options)[key.lower()] = kwargs[key.lower()]
         else:
             print("Warning! Option: [", key,":",kwargs[key],"] provided but no option exists, try the online documentation to see available options for each module.",)
+            sys.exit()
 
     return options

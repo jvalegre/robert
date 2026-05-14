@@ -30,84 +30,192 @@ for designing robust ML models, see references [3] and [4].
 
 .. note:: 
 
-   Please note that the ROBERT score has been created using insights from 1) prior publications on best practices for ML models, 2) our own experience with such models, and 3) a comprehensive benchmarking process involving the nine examples presented in the ROBERT publication. The scoring ranges were established with the intention of achieving a consensus among the majority of ML experts at the opposite ends of the spectrum (i.e., very weak and strong models), while the intermediate scores (i.e., weak and moderate) might allow for varied interpretations based on differing opinions.
+   Please note that the ROBERT score was developed based on the following:
+   
+   1) insights from previous publications on best practices for ML models;
+   2) our experience with these models; and
+   3) a comprehensive benchmarking process that involved the nine examples presented in the ROBERT publication (DOI: https://doi.org/10.1002/wcms.1733) along with eight additional examples from low-data regimes (DOI: https://doi.org/10.1039/D5SC00996K).
+   
+   The scoring ranges were established to achieve consensus among ML experts at the extremes (i.e., very weak and strong models), while allowing for varied interpretations of the intermediate scores (i.e., weak and moderate).
    
    **We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!**
+
+|br|
 
 How is the score calculated?
 ++++++++++++++++++++++++++++
 
-**Predictive ability towards an external test set (2 points):**
+**Section B.1. Model vs "flawed" models (from -6 to 0 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The R\ :sup:`2` (for regression) or accuracy (for classification) of an external test set is employed to assess the predictive capabilities of the models found with ROBERT. These models undergo hyperoptimization using both a training set and a validation set. In cases where a test set is absent, metrics from the validation set are used instead. ROBERT, by default, allocates a sufficient number of data points in test/validation sets to ensure the generation of meaningful R\ :sup:`2`/accuracy scores. Furthermore, comparable outcomes were achieved when alternative metrics like RMSE or MAE were employed.
+The tests conducted within the VERIFY module are regarded as score indicators:
 
-====== =============================================================================
-Points Condition
-====== =============================================================================
-•• 2   R\ :sup:`2` > 0.85 (high correlation between predicted and measured y values)
-•\ 1   0.85 > R\ :sup:`2` > 0.70 (moderate correlation)
-0      R\ :sup:`2` < 0.70 (low correlation)
-====== =============================================================================
-
-**Proportion of datapoints vs descriptors (2 points):**
-
-The ratio of datapoints to descriptors used during model hyperoptimization (in the train and validation sets) stands as another crucial parameter. Lower ratios result in simpler models that are more human-interpretable. The extensive literature on ML modeling offers numerous suggested ratios, and we endeavored to select reasonable parameters in accordance with previous recommendations.
-
-====== ==========================================================================
-Points Condition
-====== ==========================================================================
-•• 2   Datapoints:descriptors ratio > 10:1 (reasonably low amount of descriptors)
-•\ 1   10:1 > ratio > 3:1 (moderate amount)
-0      Ratio < 3:1 (too many descriptors)
-====== ==========================================================================
-
-**Passing VERIFY tests (4 points):**
-
-The tests conducted within the VERIFY module are also regarded as score indicators:
-
-*  5-fold CV test: Calculates the accuracy of the model with a 5-fold cross-validation.
 *  y-mean test: Calculates the accuracy of the model when all the predicted y values are fixed to the mean of the measured y values (straight line when plotting measured vs predicted y values).  
 *  y-shuffle test: Calculates the accuracy of the model after shuffling randomly all the measured y values.
 *  onehot test: Calculates the accuracy of the model when replacing all descriptors for 0s and 1s. If the x value is 0, the value will be 0, otherwise it will be 1.
 
-The 5-fold cross-validation test guarantees the meaningfulness of the chosen data partition and guards against data overfitting. 
 The y-mean and y-shuffle tests are valuable in identifying overfitted and underfitted models. 
-Finally, the one-hot test identifies models that are insensitive to specific values but instead focus 
+The one-hot test identifies models that are insensitive to specific values but instead focus 
 on the presence of such values (i.e., reaction datasets filled with 0s where compounds are not used).
 
-====== =====================================================
-Points Condition
-====== =====================================================
-•\ 1   Each of the VERIFY tests passed (up to •••• 4 points)
-====== =====================================================
+.. |space| raw:: html
 
-**Number of outliers in the validation set (only for regression, 2 points):**
+   &nbsp;
 
-The count of outliers in the validation set is determined by analyzing the prediction errors against the mean and standard deviation of errors in the training set. The formula employed to compute the errors of the validation set in terms of standard deviation (SD) units compared to the training set errors is as follows:
+============== ================================
+Points         Condition
+============== ================================
+0               Each of the VERIFY tests passed
+-• -1           Each of the unclear VERIFY tests
+-••  -2         Each of the VERIFY tests failed
+============== ================================
 
-.. code:: shell
+The following examples might help clarify these points:
 
-    SD(valid. point) = [Error(valid. point) - mean error (training set)] / SD (training set)
+.. |reg_verify| image:: images/reg_verify.jpg
+   :width: 400
 
-By default, ROBERT adopts a t-value of 2 to identify outliers, which according to Gaussian distribution principles should lead to approximately 5% of outliers. If the validation set exhibits a high number of outliers, it could indicate overfitting in the training set or an unbalanced distribution of points within the validation set.
+|reg_verify|
 
-====== ============================================================================
-Points Condition
-====== ============================================================================
-•• 2   Outliers < 7.5% (close to a normal distribution of errors in the valid. set)
-•\ 1   7.5% < outliers < 15% (not that far from a normal distribution of errors)
-0      Outliers > 15% (far from a normal distribution of errors)
-====== ============================================================================
+.. |clas_verify| image:: images/clas_verify.jpg
+   :width: 400
 
-**Extra points for VERIFY tests (only for classification, 2 points):**
+|clas_verify|
 
-As outliers are not calculated for classification models, additional points are awarded for passing the y-mean and y-shuffle VERIFY tests. These specific tests were selected due to their significance in identifying potential shortcomings in the predictive capacity of the models.
+|br|
 
-====== ==========================================================
-Points Condition
-====== ==========================================================
-•\ 1   Each y-mean and y-shuffle tests passed (up to •• 2 points)
-====== ==========================================================
+**Section B.2. CV predictions of the model (2 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In regression, two metrics (RMSE and R\ :sup:`2`) are used to ensure a more robust assessment, as a model may show low R\ :sup:`2` while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
+
+============ =======================================================
+Points       Scaled RMSE
+============ =======================================================
+|br|         **Regression**
+•• 2         ≤ 10% (high predictive ability)
+•\ |space| 1 ≤ 20% (moderate predictive ability)
+0            > 20% (low predictive ability)
+|br|         **Classification**
+••• 3        MCC > 0.75 (high predictive ability)
+•• 2         0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
+•\ |space| 1 0.50 ≥ MCC ≥ 0.30 (low predictive ability)
+0            MCC < 0.30 (very low predictive ability)
+============ =======================================================
+
+============ =======================================================
+Points        R\ :sup:`2` (penalty)
+============ =======================================================
+|br|         **Regression**
+-•• -2          R\ :sup:`2` < 0.5
+-• -1           R\ :sup:`2` < 0.7
+0               R\ :sup:`2` >= 0.70
+============ =======================================================
+
+|br|
+
+**Section B.3. Predictive ability & overfitting (8 points):**
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The cross-validation tests guarantee the meaningfulness of the chosen data partition and guards against data overfitting. All the tests from this section use a combined dataset with training and validation sets.
+
+.. |u| raw:: html
+
+   <u>
+
+.. |/u| raw:: html
+
+   </u>
+
+|u| Section B.3a. Predictions test set (2 points) |/u|
+
+In regression, two metrics (RMSE and R\ :sup:`2`) are used to ensure a more robust assessment, as a model may show low R\ :sup:`2` while maintaining an acceptable RMSE. In classification, up to 3 points are assigned based on the MCC.
+
+============ =======================================================
+Points       Scaled RMSE
+============ =======================================================
+|br|         **Regression**
+•• 2         ≤ 10% (high predictive ability)
+•\ |space| 1 ≤ 20% (moderate predictive ability)
+0            > 20% (low predictive ability)
+|br|         **Classification**
+••• 3        MCC > 0.75 (high predictive ability)
+•• 2         0.75 ≥ MCC ≥ 0.50 (moderate predictive ability)
+•\ |space| 1 0.50 ≥ MCC ≥ 0.30 (low predictive ability)
+0            MCC < 0.30 (very low predictive ability)
+============ =======================================================
+
+
+============ =======================================================
+Points        R\ :sup:`2` (penalty)
+============ =======================================================
+|br|         **Regression**
+-•• -2          R\ :sup:`2` < 0.5 
+-• -1           R\ :sup:`2` < 0.7
+0               R\ :sup:`2` >= 0.70 
+============ =======================================================
+
+|u| Section B.3b. Prediction accuracy test vs CV (2 points) |/u|
+
+**Regression**
+
+Differences in scaled RMSE between CV predictions of the model and Predictions test set.
+
+============== ================================
+Points         Scaled RMSE ratio
+============== ================================
+•• 2            Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV)
+•\ |space| 1    Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV)
+0               Scaled RMSE (test) >1.50*scaled RMSE (CV)
+============== ================================
+
+**Classification**
+
+Calculates the model's uncertainty by comparing the MCC obtained from the model with the MCC of the CV from Section 3a.
+
+============ ==============================================
+Points       Condition
+============ ==============================================
+•• 2         MCC difference (ΔMCC) < 0.15 (low uncertainty)
+•\ |space| 1 0.15 ≤ ΔMCC ≤ 0.30 (moderate uncertainty)
+0            ΔMCC > 0.30 (high uncertainty)
+============ ==============================================
+
+|u| Section B.3c. Avg. standard deviation (2 points) |/u|
+
+**Regression**
+
+The model’s uncertainty is estimated using predictions from the 10 repetitions of the 10x 5-fold CV. ROBERT then computes the average standard deviation (SD) from all predictions and multiplies it by 4 to approximate the 95% confidence interval (CI) of a normally distributed population. The score for this test depends on the uncertainty of the results, measured by the width of the 95% CI across the range of y values.
+
+============ ======================================================================
+Points       Condition
+============ ======================================================================
+•• 2         95% CI (or 4*SD) spans less than 25% of the y range (low uncertainty)
+•\ |space| 1 95% CI spans between 25% and 50% of the y range (moderate uncertainty)
+0            95% CI spans more than 50% of the y range (high uncertainty)
+============ ======================================================================
+
+The following examples might help clarify these points:
+
+.. |sd_explain| image:: images/sd_explain.jpg
+   :width: 400
+
+|sd_explain|
+
+.. |sd_examples| image:: images/sd_examples.jpg
+   :width: 400
+
+|sd_examples|
+
+|u| Section B.3d. Extrapolation (sorted CV) (2 points) |/u|
+
+Differences in the RMSE/MCC obtained across the five folds of a sorted 5-fold CV (where target values, y, are sorted from minimum to maximum and not shuffled during CV). First, the minimum RMSE/mMCC among the five folds is identified. Then, the differences between each fold’s RMSE/MCC and this minimum RMSE/MCC are evaluated
+
++------------+--------------------------------------------------+
+| Points     | Condition                                        |
++============+==================================================+
+| • 1      | Every two folds with RMSE/MCC ≤ 1.25*min RMSE/MCC |
++------------+--------------------------------------------------+
 
 Score ranges
 ++++++++++++

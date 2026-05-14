@@ -1,29 +1,29 @@
 # features used in the model
-max_features : [1.0,0.75,0.5,0.25]
+max_features : [1.0, 0.75, 0.5, 0.25]
 
 # learning rate shrinks the contribution of each tree by learning_rate
-learning_rate : [0.01,0.05,0.1,0.5]
+learning_rate : [0.01, 0.05, 0.1]
 
 # proportion of training data to set aside as validation set for early stopping
-validation_fraction : [0.1,0.2,0.3]
+validation_fraction : [0.1, 0.2, 0.3]
 
 # maximum depth of the individual regression estimators
-max_depth : [5,20,40,60,100]
+max_depth : [5,10,20]
 
 # number of boosting stages to perform
-n_estimators : [5,20,40,60,100]
+n_estimators : [10, 20, 50, 100]
 
 # fraction of samples for the base learners
-subsample : [1.0]
+subsample : [0.7, 0.8, 1.0]
 
 # min number of samples in each split
-min_samples_split : [2]
+min_samples_split : [2, 5, 10]
 
 # min number of samples for leaf nodes
-min_samples_leaf : [1]
+min_samples_leaf : [2, 5]
 
 # min weight to be leaf node
-min_weight_fraction_leaf: [0]
+min_weight_fraction_leaf : [0, 0.01, 0.05]
 
 # complexity parameter for pruning
-ccp_alpha : [0]
+ccp_alpha : [0, 0.001, 0.01]

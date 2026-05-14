@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
-version="1.0.6"
+version="2.1.0"
 setup(
     name="robert",
     packages=find_packages(exclude=["tests"]),
-    package_data={"robert": ["model_params/*","report/*"]},
+    package_data={"robert": ["model_params/*","report/*","icons/*"]},
     version=version,
     license="MIT",
     description="Refiner and Optimizer of a Bunch of Existing Regression Tools",
@@ -26,26 +26,31 @@ setup(
         "Intended Audience :: Developers",  # Define that your audience are developers
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.7",  # Specify which python versions you want to support
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",  # Specify which python versions you want to support
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
     ],
     install_requires=[
-        "PyYAML",
-        "pandas>=2.0.3,<2.1",
-        "progress",
-        "numpy>=1.24,<1.25",
-        "matplotlib>=3.7,<3.8",
-        "seaborn",
-        "scipy",
-        "scikit-learn==1.3.0", # fixed to make ROBERT reproducible when using the same version
-        "hyperopt",
-        "numba>=0.57,<0.58",
-        "shap>=0.42,<0.43",
-        # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
-        # optionally, the intelex accelerator might be installed "pip install scikit-learn-intelex"
+        "PyYAML==6.0.3",
+        "matplotlib==3.10.0",
+        "pandas==2.3.3",
+        "numpy==2.3.4",
+        "progress==1.6.1",
+        "seaborn==0.13.2",
+        "scipy==1.15.0",
+        "scikit-learn==1.7.2",
+        "bayesian-optimization==3.1.0",
+        "numba==0.62.1",
+        "shap==0.49.1",
+        "weasyprint==63.1",
+        "PySide6==6.9.2",
+        "PyMuPDF",
+        "ansi2html",
+        "rdkit==2025.9.1",
+        "psutil==7.0.0",
+        "requests==2.32.5",
     ],
-    python_requires=">=3.0",
+    python_requires=">=3.11",
     include_package_data=True,
 )

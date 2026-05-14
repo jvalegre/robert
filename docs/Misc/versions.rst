@@ -4,9 +4,123 @@
 Versions
 ========
 
-Version 1.0.6 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.6>`__]
-   -  Fixing a bad allocation memory issue in generate
+Version 2.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.0>`__]
+   -  In classification problems now we can use 2 different categorial class labels (e.g., "active"/"inactive").
+   -  Changing the way of selecting the 10 first initial points in Bayesian Optimization (now using Latin Hypercube Sampling)
+   -  Deleting first the most correlated features in CURATE module
+   -  Sorting the columns and rows in the csv files to ensure reproducibility
+   -  Using only KNN imputer if you have more than 100 datapoints
+   -  Fixing RFECV (each model now has its own set of descriptors after feature selection)
+   -  Fixing bug in the AQME module when using --csv_test
+   -  Changing pkg_resources to importlib.resources to avoid deprecation warnings
+   -  Fixed bug when selecting test set datapoints with the EVEN option
+   -  Fixed bug in the name of extra_q1 and extra_q5 splitting methods
+   -  Updating packages versions in setup.py
+   -  Molssi databases link in easyROB GUI
+   -  Default split is 'RND' for classification problems
+   -  The sklearn-intelex accelerator was removed
+
+Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
+   -  Fixed bug in MAC and Linux OS from the GENERATE
+   -  Updating AQME version to 1.7.3
+   -  Fixing libgfortran library to version 14.2.0
+
+Version 2.0.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.1>`__]
+   -  The AQME and EVALUATE modules are now fully functional and have been reactivated in this version.
+   -  Fixed classification with external predictions
+   -  Fixed scores from VERIFY tests in clas
+   -  Fixed bug in the detection of automatic classification problems
+   -  Fixed bug in 'load_variables' where the model type and target value were not being saved
+   -  Fixed bug in 'sort_n_load' to ensure reproducibility of sorted CV across different operating systems
+
+Version 2.0.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.0>`__]
+   *Adaptation of the code to avoid overfitting and to use with low-data problems*
+   -  Fixed a bug in one-hot encoding in the one-hot test
+   -  Adding the possibility to disable the automatic standarization of descriptors (--std False)
+   -  Changing CV_test (now it standardizes the full database with sklearn functions)
+   -  Fixing a bug with the sklearn-intelex accelerator
+   -  Fixing a threading bug with matplotlib in SHAP
+   -  train:validation split was replaced by a repeated k-fold CV
+   -  The program always holds out a test set
+   -  The average results of the repeated k-fold CV are used to measure predictive ability and to predict new results
+   -  The BayesianOptimization() is used to find the bets model, using a combined metric that depends on interpolation and extrapolation of diferent types of CVs
+   -  This version does not work with classification problems and the AQME and EVALUATE modules were disabled until v2.0.1.
+   -  Updated ROBERT score, which is more robust towards small data problems
+
+Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
+   -  Fixing a bug in the KNN imputer (it was incorrectly placing values in the target variable)
+   -  Adding a new way of splitting data (stratified) to ensure that the validation points are taken throughout the range of the target values
+   -  Fixing bug to work with spaces in descriptor names
+   -  Changing the way of selecting the best model (now using a combined error metric, not only the validation error)
+   -  Fixing bug in GENERATE when plotting the models' heatmap in case the model had infinite values
+   -  Auto_test is now done by default if the database has more than 100 datapoints
+   -  90% training size disables for datasets with less than 100 datapoints and 80% for less than 50 datapoints
+   -  Changing models paramaters to avoid overgitting in small datasets
+   -  Fixing bug (ROBERT was not reading some CSV files correctly when saved as UTF-8)
+   -  Fixed bug in the report module when the Target_values had spaces
+   -  MVL is replaced with AdaB when ROBERT assigns automated classification problems
+   -  Adding automatic checks to ensure compatible classification problems
+   -  ROBERT score is printed in the section title in the report to save space
+   -  Kmeans clustering is applied individually to the different target values in classification problems to allow for a more compensated training selection
+
+Version 1.2.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.1>`__]
+   -  NN solver are now set to 'lbfgs' by default in the MLPRegressor to work with small datasets
+   -  Thres_x is now set to 0.7 by default in the CURATE module
+   -  Fixing bug in the PREDICT module when using EVALUATE module (it was not showing the linear model equation)
+   -  Adding linear model equation in the REPORT module
+   -  Changing the threshold for correlated features in predict_utils to adjust to the new thres_x
+   -  Changing the way missing values are treated (previously filled with 0s, now using KNN imputer)
+   -  Adding .csv in --csv_test in case the user forgets to add it
+   -  Adding ROBERT score number in the REPORT module
+   -  Creating --descp_lvl to select which descriptors to use in the AQME-ROBERT workflow (interpret/denovo/full)
+   -  The AQME-ROBERT workflow now uses interpretable descriptors by default (--descp_lvl interpret)
+
+Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
+   -  Changing cross-validation (CV) in VERIFY to LOOCV for datasets with less than 50 points
+   -  Changing MAPIE in PREDICT to LOOCV for datasets with less than 50 points
+   -  By default, RFECV uses LOOCV for small datasets and 5-fold CV for larger datasets
+   -  The external test set is chosen more evenly along the range of y values (not fully random)
+   -  Changing the format of the VERIFY plot, from donut to bar plots
+   -  Automatic KN data splitting for databases with less than 250 datapoints
+   -  Change CV_test from ShuffleSplit to Kfold
+   -  Predictions from CV are now represented in a graph and stored in a CSV
+   -  Changing the ROBERT score to depend more heavily on results from CV
+   -  Fixing auto_test (now it works as specified in the documentation)
+   -  Adding clas predictions to report PDF
+   -  Adding new pytests that cover the ROBERT score section from the report PDF
+   -  Adding the EVALUATE module to evaluate linear models with user-defined descriptors and partitions
+   -  Adding Pearson heatmap in PREDICT for the two models, with individual variable correlation analysis
+   -  Adding y-distribution graphs and analysis of uniformity
+   -  Major changes to the report PDF file to include sections rather than modules
+   -  Improving explanation of the ROBERT score on Read The Docs
+   -  Printing coefficients in MVL models inside PREDICT.dat
+   -  Fixing bug in RFECV for classification problems, now it uses RandomForestClassifier()
+   -  Automatic recognition of classification problems
+
+Version 1.1.2 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.2>`__]
+   -  Fixing conda-forge install and making pip install the preferred installation method in ReadtheDocs
+
+Version 1.1.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.1>`__]
+   -  Hotfix of 1.1.0 in the installation
+   -  Add documentation of AQME with versions >=1.6.0, in which SMILES workflows are fully reproducible
+
+Version 1.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.1.0>`__]
+   -  Adding RFECV in CURATE to fix the maximum number of descriptors to 1/3 of datapoints
+   -  Added the possibility to use more than 1 SMILES column in the AQME module
+   -  Change the scoring criteria in the PFI workflow (from R2 to RMSE)
+   -  Fixing models where R2 in validation is much better than in training (if the validation set is very small or unrepresentative, the model may appear to perform excellently simply by chance)
+   -  Fixing PFI_plot bug (now takes all the features into account)
+   -  Fixing a bad allocation memory issue in GENERATE
+   -  Fixing bug in classification models when more than 2 classes of the target variable are present
+   -  Fixing reproducibility when using a specific seed in GENERATE module
+   -  Change CV_test from Kfold to ShuffleSplit and adding a random_state to ensure reproducibility
    -  Allows CSV inputs that use ; as separator
+   -  Fixing CV_test bug in VERIFY (now it uses equal test size to the model tested)
+   -  Adding variability in the prediction with MAPIE python library
+   -  Adding sd in the predictions table when using external test set
+   -  Fixing error_type bug for classification models
+   -  MCC as default metric for classification models (better to check performance in unbalanced datasets)
+   -  PFI workflow now uses the same metric as error_type
 
 Version 1.0.5 [`url <https://github.com/jvalegre/robert/releases/tag/1.0.5>`__]
    -  Fixing some overfitted models with train and validation R2 0.99-1

@@ -19,10 +19,11 @@ This module uses a CSV containing the initial database.
 Automated protocols
 +++++++++++++++++++
 
-*  Filters off correlated descriptors.
-*  Filters off variables with very low correlation to the target values (noise).
+*  Filters off correlated descriptors (with R\ :sup:`2` higher than 0.7).
+*  Filters off variables with very low correlation to the target values (noise, with R\ :sup:`2` lower than 0.001). (Disabled by default)
 *  Filters off duplicates.
-*  Converts categorical descriptors into one-hot descriptors.
+*  Converts categorical descriptors into one-hot or numerical descriptors.
+*  At the end of the curation process, the program uses scikit-learn’s RFECV with repeated K-fold cross-validation to select the most relevant descriptors. The selection can average importances across multiple models (e.g., RF, GB, ADAB) and ensures that the number of descriptors is reduced to one third of the datapoints.
 
 Technical information
 +++++++++++++++++++++

@@ -403,8 +403,8 @@ def test_CURATE(test_job):
                     f"{path_tests}/Robert_example.csv",
                 ]
 
-            cmd_missing = f"{' '.join(cmd_missing)} < {path_tests}/{missing_option}.txt"
-            os.system(cmd_missing)
+            with open(f"{path_tests}/{missing_option}.txt", "r") as f:
+                subprocess.run(cmd_missing, stdin=f, check=True)
             outfile = open(f"{path_curate}/CURATE_data.dat", "r")
             outlines = outfile.readlines()
             outfile.close()

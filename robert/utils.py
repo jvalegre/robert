@@ -51,6 +51,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessCl
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
 from sklearn.impute import KNNImputer
+from sklearn.base import clone
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedShuffleSplit, RepeatedKFold, KFold, StratifiedKFold
 from sklearn.cluster import KMeans
 from sklearn.inspection import permutation_importance
@@ -1251,10 +1252,15 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                 txt_load += f'\n   - {len(csv_df[self.args.y])} datapoints'
                 txt_load += f'\n   - {accepted_descs} accepted descriptors'
                 txt_load += f'\n   - {ignored_descs} ignored descriptors'
-                txt_load += f'\n   - {len(self.args.discard)} discarded descriptors'
+                txt_load += (
+                    f"\n   - {len(self.args.discard)} discarded descriptors"
+                )
             else:
-                txt_load += f'\no  External set {csv_name} loaded successfully, including:'
-                txt_load += f'\n   - {len(csv_df[csv_df.columns[0]])} datapoints'
+                txt_load += (
+                    f"\no  External set {csv_name} loaded successfully, "
+                    "including:"
+                )
+                txt_load += f"\n   - {len(csv_df)} datapoints (rows)"
             self.args.log.write(txt_load)
             if accepted_descs == 0:
                 self.args.log.write(f"\nx  The aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
@@ -1789,6 +1795,104 @@ def correct_hidden_layers(params):
     return params
 
 
+def _conformal_abs_residual_quantile(abs_residuals, coverage):
+    """
+    Finite-sample quantile for split-style conformal symmetric intervals
+    (nonconformity score = absolute residual).
+    """
+    abs_r = np.asarray(abs_residuals, dtype=float)
+    n = int(abs_r.size)
+    if n < 1:
+        return float("nan")
+    alpha = 1.0 - float(coverage)
+    if not (0.0 < alpha < 1.0):
+        return float("nan")
+    level = min(1.0, np.ceil((n + 1) * (1 - alpha)) / n)
+    return float(np.quantile(abs_r, level, method="higher"))
+
+
+def _apply_full_refit_split_conformal(self, model_data, Xy_data, loaded_model, y_cv_mean_train):
+    """
+    Point predictions from a single estimator refit on all training data.
+    For regression, ``conformal_half_width`` uses a held-out calibration split when
+    large enough; otherwise absolute residuals vs CV OOF means on the training set.
+    """
+    reg = model_data["type"].lower() == "reg"
+    m_full = clone(loaded_model)
+    X_tr = Xy_data["X_train_scaled"]
+    y_tr = Xy_data["y_train"]
+
+    m_full.fit(X_tr, y_tr)
+    tr_pred = m_full.predict(X_tr)
+    if reg:
+        Xy_data["y_pred_train"] = np.asarray(tr_pred, dtype=float).tolist()
+    else:
+        Xy_data["y_pred_train"] = [
+            int(round(float(v))) for v in np.asarray(tr_pred).ravel()
+        ]
+
+    if "X_test_scaled" in Xy_data:
+        te_pred = m_full.predict(Xy_data["X_test_scaled"])
+        if reg:
+            Xy_data["y_pred_test"] = np.asarray(te_pred, dtype=float).tolist()
+        else:
+            Xy_data["y_pred_test"] = [
+                int(round(float(v))) for v in np.asarray(te_pred).ravel()
+            ]
+
+    if "X_external_scaled" in Xy_data:
+        ex_pred = m_full.predict(Xy_data["X_external_scaled"])
+        if reg:
+            Xy_data["y_pred_external"] = np.asarray(ex_pred, dtype=float).tolist()
+        else:
+            Xy_data["y_pred_external"] = [
+                int(round(float(v))) for v in np.asarray(ex_pred).ravel()
+            ]
+
+    hw = float("nan")
+    if reg and bool(getattr(self.args, "conformal_enable", True)):
+        cov = float(getattr(self.args, "conformal_coverage", 0.9))
+        cal_frac = float(getattr(self.args, "conformal_calib_frac", 0.15))
+        y_flat = np.asarray(y_tr, dtype=float).ravel()
+        n = len(y_flat)
+        min_fit = 5
+        min_cal = 3
+        n_cal_target = max(min_cal, int(round(n * cal_frac)))
+        n_fit = n - n_cal_target
+        if n_cal_target >= min_cal and n_fit >= min_fit:
+            idx = np.arange(n)
+            fit_ix, cal_ix = train_test_split(
+                idx,
+                test_size=n_cal_target / n,
+                random_state=int(self.args.seed),
+                shuffle=True,
+            )
+            est_cal = clone(loaded_model)
+            if hasattr(X_tr, "iloc"):
+                X_fit_df = X_tr.iloc[fit_ix]
+                X_cal_df = X_tr.iloc[cal_ix]
+            else:
+                X_fit_df = X_tr[fit_ix]
+                X_cal_df = X_tr[cal_ix]
+            if hasattr(y_tr, "iloc"):
+                y_fit_s = y_tr.iloc[fit_ix]
+                y_cal_arr = np.asarray(y_tr.iloc[cal_ix], dtype=float).ravel()
+            else:
+                y_fit_s = y_tr[fit_ix]
+                y_cal_arr = np.asarray(y_tr[cal_ix], dtype=float).ravel()
+            est_cal.fit(X_fit_df, y_fit_s)
+            pred_cal = np.asarray(est_cal.predict(X_cal_df), dtype=float).ravel()
+            abs_res = np.abs(y_cal_arr - pred_cal)
+            hw = _conformal_abs_residual_quantile(abs_res, cov)
+        else:
+            y_cv = np.asarray(y_cv_mean_train, dtype=float).ravel()
+            abs_res = np.abs(y_flat - y_cv)
+            hw = _conformal_abs_residual_quantile(abs_res, cov)
+
+    Xy_data["conformal_half_width"] = hw
+    return Xy_data
+
+
 def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
     '''
     Load model and calculate errors/precision and predicted values of the ML models
@@ -1799,6 +1903,12 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
 
     # calculate predicted y values using repeated k-fold CV
     Xy_data = repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt)
+
+    y_cv_mean_train = np.asarray(Xy_data["y_pred_train"], dtype=float)
+    if not BO_opt:
+        Xy_data = _apply_full_refit_split_conformal(
+            self, model_data, Xy_data, loaded_model, y_cv_mean_train
+        )
 
     # combine all the predictions from the repeated CV (metrics of the train set)
     y_all_list,y_pred_all_list = [],[]
@@ -1875,7 +1985,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
             y_train_pred.append(np.mean(y_val))
         elif model_data['type'].lower() == 'clas':
             y_train_pred.append(int(round(np.mean(y_val))))
-        y_train_std.append(round(np.std(y_val),2))
+        y_train_std.append(float(np.std(y_val)))
 
     Xy_data['y_pred_train_all'] = y_pred_global
     Xy_data['y_pred_train'] = y_train_pred
@@ -1888,7 +1998,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                 y_test_pred.append(np.mean(y_val_test))
             elif model_data['type'].lower() == 'clas':
                 y_test_pred.append(int(round(np.mean(y_val_test))))
-            y_test_std.append(round(np.std(y_val_test),2))
+            y_test_std.append(float(np.std(y_val_test)))
 
         Xy_data['y_pred_test_all'] = y_pred_global_test
         Xy_data['y_pred_test'] = y_test_pred
@@ -1901,7 +2011,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                     y_external_pred.append(np.mean(y_val_external))
                 elif model_data['type'].lower() == 'clas':
                     y_external_pred.append(int(round(np.mean(y_val_external))))
-                y_external_std.append(round(np.std(y_val_external),2))
+                y_external_std.append(float(np.std(y_val_external)))
 
             Xy_data['y_pred_external_all'] = y_pred_global_external
             Xy_data['y_pred_external'] = y_external_pred

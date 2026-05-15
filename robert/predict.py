@@ -42,6 +42,7 @@ from robert.predict_utils import (plot_predictions,
     print_predict,
     pearson_map_predict
     )
+from robert.uq_auto import apply_auto_uq
 from robert.utils import (
     load_variables,
     load_db_n_params,
@@ -93,6 +94,10 @@ class predict:
                 Xy_data = load_n_predict(self, model_data, Xy_data, BO_opt=False)
                 if getattr(self.args, "uq_enable_meta", False):
                     Xy_data = apply_meta_uq_ensemble(
+                        self, Xy_data, model_data, params_dir
+                    )
+                if getattr(self.args, "uq_auto_enable", False):
+                    Xy_data = apply_auto_uq(
                         self, Xy_data, model_data, params_dir
                     )
 

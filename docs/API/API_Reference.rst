@@ -25,4 +25,5 @@ Other modules
    robert.api
    robert.generate_utils
    robert.predict_utils
+   robert.uq_auto
    robert.utils

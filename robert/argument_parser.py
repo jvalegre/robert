@@ -69,6 +69,14 @@ var_dict = {
     "uq_enable_meta": False,
     "uq_top_k_models": 3,
     "uq_model_weighting": "score_weighted",
+    # Auto uncertainty selection (regression; opt-in).
+    "uq_auto_enable": False,
+    "uq_auto_candidates": ["cv_sd", "conformal", "meta_total"],
+    "uq_auto_scaler": "global_multiplicative",
+    "uq_auto_metric_weights": {"coverage": 1.0, "sharpness": 0.25, "nll": 0.5},
+    "uq_auto_min_samples": 12,
+    "uq_auto_random_state": 0,
+    "uq_auto_clas_mode": "error",
 }
 
 

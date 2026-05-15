@@ -7,10 +7,12 @@ VERIFY, PREDICT) and exposes ``fit`` / ``predict`` / ``score`` on
 columns aligned with the pipeline:
 
 - ``{y}_pred``: point prediction from the **selected estimator refit on all training
-  data** (deployment-style mean).
+  data** (deployment-style mean), or a **weighted average** / **weighted vote** when
+  meta-model uncertainty is enabled (see below).
 - ``{y}_pred_sd``: per-row **standard deviation across repeated cross-validation
   predictions** (disagreement between refits on overlapping training folds; related
-  to epistemic instability, not a calibrated predictive distribution).
+  to epistemic instability, not a calibrated predictive distribution). With meta UQ
+  enabled, this column is set to ``{y}_pred_uq_total``.
 - ``{y}_pred_conformal_hw`` (**regression only**): a single **symmetric interval
   half-width** from split-style conformal calibration (absolute residuals on a
   held-out calibration slice of the training set when large enough, otherwise
@@ -20,15 +22,60 @@ columns aligned with the pipeline:
   ``conformal_calib_frac``, and ``conformal_coverage`` in :class:`~robert.api.RobertModel`
   kwargs. For **classification**, this column is present but filled with NaN;
   ``{y}_pred_sd`` reflects **vote spread** across CV refits, not class probabilities.
+- ``{y}_pred_uq_model`` (**meta UQ, opt-in**): within-model component (mean CV spread
+  across the top-k candidates; regression uses variance decomposition).
+- ``{y}_pred_uq_meta`` (**meta UQ, opt-in**): between-model component (spread of
+  top-k point predictions).
+- ``{y}_pred_uq_total`` (**meta UQ, opt-in**): combined uncertainty (regression:
+  :math:`\sqrt{\mathrm{E}[\sigma^2] + \mathrm{Var}(\hat y)}`; classification uses a
+  heuristic combining vote spread and between-model disagreement).
 
 ``predict`` returns ``{y}_pred`` values aligned to input rows. Uncertainty:
 
 - ``return_std=True`` is equivalent to ``return_uncertainty="cv_sd"`` and returns
   ``(y, sd_cv)``.
-- ``return_uncertainty="conformal"`` (regression only) returns ``(y, half_width)``.
-- ``return_uncertainty="both"`` returns ``(y, sd_cv, half_width)``.
+- ``return_uncertainty="conformal"`` (**regression only**) returns ``(y, half_width)``.
+- ``return_uncertainty="both"`` (**regression only**) returns ``(y, sd_cv, half_width)``.
+- ``return_uncertainty="meta"`` returns ``(y, uq_meta)`` (requires ``uq_enable_meta=True``).
+- ``return_uncertainty="total"`` returns ``(y, uq_total)`` (requires ``uq_enable_meta=True``).
+- ``return_uncertainty="decomposed"`` returns ``(y, uq_model, uq_meta, uq_total)``
+  (requires ``uq_enable_meta=True``).
 - If both ``return_std`` and ``return_uncertainty`` are set, ``return_uncertainty``
   wins and a warning is issued.
+
+Configuration (meta-model kwargs)
+---------------------------------
+
+- ``uq_enable_meta`` (``False``), ``uq_top_k_models`` (``3``),
+  ``uq_model_weighting`` (``"score_weighted"`` or ``"uniform"``).
+
+Meta-model uncertainty
+----------------------
+
+Enable with ``uq_enable_meta=True`` on :class:`~robert.api.RobertModel``. PREDICT
+re-runs up to ``uq_top_k_models`` estimators ranked by GENERATE
+``combined_{error_type}`` scores in ``GENERATE/Raw_data``, then combines predictions
+with ``uq_model_weighting``. **Regression** uses a weighted mean and law-of-total-variance
+decomposition. **Classification** uses a weighted vote and heuristic uncertainty
+components (not class probabilities). If Raw_data has no candidates, CV spread is
+used with zero meta component and a warning is issued.
+
+Example (meta UQ):
+
+.. code-block:: python
+
+   model_meta = RobertModel(
+       problem_type="reg",
+       workdir="./robert_run_meta",
+       model=["RF", "GB"],
+       uq_enable_meta=True,
+       uq_top_k_models=2,
+   )
+   model_meta.fit(X.iloc[:25], y.iloc[:25])
+   y_meta, uq_between = model_meta.predict(X.iloc[25:], return_uncertainty="meta")
+   y_dec, uq_m, uq_b, uq_t = model_meta.predict(
+       X.iloc[25:], return_uncertainty="decomposed"
+   )
 
 Pipeline semantics
 ------------------

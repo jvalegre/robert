@@ -42,9 +42,11 @@ from robert.predict_utils import (plot_predictions,
     print_predict,
     pearson_map_predict
     )
-from robert.utils import (load_variables,
+from robert.utils import (
+    load_variables,
     load_db_n_params,
     load_n_predict,
+    apply_meta_uq_ensemble,
     finish_print,
     print_pfi,
     PFI_plot,
@@ -89,6 +91,10 @@ class predict:
                 
                 # get results from training, test and external test (if any)
                 Xy_data = load_n_predict(self, model_data, Xy_data, BO_opt=False)
+                if getattr(self.args, "uq_enable_meta", False):
+                    Xy_data = apply_meta_uq_ensemble(
+                        self, Xy_data, model_data, params_dir
+                    )
 
                 # save predictions for all sets
                 path_n_suffix, name_points, Xy_data = save_predictions(self,Xy_data,model_data,suffix_title)

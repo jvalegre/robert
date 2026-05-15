@@ -176,6 +176,9 @@ class RobertModel(BaseEstimator):
     :param kwargs: Additional ROBERT options (keys in ``robert.argument_parser.var_dict``),
         e.g. ``model``, ``n_iter``. Regression uncertainty tuning includes
         ``conformal_enable``, ``conformal_calib_frac``, and ``conformal_coverage``.
+        Top-k meta-model uncertainty (opt-in) uses ``uq_enable_meta``,
+        ``uq_top_k_models``, and ``uq_model_weighting`` (``"score_weighted"`` or
+        ``"uniform"``).
     """
 
     def __init__(
@@ -491,11 +494,20 @@ class RobertModel(BaseEstimator):
         self,
         X: Union[pd.DataFrame, np.ndarray],
         return_std: bool = False,
-        return_uncertainty: Literal[False, "cv_sd", "conformal", "both"] = False,
+        return_uncertainty: Literal[
+            False,
+            "cv_sd",
+            "conformal",
+            "both",
+            "meta",
+            "total",
+            "decomposed",
+        ] = False,
     ) -> Union[
         np.ndarray,
         Tuple[np.ndarray, np.ndarray],
         Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
     ]:
         if not self.is_fitted_:
             raise RuntimeError("Call fit before predict.")
@@ -503,7 +515,15 @@ class RobertModel(BaseEstimator):
         assert workdir is not None
 
         if return_uncertainty is not False:
-            umode: Literal[False, "cv_sd", "conformal", "both"] = return_uncertainty
+            umode: Literal[
+                False,
+                "cv_sd",
+                "conformal",
+                "both",
+                "meta",
+                "total",
+                "decomposed",
+            ] = return_uncertainty
             if return_std:
                 warnings.warn(
                     "return_uncertainty is set; return_std is ignored.",
@@ -572,6 +592,9 @@ class RobertModel(BaseEstimator):
         pred_col = f"{y_target}_pred"
         sd_col = f"{y_target}_pred_sd"
         hw_col = f"{y_target}_pred_conformal_hw"
+        uq_model_col = f"{y_target}_pred_uq_model"
+        uq_meta_col = f"{y_target}_pred_uq_meta"
+        uq_total_col = f"{y_target}_pred_uq_total"
         if pred_col not in result_df.columns:
             raise RuntimeError(f"Column {pred_col!r} missing in {csv_path}")
 
@@ -621,12 +644,37 @@ class RobertModel(BaseEstimator):
                     f"Column {hw_col!r} has no finite values; disable conformal "
                     "or use a larger training set."
                 )
+        if umode in ("meta", "total", "decomposed"):
+            if not bool(self._rob_kwargs.get("uq_enable_meta", False)):
+                raise ValueError(
+                    "return_uncertainty='meta', 'total', or 'decomposed' requires "
+                    "uq_enable_meta=True when constructing RobertModel."
+                )
+            for col in (uq_model_col, uq_meta_col, uq_total_col):
+                if col not in result_df.columns:
+                    raise RuntimeError(
+                        f"Column {col!r} missing in {csv_path}; refit with "
+                        "uq_enable_meta=True or run predict after enabling meta UQ."
+                    )
+            y_uq_model = ordered[uq_model_col].to_numpy(dtype=float)
+            y_uq_meta = ordered[uq_meta_col].to_numpy(dtype=float)
+            y_uq_total = ordered[uq_total_col].to_numpy(dtype=float)
+            if not (np.isfinite(y_uq_total).all() and (y_uq_total >= 0).all()):
+                raise RuntimeError(
+                    f"Column {uq_total_col!r} has invalid uncertainty values."
+                )
 
         if umode == "cv_sd":
             return y_pred, y_sd
         if umode == "conformal":
             return y_pred, y_hw
-        return y_pred, y_sd, y_hw
+        if umode == "both":
+            return y_pred, y_sd, y_hw
+        if umode == "meta":
+            return y_pred, y_uq_meta
+        if umode == "total":
+            return y_pred, y_uq_total
+        return y_pred, y_uq_model, y_uq_meta, y_uq_total
 
     def score(
         self,

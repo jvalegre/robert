@@ -44,6 +44,28 @@ def test_csv(self,Xy_test_df,descs_model,params_df):
     return X_test_df, y_test_df
 
 
+def _uq_columns_for_split(Xy_data, y_col, split):
+    """Optional meta-UQ and auto-UQ columns for a train/test/external split."""
+    prefix = f"y_pred_{split}"
+    out = {}
+    for suffix in ("uq_model", "uq_meta", "uq_total"):
+        key = f"{prefix}_{suffix}"
+        if key in Xy_data:
+            out[f"{y_col}_pred_{suffix}"] = Xy_data[key]
+    auto_key = f"{prefix}_uq_auto"
+    if auto_key in Xy_data:
+        out[f"{y_col}_pred_uq_auto"] = Xy_data[auto_key]
+    return out
+
+
+def _uq_auto_source_column(Xy_data):
+    """Constant source label for the selected auto uncertainty candidate."""
+    selected = Xy_data.get("uq_auto_selected")
+    if not selected:
+        return None
+    return str(selected)
+
+
 def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     '''
     Plot graphs of predicted vs actual values for train, validation and test sets
@@ -109,10 +131,15 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     Xy_train[y_col] = y_train_values
     Xy_train[f"{y_col}_pred"] = y_pred_train_values
     Xy_train[f"{y_col}_pred_sd"] = Xy_data['y_pred_train_sd']
+    for col_name, col_vals in _uq_columns_for_split(Xy_data, y_col, "train").items():
+        Xy_train[col_name] = col_vals
     hw_scalar = float(Xy_data.get("conformal_half_width", float("nan")))
     if model_data["type"].lower() != "reg":
         hw_scalar = float("nan")
     Xy_train[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_train)
+    auto_src = _uq_auto_source_column(Xy_data)
+    if auto_src is not None:
+        Xy_train[f"{y_col}_pred_uq_auto_source"] = [auto_src] * len(Xy_train)
 
     # For test set
     y_test_values = Xy_data['y_test'].tolist()
@@ -124,7 +151,11 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     Xy_test[y_col] = y_test_values
     Xy_test[f"{y_col}_pred"] = y_pred_test_values
     Xy_test[f"{y_col}_pred_sd"] = Xy_data['y_pred_test_sd']
+    for col_name, col_vals in _uq_columns_for_split(Xy_data, y_col, "test").items():
+        Xy_test[col_name] = col_vals
     Xy_test[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_test)
+    if auto_src is not None:
+        Xy_test[f"{y_col}_pred_uq_auto_source"] = [auto_src] * len(Xy_test)
 
     df_results = pd.concat([Xy_train, Xy_test], axis=0)
 
@@ -165,7 +196,15 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
         
         Xy_external[f"{model_data['y']}_pred"] = y_pred_external_values
         Xy_external[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_external_sd']
+        for col_name, col_vals in _uq_columns_for_split(
+            Xy_data, model_data["y"], "external"
+        ).items():
+            Xy_external[col_name] = col_vals
         Xy_external[f"{model_data['y']}_pred_conformal_hw"] = [hw_scalar] * len(Xy_external)
+        if auto_src is not None:
+            Xy_external[f"{model_data['y']}_pred_uq_auto_source"] = [
+                auto_src
+            ] * len(Xy_external)
 
         path_external = Path(os.getcwd()).joinpath('PREDICT/csv_test/')
         Path(path_external).mkdir(exist_ok=True, parents=True)

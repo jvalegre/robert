@@ -65,6 +65,10 @@ var_dict = {
     "conformal_enable": True,
     "conformal_calib_frac": 0.15,
     "conformal_coverage": 0.9,
+    # Top-k meta-model uncertainty (Python API / optional PREDICT path).
+    "uq_enable_meta": False,
+    "uq_top_k_models": 3,
+    "uq_model_weighting": "score_weighted",
 }
 
 

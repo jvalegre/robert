@@ -1796,6 +1796,238 @@ def correct_hidden_layers(params):
     return params
 
 
+def _raw_data_dir_from_best_params(params_dir):
+    """Map ``GENERATE/Best_model/{PFI|No_PFI}`` to ``GENERATE/Raw_data/{PFI|No_PFI}``."""
+    p = Path(str(params_dir))
+    parts = list(p.parts)
+    if "Best_model" in parts:
+        idx = parts.index("Best_model")
+        parts[idx] = "Raw_data"
+        return Path(os.getcwd()).joinpath(*parts)
+    if "Raw_data" in parts:
+        return Path(os.getcwd()).joinpath(*parts)
+    return Path(os.getcwd()).joinpath("GENERATE", "Raw_data", p.name)
+
+
+def discover_top_k_model_candidates(raw_data_dir, top_k, weighting="score_weighted"):
+    """
+    List up to ``top_k`` model parameter CSV paths ranked by GENERATE combined score.
+
+    Returns a list of dicts with keys ``path``, ``model``, ``score``, ``error_type``,
+    ``weight`` (normalized, higher is better for classification metrics).
+    """
+    raw_path = Path(raw_data_dir)
+    if not raw_path.is_dir():
+        return []
+
+    entries = []
+    for csv_file in sorted(glob.glob(str(raw_path.joinpath("*.csv")))):
+        if csv_file.endswith("_db.csv"):
+            continue
+        try:
+            results = pd.read_csv(csv_file, encoding="utf-8")
+        except (OSError, ValueError, KeyError):
+            continue
+        if results.empty or "error_type" not in results.columns:
+            continue
+        err_type = str(results["error_type"].iloc[0])
+        comb_col = f"combined_{err_type}"
+        if comb_col not in results.columns:
+            continue
+        score = float(results[comb_col].iloc[0])
+        model_name = Path(csv_file).stem.split("_")[0]
+        entries.append(
+            {
+                "path": csv_file,
+                "model": model_name,
+                "score": score,
+                "error_type": err_type,
+            }
+        )
+
+    if not entries:
+        return []
+
+    lower_is_better = entries[0]["error_type"].lower() in ("mae", "rmse")
+    entries.sort(key=lambda e: e["score"], reverse=not lower_is_better)
+    entries = entries[: max(1, int(top_k))]
+
+    if weighting == "uniform" or len(entries) == 1:
+        w = 1.0 / len(entries)
+        for e in entries:
+            e["weight"] = w
+        return entries
+
+    scores = np.array([e["score"] for e in entries], dtype=float)
+    if lower_is_better:
+        # Convert errors to weights (smaller error -> larger weight).
+        shifted = scores.max() - scores + 1e-12
+        raw_w = shifted
+    else:
+        raw_w = np.maximum(scores, 0.0) + 1e-12
+    raw_w = raw_w / raw_w.sum()
+    for e, w in zip(entries, raw_w):
+        e["weight"] = float(w)
+    return entries
+
+
+def aggregate_meta_uq_decomposition(preds_stack, sd_stack, weights, problem_type):
+    """
+    Combine per-model predictions and within-model CV SD into decomposition scalars.
+
+    Regression uses the law of total variance (within + between). Classification
+    uses a heuristic on vote-spread (within) and between-model label disagreement.
+
+    Returns
+    -------
+    y_point, uq_model, uq_meta, uq_total
+        Point prediction and nonnegative uncertainty components per row.
+    """
+    preds = np.asarray(preds_stack, dtype=float)
+    sds = np.asarray(sd_stack, dtype=float)
+    w = np.asarray(weights, dtype=float).ravel()
+    if preds.ndim != 2:
+        preds = preds.reshape(1, -1)
+    if sds.ndim != 2:
+        sds = sds.reshape(1, -1)
+    if w.size != preds.shape[0]:
+        w = np.ones(preds.shape[0], dtype=float) / preds.shape[0]
+    w = w / w.sum()
+
+    if problem_type.lower() == "reg":
+        y_point = np.average(preds, axis=0, weights=w)
+        within_var = np.average(sds ** 2, axis=0, weights=w)
+        mean_pred = np.average(preds, axis=0, weights=w)
+        between_var = np.average((preds - mean_pred) ** 2, axis=0, weights=w)
+        uq_model = np.sqrt(np.maximum(within_var, 0.0))
+        uq_meta = np.sqrt(np.maximum(between_var, 0.0))
+        uq_total = np.sqrt(np.maximum(within_var + between_var, 0.0))
+        return y_point, uq_model, uq_meta, uq_total
+
+    # Classification: preds are class labels; use float spread heuristics.
+    preds_f = preds.astype(float)
+    y_point = np.array(
+        [int(round(np.average(preds_f[:, i], weights=w))) for i in range(preds_f.shape[1])],
+        dtype=int,
+    )
+    uq_model = np.average(sds, axis=0, weights=w)
+    mean_pred = np.average(preds_f, axis=0, weights=w)
+    uq_meta = np.sqrt(
+        np.maximum(np.average((preds_f - mean_pred) ** 2, axis=0, weights=w), 0.0)
+    )
+    uq_total = np.sqrt(np.maximum(uq_model ** 2 + uq_meta ** 2, 0.0))
+    return y_point, uq_model, uq_meta, uq_total
+
+
+def _snapshot_prediction_fields(Xy_data, prefix):
+    """Copy prediction-related lists for one split prefix (train/test/external)."""
+    keys = [f"y_pred_{prefix}", f"y_pred_{prefix}_sd"]
+    return {k: list(Xy_data[k]) for k in keys if k in Xy_data}
+
+
+def _restore_prediction_fields(Xy_data, prefix, snap):
+    for k, v in snap.items():
+        Xy_data[k] = v
+
+
+def apply_meta_uq_ensemble(self, Xy_data, model_data, params_dir):
+    """
+    Run top-k models from GENERATE Raw_data and attach meta UQ fields on ``Xy_data``.
+
+    No-op unless ``self.args.uq_enable_meta`` is true. Re-runs ``load_n_predict`` for
+    each candidate while restoring base point predictions between models. Writes
+    ``y_pred_{split}_uq_{model,meta,total}`` and sets ``y_pred_{split}_sd`` to total.
+    Emits :class:`UserWarning` when Raw_data has no or only one candidate.
+    """
+    if not bool(getattr(self.args, "uq_enable_meta", False)):
+        return Xy_data
+
+    top_k = int(getattr(self.args, "uq_top_k_models", 3))
+    weighting = str(getattr(self.args, "uq_model_weighting", "score_weighted"))
+    raw_dir = _raw_data_dir_from_best_params(params_dir)
+    candidates = discover_top_k_model_candidates(raw_dir, top_k, weighting)
+
+    if not candidates:
+        warnings.warn(
+            f"Meta-model uncertainty requested but no candidates found in {raw_dir!s}; "
+            "using single-model CV spread only.",
+            UserWarning,
+            stacklevel=2,
+        )
+        _attach_single_model_uq_fallback(Xy_data, model_data)
+        return Xy_data
+
+    if len(candidates) < 2:
+        warnings.warn(
+            "Meta-model uncertainty requested but fewer than two candidate models "
+            f"in {raw_dir!s}; meta component set to zero.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    problem_type = model_data["type"]
+    splits = ["train", "test"]
+    if "X_external" in Xy_data:
+        splits.append("external")
+
+    base_snap_full = {
+        split: _snapshot_prediction_fields(Xy_data, split) for split in splits
+    }
+    preds_by_split = {split: [] for split in splits}
+    sd_by_split = {split: [] for split in splits}
+
+    for cand in candidates:
+        cand_data = load_params(self, cand["path"])
+        cand_data["repeat_kfolds"] = model_data.get(
+            "repeat_kfolds", cand_data.get("repeat_kfolds")
+        )
+        cand_data["kfold"] = model_data.get("kfold", cand_data.get("kfold"))
+        xy_run = load_n_predict(self, cand_data, Xy_data, BO_opt=False)
+        for split in splits:
+            pred_key = f"y_pred_{split}"
+            sd_key = f"y_pred_{split}_sd"
+            if pred_key in xy_run:
+                preds_by_split[split].append(np.asarray(xy_run[pred_key], dtype=float))
+                sd_by_split[split].append(np.asarray(xy_run[sd_key], dtype=float))
+        for split in splits:
+            _restore_prediction_fields(Xy_data, split, base_snap_full[split])
+
+    weights = [c["weight"] for c in candidates]
+    for split in splits:
+        if not preds_by_split[split]:
+            continue
+        pred_key = f"y_pred_{split}"
+        sd_key = f"y_pred_{split}_sd"
+        stack_p = np.vstack(preds_by_split[split])
+        stack_s = np.vstack(sd_by_split[split])
+        y_pt, uq_m, uq_meta, uq_tot = aggregate_meta_uq_decomposition(
+            stack_p, stack_s, weights, problem_type
+        )
+        if problem_type.lower() == "clas":
+            y_pt = np.asarray([int(v) for v in y_pt], dtype=int)
+        else:
+            y_pt = np.asarray(y_pt, dtype=float)
+        Xy_data[pred_key] = y_pt.tolist()
+        Xy_data[f"y_pred_{split}_uq_model"] = np.asarray(uq_m, dtype=float).tolist()
+        Xy_data[f"y_pred_{split}_uq_meta"] = np.asarray(uq_meta, dtype=float).tolist()
+        Xy_data[f"y_pred_{split}_uq_total"] = np.asarray(uq_tot, dtype=float).tolist()
+        Xy_data[sd_key] = Xy_data[f"y_pred_{split}_uq_total"]
+
+    return Xy_data
+
+
+def _attach_single_model_uq_fallback(Xy_data, model_data):
+    """When meta ensemble cannot run, map CV SD to uq_model and zero meta."""
+    for split in ("train", "test", "external"):
+        sd_key = f"y_pred_{split}_sd"
+        if sd_key not in Xy_data:
+            continue
+        sd = np.asarray(Xy_data[sd_key], dtype=float)
+        Xy_data[f"y_pred_{split}_uq_model"] = sd.tolist()
+        Xy_data[f"y_pred_{split}_uq_meta"] = [0.0] * len(sd)
+        Xy_data[f"y_pred_{split}_uq_total"] = sd.tolist()
+
+
 def _conformal_abs_residual_quantile(abs_residuals, coverage):
     """
     Finite-sample quantile for split-style conformal symmetric intervals

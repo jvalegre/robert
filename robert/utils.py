@@ -674,7 +674,7 @@ def correlation_filter(self, csv_df):
         while True:
             # Find the maximum R2 correlation
             max_r2 = upper.max().max()
-            if max_r2 <= self.args.thres_x:
+            if max_r2 <= self.args.thres_x or str(max_r2).lower() == 'nan':
                 break
             
             # Get ALL pairs with maximum correlation, round to avoid floating point issues
@@ -1145,13 +1145,6 @@ def check_clas_problem(self,csv_df):
                 
                 self.args.log.write(f'\no  Classification labels converted: {self.args.class_0_label} → 0, {self.args.class_1_label} → 1')
                 self.args.log.write(f'   Original labels will be restored in output files')
-
-        if len(set(csv_df[self.args.y])) != 2:
-            self.args.log.write(f'\nx  Only two different y values are currently allowed for classification problems! {len(set(csv_df[self.args.y]))} different values were used: {set(csv_df[self.args.y])}')
-            self.args.log.write(f'   The program detected this is a classification problem (non-numeric values or few unique values)')
-            self.args.log.write(f'   Please use only 2 different class labels (e.g., "active"/"inactive" or 0/1)')
-            self.args.log.finalize()
-            sys.exit()
         
         # Check that each class has at least 5 points
         class_counts = csv_df[self.args.y].value_counts()
@@ -1433,6 +1426,11 @@ def test_select(self,X_scaled,csv_y):
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
 
+    # in the future, we'll adapt other data splitting techniques for classificaiton problems with 3+ target values
+    if self.args.type == 'clas':
+        if len(set(csv_y)) != 2:
+            self.args.split = 'RND' 
+
     if self.args.split.upper() == 'KN':
         # k-neighbours data split
 
@@ -1453,7 +1451,8 @@ def test_select(self,X_scaled,csv_y):
 
         else:
             idx_list = csv_y.index
-            test_points = k_means(self,X_scaled,csv_y,selected_size,self.args.seed,idx_list)
+            training_size = len(csv_y)-selected_size
+            test_points = k_means(self,X_scaled,csv_y,training_size,self.args.seed,idx_list)
 
     elif self.args.split.upper() == 'RND':
         size = round(selected_size * 100 / (len(csv_y)))
@@ -2399,7 +2398,7 @@ def k_means(self,X_scaled,csv_y,size,seed,idx_list):
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
     if self.args.type.lower() == 'reg':
-        test_points = [csv_y.idxmin(),csv_y.idxmax()]
+        test_points = []
         training_idx = [csv_y.idxmin(),csv_y.idxmax()]
         number_of_clusters -= 2
     else:
@@ -3068,9 +3067,6 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
             print_distrib += f"\n      o  Your data seems quite uniform"
 
     elif params_dict['type'].lower() == 'clas':
-        if len(y_dist_dict['count_labels']) > 2:
-            self.args.log.write(f"\n      ADAPT THIS PART for 3+ prediction classes!!")
-            sys.exit()
         print_distrib += f"\n      Ideally, the number of datapoints in each prediction class should be uniform (50% population per class) to have similar reliability in the predictions across classes"
         distrib_counts = [y_dist_dict['count_labels'][0],y_dist_dict['count_labels'][1]]
         print_distrib += f"\n      - The number of points in each class is {y_dist_dict['type_labels'][0]}: {y_dist_dict['count_labels'][0]}, {y_dist_dict['type_labels'][1]}: {y_dist_dict['count_labels'][1]}"
@@ -3182,6 +3178,32 @@ def get_prediction_results(model_data,y,y_pred_all):
             f1_score_val = f1_score(y,np.round(y_pred_all).astype(int),average='micro')
         mcc = matthews_corrcoef(y,np.round(y_pred_all).astype(int))
         return acc, f1_score_val, mcc
+
+
+def get_error_labels(model_type):
+    """
+    Returns the three error metric labels for the given model type.
+    
+    Parameters
+    ----------
+    model_type : str
+        The type of model: 'reg' for regression or 'clas' for classification
+        
+    Returns
+    -------
+    tuple of str
+        Three error labels appropriate for the model type:
+        - Regression: ('r2', 'mae', 'rmse')
+        - Classification: ('acc', 'f1', 'mcc')
+    """
+    error_labels = {
+        'reg': ('r2', 'mae', 'rmse'),
+        'clas': ('acc', 'f1', 'mcc')
+    }
+    
+    model_type_lower = model_type.lower()
+    
+    return error_labels[model_type_lower]
 
 
 def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):

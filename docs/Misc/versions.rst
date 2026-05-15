@@ -4,6 +4,10 @@
 Versions
 ========
 
+Version 2.1.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.1>`__]
+   - Adding RMSE values for each fold to calculate t- and Wilconxon tests
+   - Add code for BO function
+
 Version 2.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.0>`__]
    -  In classification problems now we can use 2 different categorial class labels (e.g., "active"/"inactive").
    -  Changing the way of selecting the 10 first initial points in Bayesian Optimization (now using Latin Hypercube Sampling)

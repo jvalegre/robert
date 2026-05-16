@@ -52,26 +52,76 @@ columns aligned with the pipeline:
 - If both ``return_std`` and ``return_uncertainty`` are set, ``return_uncertainty``
   wins and a warning is issued.
 
+Supported models
+----------------
+
+Pass ``model`` as a list of algorithm codes (same as the CLI ``--model`` option).
+Defaults are ``["RF", "GB", "NN", "MVL"]`` for regression and ``["RF", "GB", "NN", "AdaB"]``
+for classification (when ``auto_type`` switches the problem type).
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Code
+     - Backend
+   * - RF, GB, NN, MVL
+     - scikit-learn (default screening set for regression includes MVL instead of AdaB)
+   * - GP, AdaB, VR
+     - scikit-learn (opt-in; AdaB replaces MVL in the default classification set)
+   * - **XGB**
+     - XGBoost (:class:`~xgboost.XGBRegressor` / :class:`~xgboost.XGBClassifier`), opt-in;
+       hyperoptimized with in-code Bayesian bounds (no packaged ``model_params/XGB_params.yaml``)
+
+Example with XGB:
+
+.. code-block:: python
+
+   model_xgb = RobertModel(
+       problem_type="reg",
+       workdir="./robert_run_xgb",
+       model=["RF", "XGB"],
+       n_iter=2,
+       init_points=2,
+   )
+   model_xgb.fit(X_train, y_train)
+
 Configuration (uncertainty kwargs)
 ------------------------------------
 
-Defaults are defined in ``robert.argument_parser.var_dict``:
+Defaults are defined in ``robert.argument_parser.var_dict``. Every key in that
+dictionary can be passed as a :class:`~robert.api.RobertModel` keyword argument or
+set in a YAML varfile (``varfile=FILE.yaml``). For XGBoost, install-time dependency
+availability (``xgboost``) is distinct from runtime model selection: include
+``"XGB"`` in ``model`` to screen XGBoost.
+
+**CLI vs API / YAML.** ``python -m robert --help`` documents ``conformal_enable``,
+``conformal_calib_frac``, ``conformal_coverage``, ``uq_enable_meta``,
+``uq_top_k_models``, and ``uq_auto_enable``. Set ``uq_model_weighting`` and the
+remaining ``uq_auto_*`` keys (candidates, scaler, metric weights, min samples,
+random state, clas mode) via a YAML varfile or :class:`~robert.api.RobertModel`
+keyword arguments (see list below).
 
 - **Conformal:** ``conformal_enable`` (``True``), ``conformal_calib_frac`` (``0.15``),
   ``conformal_coverage`` (``0.9``).
 - **Meta-model:** ``uq_enable_meta`` (``False``), ``uq_top_k_models`` (``3``),
   ``uq_model_weighting`` (``"score_weighted"`` or ``"uniform"``).
+- **PREDICT diagnostics:** ``predict_diagnostics`` (``True``). When ``False``, PREDICT
+  skips SHAP, PFI, Pearson heatmap, outlier, and distribution plots (and y-vs-pred
+  graphs). :class:`~robert.api.RobertModel.predict` sets this to ``False`` automatically.
+- **Plot verbosity:** ``plot_verbosity`` (``2``). Higher values emit more diagnostic
+  figures during PREDICT when ``predict_diagnostics`` is ``True`` (see CLI help / ``var_dict``).
 - **Auto (regression):** ``uq_auto_enable`` (``False``),
   ``uq_auto_candidates`` (``["cv_sd", "conformal", "meta_total"]``),
   ``uq_auto_scaler`` (``"global_multiplicative"``; also ``"none"`` or ``"isotonic"``),
-  ``uq_auto_metric_weights`` (coverage / sharpness / NLL weights),
+  ``uq_auto_metric_weights`` (default ``{"coverage": 1.0, "sharpness": 0.25, "nll": 0.5}``),
   ``uq_auto_min_samples`` (``12``), ``uq_auto_random_state`` (``0``),
   ``uq_auto_clas_mode`` (``"error"`` — raises if auto is requested for classification).
 
 Meta-model uncertainty
 ----------------------
 
-Enable with ``uq_enable_meta=True`` on :class:`~robert.api.RobertModel``. PREDICT
+Enable with ``uq_enable_meta=True`` on :class:`~robert.api.RobertModel`. PREDICT
 re-runs up to ``uq_top_k_models`` estimators ranked by GENERATE
 ``combined_{error_type}`` scores in ``GENERATE/Raw_data``, then combines predictions
 with ``uq_model_weighting``. **Regression** uses a weighted mean and law-of-total-variance
@@ -160,9 +210,10 @@ Example
    model = RobertModel(
        problem_type="reg",
        workdir="./robert_run",
-       model=["RF"],
+       model=["RF", "XGB"],
        n_iter=2,
        init_points=2,
+       conformal_enable=True,
    )
    model.fit(X.iloc[:25], y.iloc[:25])
    preds = model.predict(X.iloc[25:])

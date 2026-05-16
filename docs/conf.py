@@ -11,11 +11,17 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
+from pathlib import Path
+
 # Ensure that modules can be imported without installing ROBERT
-sys.path.insert(0, os.path.abspath('..')) 
+sys.path.insert(0, os.path.abspath('..'))
 
-
+_root = Path(__file__).resolve().parents[1]
+_setup = (_root / "setup.py").read_text(encoding="utf-8")
+_version_match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', _setup)
+version = _version_match.group(1) if _version_match else "unknown"
 
 # -- Project information -----------------------------------------------------
 
@@ -24,7 +30,7 @@ copyright = '2023, Juan V. Alegre Requena, David Dalmau Ginesta'
 author = '2023, Juan V. Alegre Requena, David Dalmau Ginesta'
 
 # The full version, including alpha/beta/rc tags
-release = 'v1.0'
+release = version
 
 
 # -- General configuration ---------------------------------------------------
@@ -32,10 +38,28 @@ release = 'v1.0'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc',
-              'sphinx_design',
-              ]
-# Add any paths that contain templates here, relative to this directory.
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx_design',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.napoleon',
+]
+
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'pandas': ('https://pandas.pydata.org/docs/', None),
+    'sklearn': ('https://scikit-learn.org/stable/', None),
+    'xgboost': ('https://xgboost.readthedocs.io/en/stable/', None),
+}
+
+# Shared image substitutions (used in README partial includes)
+rst_prolog = """
+.. |download| image:: /Modules/images/download.png
+   :width: 140
+   :align: middle
+"""
+
 html_theme_options = {
     'collapse_navigation': False,
 }

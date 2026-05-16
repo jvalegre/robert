@@ -23,7 +23,7 @@ Automated protocols
 *  Filters off variables with very low correlation to the target values (noise, with R\ :sup:`2` lower than 0.001). (Disabled by default)
 *  Filters off duplicates.
 *  Converts categorical descriptors into one-hot or numerical descriptors.
-*  At the end of the curation process, the program uses scikit-learn’s RFECV with repeated K-fold cross-validation to select the most relevant descriptors. The selection can average importances across multiple models (e.g., RF, GB, ADAB) and ensures that the number of descriptors is reduced to one third of the datapoints.
+*  At the end of the curation process, the program uses scikit-learn’s RFECV with repeated K-fold cross-validation to select the most relevant descriptors. The selection can average importances across multiple models (e.g., RF, GB, ADAB, XGB) and ensures that the number of descriptors is reduced to one third of the datapoints. When ``model`` includes XGB, CURATE also writes model-specific outputs (for example ``*_CURATE_XGB.csv``) using the same RFECV and ``feature_importances_`` path as RF, GB, and AdaB.
 
 Technical information
 +++++++++++++++++++++
@@ -34,6 +34,8 @@ numerical or one-hot encoding values. For example, consider a variable that repr
 
 *	“Numbers”: It assigns numerical values (e.g., 1, 2, 3, 4) to describe the different C atom types.
 *	“Onehot”: It creates a separate descriptor for each C atom type using 0s and 1s to indicate their presence.
+
+When the ``model`` option lists multiple algorithms (including opt-in models such as XGB), CURATE can emit one curated CSV per model type in addition to the main curated file. Use the same ``model`` syntax as in GENERATE (CLI ``--model "[RF,XGB]"`` or :doc:`RobertModel <../API/robert.api>` kwargs).
 
 Example
 +++++++

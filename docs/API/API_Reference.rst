@@ -9,8 +9,10 @@ Main modules
 .. toctree::
    :maxdepth: 1
 
+   robert.api
    robert.aqme
    robert.curate
+   robert.evaluate
    robert.generate
    robert.predict
    robert.verify
@@ -22,7 +24,6 @@ Other modules
 .. toctree::
    :maxdepth: 1
 
-   robert.api
    robert.generate_utils
    robert.predict_utils
    robert.uq_auto

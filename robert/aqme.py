@@ -149,7 +149,6 @@ class aqme:
                     order = csv_temp['code_name'].tolist()
 
                     # Sort the rows in 'AQME-ROBERT_{aqme_indv_name}.csv' based on the order
-                    df_temp = pd.read_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', encoding='utf-8')
                     df_temp = df_temp.sort_values(by='code_name', key=lambda x: x.map({v: i for i, v in enumerate(order)}))
 
                     # Fill missing values with corresponding SMILES row
@@ -188,13 +187,12 @@ class aqme:
             self.args.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")
             sys.exit()
         
-        # remove atomic properties if no SMARTS patterns were selected in qdescp
+        # remove atomic properties if no SMARTS patterns were selected in qdescp,
+        # and drop AQME argument columns from CSV inputs (single read/write)
         if 'qdescp_atoms' not in self.args.qdescp_keywords:
-            _ = filter_atom_prop(aqme_db,csv_df)
-
-        # remove arguments from CSV inputs in AQME
-        _ = filter_aqme_args(aqme_db)
-        
+            _ = filter_atom_prop_and_aqme_args(aqme_db, csv_df, strip_atom_lists=True)
+        else:
+            _ = filter_atom_prop_and_aqme_args(aqme_db, csv_df, strip_atom_lists=False)
         # delete AQME_indiv*.csv files
         for file in glob.glob('*QME_indiv*.csv'):
             os.remove(file)
@@ -226,34 +224,41 @@ class aqme:
             sys.exit()
 
 
+def filter_atom_prop_and_aqme_args(aqme_db, csv_df, *, strip_atom_lists):
+    """
+    Drop atomic list descriptors when no --qdescp_atoms was used, and remove
+    columns that duplicate AQME CSV inputs (single pass over the dataframe).
+    """
+    aqme_df = pd.read_csv(aqme_db, encoding='utf-8')
+    if strip_atom_lists:
+        for column in list(aqme_df.columns):
+            if column == 'DBSTEP_Vbur':
+                aqme_df = aqme_df.drop(column, axis=1)
+            # remove lists of atomic properties (skip columns from AQME arguments)
+            elif aqme_df[column].dtype == object and column.lower() not in aqme_args:
+                first_cell = aqme_df[column].iloc[0] if len(aqme_df) else None
+                if first_cell is not None and '[' in str(first_cell) and column not in csv_df.columns:
+                    aqme_df = aqme_df.drop(column, axis=1)
+    for column in list(aqme_df.columns):
+        if column.lower() in aqme_args:
+            aqme_df = aqme_df.drop(column, axis=1)
+    os.remove(aqme_db)
+    aqme_df.to_csv(f'{aqme_db}', index=None, header=True)
+
+
 def filter_atom_prop(aqme_db, csv_df):
     '''
     Function that filters off atomic properties if no atom was selected in the --qdescp_atoms option
     '''
     
-    aqme_df = pd.read_csv(aqme_db, encoding='utf-8')
-    for column in aqme_df.columns:
-        if column == 'DBSTEP_Vbur':
-            aqme_df = aqme_df.drop(column, axis=1)
-        # remove lists of atomic properties (skip columns from AQME arguments)
-        elif aqme_df[column].dtype == object and column.lower() not in aqme_args:
-            if '[' in aqme_df[column][0] and column not in csv_df.columns:
-                aqme_df = aqme_df.drop(column, axis=1)
-    os.remove(aqme_db)
-    _ = aqme_df.to_csv(f'{aqme_db}', index=None, header=True)
+    filter_atom_prop_and_aqme_args(aqme_db, csv_df, strip_atom_lists=True)
 
 
 def filter_aqme_args(aqme_db):
     '''
     Function that filters off AQME arguments in CSV inputs
     '''
-    
-    aqme_df = pd.read_csv(aqme_db, encoding='utf-8')
-    for column in aqme_df.columns:
-        if column.lower() in aqme_args:
-            aqme_df = aqme_df.drop(column, axis=1)
-    os.remove(aqme_db)
-    _ = aqme_df.to_csv(f'{aqme_db}', index = None, header=True)
+    filter_atom_prop_and_aqme_args(aqme_db, pd.DataFrame(), strip_atom_lists=False)
 
 
 def move_aqme():

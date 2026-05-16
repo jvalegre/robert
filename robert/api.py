@@ -26,12 +26,6 @@ from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score, r2_score
 
 from robert.argument_parser import options_add, var_dict
-from robert.curate import curate
-from robert.generate import generate
-from robert.predict import predict as predict_module
-from robert.report import report as report_module
-from robert.utils import load_params
-from robert.verify import verify
 
 _NAME_COL = "__robert_name__"
 _DEFAULT_Y = "__robert_y__"
@@ -175,14 +169,19 @@ class RobertModel(BaseEstimator):
     :param y_column: If ``fit(X)`` is called with ``y is None``, name of the target column
         in ``X`` (DataFrame only).
     :param kwargs: Additional ROBERT options (keys in ``robert.argument_parser.var_dict``),
-        e.g. ``model``, ``n_iter``. Regression uncertainty tuning includes
+        e.g. ``model``, ``n_iter``, ``plot_verbosity`` (``0``–``2``): ``0`` skips
+        matplotlib artifacts; ``1`` keeps CURATE/GENERATE/VERIFY summary plots and main
+        PREDICT result plots when ``predict_diagnostics`` is True; ``2`` additionally
+        enables SHAP/PFI/Pearson/outlier/distribution diagnostics when
+        ``predict_diagnostics`` is True. Regression uncertainty tuning includes
         ``conformal_enable``, ``conformal_calib_frac``, and ``conformal_coverage``.
         Top-k meta-model uncertainty (opt-in) uses ``uq_enable_meta``,
         ``uq_top_k_models``, and ``uq_model_weighting`` (``"score_weighted"`` or
         ``"uniform"``). Auto uncertainty (regression, opt-in) uses ``uq_auto_enable``,
         ``uq_auto_candidates``, ``uq_auto_scaler``, ``uq_auto_metric_weights``,
-        ``uq_auto_min_samples``, and ``uq_auto_random_state``; ``return_uncertainty``
-        ``"auto"`` or ``"auto_decomposed"`` enables auto mode for that predict call.
+        ``uq_auto_min_samples``, ``uq_auto_random_state``, and ``uq_auto_clas_mode``
+        (``"error"`` by default); ``return_uncertainty`` ``"auto"`` or
+        ``"auto_decomposed"`` enables auto mode for that predict call.
     """
 
     def __init__(
@@ -395,7 +394,9 @@ class RobertModel(BaseEstimator):
 
     def _read_model_snapshot(self, workdir: Path) -> dict[str, Any]:
         sub = "PFI" if self.filter_mode == "pfi" else "No_PFI"
-        folder = workdir / "GENERATE" / "Best_model" / sub
+        from robert.utils import load_params, path_generate_best_model
+
+        folder = path_generate_best_model(workdir, sub)
         params_path = _find_params_csv(folder)
         seed = int(self._rob_kwargs.get("seed", var_dict["seed"]))
         adapter = _ParamsAdapter(seed, self.problem_type)
@@ -423,6 +424,13 @@ class RobertModel(BaseEstimator):
         base["command_line"] = False
         base["csv_test"] = ""
 
+        from robert.curate import curate
+        from robert.generate import generate
+        from robert.predict import predict as predict_module
+        from robert.report import report as report_module
+        from robert.verify import verify
+        from robert.utils import path_generate_best_model
+
         with _noninteractive_mpl(), _chdir(workdir):
             curate(
                 csv_name=train_rel,
@@ -441,8 +449,8 @@ class RobertModel(BaseEstimator):
             if self.run_report:
                 report_module(**base)
 
-        best_sub = workdir / "GENERATE" / "Best_model" / (
-            "PFI" if self.filter_mode == "pfi" else "No_PFI"
+        best_sub = path_generate_best_model(
+            workdir, "PFI" if self.filter_mode == "pfi" else "No_PFI"
         )
         if self.filter_mode == "pfi" and not best_sub.is_dir():
             raise RuntimeError(
@@ -588,6 +596,7 @@ class RobertModel(BaseEstimator):
         base["csv_test"] = pred_name
         base["params_dir"] = "GENERATE/Best_model"
         base["names"] = self.names_col_
+        base["predict_diagnostics"] = False
         if umode in ("auto", "auto_decomposed"):
             if self.problem_type != "reg":
                 raise ValueError(
@@ -595,6 +604,8 @@ class RobertModel(BaseEstimator):
                     "supported for problem_type='reg'."
                 )
             base["uq_auto_enable"] = True
+
+        from robert.predict import predict as predict_module
 
         with _noninteractive_mpl(), _chdir(workdir):
             predict_module(**base)

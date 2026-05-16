@@ -43,7 +43,7 @@ import shutil
 import time
 import pandas as pd
 from pathlib import Path
-from robert.utils import load_variables, finish_print, load_database, prepare_sets
+from robert.utils import load_variables, finish_print, load_database, prepare_sets, path_generate_best_model
 from robert.generate_utils import set_sets
 
 
@@ -95,7 +95,7 @@ class evaluate:
         '''
 
         # copy database with Set column
-        generate_folder = Path('GENERATE/Best_model/No_PFI')
+        generate_folder = path_generate_best_model(None, "No_PFI")
         if os.path.exists(generate_folder):
             shutil.rmtree(generate_folder)
         Path(generate_folder).mkdir(exist_ok=True, parents=True)

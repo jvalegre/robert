@@ -6,7 +6,7 @@ Parameters
         Directory to create the output file(s).
     varfile : str, default=None
         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
-    report_modules : list of str, default=['CURATE','GENERATE','VERIFY','PREDICT']
+    report_modules : list of str, default=['AQME','CURATE','GENERATE','VERIFY','PREDICT']
         List of the modules to include in the report.
     debug_report : bool, default=False
         Debug mode using during the pytests of report.py

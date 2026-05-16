@@ -418,7 +418,7 @@ def apply_auto_uq(
     return Xy_data
 
 
-def get_bo_ready_prediction_bundle(
+def _get_bo_ready_prediction_bundle(
     Xy_data: Mapping[str, Any],
     split: str,
     y_col: str,

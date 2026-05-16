@@ -698,7 +698,8 @@ def get_col_text(type_thres):
                         '<strong>CV:</strong> cross-validation',
                         '<strong>F1 score:</strong> balanced F-score',
                         '<strong>GB:</strong> gradient boosting',
-                        '<strong>GP:</strong> gaussian process'
+                        '<strong>GP:</strong> gaussian process',
+                        '<strong>XGB:</strong> extreme gradient boosting'
         ]
 
     elif type_thres == 'abbrev_2':
@@ -755,9 +756,11 @@ def get_col_transpa(params_dict,suffix,section,spacing):
     models_dict = {'RF': f'RandomForest{model_type}',
                     'MVL': 'LinearRegression',
                     'GB': f'GradientBoosting{model_type}',
+                    'XGB': f'XGB{model_type}',
                     'NN': f'MLP{model_type}',
                     'GP': f'GaussianProcess{model_type}',
                     'ADAB': f'AdaBoost{model_type}',
+                    'VR': f'Voting{model_type}',
                     }
 
     col_info,sklearn_model = '',''

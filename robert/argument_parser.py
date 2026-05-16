@@ -77,6 +77,11 @@ var_dict = {
     "uq_auto_min_samples": 12,
     "uq_auto_random_state": 0,
     "uq_auto_clas_mode": "error",
+    # When False, skip SHAP/PFI/heatmap/outlier/distribution plots (PREDICT only).
+    "predict_diagnostics": True,
+    # Plot verbosity: 0 = no figures, 1 = workflow summaries (CURATE/GENERATE/VERIFY +
+    # main PREDICT result plots when predict_diagnostics is True), 2 = full diagnostics.
+    "plot_verbosity": 2,
 }
 
 

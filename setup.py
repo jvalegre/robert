@@ -52,6 +52,7 @@ setup(
         "seaborn==0.13.2",
         "scipy==1.15.0",
         "scikit-learn==1.7.2",
+        "xgboost==2.1.4",
         "bayesian-optimization==3.1.0",
         "numba==0.62.1",
         "shap==0.49.1",

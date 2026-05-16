@@ -62,8 +62,16 @@ Parameters
 import time
 import os
 import pandas as pd
-from robert.utils import (load_variables, finish_print, load_database, pearson_map,
-                          check_clas_problem, categorical_transform, correlation_filter)
+from robert.utils import (
+    load_variables,
+    finish_print,
+    load_database,
+    pearson_map,
+    check_clas_problem,
+    categorical_transform,
+    correlation_filter,
+    should_plot_curate_pearson,
+)
 
 
 class curate:
@@ -115,7 +123,8 @@ class curate:
                 _ = self.save_curate(csv_df)
 
         # create Pearson heatmap (use the general filtered dataframe)
-        _ = pearson_map(self,csv_df,'curate')
+        if should_plot_curate_pearson(self.args):
+            _ = pearson_map(self, csv_df, "curate")
 
         # finish the printing of the CURATE info file
         _ = finish_print(self,start_time,'CURATE')

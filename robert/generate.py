@@ -27,6 +27,8 @@ Parameters
         4. 'NN' (MLP neural network)
         5. 'GP' (Gaussian Process)
         6. 'AdaB' (AdaBoost)
+        7. 'VR' (Voting Regressor/Classifier with RF, GB and NN base estimators)
+        8. 'XGB' (XGBoost regressor/classifier; opt-in, not in default model list)
     custom_params : str, default=None
         Define new parameters for the ML models used in the hyperoptimization workflow. The path
         to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')
@@ -50,7 +52,7 @@ Parameters
         Number of initial points for Bayesian optimization (exploration)
     n_iter : int, default=10
         Number of iterations for Bayesian optimization (exploitation)
-    expect_improv : int, default=0.05
+    expect_improv : float, default=0.05
         Expected improvement for Bayesian optimization
     pfi_filter : bool, default=True
         Activate the PFI filter of descriptors.
@@ -90,11 +92,12 @@ Parameters
 import os
 import time
 from robert.utils import (
-    load_variables, 
+    load_variables,
     finish_print,
     load_database,
     check_clas_problem,
-    prepare_sets
+    prepare_sets,
+    should_plot_generate_heatmap,
 )
 from robert.generate_utils import (
     BO_workflow,
@@ -181,13 +184,32 @@ class generate:
 
             # apply the PFI descriptor filter if it's activated
             if self.args.pfi_filter:
-                # load database, discard user-defined descriptors and perform data checks
-                csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
+                # Reuse processed dataframe: BO adds a Set column in-memory; drop it and
+                # rebuild X/y splits without re-reading the curated CSV from disk.
+                csv_df_pfi = csv_df.drop(columns=["Set"], errors="ignore")
+                cols_to_ignore = [
+                    col for col in self.args.ignore if col in csv_df_pfi.columns
+                ]
+                csv_df_ignore = csv_df_pfi.drop(cols_to_ignore, axis=1)
+                csv_X = csv_df_ignore.drop([self.args.y], axis=1)
+                csv_y = csv_df_ignore[self.args.y]
+                csv_X = csv_X[sorted([col for col in csv_X.columns])]
 
                 # standardizes and separates an external test set
-                Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
+                Xy_data = prepare_sets(
+                    self,
+                    csv_df_pfi,
+                    csv_X,
+                    csv_y,
+                    None,
+                    self.args.names,
+                    None,
+                    None,
+                    None,
+                    BO_opt=True,
+                )
 
-                _ = PFI_workflow(self, csv_df, ML_model, Xy_data)
+                _ = PFI_workflow(self, csv_df_pfi, ML_model, Xy_data)
             
             # Restore the original csv_name
             self.args.csv_name = original_csv_name
@@ -199,13 +221,15 @@ class generate:
         _ = detect_best(f'{dir_csv}/No_PFI')
 
         # create heatmap plot(s)
-        _ = heatmap_workflow(self,"No_PFI")
+        if should_plot_generate_heatmap(self.args):
+            _ = heatmap_workflow(self, "No_PFI")
 
         # detect best and create heatmap for PFI models
         if self.args.pfi_filter:
             try: # if no models were found
                 _ = detect_best(f'{dir_csv}/PFI')
-                _ = heatmap_workflow(self,"PFI")
+                if should_plot_generate_heatmap(self.args):
+                    _ = heatmap_workflow(self, "PFI")
             except UnboundLocalError:
                 pass
 

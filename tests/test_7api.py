@@ -4,12 +4,16 @@
 # 	          Testing API with pytest 	             #
 ######################################################.
 
-"""Tests for :class:`robert.api.RobertModel` and related helpers."""
+"""Tests for RobertModel, YAML config, plot verbosity, and custom PREDICT paths."""
 
+import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import warnings
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -17,20 +21,32 @@ import pytest
 
 from robert import RobertModel
 from robert.api import _resolve_prediction_id_column
+from robert.argument_parser import set_options
+from robert.predict import predict
+from robert.utils import (
+    load_from_yaml,
+    plot_verbosity_level,
+    should_plot_curate_pearson,
+    should_plot_generate_heatmap,
+    should_plot_predict_deep_diagnostics,
+    should_plot_predict_results,
+    should_plot_verify_metrics,
+)
 
 _REPO = Path(__file__).resolve().parent.parent
 _REG_CSV = _REPO / "tests" / "Robert_example.csv"
 _CLAS_CSV = _REPO / "tests" / "Robert_example_clas.csv"
+_FIXTURE_MODEL = _REPO / "tests" / "fixtures" / "custom_predict_model"
 
-_FAST = {
-    "model": ["RF"],
-    "n_iter": 2,
-    "init_points": 2,
-    "repeat_kfolds": 2,
-    "kfold": 3,
-    "pfi_epochs": 1,
-    "seed": 42,
-}
+
+@pytest.fixture
+def custom_model_dir(tmp_path):
+    """Minimal GENERATE-style folder (params CSV + _db.csv)."""
+    dest = tmp_path / "custom_model"
+    dest.mkdir()
+    shutil.copy(_FIXTURE_MODEL / "RF.csv", dest / "RF.csv")
+    shutil.copy(_FIXTURE_MODEL / "RF_db.csv", dest / "RF_db.csv")
+    return dest
 
 
 def _holdout_for_predict(X: pd.DataFrame, n_fit: int) -> pd.DataFrame:
@@ -39,7 +55,119 @@ def _holdout_for_predict(X: pd.DataFrame, n_fit: int) -> pd.DataFrame:
     return tail.drop_duplicates(subset=["Name"], keep="first")
 
 
-def test_fit_predict_regression(tmp_path):
+# --- YAML ---
+
+
+def test_yaml_unknown_key_warns_and_known_key_applies(capsys):
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+        f.write("not_a_robert_option: 1\nseed: 99\n")
+        path = f.name
+    try:
+        opts = set_options({})
+        opts.varfile = path
+        load_from_yaml(opts)
+        captured = capsys.readouterr()
+        text = captured.out + captured.err
+        assert "not_a_robert_option" in text
+        assert opts.seed == 99
+    finally:
+        os.unlink(path)
+
+
+def test_yaml_missing_file_message():
+    opts = set_options({})
+    opts.varfile = os.path.join(tempfile.gettempdir(), "robert_nonexistent_params_xyz.yaml")
+    _, msg = load_from_yaml(opts)
+    assert "not found" in msg.lower()
+
+
+# --- PREDICT / plot verbosity ---
+
+
+def test_predict_custom_params_dir(
+    custom_model_dir, fast_robert_kwargs, tmp_path, monkeypatch
+):
+    """Custom params_dir must not raise NameError on suffixes/suffix_titles."""
+    monkeypatch.chdir(tmp_path)
+    predict(
+        params_dir=str(custom_model_dir),
+        predict_diagnostics=False,
+        command_line=False,
+        **fast_robert_kwargs,
+    )
+    assert (tmp_path / "PREDICT" / "RF_custom.csv").is_file()
+
+
+def test_plot_verbosity_level_defaults_and_bounds():
+    assert plot_verbosity_level(SimpleNamespace()) == 2
+    assert plot_verbosity_level(SimpleNamespace(plot_verbosity="bogus")) == 2
+    assert plot_verbosity_level(SimpleNamespace(plot_verbosity=-5)) == 0
+    assert plot_verbosity_level(SimpleNamespace(plot_verbosity=99)) == 2
+
+
+def test_should_plot_predict_tiers():
+    off = SimpleNamespace(predict_diagnostics=False, plot_verbosity=2)
+    assert not should_plot_predict_results(off)
+    assert not should_plot_predict_deep_diagnostics(off)
+
+    mid = SimpleNamespace(predict_diagnostics=True, plot_verbosity=1)
+    assert should_plot_predict_results(mid)
+    assert not should_plot_predict_deep_diagnostics(mid)
+
+    full = SimpleNamespace(predict_diagnostics=True, plot_verbosity=2)
+    assert should_plot_predict_results(full)
+    assert should_plot_predict_deep_diagnostics(full)
+
+
+def test_stage_flags_match_levels():
+    low = SimpleNamespace(plot_verbosity=0)
+    mid = SimpleNamespace(plot_verbosity=1)
+    assert not should_plot_curate_pearson(low)
+    assert should_plot_curate_pearson(mid)
+    assert not should_plot_generate_heatmap(low)
+    assert should_plot_generate_heatmap(mid)
+    assert not should_plot_verify_metrics(low)
+    assert should_plot_verify_metrics(mid)
+
+
+def test_predict_plot_verbosity_zero_skips_pngs(
+    custom_model_dir, tmp_path, monkeypatch, fast_robert_kwargs
+):
+    monkeypatch.chdir(tmp_path)
+    predict(
+        params_dir=str(custom_model_dir),
+        predict_diagnostics=True,
+        plot_verbosity=0,
+        command_line=False,
+        **fast_robert_kwargs,
+    )
+    predict_root = tmp_path / "PREDICT"
+    pngs = list(predict_root.rglob("*.png"))
+    assert pngs == []
+    assert (predict_root / "RF_custom.csv").is_file()
+
+
+def test_predict_plot_verbosity_one_skips_shap(
+    custom_model_dir, tmp_path, monkeypatch, fast_robert_kwargs
+):
+    monkeypatch.chdir(tmp_path)
+    predict(
+        params_dir=str(custom_model_dir),
+        predict_diagnostics=True,
+        plot_verbosity=1,
+        command_line=False,
+        **fast_robert_kwargs,
+    )
+    predict_root = tmp_path / "PREDICT"
+    shap_pngs = list(predict_root.rglob("SHAP*.png"))
+    assert not shap_pngs
+    assert list(predict_root.rglob("*.png"))
+
+
+# --- RobertModel API ---
+
+
+def test_fit_predict_regression(tmp_path, fast_robert_kwargs):
     df = pd.read_csv(_REG_CSV, encoding="utf-8")
     X = df.drop(columns=["Target_values"])
     y = df["Target_values"]
@@ -49,7 +177,7 @@ def test_fit_predict_regression(tmp_path):
         filter_mode="no_pfi",
         workdir=tmp_path,
         names="Name",
-        **_FAST,
+        **fast_robert_kwargs,
     )
     model.fit(X.iloc[:n_fit], y.iloc[:n_fit])
     assert model.is_fitted_
@@ -69,7 +197,7 @@ def test_fit_predict_regression(tmp_path):
     assert sd_b.shape == hw_b.shape
 
 
-def test_fit_predict_classification(tmp_path):
+def test_fit_predict_classification(tmp_path, fast_robert_kwargs):
     df = pd.read_csv(_CLAS_CSV, encoding="utf-8")
     X = df.drop(columns=["Target_values"])
     y = df["Target_values"]
@@ -79,7 +207,7 @@ def test_fit_predict_classification(tmp_path):
         filter_mode="no_pfi",
         workdir=tmp_path,
         names="Name",
-        **_FAST,
+        **fast_robert_kwargs,
     )
     model.fit(X.iloc[:n_fit], y.iloc[:n_fit])
     X_hold = _holdout_for_predict(X, n_fit)
@@ -91,24 +219,24 @@ def test_fit_predict_classification(tmp_path):
         model.predict(X_hold, return_uncertainty="conformal")
 
 
-def test_deprecated_type_filter_kwargs(tmp_path):
+def test_deprecated_type_filter_kwargs(tmp_path, fast_robert_kwargs):
     with pytest.warns(DeprecationWarning, match="problem_type"):
         RobertModel(
             type="reg",
             workdir=tmp_path,
             filter_mode="no_pfi",
-            **_FAST,
+            **fast_robert_kwargs,
         )
     with pytest.warns(DeprecationWarning, match="filter_mode"):
         RobertModel(
             problem_type="reg",
             workdir=tmp_path,
             filter="no_pfi",
-            **_FAST,
+            **fast_robert_kwargs,
         )
 
 
-def test_names_col_matches_model_data_after_fit(tmp_path):
+def test_names_col_matches_model_data_after_fit(tmp_path, fast_robert_kwargs):
     """``names_col_`` must match GENERATE params so PREDICT and API agree on the id column."""
     df = pd.read_csv(_REG_CSV, encoding="utf-8")
     X = df.drop(columns=["Target_values"])
@@ -118,13 +246,13 @@ def test_names_col_matches_model_data_after_fit(tmp_path):
         filter_mode="no_pfi",
         workdir=tmp_path,
         names="Name",
-        **_FAST,
+        **fast_robert_kwargs,
     )
     model.fit(X.iloc[:20], y.iloc[:20])
     assert model.names_col_ == str(model.model_data_["names"])
 
 
-def test_names_col_default_matches_model_after_fit(tmp_path):
+def test_names_col_default_matches_model_after_fit(tmp_path, fast_robert_kwargs):
     """Auto-inserted ``__robert_name__`` must match what CURATE stores in params."""
     df = pd.read_csv(_REG_CSV, encoding="utf-8")
     X = df.drop(columns=["Target_values"])
@@ -134,7 +262,7 @@ def test_names_col_default_matches_model_after_fit(tmp_path):
         filter_mode="no_pfi",
         workdir=tmp_path,
         names=None,
-        **_FAST,
+        **fast_robert_kwargs,
     )
     model.fit(X.iloc[:15], y.iloc[:15])
     assert model.names_col_ == str(model.model_data_["names"])
@@ -153,7 +281,7 @@ def test_resolve_prediction_id_column_prefers_exact_then_model_then_casefold():
         _resolve_prediction_id_column(df3, "Name", "missing")
 
 
-def test_predict_row_order_matches_input_order(tmp_path):
+def test_predict_row_order_matches_input_order(tmp_path, fast_robert_kwargs):
     """``predict`` matches ``X`` row order vs PREDICT CSV row order."""
     df = pd.read_csv(_REG_CSV, encoding="utf-8")
     X = df.drop(columns=["Target_values"])
@@ -164,7 +292,7 @@ def test_predict_row_order_matches_input_order(tmp_path):
         filter_mode="no_pfi",
         workdir=tmp_path,
         names="Name",
-        **_FAST,
+        **fast_robert_kwargs,
     )
     model.fit(X.iloc[:n_fit], y.iloc[:n_fit])
     X_hold = _holdout_for_predict(X, n_fit)
@@ -179,7 +307,7 @@ def test_predict_row_order_matches_input_order(tmp_path):
     assert np.allclose(pred_natural, pred_realigned)
 
 
-def test_fit_accepts_unused_fit_params(tmp_path):
+def test_fit_accepts_unused_fit_params(tmp_path, fast_robert_kwargs):
     """Sklearn Pipeline may pass extra fit kwargs; they should not raise."""
     df = pd.read_csv(_REG_CSV, encoding="utf-8")
     X = df.drop(columns=["Target_values"])
@@ -189,7 +317,7 @@ def test_fit_accepts_unused_fit_params(tmp_path):
         filter_mode="no_pfi",
         workdir=tmp_path,
         names="Name",
-        **_FAST,
+        **fast_robert_kwargs,
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)

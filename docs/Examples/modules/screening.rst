@@ -36,6 +36,10 @@ Executing the job
 
 * :code:`--generate`: Use only the GENERATE module.  
 
+To include XGBoost in screening (opt-in), add for example
+:code:`--model "[RF,XGB]"`. Default screening uses RF, GB, NN, and MVL. See
+:doc:`../../Modules/generate` and the :doc:`Python API <../../API/robert.api>`.
+
 Execution time
 ++++++++++++++
 

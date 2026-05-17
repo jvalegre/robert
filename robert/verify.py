@@ -25,13 +25,16 @@ import os
 import time
 import numpy as np
 from statistics import mode
-from robert.utils import (load_variables,
+from robert.predict_utils import iter_best_model_dirs
+from robert.utils import (
+    load_variables,
     load_db_n_params,
     load_n_predict,
     finish_print,
     get_prediction_results,
     print_pfi,
-    plot_metrics
+    plot_metrics,
+    should_plot_verify_metrics,
 )
 
 
@@ -56,16 +59,9 @@ class verify:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "verify")
 
-        # if params_dir = '', the program performs the tests for the No_PFI and PFI folders
-        if 'GENERATE/Best_model' in self.args.params_dir:
-            params_dirs = [f'{self.args.params_dir}/No_PFI',f'{self.args.params_dir}/PFI']
-            suffixes = ['(with no PFI filter)','(with PFI filter)']
-            suffix_titles = ['No_PFI','PFI']
-        else:
-            params_dirs = [self.args.params_dir]
-            suffix = ['custom']
-
-        for (params_dir,suffix,suffix_title) in zip(params_dirs,suffixes,suffix_titles):
+        for params_dir, suffix, suffix_title in iter_best_model_dirs(
+            self.args.params_dir
+        ):
             if os.path.exists(params_dir):
 
                 _ = print_pfi(self,params_dir)
@@ -89,20 +85,14 @@ class verify:
                     verify_results[f'f1_train_sorted_CV'] = [float(f"{val:.2f}") for val in Xy_data[f'f1_train_sorted_CV']]
                     verify_results[f'mcc_train_sorted_CV'] = [float(f"{val:.2f}") for val in Xy_data[f'mcc_train_sorted_CV']]
 
-                # load the Xy databse and model parameters
+                # Reload once for flawed-model tests (fresh splits consistent with CSV on disk).
                 Xy_data, model_data, suffix_title = load_db_n_params(self,params_dir,suffix,suffix_title,"verify",False)
 
                 # calculate scores for the y-mean test
                 verify_results = self.ymean_test(verify_results,Xy_data,model_data)
 
-                # load the Xy databse and model parameters
-                Xy_data, model_data, suffix_title = load_db_n_params(self,params_dir,suffix,suffix_title,"verify",False)
-
                 # calculate scores for the y-shuffle test
                 verify_results = self.yshuffle_test(verify_results,Xy_data,model_data)
-
-                # load the Xy databse and model parameters
-                Xy_data, model_data, suffix_title = load_db_n_params(self,params_dir,suffix,suffix_title,"verify",False)
 
                 # one-hot test (check that if a value isnt 0, the value assigned is 1)
                 verify_results = self.onehot_test(verify_results,Xy_data,model_data)
@@ -111,7 +101,10 @@ class verify:
                 results_print,verify_results,verify_metrics = self.analyze_tests(verify_results)
 
                 # plot a bar graph with the results
-                print_ver = plot_metrics(model_data,suffix_title,verify_metrics,verify_results)
+                if should_plot_verify_metrics(self.args):
+                    print_ver = plot_metrics(model_data,suffix_title,verify_metrics,verify_results)
+                else:
+                    print_ver = "\n   o  VERIFY plot skipped (plot_verbosity)"
 
                 # print and save results
                 _ = self.print_verify(results_print,verify_results,print_ver,model_data)
@@ -162,15 +155,7 @@ class verify:
         '''
 
         Xy_onehot = Xy_data.copy()
-        for desc in Xy_onehot['X_train']:
-            new_vals = []
-            for val in Xy_onehot['X_train'][desc]:
-                if val == 0:
-                    new_vals.append(0)
-                else:
-                    new_vals.append(1)
-            Xy_onehot['X_train_scaled'][desc] = new_vals
-
+        Xy_onehot['X_train_scaled'] = Xy_onehot['X_train_scaled'].copy()
         for desc in Xy_onehot['X_train']:
             new_vals = []
             for val in Xy_onehot['X_train'][desc]:

@@ -3,6 +3,8 @@
 import os
 import sys
 
+import pytest
+
 
 def pytest_configure(config):
     """
@@ -24,3 +26,17 @@ def pytest_configure(config):
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     os.environ.setdefault("MPLBACKEND", "Agg")
+
+
+@pytest.fixture
+def fast_robert_kwargs():
+    """Reduced CV/BO settings for faster integration tests."""
+    return {
+        "model": ["RF"],
+        "n_iter": 2,
+        "init_points": 2,
+        "repeat_kfolds": 2,
+        "kfold": 3,
+        "pfi_epochs": 1,
+        "seed": 42,
+    }

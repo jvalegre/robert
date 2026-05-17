@@ -37,20 +37,28 @@ Parameters
 
 import os
 import time
-from robert.predict_utils import (plot_predictions,
+from robert.predict_utils import (
+    iter_best_model_dirs,
+    plot_predictions,
     save_predictions,
     print_predict,
-    pearson_map_predict
-    )
-from robert.utils import (load_variables,
+    pearson_map_predict,
+)
+from robert.uq_auto import apply_auto_uq
+from robert.utils import (
+    load_variables,
     load_db_n_params,
     load_n_predict,
+    apply_meta_uq_ensemble,
     finish_print,
     print_pfi,
     PFI_plot,
     shap_analysis,
     outlier_plot,
     distribution_plot,
+    _mpl_plot_context,
+    should_plot_predict_results,
+    should_plot_predict_deep_diagnostics,
 )
 
 class predict:
@@ -70,16 +78,12 @@ class predict:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "predict")
 
-        # if params_dir = '', the program performs the tests for the No_PFI and PFI folders
-        if 'GENERATE/Best_model' in self.args.params_dir:
-            params_dirs = [f'{self.args.params_dir}/No_PFI',f'{self.args.params_dir}/PFI']
-            suffixes = ['(with no PFI filter)','(with PFI filter)']
-            suffix_titles = ['No_PFI','PFI']
-        else:
-            params_dirs = [self.args.params_dir]
-            suffix = ['custom']
+        run_prediction_plots = should_plot_predict_results(self.args)
+        run_deep_diagnostics = should_plot_predict_deep_diagnostics(self.args)
 
-        for (params_dir,suffix,suffix_title) in zip(params_dirs,suffixes,suffix_titles):
+        for params_dir, suffix, suffix_title in iter_best_model_dirs(
+            self.args.params_dir
+        ):
             if os.path.exists(params_dir):
 
                 _ = print_pfi(self,params_dir)
@@ -89,30 +93,57 @@ class predict:
                 
                 # get results from training, test and external test (if any)
                 Xy_data = load_n_predict(self, model_data, Xy_data, BO_opt=False)
+                if getattr(self.args, "uq_enable_meta", False):
+                    Xy_data = apply_meta_uq_ensemble(
+                        self, Xy_data, model_data, params_dir
+                    )
+                if getattr(self.args, "uq_auto_enable", False):
+                    Xy_data = apply_auto_uq(
+                        self, Xy_data, model_data, params_dir
+                    )
 
                 # save predictions for all sets
-                path_n_suffix, name_points, Xy_data = save_predictions(self,Xy_data,model_data,suffix_title)
-
-                # represent y vs predicted y
-                colors = plot_predictions(self,model_data,Xy_data,path_n_suffix)
+                path_n_suffix, name_points, Xy_data = save_predictions(
+                    self, Xy_data, model_data, suffix_title
+                )
 
                 # print results
-                _ = print_predict(self,Xy_data,model_data,suffix_title)  
+                _ = print_predict(self, Xy_data, model_data, suffix_title)
 
-                # SHAP analysis
-                _ = shap_analysis(self,Xy_data,model_data,path_n_suffix)
-
-                # PFI analysis
-                _ = PFI_plot(self,Xy_data,model_data,path_n_suffix)
-
-                # create Pearson heatmap
-                _ = pearson_map_predict(self,Xy_data,params_dir)
-
-                # Outlier analysis
-                if model_data['type'].lower() == 'reg':
-                    _ = outlier_plot(self,Xy_data,path_n_suffix,name_points,colors)
-
-                # y distribution
-                _ = distribution_plot(self,Xy_data,path_n_suffix,model_data)
+                if run_prediction_plots or run_deep_diagnostics:
+                    fitted = Xy_data.get("_fitted_model")
+                    with _mpl_plot_context():
+                        colors = None
+                        if run_prediction_plots:
+                            colors = plot_predictions(
+                                self, model_data, Xy_data, path_n_suffix
+                            )
+                        if run_deep_diagnostics:
+                            _ = shap_analysis(
+                                self,
+                                Xy_data,
+                                model_data,
+                                path_n_suffix,
+                                fitted_model=fitted,
+                            )
+                            _ = PFI_plot(
+                                self,
+                                Xy_data,
+                                model_data,
+                                path_n_suffix,
+                                fitted_model=fitted,
+                            )
+                            _ = pearson_map_predict(self, Xy_data, params_dir)
+                            if model_data["type"].lower() == "reg":
+                                _ = outlier_plot(
+                                    self,
+                                    Xy_data,
+                                    path_n_suffix,
+                                    name_points,
+                                    colors,
+                                )
+                            _ = distribution_plot(
+                                self, Xy_data, path_n_suffix, model_data
+                            )
 
         _ = finish_print(self,start_time,'PREDICT')

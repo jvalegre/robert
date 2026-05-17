@@ -11,6 +11,8 @@ import glob
 import yaml
 import ast
 import shutil
+import importlib
+from contextlib import contextmanager
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -19,13 +21,10 @@ import numpy as np
 # This prevents numerical differences between Windows/Ubuntu in parallel operations
 os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 from matplotlib import pyplot as plt
-import importlib
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolor
 from matplotlib.legend_handler import HandlerPatch
 from matplotlib.ticker import FormatStrFormatter
-import shap
-import seaborn as sb
 from scipy import stats
 from importlib.resources import files
 # sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
@@ -46,7 +45,10 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     GradientBoostingClassifier,
     AdaBoostClassifier,
+    VotingRegressor,
+    VotingClassifier,
     )
+from xgboost import XGBClassifier, XGBRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
 from sklearn.linear_model import LinearRegression
@@ -57,10 +59,46 @@ from sklearn.cluster import KMeans
 from sklearn.inspection import permutation_importance
 from sklearn.exceptions import ConvergenceWarning
 from robert.argument_parser import set_options, var_dict
-from bayes_opt import BayesianOptimization
-from bayes_opt import acquisition
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
+
+
+@contextmanager
+def _mpl_plot_context():
+    """Reload pyplot once per plotting batch (threading workaround)."""
+    importlib.reload(plt)
+    yield
+
+
+def plot_verbosity_level(args) -> int:
+    """Return clipped plot verbosity in {0, 1, 2}; default matches legacy (all plots)."""
+    try:
+        v = int(getattr(args, "plot_verbosity", var_dict["plot_verbosity"]))
+    except (TypeError, ValueError):
+        v = int(var_dict["plot_verbosity"])
+    return max(0, min(2, v))
+
+
+def should_plot_curate_pearson(args) -> bool:
+    return plot_verbosity_level(args) >= 1
+
+
+def should_plot_generate_heatmap(args) -> bool:
+    return plot_verbosity_level(args) >= 1
+
+
+def should_plot_verify_metrics(args) -> bool:
+    return plot_verbosity_level(args) >= 1
+
+
+def should_plot_predict_results(args) -> bool:
+    """Main PREDICT figures (e.g. Results_*); tied to predict_diagnostics for backward compatibility."""
+    return bool(getattr(args, "predict_diagnostics", True)) and plot_verbosity_level(args) >= 1
+
+
+def should_plot_predict_deep_diagnostics(args) -> bool:
+    """SHAP, PFI, Pearson heatmap, outliers, distribution plots."""
+    return bool(getattr(args, "predict_diagnostics", True)) and plot_verbosity_level(args) >= 2
 
 
 robert_version = "2.1.0"
@@ -77,18 +115,38 @@ def load_from_yaml(self):
 
     txt_yaml = f"\no  Importing ROBERT parameters from {self.varfile}"
     error_yaml = False
+    param_list = {}
     # Variables will be updated from YAML file
     try:
-        if os.path.exists(self.varfile):
-            if os.path.basename(Path(self.varfile)).split('.')[1] in ["yaml", "yml", "txt"]:
-                with open(self.varfile, "r") as file:
-                    try:
-                        param_list = yaml.load(file, Loader=yaml.SafeLoader)
-                    except (yaml.scanner.ScannerError,yaml.parser.ParserError):
-                        txt_yaml = f'\nx  Error while reading {self.varfile}. Edit the yaml file and try again (i.e. use ":" instead of "=" to specify variables)'
-                        error_yaml = True
-        if not error_yaml:
+        if not os.path.exists(self.varfile):
+            return (
+                self,
+                "\nx  The specified yaml file containing parameters was not found! Make sure that the valid params file is in the folder where you are running the code.",
+            )
+        base_name = os.path.basename(Path(self.varfile))
+        ext = base_name.rsplit(".", 1)[-1] if "." in base_name else ""
+        if ext in ["yaml", "yml", "txt"]:
+            with open(self.varfile, "r") as file:
+                try:
+                    loaded = yaml.load(file, Loader=yaml.SafeLoader)
+                    param_list = loaded if isinstance(loaded, dict) else {}
+                except (yaml.scanner.ScannerError,yaml.parser.ParserError):
+                    txt_yaml = f'\nx  Error while reading {self.varfile}. Edit the yaml file and try again (i.e. use ":" instead of "=" to specify variables)'
+                    error_yaml = True
+        else:
+            txt_yaml = (
+                f"\nx  Unsupported parameter file extension for {self.varfile!r}. "
+                "Use .yaml, .yml, or .txt."
+            )
+            error_yaml = True
+        if not error_yaml and param_list:
             for param in param_list:
+                if param not in var_dict:
+                    print(
+                        f"Warning! YAML key [{param}] is not a recognized ROBERT option; "
+                        "ignored. See online documentation for valid option names."
+                    )
+                    continue
                 if hasattr(self, param):
                     if getattr(self, param) != param_list[param]:
                         setattr(self, param, param_list[param])
@@ -173,6 +231,10 @@ def command_line_args(exe_type,sys_args):
         "seed",
         "init_points",
         "n_iter",
+        "plot_verbosity",
+        "uq_top_k_models",
+        "uq_auto_min_samples",
+        "uq_auto_random_state",
     ]
     float_args = [
         'pfi_threshold',
@@ -182,7 +244,9 @@ def command_line_args(exe_type,sys_args):
         'test_set',
         'desc_thres',
         'alpha',
-        'expect_improv'
+        'expect_improv',
+        'conformal_calib_frac',
+        'conformal_coverage',
     ]
 
     for arg in var_dict:
@@ -236,7 +300,7 @@ o Other common options:
   --discard "[COL1,COL2,etc]" (default=[]) : CSV columns that will be removed
 
 * Affecting data curation in CURATE:
-  --kfold INT (default='auto') : number of folds for k-fold cross-validation of the RFECV feature selector. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
+  --kfold INT (default=5) : number of folds for RFECV feature selection during curation (RepeatedKFold with repeat_kfolds; see docs)
   --categorical "onehot" or "numbers" (default="onehot") : type of conversion for categorical variables
   --corr_filter_x BOOL (default=True) : activate/disable the correlation filter of descriptors X
 
@@ -246,16 +310,27 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default='auto') : number of folds for k-fold cross-validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
+  --repeat_kfolds INT (default=10) : repetitions for repeated k-fold CV during verification
 
 * Affecting predictions, PREDICT:
   --t_value INT (default=2) : t-value threshold to identify outliers
   --shap_show INT (default=10) : maximum number of descriptors shown in the SHAP plot
+  --plot_verbosity INT (default=2) : 0=no figures, 1=workflow summaries, 2=full diagnostics (see docs)
+  --predict_diagnostics BOOL (default=True) : when False, skip SHAP/PFI/heatmap/outlier/distribution plots
+  --conformal_enable BOOL (default=True) : regression split-conformal intervals (half-width column in outputs)
+  --conformal_calib_frac FLOAT (default=0.15) : fraction of data for conformal calibration
+  --conformal_coverage FLOAT (default=0.9) : target coverage for conformal intervals
+  --uq_enable_meta BOOL (default=False) : enable meta-model uncertainty (Python API and advanced PREDICT)
+  --uq_top_k_models INT (default=3) : top-k GENERATE models for meta UQ
+  --uq_auto_enable BOOL (default=False) : automatic uncertainty selection (regression; see docs/API)
+
+  Note: structured options (e.g. uq_auto_candidates, uq_auto_metric_weights) are easiest to set
+  via a YAML varfile or the Python API (RobertModel); see https://robert.readthedocs.io
 
 * Affecting SMILES workflows, AQME:
-  --qdescp_keywords STR (default="") : extra keywords in QDESCP (i.e. "--qdescp_atoms [Ir] --alpb h2o") 
-  --csearch_keywords STR (default="--sample 50") : extra keywords in CSEARCH
+  --qdescp_keywords STR (default="") : extra tokens appended to the internal AQME QDESCP command (e.g. xTB/atom selections)
   --descp_lvl (default="interpret") "interpret", "denovo" or "full" : type of descriptor calculation
+  Advanced conformer/CSEARCH settings follow AQME; pass compatible AQME flags inside --qdescp_keywords only where they apply to the same AQME invocation, or run AQME standalone if you need a custom CSEARCH workflow.
 
 
 o How to cite ROBERT:
@@ -437,7 +512,7 @@ def load_variables(kwargs, robert_module):
 
         if robert_module.upper() in ['CURATE','GENERATE']:
             if self.type.lower() == 'clas':
-                if ('MVL' or 'mvl') in self.model:
+                if any(m.upper() == "MVL" for m in self.model):
                     self.model = [x if x.upper() != 'MVL' else 'AdaB' for x in self.model]
             
             models_gen = [] # use capital letters in all the models
@@ -674,7 +749,7 @@ def correlation_filter(self, csv_df):
         while True:
             # Find the maximum R2 correlation
             max_r2 = upper.max().max()
-            if max_r2 <= self.args.thres_x:
+            if max_r2 <= self.args.thres_x or str(max_r2).lower() == 'nan':
                 break
             
             # Get ALL pairs with maximum correlation, round to avoid floating point issues
@@ -753,8 +828,8 @@ def correlation_filter(self, csv_df):
             scoring = get_scoring_key(self.args.type,self.args.error_type)
 
             # Use different strategies for models without feature_importances_
-            if model.upper() in ['NN', 'GP']:
-                # For NN and GP, use a simpler approach: select top features by correlation with y
+            if model.upper() in ['NN', 'GP', 'VR']:
+                # For NN, GP and VR, use a simpler approach: select top features by correlation with y
                 # after initial fit, then use permutation importance to rank them
                 
                 # Train the model once on all features
@@ -804,7 +879,7 @@ def correlation_filter(self, csv_df):
                     # For MVL, use absolute coefficients as importance
                     feature_importances = np.abs(selector.estimator_.coef_)
                 else: 
-                    # RF, GB, ADAB have feature_importances_
+                    # RF, GB, ADAB, XGB have feature_importances_
                     feature_importances = selector.estimator_.feature_importances_
                 
                 # Round importances to reduce floating point variance
@@ -891,7 +966,22 @@ def load_minimal_model(model):
         'GP': {
         'n_restarts_optimizer': 30,
         },
+        'XGB': {
+        'n_estimators': 30,
+        'learning_rate': 0.1,
+        'max_depth': 10,
+        'min_child_weight': 1,
+        'subsample': 1.0,
+        'colsample_bytree': 1.0,
+        'reg_alpha': 0.0,
+        'reg_lambda': 1.0,
+        },
         'MVL': {
+        },
+        'VR': {
+        'w_rf': 1.0,
+        'w_gb': 1.0,
+        'w_nn': 1.0,
         }
     }
 
@@ -1006,8 +1096,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     self.split = 'rnd'
 
             for model_type in self.model:
-                if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN'] or len(self.model) == 0:
-                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN'")
+                if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN','XGB','VR'] or len(self.model) == 0:
+                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'GP', 'ADAB', 'NN', 'XGB', 'VR'")
                     curate_valid = False
                 if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
                     self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")                 
@@ -1145,13 +1235,6 @@ def check_clas_problem(self,csv_df):
                 
                 self.args.log.write(f'\no  Classification labels converted: {self.args.class_0_label} → 0, {self.args.class_1_label} → 1')
                 self.args.log.write(f'   Original labels will be restored in output files')
-
-        if len(set(csv_df[self.args.y])) != 2:
-            self.args.log.write(f'\nx  Only two different y values are currently allowed for classification problems! {len(set(csv_df[self.args.y]))} different values were used: {set(csv_df[self.args.y])}')
-            self.args.log.write(f'   The program detected this is a classification problem (non-numeric values or few unique values)')
-            self.args.log.write(f'   Please use only 2 different class labels (e.g., "active"/"inactive" or 0/1)')
-            self.args.log.finalize()
-            sys.exit()
         
         # Check that each class has at least 5 points
         class_counts = csv_df[self.args.y].value_counts()
@@ -1188,10 +1271,17 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         external_test = True
 
     txt_load = ''
-    # this part fixes CSV files that use ";" as separator
+    # Semicolon-separated "CSV" from Excel: peek at the first rows before reading the whole file.
+    _scan_limit = 64
+    head_lines = []
     with open(csv_load, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
-    if lines[1].count(';') > 1:
+        for _, line in zip(range(_scan_limit), file):
+            head_lines.append(line)
+    semicolon_issue = len(head_lines) >= 2 and head_lines[1].count(';') > 1
+    if semicolon_issue:
+        with open(csv_load, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+    if semicolon_issue:
         new_csv_name = os.path.basename(csv_load).split('.csv')[0].split('.CSV')[0]+'_original.csv'
         shutil.move(csv_load, Path(os.path.dirname(csv_load)).joinpath(new_csv_name))
         new_csv_file = open(csv_load, "w")
@@ -1433,6 +1523,11 @@ def test_select(self,X_scaled,csv_y):
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
 
+    # in the future, we'll adapt other data splitting techniques for classificaiton problems with 3+ target values
+    if self.args.type == 'clas':
+        if len(set(csv_y)) != 2:
+            self.args.split = 'RND' 
+
     if self.args.split.upper() == 'KN':
         # k-neighbours data split
 
@@ -1453,7 +1548,8 @@ def test_select(self,X_scaled,csv_y):
 
         else:
             idx_list = csv_y.index
-            test_points = k_means(self,X_scaled,csv_y,selected_size,self.args.seed,idx_list)
+            training_size = len(csv_y)-selected_size
+            test_points = k_means(self,X_scaled,csv_y,training_size,self.args.seed,idx_list)
 
     elif self.args.split.upper() == 'RND':
         size = round(selected_size * 100 / (len(csv_y)))
@@ -1564,6 +1660,8 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
 
 
 def BO_optimizer(self,bo_data,Xy_data):
+    from bayes_opt import BayesianOptimization, acquisition
+
     # Define an acquisition function for Bayesian optimization
     _ = acquisition.ExpectedImprovement(xi=self.args.expect_improv)
 
@@ -1651,7 +1749,22 @@ def BO_hyperparams(model_name):
         },
         'GP': {
         'n_restarts_optimizer': (0, 100),
-        }
+        },
+        'XGB': {
+        'n_estimators': (10, 100),
+        'learning_rate': (0.01, 0.3),
+        'max_depth': (3, 20),
+        'min_child_weight': (1, 10),
+        'subsample': (0.7, 1.0),
+        'colsample_bytree': (0.25, 1.0),
+        'reg_alpha': (0, 1.0),
+        'reg_lambda': (0, 1.0),
+        },
+        'VR': {
+        'w_rf': (0.1, 5.0),
+        'w_gb': (0.1, 5.0),
+        'w_nn': (0.1, 5.0),
+        },
     }
 
     return model_BO_params[model_name]
@@ -1676,7 +1789,7 @@ def model_adjust_params(self,model_name,params):
 
     '''
 
-    if model_name != 'MVL':
+    if model_name not in ['MVL', 'VR']:
         params['random_state'] = self.args.seed
 
         if model_name in ['RF','GB']:
@@ -1684,6 +1797,11 @@ def model_adjust_params(self,model_name,params):
             params['max_depth'] = round(params['max_depth'])
             params['min_samples_split'] = round(params['min_samples_split'])
             params['min_samples_leaf'] = round(params['min_samples_leaf'])
+
+        elif model_name == 'XGB':
+            params['n_estimators'] = round(params['n_estimators'])
+            params['max_depth'] = round(params['max_depth'])
+            params['min_child_weight'] = round(params['min_child_weight'])
 
         elif model_name == 'NN':
             # add solver first
@@ -1697,6 +1815,17 @@ def model_adjust_params(self,model_name,params):
 
         elif model_name == 'GP':
             params['n_restarts_optimizer'] = round(params['n_restarts_optimizer'])
+
+    elif model_name == 'VR':
+        # VR only optimizes ensemble weights; base estimators receive deterministic seeds.
+        if all(weight_key in params for weight_key in ['w_rf', 'w_gb', 'w_nn']):
+            params['weights'] = [
+                float(params.pop('w_rf')),
+                float(params.pop('w_gb')),
+                float(params.pop('w_nn')),
+            ]
+        elif 'weights' in params:
+            params['weights'] = [float(weight) for weight in params['weights']]
 
     return params
 
@@ -1722,6 +1851,14 @@ def load_model(self, model_name, **params):
         else:
             loaded_model = GradientBoostingClassifier(**params)
 
+    elif model_name == 'XGB':
+        if 'n_jobs' not in params:
+            params['n_jobs'] = 1
+        if self.args.type.lower() == 'reg':
+            loaded_model = XGBRegressor(**params)
+        else:
+            loaded_model = XGBClassifier(**params)
+
     elif model_name == 'NN':
         # create the hidden layers architecture first
         params = setup_hidden_layers(params)
@@ -1745,6 +1882,26 @@ def load_model(self, model_name, **params):
 
     elif model_name == 'MVL':
         loaded_model = LinearRegression(**params)
+
+    elif model_name == 'VR':
+        weights = params.pop('weights', [1.0, 1.0, 1.0])
+        weights = [float(weight) for weight in weights]
+        seed = self.args.seed
+
+        if self.args.type.lower() == 'reg':
+            voting_estimators = [
+                ('rf', RandomForestRegressor(n_estimators=100, random_state=seed, n_jobs=1)),
+                ('gb', GradientBoostingRegressor(random_state=seed)),
+                ('nn', MLPRegressor(hidden_layer_sizes=(50,), max_iter=500, solver='lbfgs', random_state=seed)),
+            ]
+            loaded_model = VotingRegressor(estimators=voting_estimators, weights=weights)
+        else:
+            voting_estimators = [
+                ('rf', RandomForestClassifier(n_estimators=100, random_state=seed, n_jobs=1)),
+                ('gb', GradientBoostingClassifier(random_state=seed)),
+                ('nn', MLPClassifier(hidden_layer_sizes=(50,), max_iter=500, solver='lbfgs', random_state=seed)),
+            ]
+            loaded_model = VotingClassifier(estimators=voting_estimators, weights=weights)
     
     return loaded_model
 
@@ -1794,6 +1951,259 @@ def correct_hidden_layers(params):
     params['hidden_layer_sizes'] = (layer_arrays)
 
     return params
+
+
+def _raw_data_dir_from_best_params(params_dir):
+    """Map ``GENERATE/Best_model/{PFI|No_PFI}`` to ``GENERATE/Raw_data/{PFI|No_PFI}``."""
+    p = Path(str(params_dir))
+    parts = list(p.parts)
+    if "Best_model" in parts:
+        idx = parts.index("Best_model")
+        parts[idx] = "Raw_data"
+        return Path(os.getcwd()).joinpath(*parts)
+    if "Raw_data" in parts:
+        return Path(os.getcwd()).joinpath(*parts)
+    return Path(os.getcwd()).joinpath("GENERATE", "Raw_data", p.name)
+
+
+PARAMS_DIR_BEST_MODEL_MARK = "GENERATE/Best_model"
+
+
+def path_generate_best_model(workdir=None, *subparts: str) -> Path:
+    """
+    Path to ``GENERATE/Best_model`` (optionally ``/No_PFI``, ``/PFI``, ...).
+
+    Parameters
+    ----------
+    workdir : pathlib.Path or str, optional
+        Root directory (default: current working directory).
+    *subparts : str
+        Additional path segments under Best_model (e.g. ``"No_PFI"``).
+    """
+    root = Path(workdir) if workdir is not None else Path.cwd()
+    p = root / "GENERATE" / "Best_model"
+    if subparts:
+        p = p.joinpath(*subparts)
+    return p
+
+
+def discover_top_k_model_candidates(raw_data_dir, top_k, weighting="score_weighted"):
+    """
+    List up to ``top_k`` model parameter CSV paths ranked by GENERATE combined score.
+
+    Returns a list of dicts with keys ``path``, ``model``, ``score``, ``error_type``,
+    ``weight`` (normalized, higher is better for classification metrics).
+    """
+    raw_path = Path(raw_data_dir)
+    if not raw_path.is_dir():
+        return []
+
+    entries = []
+    for csv_file in sorted(glob.glob(str(raw_path.joinpath("*.csv")))):
+        if csv_file.endswith("_db.csv"):
+            continue
+        try:
+            results = pd.read_csv(csv_file, encoding="utf-8")
+        except (OSError, ValueError, KeyError):
+            continue
+        if results.empty or "error_type" not in results.columns:
+            continue
+        err_type = str(results["error_type"].iloc[0])
+        comb_col = f"combined_{err_type}"
+        if comb_col not in results.columns:
+            continue
+        score = float(results[comb_col].iloc[0])
+        model_name = Path(csv_file).stem.split("_")[0]
+        entries.append(
+            {
+                "path": csv_file,
+                "model": model_name,
+                "score": score,
+                "error_type": err_type,
+            }
+        )
+
+    if not entries:
+        return []
+
+    lower_is_better = entries[0]["error_type"].lower() in ("mae", "rmse")
+    entries.sort(key=lambda e: e["score"], reverse=not lower_is_better)
+    entries = entries[: max(1, int(top_k))]
+
+    if weighting == "uniform" or len(entries) == 1:
+        w = 1.0 / len(entries)
+        for e in entries:
+            e["weight"] = w
+        return entries
+
+    scores = np.array([e["score"] for e in entries], dtype=float)
+    if lower_is_better:
+        # Convert errors to weights (smaller error -> larger weight).
+        shifted = scores.max() - scores + 1e-12
+        raw_w = shifted
+    else:
+        raw_w = np.maximum(scores, 0.0) + 1e-12
+    raw_w = raw_w / raw_w.sum()
+    for e, w in zip(entries, raw_w):
+        e["weight"] = float(w)
+    return entries
+
+
+def aggregate_meta_uq_decomposition(preds_stack, sd_stack, weights, problem_type):
+    """
+    Combine per-model predictions and within-model CV SD into decomposition scalars.
+
+    Regression uses the law of total variance (within + between). Classification
+    uses a heuristic on vote-spread (within) and between-model label disagreement.
+
+    Returns
+    -------
+    y_point, uq_model, uq_meta, uq_total
+        Point prediction and nonnegative uncertainty components per row.
+    """
+    preds = np.asarray(preds_stack, dtype=float)
+    sds = np.asarray(sd_stack, dtype=float)
+    w = np.asarray(weights, dtype=float).ravel()
+    if preds.ndim != 2:
+        preds = preds.reshape(1, -1)
+    if sds.ndim != 2:
+        sds = sds.reshape(1, -1)
+    if w.size != preds.shape[0]:
+        w = np.ones(preds.shape[0], dtype=float) / preds.shape[0]
+    w = w / w.sum()
+
+    if problem_type.lower() == "reg":
+        y_point = np.average(preds, axis=0, weights=w)
+        within_var = np.average(sds ** 2, axis=0, weights=w)
+        mean_pred = np.average(preds, axis=0, weights=w)
+        between_var = np.average((preds - mean_pred) ** 2, axis=0, weights=w)
+        uq_model = np.sqrt(np.maximum(within_var, 0.0))
+        uq_meta = np.sqrt(np.maximum(between_var, 0.0))
+        uq_total = np.sqrt(np.maximum(within_var + between_var, 0.0))
+        return y_point, uq_model, uq_meta, uq_total
+
+    # Classification: preds are class labels; use float spread heuristics.
+    preds_f = preds.astype(float)
+    y_point = np.array(
+        [int(round(np.average(preds_f[:, i], weights=w))) for i in range(preds_f.shape[1])],
+        dtype=int,
+    )
+    uq_model = np.average(sds, axis=0, weights=w)
+    mean_pred = np.average(preds_f, axis=0, weights=w)
+    uq_meta = np.sqrt(
+        np.maximum(np.average((preds_f - mean_pred) ** 2, axis=0, weights=w), 0.0)
+    )
+    uq_total = np.sqrt(np.maximum(uq_model ** 2 + uq_meta ** 2, 0.0))
+    return y_point, uq_model, uq_meta, uq_total
+
+
+def _snapshot_prediction_fields(Xy_data, prefix):
+    """Copy prediction-related lists for one split prefix (train/test/external)."""
+    keys = [f"y_pred_{prefix}", f"y_pred_{prefix}_sd"]
+    return {k: list(Xy_data[k]) for k in keys if k in Xy_data}
+
+
+def _restore_prediction_fields(Xy_data, prefix, snap):
+    for k, v in snap.items():
+        Xy_data[k] = v
+
+
+def apply_meta_uq_ensemble(self, Xy_data, model_data, params_dir):
+    """
+    Run top-k models from GENERATE Raw_data and attach meta UQ fields on ``Xy_data``.
+
+    No-op unless ``self.args.uq_enable_meta`` is true. Re-runs ``load_n_predict`` for
+    each candidate while restoring base point predictions between models. Writes
+    ``y_pred_{split}_uq_{model,meta,total}`` and sets ``y_pred_{split}_sd`` to total.
+    Emits :class:`UserWarning` when Raw_data has no or only one candidate.
+    """
+    if not bool(getattr(self.args, "uq_enable_meta", False)):
+        return Xy_data
+
+    top_k = int(getattr(self.args, "uq_top_k_models", 3))
+    weighting = str(getattr(self.args, "uq_model_weighting", "score_weighted"))
+    raw_dir = _raw_data_dir_from_best_params(params_dir)
+    candidates = discover_top_k_model_candidates(raw_dir, top_k, weighting)
+
+    if not candidates:
+        warnings.warn(
+            f"Meta-model uncertainty requested but no candidates found in {raw_dir!s}; "
+            "using single-model CV spread only.",
+            UserWarning,
+            stacklevel=2,
+        )
+        _attach_single_model_uq_fallback(Xy_data, model_data)
+        return Xy_data
+
+    if len(candidates) < 2:
+        warnings.warn(
+            "Meta-model uncertainty requested but fewer than two candidate models "
+            f"in {raw_dir!s}; meta component set to zero.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    problem_type = model_data["type"]
+    splits = ["train", "test"]
+    if "X_external" in Xy_data:
+        splits.append("external")
+
+    base_snap_full = {
+        split: _snapshot_prediction_fields(Xy_data, split) for split in splits
+    }
+    preds_by_split = {split: [] for split in splits}
+    sd_by_split = {split: [] for split in splits}
+
+    for cand in candidates:
+        cand_data = load_params(self, cand["path"])
+        cand_data["repeat_kfolds"] = model_data.get(
+            "repeat_kfolds", cand_data.get("repeat_kfolds")
+        )
+        cand_data["kfold"] = model_data.get("kfold", cand_data.get("kfold"))
+        xy_run = load_n_predict(self, cand_data, Xy_data, BO_opt=False)
+        for split in splits:
+            pred_key = f"y_pred_{split}"
+            sd_key = f"y_pred_{split}_sd"
+            if pred_key in xy_run:
+                preds_by_split[split].append(np.asarray(xy_run[pred_key], dtype=float))
+                sd_by_split[split].append(np.asarray(xy_run[sd_key], dtype=float))
+        for split in splits:
+            _restore_prediction_fields(Xy_data, split, base_snap_full[split])
+
+    weights = [c["weight"] for c in candidates]
+    for split in splits:
+        if not preds_by_split[split]:
+            continue
+        pred_key = f"y_pred_{split}"
+        sd_key = f"y_pred_{split}_sd"
+        stack_p = np.vstack(preds_by_split[split])
+        stack_s = np.vstack(sd_by_split[split])
+        y_pt, uq_m, uq_meta, uq_tot = aggregate_meta_uq_decomposition(
+            stack_p, stack_s, weights, problem_type
+        )
+        if problem_type.lower() == "clas":
+            y_pt = np.asarray([int(v) for v in y_pt], dtype=int)
+        else:
+            y_pt = np.asarray(y_pt, dtype=float)
+        Xy_data[pred_key] = y_pt.tolist()
+        Xy_data[f"y_pred_{split}_uq_model"] = np.asarray(uq_m, dtype=float).tolist()
+        Xy_data[f"y_pred_{split}_uq_meta"] = np.asarray(uq_meta, dtype=float).tolist()
+        Xy_data[f"y_pred_{split}_uq_total"] = np.asarray(uq_tot, dtype=float).tolist()
+        Xy_data[sd_key] = Xy_data[f"y_pred_{split}_uq_total"]
+
+    return Xy_data
+
+
+def _attach_single_model_uq_fallback(Xy_data, model_data):
+    """When meta ensemble cannot run, map CV SD to uq_model and zero meta."""
+    for split in ("train", "test", "external"):
+        sd_key = f"y_pred_{split}_sd"
+        if sd_key not in Xy_data:
+            continue
+        sd = np.asarray(Xy_data[sd_key], dtype=float)
+        Xy_data[f"y_pred_{split}_uq_model"] = sd.tolist()
+        Xy_data[f"y_pred_{split}_uq_meta"] = [0.0] * len(sd)
+        Xy_data[f"y_pred_{split}_uq_total"] = sd.tolist()
 
 
 def _conformal_abs_residual_quantile(abs_residuals, coverage):
@@ -1891,7 +2301,7 @@ def _apply_full_refit_split_conformal(self, model_data, Xy_data, loaded_model, y
             hw = _conformal_abs_residual_quantile(abs_res, cov)
 
     Xy_data["conformal_half_width"] = hw
-    return Xy_data
+    return Xy_data, m_full
 
 
 def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
@@ -1907,9 +2317,10 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
 
     y_cv_mean_train = np.asarray(Xy_data["y_pred_train"], dtype=float)
     if not BO_opt:
-        Xy_data = _apply_full_refit_split_conformal(
+        Xy_data, fitted_model = _apply_full_refit_split_conformal(
             self, model_data, Xy_data, loaded_model, y_cv_mean_train
         )
+        Xy_data["_fitted_model"] = fitted_model
 
     # combine all the predictions from the repeated CV (metrics of the train set)
     y_all_list,y_pred_all_list = [],[]
@@ -2167,7 +2578,7 @@ def k_means(self,X_scaled,csv_y,size,seed,idx_list):
     # to avoid points from the validation set outside the training set, the 2 first training
     # points are automatically set as the 2 points with minimum/maximum response value
     if self.args.type.lower() == 'reg':
-        test_points = [csv_y.idxmin(),csv_y.idxmax()]
+        test_points = []
         training_idx = [csv_y.idxmin(),csv_y.idxmax()]
         number_of_clusters -= 2
     else:
@@ -2257,37 +2668,49 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     """
     Graph the heatmap
     """
+    import seaborn as sb
 
-    importlib.reload(plt) # needed to avoid threading issues
-    csv_df = csv_df.sort_index(ascending=False)
-    sb.set(font_scale=1.2, style='ticks')
-    _, ax = plt.subplots(figsize=(7.45,6))
-    cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
-    # Replace inf values with NaN for proper heatmap visualization
-    csv_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512, cbar_kws={'label': f'Combined {self.args.error_type.upper()}'}, mask=csv_df.isnull())
-    fontsize = 14
-    ax.set_xlabel("ML Model",fontsize=fontsize)
-    ax.set_ylabel("",fontsize=fontsize)
-    ax.tick_params(axis='x', which='major', labelsize=fontsize)
-    ax.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
-    title_fig = f'Heatmap ML models {suffix}'
-    plt.title(title_fig, y=1.04, fontsize = fontsize, fontweight="bold")
-    sb.despine(top=False, right=False)
-    name_fig = '_'.join(title_fig.split())
-    plt.savefig(f'{path_raw.joinpath(name_fig)}.png', dpi=300, bbox_inches='tight')
+    with _mpl_plot_context():
+        csv_df = csv_df.sort_index(ascending=False)
+        sb.set(font_scale=1.2, style="ticks")
+        _, ax = plt.subplots(figsize=(7.45, 6))
+        cmap_blues_75_percent_512 = [
+            mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))
+        ]
+        csv_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        ax = sb.heatmap(
+            csv_df,
+            annot=True,
+            linewidth=1,
+            cmap=cmap_blues_75_percent_512,
+            cbar_kws={"label": f"Combined {self.args.error_type.upper()}"},
+            mask=csv_df.isnull(),
+        )
+        fontsize = 14
+        ax.set_xlabel("ML Model", fontsize=fontsize)
+        ax.set_ylabel("", fontsize=fontsize)
+        ax.tick_params(axis="x", which="major", labelsize=fontsize)
+        ax.tick_params(
+            axis="y", which="both", left=False, right=False, labelleft=False
+        )
+        title_fig = f"Heatmap ML models {suffix}"
+        plt.title(title_fig, y=1.04, fontsize=fontsize, fontweight="bold")
+        sb.despine(top=False, right=False)
+        name_fig = "_".join(title_fig.split())
+        plt.savefig(
+            f"{path_raw.joinpath(name_fig)}.png", dpi=300, bbox_inches="tight"
+        )
 
-    path_reduced = '/'.join(f'{path_raw}'.replace('\\','/').split('/')[-2:])
-    self.args.log.write(f'\no  {name_fig} succesfully created in {path_reduced}')
+    path_reduced = "/".join(f"{path_raw}".replace("\\", "/").split("/")[-2:])
+    self.args.log.write(f"\no  {name_fig} succesfully created in {path_reduced}")
 
 
 def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,sd_graph=False):
     '''
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     '''
+    import seaborn as sb
 
-    # Create graph
-    importlib.reload(plt) # needed to avoid threading issues
     sb.set(style="ticks")
 
     _, ax = plt.subplots(figsize=(7.45,6))
@@ -2461,8 +2884,6 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
     Plot a confusion matrix with the prediction vs actual values
     '''
 
-    importlib.reload(plt) # needed to avoid threading issues
-
     # Check if we need to use original class labels for display
     display_labels = None
     if 'class_0_label' in params_dict and 'class_1_label' in params_dict:
@@ -2519,19 +2940,21 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
         self.args.log.write(f"      -  Graph in: {path_reduced}")
 
 
-def shap_analysis(self,Xy_data,model_data,path_n_suffix):
+def shap_analysis(self, Xy_data, model_data, path_n_suffix, fitted_model=None):
     '''
     Plots and prints the results of the SHAP analysis
     '''
+    import shap
 
-    importlib.reload(plt) # needed to avoid threading issues
-    _, _ = plt.subplots(figsize=(7.45,6))
+    _, _ = plt.subplots(figsize=(7.45, 6))
 
     shap_plot_file = f'{os.path.dirname(path_n_suffix)}/SHAP_{os.path.basename(path_n_suffix)}.png'
 
-    # load and fit the ML model
-    loaded_model = load_model(self, model_data['model'], **model_data['params'])
-    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
+    if fitted_model is None:
+        loaded_model = load_model(self, model_data["model"], **model_data["params"])
+        loaded_model.fit(Xy_data["X_train_scaled"], Xy_data["y_train"])
+    else:
+        loaded_model = fitted_model
 
     # run the SHAP analysis and save the plot
     explainer = shap.Explainer(loaded_model.predict, Xy_data['X_train_scaled'], seed=model_data['seed'])
@@ -2582,17 +3005,17 @@ def shap_analysis(self,Xy_data,model_data,path_n_suffix):
     plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
 
 
-def PFI_plot(self,Xy_data,model_data,path_n_suffix):
+def PFI_plot(self, Xy_data, model_data, path_n_suffix, fitted_model=None):
     '''
     Plots and prints the results of the PFI analysis
     '''
-
-    importlib.reload(plt) # needed to avoid threading issues
     pfi_plot_file = f'{os.path.dirname(path_n_suffix)}/PFI_{os.path.basename(path_n_suffix)}.png'
 
-    # load and fit the ML model
-    loaded_model = load_model(self, model_data['model'], **model_data['params'])
-    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
+    if fitted_model is None:
+        loaded_model = load_model(self, model_data["model"], **model_data["params"])
+        loaded_model.fit(Xy_data["X_train_scaled"], Xy_data["y_train"])
+    else:
+        loaded_model = fitted_model
 
     # select scoring function for PFI analysis based on the error type
     scoring, _, error_type = scoring_n_score(self,model_data,Xy_data,loaded_model)
@@ -2637,8 +3060,8 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     '''
     Plots and prints the results of the outlier analysis
     '''
+    import seaborn as sb
 
-    importlib.reload(plt) # needed to avoid threading issues
     # detect outliers
     outliers_data, print_outliers = outlier_filter(self, Xy_data, name_points)
 
@@ -2778,9 +3201,8 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
     '''
     Plots histogram (reg) or bin plot (clas).
     '''
+    import seaborn as sb
 
-    # make graph
-    importlib.reload(plt) # needed to avoid threading issues
     sb.set(style="ticks")
 
     _, ax = plt.subplots(figsize=(7.45,6))
@@ -2836,9 +3258,6 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
             print_distrib += f"\n      o  Your data seems quite uniform"
 
     elif params_dict['type'].lower() == 'clas':
-        if len(y_dist_dict['count_labels']) > 2:
-            self.args.log.write(f"\n      ADAPT THIS PART for 3+ prediction classes!!")
-            sys.exit()
         print_distrib += f"\n      Ideally, the number of datapoints in each prediction class should be uniform (50% population per class) to have similar reliability in the predictions across classes"
         distrib_counts = [y_dist_dict['count_labels'][0],y_dist_dict['count_labels'][1]]
         print_distrib += f"\n      - The number of points in each class is {y_dist_dict['type_labels'][0]}: {y_dist_dict['count_labels'][0]}, {y_dist_dict['type_labels'][1]}: {y_dist_dict['count_labels'][1]}"
@@ -2952,6 +3371,57 @@ def get_prediction_results(model_data,y,y_pred_all):
         return acc, f1_score_val, mcc
 
 
+def get_error_labels(model_type):
+    """
+    Returns the three error metric labels for the given model type.
+
+    Parameters
+    ----------
+    model_type : str
+        The type of model: 'reg' for regression or 'clas' for classification
+
+    Returns
+    -------
+    tuple of str
+        Three error labels appropriate for the model type:
+        - Regression: ('r2', 'mae', 'rmse')
+        - Classification: ('acc', 'f1', 'mcc')
+    """
+    error_labels = {
+        'reg': ('r2', 'mae', 'rmse'),
+        'clas': ('acc', 'f1', 'mcc')
+    }
+
+    model_type_lower = model_type.lower()
+
+    return error_labels[model_type_lower]
+
+
+def _select_descriptors(self, df, descriptors, module):
+    """Subset *df* to model descriptors, applying categorical_transform if needed."""
+    try:
+        return df[descriptors]
+    except KeyError:
+        try:
+            self.args.log.write(
+                "\n   x  There are missing descriptors in the test set! "
+                "Looking for categorical variables converted from CURATE"
+            )
+            df = categorical_transform(self, df, module)
+            out = df[descriptors]
+            self.args.log.write(
+                "   o  The missing descriptors were successfully created"
+            )
+            return out
+        except KeyError:
+            self.args.log.write(
+                "   x  There are still missing descriptors in the test set! "
+                f"The following descriptors are needed: {descriptors}"
+            )
+            self.args.log.finalize()
+            sys.exit()
+
+
 def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):
     '''
     Loads the parameters and Xy databases from a folder, add scaled X data and print information
@@ -2966,25 +3436,15 @@ def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):
     csv_X = csv_X.drop(columns=['Set'])
 
     # keep only the descriptors used in the model
-    csv_X = csv_X[model_data['X_descriptors']]
+    csv_X = _select_descriptors(self, csv_X, model_data["X_descriptors"], module)
 
     # load and adjust external set (if any)
     csv_external_df, csv_X_external,csv_y_external = None,None,None
     if self.args.csv_test != '':
         csv_external_df,csv_X_external,csv_y_external = load_database(self,self.args.csv_test,'predict',external_test=True)
-        try:
-            csv_X_external = csv_X_external[model_data['X_descriptors']]
-        except KeyError:
-            # this might fail if the initial categorical variables have not been transformed
-            try:
-                self.args.log.write(f"\n   x  There are missing descriptors in the test set! Looking for categorical variables converted from CURATE")
-                csv_X_external = categorical_transform(self,csv_X_external,'predict')
-                csv_X_external = csv_X_external[model_data['X_descriptors']]
-                self.args.log.write(f"   o  The missing descriptors were successfully created")
-            except KeyError:
-                self.args.log.write(f"   x  There are still missing descriptors in the test set! The following descriptors are needed: {model_data['X_descriptors']}")
-                self.args.log.finalize()
-                sys.exit()
+        csv_X_external = _select_descriptors(
+            self, csv_X_external, model_data["X_descriptors"], "predict"
+        )
 
     # split tests
     Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,test_points,model_data['names'],csv_external_df,csv_X_external,csv_y_external,BO_opt=False)
@@ -3126,9 +3586,9 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
     '''
     Creates Pearson heatmap
     '''
+    import seaborn as sb
 
-    importlib.reload(plt) # needed to avoid threading issues
-    if module.lower() == 'curate': # only represent the final descriptors in CURATE
+    if module.lower() == "curate":  # only represent the final descriptors in CURATE
         csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
 
     corr_matrix = csv_df_pearson.corr()
@@ -3203,11 +3663,12 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results):
     '''
     Creates a plot with the results of the flawed models in VERIFY
     '''
+    import seaborn as sb
 
-    importlib.reload(plt) # needed to avoid threading issues
+    importlib.reload(plt)
     sb.reset_defaults()
     sb.set(style="ticks")
-    _, ax = plt.subplots(figsize=(7.45,6))
+    _, ax = plt.subplots(figsize=(7.45, 6))
 
     # define names
     csv_name = os.path.basename(model_data['model']).split('_db.csv')[0]

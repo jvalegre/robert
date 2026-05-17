@@ -43,6 +43,10 @@ Executing the job
 
 * :code:`--predict`: Use only the PREDICT module.  
 
+Prediction CSVs can include uncertainty columns (``{y}_pred_sd``, conformal
+half-width, meta-model, and auto UQ). Configure conformal, meta, and auto knobs
+via CLI/YAML or :class:`~robert.api.RobertModel`; see :doc:`../../API/robert.api`.
+
 Execution time
 ++++++++++++++
 

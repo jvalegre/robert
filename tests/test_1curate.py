@@ -36,6 +36,8 @@ path_curate = os.path.join(os.getcwd(), "CURATE")
             "missing_input"
         ),  # test that if the --names, --y or --csv_name options are empty, a prompt pops up and asks for them
         ("rfecv"),  # test for the RFECV feature, default
+        ("xgb"),  # test XGB model-specific CURATE output
+        ("vr"),  # test VR model-specific CURATE output
         ("standard"),  # standard test
         ("standard_cmd"),  # standard test through command line
     ],
@@ -442,3 +444,27 @@ def test_CURATE(test_job):
         accepted_vars = ["V_Bur", "dist", "rando1", "rando2", "rando3", "rando4"]
         for var in accepted_vars:
             assert var in db_final.columns
+
+    elif test_job == "xgb":
+        curate_kwargs["model"] = ["XGB"]
+        _ = curate(**curate_kwargs)
+
+        db_xgb = pd.read_csv(f"{path_curate}/Robert_example_CURATE_XGB.csv")
+        assert len(db_xgb["Name"]) == 37
+        assert "Target_values" in db_xgb.columns
+        assert "Name" in db_xgb.columns
+        assert "xtest" not in db_xgb.columns
+        n_descps = len(db_xgb.columns) - 2
+        assert n_descps < (len(db_xgb) / 3)
+
+    elif test_job == "vr":
+        curate_kwargs["model"] = ["VR"]
+        _ = curate(**curate_kwargs)
+
+        db_vr = pd.read_csv(f"{path_curate}/Robert_example_CURATE_VR.csv")
+        assert len(db_vr["Name"]) == 37
+        assert "Target_values" in db_vr.columns
+        assert "Name" in db_vr.columns
+        assert "xtest" not in db_vr.columns
+        n_descps = len(db_vr.columns) - 2
+        assert n_descps < (len(db_vr) / 3)

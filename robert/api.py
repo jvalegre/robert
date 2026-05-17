@@ -9,6 +9,7 @@ predictions, uncertainty columns, and matplotlib handling are documented in
 from __future__ import annotations
 
 import glob
+import json
 import os
 import tempfile
 import uuid
@@ -25,12 +26,6 @@ from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score, r2_score
 
 from robert.argument_parser import options_add, var_dict
-from robert.curate import curate
-from robert.generate import generate
-from robert.predict import predict as predict_module
-from robert.report import report as report_module
-from robert.utils import load_params
-from robert.verify import verify
 
 _NAME_COL = "__robert_name__"
 _DEFAULT_Y = "__robert_y__"
@@ -174,8 +169,19 @@ class RobertModel(BaseEstimator):
     :param y_column: If ``fit(X)`` is called with ``y is None``, name of the target column
         in ``X`` (DataFrame only).
     :param kwargs: Additional ROBERT options (keys in ``robert.argument_parser.var_dict``),
-        e.g. ``model``, ``n_iter``. Regression uncertainty tuning includes
+        e.g. ``model``, ``n_iter``, ``plot_verbosity`` (``0``–``2``): ``0`` skips
+        matplotlib artifacts; ``1`` keeps CURATE/GENERATE/VERIFY summary plots and main
+        PREDICT result plots when ``predict_diagnostics`` is True; ``2`` additionally
+        enables SHAP/PFI/Pearson/outlier/distribution diagnostics when
+        ``predict_diagnostics`` is True. Regression uncertainty tuning includes
         ``conformal_enable``, ``conformal_calib_frac``, and ``conformal_coverage``.
+        Top-k meta-model uncertainty (opt-in) uses ``uq_enable_meta``,
+        ``uq_top_k_models``, and ``uq_model_weighting`` (``"score_weighted"`` or
+        ``"uniform"``). Auto uncertainty (regression, opt-in) uses ``uq_auto_enable``,
+        ``uq_auto_candidates``, ``uq_auto_scaler``, ``uq_auto_metric_weights``,
+        ``uq_auto_min_samples``, ``uq_auto_random_state``, and ``uq_auto_clas_mode``
+        (``"error"`` by default); ``return_uncertainty`` ``"auto"`` or
+        ``"auto_decomposed"`` enables auto mode for that predict call.
     """
 
     def __init__(
@@ -388,7 +394,9 @@ class RobertModel(BaseEstimator):
 
     def _read_model_snapshot(self, workdir: Path) -> dict[str, Any]:
         sub = "PFI" if self.filter_mode == "pfi" else "No_PFI"
-        folder = workdir / "GENERATE" / "Best_model" / sub
+        from robert.utils import load_params, path_generate_best_model
+
+        folder = path_generate_best_model(workdir, sub)
         params_path = _find_params_csv(folder)
         seed = int(self._rob_kwargs.get("seed", var_dict["seed"]))
         adapter = _ParamsAdapter(seed, self.problem_type)
@@ -416,6 +424,13 @@ class RobertModel(BaseEstimator):
         base["command_line"] = False
         base["csv_test"] = ""
 
+        from robert.curate import curate
+        from robert.generate import generate
+        from robert.predict import predict as predict_module
+        from robert.report import report as report_module
+        from robert.verify import verify
+        from robert.utils import path_generate_best_model
+
         with _noninteractive_mpl(), _chdir(workdir):
             curate(
                 csv_name=train_rel,
@@ -434,8 +449,8 @@ class RobertModel(BaseEstimator):
             if self.run_report:
                 report_module(**base)
 
-        best_sub = workdir / "GENERATE" / "Best_model" / (
-            "PFI" if self.filter_mode == "pfi" else "No_PFI"
+        best_sub = path_generate_best_model(
+            workdir, "PFI" if self.filter_mode == "pfi" else "No_PFI"
         )
         if self.filter_mode == "pfi" and not best_sub.is_dir():
             raise RuntimeError(
@@ -491,11 +506,23 @@ class RobertModel(BaseEstimator):
         self,
         X: Union[pd.DataFrame, np.ndarray],
         return_std: bool = False,
-        return_uncertainty: Literal[False, "cv_sd", "conformal", "both"] = False,
+        return_uncertainty: Literal[
+            False,
+            "cv_sd",
+            "conformal",
+            "both",
+            "meta",
+            "total",
+            "decomposed",
+            "auto",
+            "auto_decomposed",
+        ] = False,
     ) -> Union[
         np.ndarray,
         Tuple[np.ndarray, np.ndarray],
         Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, dict],
     ]:
         if not self.is_fitted_:
             raise RuntimeError("Call fit before predict.")
@@ -503,7 +530,17 @@ class RobertModel(BaseEstimator):
         assert workdir is not None
 
         if return_uncertainty is not False:
-            umode: Literal[False, "cv_sd", "conformal", "both"] = return_uncertainty
+            umode: Literal[
+                False,
+                "cv_sd",
+                "conformal",
+                "both",
+                "meta",
+                "total",
+                "decomposed",
+                "auto",
+                "auto_decomposed",
+            ] = return_uncertainty
             if return_std:
                 warnings.warn(
                     "return_uncertainty is set; return_std is ignored.",
@@ -559,6 +596,16 @@ class RobertModel(BaseEstimator):
         base["csv_test"] = pred_name
         base["params_dir"] = "GENERATE/Best_model"
         base["names"] = self.names_col_
+        base["predict_diagnostics"] = False
+        if umode in ("auto", "auto_decomposed"):
+            if self.problem_type != "reg":
+                raise ValueError(
+                    "return_uncertainty='auto' or 'auto_decomposed' is only "
+                    "supported for problem_type='reg'."
+                )
+            base["uq_auto_enable"] = True
+
+        from robert.predict import predict as predict_module
 
         with _noninteractive_mpl(), _chdir(workdir):
             predict_module(**base)
@@ -572,6 +619,11 @@ class RobertModel(BaseEstimator):
         pred_col = f"{y_target}_pred"
         sd_col = f"{y_target}_pred_sd"
         hw_col = f"{y_target}_pred_conformal_hw"
+        uq_model_col = f"{y_target}_pred_uq_model"
+        uq_meta_col = f"{y_target}_pred_uq_meta"
+        uq_total_col = f"{y_target}_pred_uq_total"
+        uq_auto_col = f"{y_target}_pred_uq_auto"
+        uq_auto_src_col = f"{y_target}_pred_uq_auto_source"
         if pred_col not in result_df.columns:
             raise RuntimeError(f"Column {pred_col!r} missing in {csv_path}")
 
@@ -621,12 +673,62 @@ class RobertModel(BaseEstimator):
                     f"Column {hw_col!r} has no finite values; disable conformal "
                     "or use a larger training set."
                 )
+        if umode in ("auto", "auto_decomposed"):
+            if uq_auto_col not in result_df.columns:
+                raise RuntimeError(
+                    f"Column {uq_auto_col!r} missing in {csv_path}; ensure "
+                    "uq_auto_enable=True or use return_uncertainty='auto'."
+                )
+            y_uq_auto = ordered[uq_auto_col].to_numpy(dtype=float)
+            if not (np.isfinite(y_uq_auto).all() and (y_uq_auto >= 0).all()):
+                raise RuntimeError(
+                    f"Column {uq_auto_col!r} has invalid uncertainty values."
+                )
+            auto_metadata: dict[str, Any] = {}
+            meta_path = workdir / "PREDICT" / "uq_auto_metadata.json"
+            if meta_path.is_file():
+                with meta_path.open(encoding="utf-8") as fh:
+                    auto_metadata = json.load(fh)
+            elif uq_auto_src_col in result_df.columns:
+                src_vals = ordered[uq_auto_src_col].dropna().unique()
+                if len(src_vals):
+                    auto_metadata["selected"] = str(src_vals[0])
+
+        if umode in ("meta", "total", "decomposed"):
+            if not bool(self._rob_kwargs.get("uq_enable_meta", False)):
+                raise ValueError(
+                    "return_uncertainty='meta', 'total', or 'decomposed' requires "
+                    "uq_enable_meta=True when constructing RobertModel."
+                )
+            for col in (uq_model_col, uq_meta_col, uq_total_col):
+                if col not in result_df.columns:
+                    raise RuntimeError(
+                        f"Column {col!r} missing in {csv_path}; refit with "
+                        "uq_enable_meta=True or run predict after enabling meta UQ."
+                    )
+            y_uq_model = ordered[uq_model_col].to_numpy(dtype=float)
+            y_uq_meta = ordered[uq_meta_col].to_numpy(dtype=float)
+            y_uq_total = ordered[uq_total_col].to_numpy(dtype=float)
+            if not (np.isfinite(y_uq_total).all() and (y_uq_total >= 0).all()):
+                raise RuntimeError(
+                    f"Column {uq_total_col!r} has invalid uncertainty values."
+                )
 
         if umode == "cv_sd":
             return y_pred, y_sd
         if umode == "conformal":
             return y_pred, y_hw
-        return y_pred, y_sd, y_hw
+        if umode == "both":
+            return y_pred, y_sd, y_hw
+        if umode == "auto":
+            return y_pred, y_uq_auto
+        if umode == "auto_decomposed":
+            return y_pred, y_uq_auto, auto_metadata
+        if umode == "meta":
+            return y_pred, y_uq_meta
+        if umode == "total":
+            return y_pred, y_uq_total
+        return y_pred, y_uq_model, y_uq_meta, y_uq_total
 
     def score(
         self,

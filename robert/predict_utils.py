@@ -3,45 +3,99 @@
 #####################################################.
 
 import os
-import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
 from robert.utils import (
-    categorical_transform,
     get_graph_style,
     pearson_map,
     graph_reg,
     graph_clas,
+    get_error_labels,
+    PARAMS_DIR_BEST_MODEL_MARK,
+)
+
+
+def iter_best_model_dirs(params_dir):
+    """
+    Yield (params_dir, suffix, suffix_title) for default Best_model layout or a
+    single custom folder.
+    """
+    if PARAMS_DIR_BEST_MODEL_MARK in str(params_dir).replace("\\", "/"):
+        params_dirs = [
+            f"{params_dir}/No_PFI",
+            f"{params_dir}/PFI",
+        ]
+        suffixes = ["(with no PFI filter)", "(with PFI filter)"]
+        suffix_titles = ["No_PFI", "PFI"]
+    else:
+        params_dirs = [params_dir]
+        suffixes = ["(custom)"]
+        suffix_titles = ["custom"]
+    return zip(params_dirs, suffixes, suffix_titles)
+
+
+def _uq_columns_for_split(Xy_data, y_col, split):
+    """Optional meta-UQ and auto-UQ columns for a train/test/external split."""
+    prefix = f"y_pred_{split}"
+    out = {}
+    for suffix in ("uq_model", "uq_meta", "uq_total"):
+        key = f"{prefix}_{suffix}"
+        if key in Xy_data:
+            out[f"{y_col}_pred_{suffix}"] = Xy_data[key]
+    auto_key = f"{prefix}_uq_auto"
+    if auto_key in Xy_data:
+        out[f"{y_col}_pred_uq_auto"] = Xy_data[auto_key]
+    return out
+
+
+def _uq_auto_source_column(Xy_data):
+    """Constant source label for the selected auto uncertainty candidate."""
+    selected = Xy_data.get("uq_auto_selected")
+    if not selected:
+        return None
+    return str(selected)
+
+
+def _reconvert_values(values, reconvert_labels, class_mapping_reverse):
+    if not reconvert_labels:
+        return values
+    return [class_mapping_reverse[int(y)] for y in values]
+
+
+def _append_split_columns(
+    df,
+    Xy_data,
+    model_data,
+    split,
+    *,
+    reconvert_labels,
+    class_mapping_reverse,
+    hw_scalar,
+    auto_src,
+):
+    """Add y, predictions, SD, UQ, and conformal columns for one split."""
+    y_col = model_data["y"]
+    y_key = f"y_{split}"
+    pred_key = f"y_pred_{split}"
+    sd_key = f"y_pred_{split}_sd"
+
+    y_values = _reconvert_values(
+        Xy_data[y_key].tolist(), reconvert_labels, class_mapping_reverse
+    )
+    pred_values = _reconvert_values(
+        Xy_data[pred_key], reconvert_labels, class_mapping_reverse
     )
 
-
-def test_csv(self,Xy_test_df,descs_model,params_df):
-    """
-    Separates the test databases into X and y. This allows to merge test external databases that 
-    contain different columns with internal test databases coming from GENERATE
-    """
-
-    y_test_df = pd.DataFrame()
-    
-    try:
-        X_test_df = Xy_test_df[descs_model]
-    except KeyError:
-        # this might fail if the initial categorical variables have not been transformed
-        try:
-            self.args.log.write(f"\n   x  There are missing descriptors in the test set! Looking for categorical variables converted from CURATE")
-            Xy_test_df = categorical_transform(self,Xy_test_df,'predict')
-            X_test_df = Xy_test_df[descs_model]
-            self.args.log.write(f"   o  The missing descriptors were successfully created")
-        except KeyError:
-            self.args.log.write(f"   x  There are still missing descriptors in the test set! The following descriptors are needed: {descs_model}")
-            self.args.log.finalize()
-            sys.exit()
-
-    if params_df['y'][0] in Xy_test_df:
-        y_test_df = Xy_test_df[params_df['y'][0]]
-
-    return X_test_df, y_test_df
+    df[y_col] = y_values
+    df[f"{y_col}_pred"] = pred_values
+    df[f"{y_col}_pred_sd"] = Xy_data[sd_key]
+    for col_name, col_vals in _uq_columns_for_split(Xy_data, y_col, split).items():
+        df[col_name] = col_vals
+    df[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(df)
+    if auto_src is not None:
+        df[f"{y_col}_pred_uq_auto_source"] = [auto_src] * len(df)
+    return df
 
 
 def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
@@ -99,32 +153,31 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     # Store y values and predictions, reconverting if needed
     y_col = model_data['y']
     
-    # For training set
-    y_train_values = Xy_data['y_train'].tolist()
-    y_pred_train_values = Xy_data['y_pred_train']
-    if reconvert_labels:
-        y_train_values = [class_mapping_reverse[int(y)] for y in y_train_values]
-        y_pred_train_values = [class_mapping_reverse[int(y)] for y in y_pred_train_values]
-    
-    Xy_train[y_col] = y_train_values
-    Xy_train[f"{y_col}_pred"] = y_pred_train_values
-    Xy_train[f"{y_col}_pred_sd"] = Xy_data['y_pred_train_sd']
     hw_scalar = float(Xy_data.get("conformal_half_width", float("nan")))
     if model_data["type"].lower() != "reg":
         hw_scalar = float("nan")
-    Xy_train[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_train)
+    auto_src = _uq_auto_source_column(Xy_data)
 
-    # For test set
-    y_test_values = Xy_data['y_test'].tolist()
-    y_pred_test_values = Xy_data['y_pred_test']
-    if reconvert_labels:
-        y_test_values = [class_mapping_reverse[int(y)] for y in y_test_values]
-        y_pred_test_values = [class_mapping_reverse[int(y)] for y in y_pred_test_values]
-    
-    Xy_test[y_col] = y_test_values
-    Xy_test[f"{y_col}_pred"] = y_pred_test_values
-    Xy_test[f"{y_col}_pred_sd"] = Xy_data['y_pred_test_sd']
-    Xy_test[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_test)
+    Xy_train = _append_split_columns(
+        Xy_train,
+        Xy_data,
+        model_data,
+        "train",
+        reconvert_labels=reconvert_labels,
+        class_mapping_reverse=class_mapping_reverse,
+        hw_scalar=hw_scalar,
+        auto_src=auto_src,
+    )
+    Xy_test = _append_split_columns(
+        Xy_test,
+        Xy_data,
+        model_data,
+        "test",
+        reconvert_labels=reconvert_labels,
+        class_mapping_reverse=class_mapping_reverse,
+        hw_scalar=hw_scalar,
+        auto_src=auto_src,
+    )
 
     df_results = pd.concat([Xy_train, Xy_test], axis=0)
 
@@ -139,6 +192,22 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     path_n_suffix = f'{base_csv_path}'
     _ = df_results.to_csv(f'{base_csv_path}.csv', index = None, header=True)
+    
+    # also save results for performance of individual folds (useful for t-tests and Wilcoxon tests between the folds)
+    error1, error2, error3 = get_error_labels(model_data['type'])
+
+    # df_folds = pd.DataFrame()
+    # df_folds['Fold'] = [f'{i+1}' for i in range(len(Xy_data['idx_valid']))]
+    # df_folds['idx_valid'] = Xy_data['idx_valid']
+    # df_folds[f'{error1}_valid'] = Xy_data[f'fold_{error1}_valid']
+    # df_folds[f'{error2}_valid'] = Xy_data[f'fold_{error2}_valid']
+    # df_folds[f'{error3}_valid'] = Xy_data[f'fold_{error3}_valid']
+    # df_folds[f'{error1}_test'] = Xy_data[f'fold_{error1}_test']
+    # df_folds[f'{error2}_test'] = Xy_data[f'fold_{error2}_test']
+    # df_folds[f'{error3}_test'] = Xy_data[f'fold_{error3}_test']
+
+    # path_folds = f'{base_csv_path}_CV_folds'
+    # _ = df_folds.to_csv(f'{path_folds}.csv', index = None, header=True)
 
     # prints
     print_preds = f'   o  Saving CSV databases with predictions and their SD in:'   
@@ -148,24 +217,33 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
         # saves prediction for external test in --csv_test
         Xy_external = pd.DataFrame(Xy_data['names_external'])
 
-        for col in Xy_data['X_external']:
-            Xy_external[col] = Xy_data['X_external'][col].tolist()
-            Xy_external[col] = Xy_data['X_external'][col].tolist()
+        for col in Xy_data["X_external"]:
+            Xy_external[col] = Xy_data["X_external"][col].tolist()
 
-        # Reconvert external set labels if needed
-        if 'y_external' in Xy_data:
-            y_external_values = Xy_data['y_external'].tolist()
-            if reconvert_labels:
-                y_external_values = [class_mapping_reverse[int(y)] for y in y_external_values]
-            Xy_external[model_data['y']] = y_external_values
-        
-        y_pred_external_values = Xy_data['y_pred_external']
-        if reconvert_labels:
-            y_pred_external_values = [class_mapping_reverse[int(y)] for y in y_pred_external_values]
-        
-        Xy_external[f"{model_data['y']}_pred"] = y_pred_external_values
-        Xy_external[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_external_sd']
-        Xy_external[f"{model_data['y']}_pred_conformal_hw"] = [hw_scalar] * len(Xy_external)
+        if "y_external" in Xy_data:
+            y_external_values = _reconvert_values(
+                Xy_data["y_external"].tolist(),
+                reconvert_labels,
+                class_mapping_reverse,
+            )
+            Xy_external[model_data["y"]] = y_external_values
+
+        pred_values = _reconvert_values(
+            Xy_data["y_pred_external"], reconvert_labels, class_mapping_reverse
+        )
+        Xy_external[f"{model_data['y']}_pred"] = pred_values
+        Xy_external[f"{model_data['y']}_pred_sd"] = Xy_data["y_pred_external_sd"]
+        for col_name, col_vals in _uq_columns_for_split(
+            Xy_data, model_data["y"], "external"
+        ).items():
+            Xy_external[col_name] = col_vals
+        Xy_external[f"{model_data['y']}_pred_conformal_hw"] = [hw_scalar] * len(
+            Xy_external
+        )
+        if auto_src is not None:
+            Xy_external[f"{model_data['y']}_pred_uq_auto_source"] = [
+                auto_src
+            ] * len(Xy_external)
 
         path_external = Path(os.getcwd()).joinpath('PREDICT/csv_test/')
         Path(path_external).mkdir(exist_ok=True, parents=True)
@@ -191,10 +269,22 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     return path_n_suffix, name_points, Xy_data
 
 
+def _ensure_pred_range_stats(Xy_data):
+    """Set y-range summary keys when diagnostic plots were skipped."""
+    if "pred_min" in Xy_data:
+        return
+    pred_min = min(min(Xy_data["y_train"]), min(Xy_data["y_test"]))
+    pred_max = max(max(Xy_data["y_train"]), max(Xy_data["y_test"]))
+    Xy_data["pred_min"] = pred_min
+    Xy_data["pred_max"] = pred_max
+    Xy_data["pred_range"] = float(np.abs(pred_max - pred_min))
+
+
 def print_predict(self,Xy_data,model_data,suffix_title):
     '''
     Prints results of the predictions for all the sets
     '''
+    _ensure_pred_range_stats(Xy_data)
 
     print_results = (
         "\n   o  Summary of results "

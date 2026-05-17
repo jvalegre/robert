@@ -65,6 +65,23 @@ var_dict = {
     "conformal_enable": True,
     "conformal_calib_frac": 0.15,
     "conformal_coverage": 0.9,
+    # Top-k meta-model uncertainty (Python API / optional PREDICT path).
+    "uq_enable_meta": False,
+    "uq_top_k_models": 3,
+    "uq_model_weighting": "score_weighted",
+    # Auto uncertainty selection (regression; opt-in).
+    "uq_auto_enable": False,
+    "uq_auto_candidates": ["cv_sd", "conformal", "meta_total"],
+    "uq_auto_scaler": "global_multiplicative",
+    "uq_auto_metric_weights": {"coverage": 1.0, "sharpness": 0.25, "nll": 0.5},
+    "uq_auto_min_samples": 12,
+    "uq_auto_random_state": 0,
+    "uq_auto_clas_mode": "error",
+    # When False, skip SHAP/PFI/heatmap/outlier/distribution plots (PREDICT only).
+    "predict_diagnostics": True,
+    # Plot verbosity: 0 = no figures, 1 = workflow summaries (CURATE/GENERATE/VERIFY +
+    # main PREDICT result plots when predict_diagnostics is True), 2 = full diagnostics.
+    "plot_verbosity": 2,
 }
 
 

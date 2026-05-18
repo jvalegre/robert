@@ -8,12 +8,18 @@ orbs:
 
 commands:
   install-miniconda:
-    description: Ensure conda is on PATH (install on macOS; use image Miniconda on Windows)
+    description: Ensure conda is on PATH (install if missing on Windows/macOS)
     steps:
       - run:
           name: Install Miniconda
           command: |
             set -euo pipefail
+
+            conda_present_at() {
+              local root="$1"
+              [ -n "${root}" ] && { [ -f "${root}/Scripts/conda.exe" ] || [ -f "${root}/bin/conda" ]; }
+            }
+
             if command -v conda >/dev/null 2>&1; then
               echo "Conda already available at $(command -v conda)"
               conda --version
@@ -23,32 +29,51 @@ commands:
             MINICONDA_DIR=""
             case "$(uname -s)" in
               MINGW*|MSYS*|CYGWIN*)
-                # CircleCI/GitHub Windows images ship Miniconda at C:\Miniconda (not on PATH).
-                for candidate in "${CONDA:-}" "/c/Miniconda" "${HOME}/miniconda3"; do
-                  if [ -n "${candidate}" ] && [ -x "${candidate}/Scripts/conda.exe" ]; then
+                for candidate in \
+                  "${CONDA:-}" \
+                  "/c/Miniconda" \
+                  "/c/Miniconda3" \
+                  "/c/ProgramData/miniconda3" \
+                  "/c/ProgramData/Miniconda3" \
+                  "${HOME}/miniconda3" \
+                  "${HOME}/Miniconda3" \
+                  "${HOME}/appdata/Local/miniconda3" \
+                  "${HOME}/appdata/Local/Continuum/miniconda3"; do
+                  if conda_present_at "${candidate}"; then
                     MINICONDA_DIR="${candidate}"
                     break
                   fi
                 done
+
+                if [ -z "${MINICONDA_DIR}" ]; then
+                  conda_exe="$(cmd.exe //c "where conda 2>nul" 2>/dev/null | head -n1 | tr -d '\r' || true)"
+                  if [ -n "${conda_exe}" ]; then
+                    if command -v cygpath >/dev/null 2>&1; then
+                      conda_exe="$(cygpath -u "${conda_exe}")"
+                    else
+                      conda_exe="$(echo "${conda_exe}" | sed 's|\\|/|g' | sed 's|^\([A-Za-z]\):|/\L\1|')"
+                    fi
+                    MINICONDA_DIR="$(cd "$(dirname "${conda_exe}")/.." && pwd)"
+                  fi
+                fi
+
+                if [ -z "${MINICONDA_DIR}" ]; then
+                  MINICONDA_DIR="${HOME}/miniconda3"
+                fi
+
+                if ! conda_present_at "${MINICONDA_DIR}"; then
+                  echo "Installing Miniconda to %USERPROFILE%\\miniconda3 via cmd.exe..."
+                  curl -fsSL -o miniconda-installer.exe \
+                    "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
+                  # /D= must be last and must not be quoted (NSIS installer requirement).
+                  cmd.exe //c "miniconda-installer.exe /InstallationType=JustMe /RegisterPython=0 /S /D=%USERPROFILE%\\miniconda3"
+                  rm -f miniconda-installer.exe
+                  MINICONDA_DIR="${HOME}/miniconda3"
+                fi
                 ;;
               Darwin)
                 MINICONDA_DIR="${HOME}/miniconda3"
-                ;;
-            esac
-
-            if [ -z "${MINICONDA_DIR}" ]; then
-              MINICONDA_DIR="${HOME}/miniconda3"
-            fi
-
-            if [ -x "${MINICONDA_DIR}/Scripts/conda.exe" ] || [ -x "${MINICONDA_DIR}/bin/conda" ]; then
-              echo "Miniconda already present at ${MINICONDA_DIR}"
-            else
-              case "$(uname -s)" in
-                MINGW*|MSYS*|CYGWIN*)
-                  echo "install-miniconda: unexpected Windows path without preinstalled conda"
-                  exit 1
-                  ;;
-                Darwin)
+                if ! conda_present_at "${MINICONDA_DIR}"; then
                   ARCH="$(uname -m)"
                   if [ "${ARCH}" = "arm64" ]; then
                     INSTALLER_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh"
@@ -58,13 +83,20 @@ commands:
                   curl -fsSL -o miniconda-installer.sh "${INSTALLER_URL}"
                   bash miniconda-installer.sh -b -p "${MINICONDA_DIR}"
                   rm -f miniconda-installer.sh
-                  ;;
-                *)
-                  echo "install-miniconda: unsupported OS $(uname -s)"
-                  exit 1
-                  ;;
-              esac
+                fi
+                ;;
+              *)
+                echo "install-miniconda: unsupported OS $(uname -s)"
+                exit 1
+                ;;
+            esac
+
+            if ! conda_present_at "${MINICONDA_DIR}"; then
+              echo "install-miniconda: conda not found under ${MINICONDA_DIR}"
+              exit 1
             fi
+            echo "Using Miniconda at ${MINICONDA_DIR}"
+
             {
               echo "export MINICONDA_DIR=${MINICONDA_DIR}"
               case "$(uname -s)" in

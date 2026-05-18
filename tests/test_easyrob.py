@@ -29,10 +29,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Third-party imports
-import pandas as pd
-import pytest
-from PySide6.QtCore import Qt, QCoreApplication
-from PySide6.QtWidgets import (
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
+from PySide6.QtCore import Qt, QCoreApplication  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
     QListWidgetItem,
     QMessageBox,
     QDialog,
@@ -40,15 +40,17 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
-)
+)  # noqa: E402
 
 # Local project imports
-from robert.gui_easyrob.main.window import EasyROB
-import robert.gui_easyrob.easyrob as easyrob_module
-import robert.gui_easyrob.main.window as window_module
-import robert.gui_easyrob.tabs.aqme as aqme_module
-import robert.gui_easyrob.tabs.predictions as predictions_module
-import robert.gui_easyrob.tabs.results as results_module
+from robert.gui_easyrob.main.window import EasyROB  # noqa: E402
+import robert.gui_easyrob.easyrob as easyrob_module  # noqa: E402
+import robert.gui_easyrob.main.window as window_module  # noqa: E402
+import robert.gui_easyrob.tabs.aqme as aqme_module  # noqa: E402
+import robert.gui_easyrob.tabs.predictions as predictions_module  # noqa: E402
+import robert.gui_easyrob.tabs.results as results_module  # noqa: E402
+
+from tests.conftest import aqme_installed  # noqa: E402
 
 # ----------------------------------------------------------------------
 # Constants
@@ -322,6 +324,31 @@ def easyrob_window(qtbot, monkeypatch):
     monkeypatch.setattr(window, "check_aqme_workflow", lambda *args, **kwargs: None)
 
     return window
+
+
+@pytest.fixture
+def predictions_tab(qtbot):
+    """PredictionsTab with an active QApplication (required for QWidget construction)."""
+    tab = predictions_module.PredictionsTab()
+    qtbot.addWidget(tab)
+    return tab
+
+
+@pytest.fixture
+def results_tab_mocks(monkeypatch):
+    """Common ResultsTab mocks for unit tests that avoid PDF/WebEngine widgets."""
+    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
+    monkeypatch.setattr(
+        results_module,
+        "PDFViewer",
+        lambda pdf_path, thread_pool: results_module.QWidget(),
+    )
+
+
+def _results_tab(qtbot, input_csv_path: str):
+    tab = results_module.ResultsTab(None, str(input_csv_path))
+    qtbot.addWidget(tab)
+    return tab
 
 
 # =====================================================
@@ -1154,7 +1181,7 @@ def test_predictions_filter_dataframe_orders_core_columns(easyrob_window, monkey
     ]
 
 
-def test_predictions_extract_names_column_from_predict(tmp_path):
+def test_predictions_extract_names_column_from_predict(tmp_path, predictions_tab):
     """The names field is extracted from the stored PREDICT command line."""
     predict_dir = tmp_path / "PREDICT"
     predict_dir.mkdir()
@@ -1162,27 +1189,19 @@ def test_predictions_extract_names_column_from_predict(tmp_path):
     dat_path.write_text('--names "code_name"\n', encoding="utf-8")
     (tmp_path / "input.csv").write_text("a,b\n1,2\n", encoding="utf-8")
 
-    tab = predictions_module.PredictionsTab()
-    tab._base_path = str(tmp_path / "input.csv")
+    predictions_tab._base_path = str(tmp_path / "input.csv")
 
-    assert tab._extract_names_column_from_predict() == "code_name"
+    assert predictions_tab._extract_names_column_from_predict() == "code_name"
 
 
-def test_results_tab_detects_and_refreshes_pdf_tabs(tmp_path, monkeypatch):
+def test_results_tab_detects_and_refreshes_pdf_tabs(tmp_path, qtbot, results_tab_mocks):
     """Results tab discovers PDFs and refreshes when a new path is provided."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(
-        results_module,
-        "PDFViewer",
-        lambda pdf_path, thread_pool: results_module.QWidget(),
-    )
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     first_pdf = run_dir / "ROBERT_report.pdf"
     first_pdf.write_text("pdf", encoding="utf-8")
 
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
 
     assert first_pdf.name in tab.title_to_path
     assert tab.pdf_tab_widget.count() == 1
@@ -1198,9 +1217,9 @@ def test_results_tab_detects_and_refreshes_pdf_tabs(tmp_path, monkeypatch):
     assert second_pdf.name in tab.title_to_path
 
 
-def test_predictions_show_header_menu_sorts_and_histogram(monkeypatch):
+def test_predictions_show_header_menu_sorts_and_histogram(predictions_tab, monkeypatch):
     """Header context menu routes to sort and histogram actions."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     df = pd.DataFrame({"num": [2, 1], "txt": ["b", "a"]})
 
     class DummyHeader:
@@ -1261,9 +1280,11 @@ def test_predictions_show_header_menu_sorts_and_histogram(monkeypatch):
     assert histogram_calls["n"] == 1
 
 
-def test_predictions_show_histogram_menu_non_numeric_shows_message(monkeypatch):
+def test_predictions_show_histogram_menu_non_numeric_shows_message(
+    predictions_tab, monkeypatch
+):
     """Non-numeric columns show an informational popup instead of plotting."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     df = pd.DataFrame({"txt": ["a", "b"]})
     info_calls = {"n": 0}
 
@@ -1282,9 +1303,9 @@ def test_predictions_show_histogram_menu_non_numeric_shows_message(monkeypatch):
     assert info_calls["n"] == 1
 
 
-def test_predictions_show_histogram_uses_matplotlib(monkeypatch):
+def test_predictions_show_histogram_uses_matplotlib(predictions_tab, monkeypatch):
     """Histogram plotting delegates to matplotlib without blocking."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     series = pd.Series([1, 2, 3])
     calls = {
         "figure": 0,
@@ -1345,9 +1366,11 @@ def test_predictions_show_histogram_uses_matplotlib(monkeypatch):
     }
 
 
-def test_predictions_add_loaded_df_replaces_loading_tab(monkeypatch):
+def test_predictions_add_loaded_df_replaces_loading_tab(
+    predictions_tab, qtbot, monkeypatch
+):
     """Loaded prediction data replaces the placeholder tab widget."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     tab._base_path = "demo.csv"
     tab.subtabs.addTab(predictions_module.QLabel("Loading"), "No PFI")
 
@@ -1380,6 +1403,7 @@ def test_predictions_add_loaded_df_replaces_loading_tab(monkeypatch):
         predictions_module, "find_external_test_pixmaps", lambda base: {}
     )
     widget = predictions_module.QWidget()
+    qtbot.addWidget(widget)
     monkeypatch.setattr(
         tab, "_create_table_with_stats", lambda frame, info, pdf_image: widget
     )
@@ -1391,7 +1415,7 @@ def test_predictions_add_loaded_df_replaces_loading_tab(monkeypatch):
 
 
 def test_predictions_refresh_with_new_path_loads_csvs_synchronously(
-    tmp_path, monkeypatch
+    tmp_path, predictions_tab, monkeypatch
 ):
     """refresh_with_new_path discovers CSVs and materializes tabs when tasks run synchronously."""
     csv_test_dir = tmp_path / "PREDICT" / "csv_test"
@@ -1404,7 +1428,7 @@ def test_predictions_refresh_with_new_path_loads_csvs_synchronously(
     )
     pd.DataFrame({"SMILES": ["CC"], "target_pred": [2.0]}).to_csv(pfi_path, index=False)
 
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     created = []
 
     class FakePlaceholder:
@@ -1531,21 +1555,16 @@ def test_predictions_refresh_with_new_path_loads_csvs_synchronously(
     assert {model for model, _ in created} == {"No_PFI", "PFI"}
 
 
-def test_results_clear_pdf_tabs_removes_placeholders(tmp_path, monkeypatch):
+def test_results_clear_pdf_tabs_removes_placeholders(
+    tmp_path, qtbot, results_tab_mocks
+):
     """clear_pdf_tabs removes tracked tabs and resets internal maps."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(
-        results_module,
-        "PDFViewer",
-        lambda pdf_path, thread_pool: results_module.QWidget(),
-    )
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     pdf_path = run_dir / "ROBERT_report.pdf"
     pdf_path.write_text("pdf", encoding="utf-8")
 
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
     assert tab.pdf_tab_widget.count() == 1
 
     tab.clear_pdf_tabs()
@@ -1555,19 +1574,14 @@ def test_results_clear_pdf_tabs_removes_placeholders(tmp_path, monkeypatch):
     assert tab.title_to_path == {}
 
 
-def test_results_maybe_materialize_tab_builds_viewer(monkeypatch, tmp_path):
+def test_results_maybe_materialize_tab_builds_viewer(
+    qtbot, results_tab_mocks, monkeypatch, tmp_path
+):
     """Selecting a placeholder PDF tab materializes a real viewer."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(
-        results_module,
-        "PDFViewer",
-        lambda pdf_path, thread_pool: results_module.QWidget(),
-    )
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     pdf_path = run_dir / "ROBERT_report.pdf"
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
     pdf_path.write_text("pdf", encoding="utf-8")
     tab.clear_pdf_tabs()
     tab.pdf_tabs[str(pdf_path)] = None
@@ -1588,21 +1602,16 @@ def test_results_maybe_materialize_tab_builds_viewer(monkeypatch, tmp_path):
     assert tab.pdf_tabs[str(pdf_path)] is viewer
 
 
-def test_results_index_of_title_returns_expected_index(tmp_path, monkeypatch):
+def test_results_index_of_title_returns_expected_index(
+    tmp_path, qtbot, results_tab_mocks
+):
     """Tab titles can be resolved back to their index."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(
-        results_module,
-        "PDFViewer",
-        lambda pdf_path, thread_pool: results_module.QWidget(),
-    )
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     pdf_path = run_dir / "ROBERT_report.pdf"
     pdf_path.write_text("pdf", encoding="utf-8")
 
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
 
     assert tab._index_of_title(pdf_path.name) == 0
     assert tab._index_of_title("missing.pdf") == -1
@@ -1702,6 +1711,9 @@ def test_full_user_workflow_end_to_end(
         * AQME generates a mapped CSV and ROBERT runs with it.
         * Check predictions tab
     """
+    if test_scenario == "aqme_regression" and not aqme_installed():
+        pytest.skip("AQME is not installed (pip install aqme==2.0.0)")
+
     window = easyrob_window
     config = SCENARIO_CONFIG[test_scenario]
 
@@ -2055,6 +2067,9 @@ def test_run_aqme_only_end_to_end(easyrob_window, test_output_dir, qtbot, monkey
     - wait for the subprocess to finish
     - verify AQME outputs were generated
     """
+    if not aqme_installed():
+        pytest.skip("AQME is not installed (pip install aqme==2.0.0)")
+
     window = easyrob_window
     finished = {"exit_code": None}
 

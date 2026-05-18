@@ -36,9 +36,9 @@ def configure_environment():
 
 configure_environment()
 
-from PySide6.QtCore import Qt, QCoreApplication
-from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import Qt, QCoreApplication  # noqa: E402
+from PySide6.QtGui import QPalette  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 
 def main():

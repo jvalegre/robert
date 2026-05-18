@@ -742,6 +742,68 @@ class RobertModel(BaseEstimator):
             return y_pred, y_uq_total
         return y_pred, y_uq_model, y_uq_meta, y_uq_total
 
+    def robert_scores(
+        self,
+        suffix: Optional[Literal["No PFI", "PFI"]] = None,
+    ) -> dict[str, Any]:
+        """
+        Return the ROBERT report score and sub-scores from VERIFY/PREDICT outputs.
+
+        Requires a prior :meth:`fit` that ran VERIFY and PREDICT (and REPORT if a
+        PDF is expected). Reads ``*_data.dat`` files in :attr:`workdir_`.
+        """
+        if not self.is_fitted_:
+            raise RuntimeError("Call fit before robert_scores.")
+        workdir = self.workdir_
+        if workdir is None:
+            raise RuntimeError("workdir is not set.")
+
+        if suffix is None:
+            suffix = "PFI" if self.filter_mode == "pfi" else "No PFI"
+
+        from robert.report_utils import calc_score, repro_info
+
+        modules = ["CURATE", "GENERATE", "VERIFY", "PREDICT"]
+        with _chdir(workdir):
+            _, _, _, _, _, dat_files = repro_info(modules)
+            if "PREDICT" not in dat_files or "VERIFY" not in dat_files:
+                raise RuntimeError(
+                    "PREDICT/VERIFY outputs missing in workdir; "
+                    "run fit() with the full pipeline first."
+                )
+            data_score: dict[str, Any] = {}
+            data_score = calc_score(dat_files, suffix, self.problem_type, data_score)
+
+        score_key = f"robert_score_{suffix}"
+        if self.problem_type == "reg":
+            component_keys = [
+                "cv_score_combined",
+                "test_score_combined",
+                "cv_sd_score",
+                "diff_scaled_rmse_score",
+                "flawed_mod_score",
+                "sorted_cv_score",
+            ]
+        else:
+            component_keys = [
+                "cv_score_combined",
+                "test_score_combined",
+                "flawed_mod_score",
+                "sorted_cv_score",
+                "diff_mcc_score",
+                "descp_score",
+            ]
+        components = {
+            key: data_score.get(f"{key}_{suffix}", 0) for key in component_keys
+        }
+        pdf_path = workdir / "ROBERT_report.pdf"
+        return {
+            "suffix": suffix,
+            "robert_score": int(data_score.get(score_key, 0)),
+            "components": components,
+            "pdf_path": str(pdf_path) if pdf_path.is_file() else None,
+        }
+
     def score(
         self,
         X: Union[pd.DataFrame, np.ndarray],

@@ -183,6 +183,7 @@ def save_predictions(self, Xy_data, model_data, suffix_title):
         Xy_train[col] = Xy_data["X_train"][col].tolist()
         Xy_test[col] = Xy_data["X_test"][col].tolist()
 
+    # Store y values and predictions, reconverting if needed
     hw_scalar = float(Xy_data.get("conformal_half_width", float("nan")))
     if model_data["type"].lower() != "reg":
         hw_scalar = float("nan")

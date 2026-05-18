@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.1.0"
+version = "2.2.0"
 
 setup(
     name="robert",
@@ -68,6 +68,13 @@ setup(
     ],
     python_requires=">=3.11",
     include_package_data=True,
+    extras_require={
+        "test": [
+            "pytest>=7.0",
+            "pytest-cov>=4.0",
+            "pytest-qt>=4.0",
+        ],
+    },
     entry_points={
         "console_scripts": [
             "easyrob=robert.gui_easyrob.easyrob_launcher:main",

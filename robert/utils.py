@@ -21,6 +21,8 @@ import numpy as np
 # This prevents numerical differences between Windows/Ubuntu in parallel operations
 os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 from matplotlib import pyplot as plt
+import seaborn as sb
+from bayes_opt import BayesianOptimization
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolor
 from matplotlib.legend_handler import HandlerPatch
@@ -1125,14 +1127,43 @@ def load_minimal_model(model):
             "reg_lambda": 1.0,
         },
         "MVL": {},
-        "VR": {
-            "w_rf": 1.0,
-            "w_gb": 1.0,
-            "w_nn": 1.0,
-        },
+    }
+    minimal_params["VR"] = {
+        "w_rf": 1.0,
+        "w_gb": 1.0,
+        "w_nn": 1.0,
+        **{f"rf_{key}": value for key, value in minimal_params["RF"].items()},
+        **{f"gb_{key}": value for key, value in minimal_params["GB"].items()},
+        **{f"nn_{key}": value for key, value in minimal_params["NN"].items()},
     }
 
     return minimal_params[model]
+
+
+def _round_vr_member_params(params):
+    """Round integer hyperparameters for VR member models (rf_*, gb_*, nn_*)."""
+    rf_int = {"n_estimators", "max_depth", "min_samples_split", "min_samples_leaf"}
+    gb_int = {"n_estimators", "max_depth", "min_samples_split", "min_samples_leaf"}
+    nn_int = {"max_iter", "hidden_layer_1", "hidden_layer_2"}
+    for key in list(params.keys()):
+        if key.startswith("rf_"):
+            if key[3:] in rf_int:
+                params[key] = round(params[key])
+        elif key.startswith("gb_"):
+            if key[3:] in gb_int:
+                params[key] = round(params[key])
+        elif key.startswith("nn_"):
+            if key[3:] in nn_int:
+                params[key] = round(params[key])
+
+
+def _pop_vr_member_params(params, prefix, defaults):
+    """Extract ``prefix_*`` keys into a member-model parameter dict."""
+    member = dict(defaults)
+    for key in list(params.keys()):
+        if key.startswith(f"{prefix}_"):
+            member[key[len(prefix) + 1 :]] = params.pop(key)
+    return member
 
 
 def mcc_scorer_clf(y_true, y_pred):
@@ -1976,11 +2007,6 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
 
 
 def BO_optimizer(self, bo_data, Xy_data):
-    from bayes_opt import BayesianOptimization, acquisition
-
-    # Define an acquisition function for Bayesian optimization
-    _ = acquisition.ExpectedImprovement(xi=self.args.expect_improv)
-
     # Initialize Bayesian optimization
     optimizer = BayesianOptimization(
         f=lambda **p: BO_iteration(self, bo_data, Xy_data, **p),
@@ -2076,11 +2102,14 @@ def BO_hyperparams(model_name):
             "reg_alpha": (0, 1.0),
             "reg_lambda": (0, 1.0),
         },
-        "VR": {
-            "w_rf": (0.1, 5.0),
-            "w_gb": (0.1, 5.0),
-            "w_nn": (0.1, 5.0),
-        },
+    }
+    model_BO_params["VR"] = {
+        "w_rf": (0.1, 5.0),
+        "w_gb": (0.1, 5.0),
+        "w_nn": (0.1, 5.0),
+        **{f"rf_{key}": value for key, value in model_BO_params["RF"].items()},
+        **{f"gb_{key}": value for key, value in model_BO_params["GB"].items()},
+        **{f"nn_{key}": value for key, value in model_BO_params["NN"].items()},
     }
 
     return model_BO_params[model_name]
@@ -2133,7 +2162,6 @@ def model_adjust_params(self, model_name, params):
             params["n_restarts_optimizer"] = round(params["n_restarts_optimizer"])
 
     elif model_name == "VR":
-        # VR only optimizes ensemble weights; base estimators receive deterministic seeds.
         if all(weight_key in params for weight_key in ["w_rf", "w_gb", "w_nn"]):
             params["weights"] = [
                 float(params.pop("w_rf")),
@@ -2142,6 +2170,7 @@ def model_adjust_params(self, model_name, params):
             ]
         elif "weights" in params:
             params["weights"] = [float(weight) for weight in params["weights"]]
+        _round_vr_member_params(params)
 
     return params
 
@@ -2203,47 +2232,59 @@ def load_model(self, model_name, **params):
         weights = params.pop("weights", [1.0, 1.0, 1.0])
         weights = [float(weight) for weight in weights]
         seed = self.args.seed
+        rf_defaults = {
+            "n_estimators": 100,
+            "max_depth": 10,
+            "min_samples_split": 2,
+            "min_samples_leaf": 1,
+            "min_weight_fraction_leaf": 0,
+            "max_features": 1.0,
+            "ccp_alpha": 0.0,
+            "max_samples": None,
+            "random_state": seed,
+            "n_jobs": 1,
+        }
+        gb_defaults = {
+            "n_estimators": 30,
+            "learning_rate": 0.1,
+            "max_depth": 10,
+            "min_samples_split": 2,
+            "min_samples_leaf": 1,
+            "subsample": 1.0,
+            "max_features": None,
+            "validation_fraction": 0.2,
+            "min_weight_fraction_leaf": 0.0,
+            "ccp_alpha": 0.0,
+            "random_state": seed,
+        }
+        nn_defaults = {
+            "hidden_layer_1": 50,
+            "hidden_layer_2": 0,
+            "max_iter": 500,
+            "alpha": 0.01,
+            "tol": 0.0001,
+            "solver": "lbfgs",
+            "random_state": seed,
+        }
+        rf_params = _pop_vr_member_params(params, "rf", rf_defaults)
+        gb_params = _pop_vr_member_params(params, "gb", gb_defaults)
+        nn_params = _pop_vr_member_params(params, "nn", nn_defaults)
+        nn_params = setup_hidden_layers(nn_params)
 
         if self.args.type.lower() == "reg":
             voting_estimators = [
-                (
-                    "rf",
-                    RandomForestRegressor(
-                        n_estimators=100, random_state=seed, n_jobs=1
-                    ),
-                ),
-                ("gb", GradientBoostingRegressor(random_state=seed)),
-                (
-                    "nn",
-                    MLPRegressor(
-                        hidden_layer_sizes=(50,),
-                        max_iter=500,
-                        solver="lbfgs",
-                        random_state=seed,
-                    ),
-                ),
+                ("rf", RandomForestRegressor(**rf_params)),
+                ("gb", GradientBoostingRegressor(**gb_params)),
+                ("nn", MLPRegressor(**nn_params)),
             ]
             loaded_model = VotingRegressor(
                 estimators=voting_estimators, weights=weights
             )
         else:
             voting_estimators = [
-                (
-                    "rf",
-                    RandomForestClassifier(
-                        n_estimators=100, random_state=seed, n_jobs=1
-                    ),
-                ),
-                ("gb", GradientBoostingClassifier(random_state=seed)),
-                (
-                    "nn",
-                    MLPClassifier(
-                        hidden_layer_sizes=(50,),
-                        max_iter=500,
-                        solver="lbfgs",
-                        random_state=seed,
-                    ),
-                ),
+                ("rf", RandomForestClassifier(**rf_params)),
+                ("gb", GradientBoostingClassifier(**gb_params)),
+                ("nn", MLPClassifier(**nn_params)),
             ]
             loaded_model = VotingClassifier(
                 estimators=voting_estimators, weights=weights
@@ -3033,8 +3074,10 @@ def k_means(self, X_scaled, csv_y, size, seed, idx_list):
             if k not in training_idx:
                 # calculate the Euclidean distance in n-dimensions
                 points_sum = 0
-                for dim in range(len(X_scaled_array[0])):
-                    points_sum += (X_scaled_array[:, dim][k] - centers[:, dim][i]) ** 2
+                for idx_l in range(len(X_scaled_array[0])):
+                    points_sum += (
+                        X_scaled_array[:, idx_l][k] - centers[:, idx_l][i]
+                    ) ** 2
                 if np.sqrt(points_sum) < results_cluster:
                     results_cluster = np.sqrt(points_sum)
                     training_point = k
@@ -3130,8 +3173,6 @@ def create_heatmap(self, csv_df, suffix, path_raw):
     """
     Graph the heatmap
     """
-    import seaborn as sb
-
     with _mpl_plot_context():
         csv_df = csv_df.sort_index(ascending=False)
         sb.set(font_scale=1.2, style="ticks")
@@ -3158,6 +3199,7 @@ def create_heatmap(self, csv_df, suffix, path_raw):
         sb.despine(top=False, right=False)
         name_fig = "_".join(title_fig.split())
         plt.savefig(f"{path_raw.joinpath(name_fig)}.png", dpi=300, bbox_inches="tight")
+        plt.close()
 
     path_reduced = "/".join(f"{path_raw}".replace("\\", "/").split("/")[-2:])
     self.args.log.write(f"\no  {name_fig} succesfully created in {path_reduced}")
@@ -3177,11 +3219,9 @@ def graph_reg(
     """
     Plot regression graphs of predicted vs actual values for train, validation and test sets
     """
-    import seaborn as sb
-
     sb.set(style="ticks")
 
-    _, ax = plt.subplots(figsize=(7.45, 6))
+    fig, ax = plt.subplots(figsize=(7.45, 6))
 
     # Set tick sizes
     plt.xticks(fontsize=14)
@@ -3335,6 +3375,7 @@ def graph_reg(
 
     # save graph
     plt.savefig(f"{reg_plot_file}", dpi=300, bbox_inches="tight")
+    plt.close(fig)
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
 
@@ -3506,6 +3547,7 @@ def graph_clas(
         path_reduced = "/".join(f"{clas_plot_file}".replace("\\", "/").split("/")[-3:])
 
     plt.savefig(f"{clas_plot_file}", dpi=300, bbox_inches="tight")
+    plt.close()
 
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
@@ -3599,6 +3641,7 @@ def shap_analysis(self, Xy_data, model_data, path_n_suffix, fitted_model=None):
     plt.gcf().axes[-1].set_box_aspect(aspect_shap)
 
     plt.savefig(f"{shap_plot_file}", dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def PFI_plot(self, Xy_data, model_data, path_n_suffix, fitted_model=None):
@@ -3643,7 +3686,7 @@ def PFI_plot(self, Xy_data, model_data, path_n_suffix, fitted_model=None):
     desc_list_plot = desc_list[: self.args.pfi_show][::-1]
 
     # plot and print results
-    _, ax = plt.subplots(figsize=(7.45, 6))
+    fig, ax = plt.subplots(figsize=(7.45, 6))
     y_ticks = np.arange(0, len(desc_list_plot))
     ax.barh(desc_list_plot, PFI_values_plot)
     ax.set_yticks(y_ticks, labels=desc_list_plot, fontsize=14)
@@ -3659,6 +3702,7 @@ def PFI_plot(self, Xy_data, model_data, path_n_suffix, fitted_model=None):
     ax.set(ylabel=None, xlabel="PFI")
 
     plt.savefig(f"{pfi_plot_file}", dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
     path_reduced = "/".join(f"{pfi_plot_file}".replace("\\", "/").split("/")[-2:])
     print_PFI = f"\n   o  PFI plot saved in {path_reduced}"
@@ -3675,15 +3719,13 @@ def outlier_plot(self, Xy_data, path_n_suffix, name_points, graph_style):
     """
     Plots and prints the results of the outlier analysis
     """
-    import seaborn as sb
-
     # detect outliers
     outliers_data, print_outliers = outlier_filter(self, Xy_data, name_points)
 
     # plot data in SD units
     sb.set(style="ticks")
 
-    _, ax = plt.subplots(figsize=(7.45, 6))
+    fig, ax = plt.subplots(figsize=(7.45, 6))
     plt.text(
         0.5,
         1.08,
@@ -3756,6 +3798,7 @@ def outlier_plot(self, Xy_data, path_n_suffix, name_points, graph_style):
     # save plot and print results
     outliers_plot_file = f"{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png"
     plt.savefig(f"{outliers_plot_file}", dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
     path_reduced = "/".join(f"{outliers_plot_file}".replace("\\", "/").split("/")[-2:])
     print_outliers += f"\n   o  Outliers plot saved in {path_reduced}"
@@ -3863,11 +3906,9 @@ def distribution_plot(self, Xy_data, path_n_suffix, params_dict):
     """
     Plots histogram (reg) or bin plot (clas).
     """
-    import seaborn as sb
-
     sb.set(style="ticks")
 
-    _, ax = plt.subplots(figsize=(7.45, 6))
+    fig, ax = plt.subplots(figsize=(7.45, 6))
     plt.text(
         0.5,
         1.08,
@@ -3907,6 +3948,7 @@ def distribution_plot(self, Xy_data, path_n_suffix, params_dict):
     # save plot and print results
     orig_distrib_file = f"y_distribution_{os.path.basename(path_n_suffix)}.png"
     plt.savefig(f"{orig_distrib_file}", dpi=300, bbox_inches="tight")
+    plt.close(fig)
     # for a VERY weird reason, I need to save the figure in the working directory and then move it into PREDICT
     final_distrib_file = f"{os.path.dirname(path_n_suffix)}/y_distribution_{os.path.basename(path_n_suffix)}.png"
     shutil.move(orig_distrib_file, final_distrib_file)
@@ -4239,6 +4281,12 @@ def load_dfs(self, folder_model, module, sanity_check=False, print_info=True):
     Loads the parameters and Xy databases from the GENERATE folder as dataframes
     """
 
+    csv_df = pd.DataFrame()
+    csv_X = pd.DataFrame()
+    csv_y = pd.DataFrame()
+    model_data = {}
+    csv_name = ""
+
     if os.getcwd() in f"{folder_model}":
         path_db = folder_model
     else:
@@ -4344,8 +4392,6 @@ def pearson_map(self, csv_df_pearson, module, params_dir=None):
     """
     Creates Pearson heatmap
     """
-    import seaborn as sb
-
     if module.lower() == "curate":  # only represent the final descriptors in CURATE
         csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
 
@@ -4358,7 +4404,7 @@ def pearson_map(self, csv_df_pearson, module, params_dir=None):
         disable_plot = True
     else:
         disable_plot = False
-        _, ax = plt.subplots(figsize=(7.45, 6))
+        fig, ax = plt.subplots(figsize=(7.45, 6))
         size_title = 14
         size_font = 14 - 2 * (len(csv_df_pearson.columns) / 5)
 
@@ -4412,6 +4458,7 @@ def pearson_map(self, csv_df_pearson, module, params_dir=None):
 
         heatmap_path = self.args.destination.joinpath(heatmap_name)
         plt.savefig(f"{heatmap_path}", dpi=300, bbox_inches="tight")
+        plt.close(fig)
 
         path_reduced = "/".join(f"{heatmap_path}".replace("\\", "/").split("/")[-2:])
         if module.lower() == "curate":
@@ -4430,167 +4477,174 @@ def plot_metrics(model_data, suffix_title, verify_metrics, verify_results):
     """
     Creates a plot with the results of the flawed models in VERIFY
     """
-    import seaborn as sb
+    with _mpl_plot_context():
+        sb.reset_defaults()
+        sb.set(style="ticks")
+        fig, ax = plt.subplots(figsize=(7.45, 6))
 
-    importlib.reload(plt)
-    sb.reset_defaults()
-    sb.set(style="ticks")
-    _, ax = plt.subplots(figsize=(7.45, 6))
+        # define names
+        csv_name = os.path.basename(model_data["model"]).split("_db.csv")[0]
+        base_csv_name = f"VERIFY/{csv_name}"
+        base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
+        path_n_suffix = f"{base_csv_path}_{suffix_title}"
 
-    # define names
-    csv_name = os.path.basename(model_data["model"]).split("_db.csv")[0]
-    base_csv_name = f"VERIFY/{csv_name}"
-    base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
-    path_n_suffix = f"{base_csv_path}_{suffix_title}"
-
-    # axis limits
-    max_val = max(verify_metrics["metrics"])
-    min_val = min(verify_metrics["metrics"])
-    range_vals = np.abs(max_val - min_val)
-    if verify_results["error_type"].lower() in ["mae", "rmse"]:
-        max_lim = 1.2 * max_val
-        min_lim = 0
-    else:
-        max_lim = max_val + (0.2 * range_vals)
-        min_lim = min_val - (0.1 * range_vals)
-    plt.ylim(min_lim, max_lim)
-    plt.ylim(min_lim, max_lim)
-
-    # adjust number of significative numbers shown
-    ax.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
-
-    width_bar = 0.55
-    label_count = 0
-    for test_metric, test_name, test_color in zip(
-        verify_metrics["metrics"],
-        verify_metrics["test_names"],
-        verify_metrics["colors"],
-    ):
-        ax.bar(
-            test_name,
-            test_metric,
-            label=test_name,
-            width=width_bar,
-            linewidth=1,
-            edgecolor="k",
-            color=test_color,
-            zorder=2,
-        )
-        # plot whether the tests pass or fail
-        if test_name != "Model":
-            if test_metric >= 0:
-                offset_txt = test_metric + (0.05 * range_vals)
+        # axis limits
+        max_val = max(verify_metrics["metrics"])
+        min_val = min(verify_metrics["metrics"])
+        range_vals = np.abs(max_val - min_val)
+        if verify_results["error_type"].lower() in ["mae", "rmse"]:
+            min_lim = 0
+            max_lim = 1.2 * max_val if max_val != 0 else 0.1
+        else:
+            if range_vals == 0:
+                pad = max(abs(max_val) * 0.1, 0.05)
+                min_lim = max_val - pad
+                max_lim = max_val + pad
             else:
-                offset_txt = test_metric - (0.05 * range_vals)
-            if test_color == "#1f77b4":
-                txt_bar = "pass"
-            elif test_color == "#cd5c5c":
-                txt_bar = "fail"
-            elif test_color == "#c5c57d":
-                txt_bar = "unclear"
-            ax.text(
-                label_count,
-                offset_txt,
-                txt_bar,
+                max_lim = max_val + (0.2 * range_vals)
+                min_lim = min_val - (0.1 * range_vals)
+        if range_vals == 0 and verify_results["error_type"].lower() in ["mae", "rmse"]:
+            range_vals = max_lim - min_lim
+        ax.set_ylim(min_lim, max_lim)
+
+        # adjust number of significative numbers shown
+        ax.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
+
+        width_bar = 0.55
+        label_count = 0
+        for test_metric, test_name, test_color in zip(
+            verify_metrics["metrics"],
+            verify_metrics["test_names"],
+            verify_metrics["colors"],
+        ):
+            ax.bar(
+                test_name,
+                test_metric,
+                label=test_name,
+                width=width_bar,
+                linewidth=1,
+                edgecolor="k",
                 color=test_color,
-                fontstyle="italic",
-                horizontalalignment="center",
+                zorder=2,
             )
-        label_count += 1
+            # plot whether the tests pass or fail
+            if test_name != "Model":
+                if test_metric >= 0:
+                    offset_txt = test_metric + (0.05 * range_vals)
+                else:
+                    offset_txt = test_metric - (0.05 * range_vals)
+                if test_color == "#1f77b4":
+                    txt_bar = "pass"
+                elif test_color == "#cd5c5c":
+                    txt_bar = "fail"
+                elif test_color == "#c5c57d":
+                    txt_bar = "unclear"
+                ax.text(
+                    label_count,
+                    offset_txt,
+                    txt_bar,
+                    color=test_color,
+                    fontstyle="italic",
+                    horizontalalignment="center",
+                )
+            label_count += 1
 
-    # Set tick sizes
-    plt.xticks(fontsize=14)
-    plt.yticks(fontsize=14)
+        # Set tick sizes
+        ax.tick_params(axis="x", labelsize=14)
+        ax.tick_params(axis="y", labelsize=14)
 
-    # title and labels of the axis
-    plt.ylabel(f"{verify_results['error_type'].upper()}", fontsize=14)
+        # title and labels of the axis
+        ax.set_ylabel(f"{verify_results['error_type'].upper()}", fontsize=14)
 
-    plt.text(
-        0.5,
-        1.08,
-        f"VERIFY tests of {os.path.basename(path_n_suffix)}",
-        horizontalalignment="center",
-        fontsize=14,
-        fontweight="bold",
-        transform=ax.transAxes,
-    )
-
-    # add threshold line and arrow indicating passed test direction
-    arrow_length = np.abs(max_lim - min_lim) / 11
-
-    if verify_results["error_type"].lower() in ["mae", "rmse"]:
-        thres_line = verify_metrics["higher_thres"]
-        unclear_thres_line = verify_metrics["unclear_higher_thres"]
-    else:
-        thres_line = verify_metrics["lower_thres"]
-        unclear_thres_line = verify_metrics["unclear_lower_thres"]
-        arrow_length = -arrow_length
-
-    width = 2
-    xmin = 0.237
-    thres = ax.axhline(
-        thres_line, xmin=xmin, color="black", ls="--", label="thres", zorder=0
-    )
-    thres = ax.axhline(
-        unclear_thres_line, xmin=xmin, color="black", ls="--", label="thres", zorder=0
-    )
-
-    x_arrow = 0.5
-    style = mpatches.ArrowStyle(
-        "simple", head_length=4.5 * width, head_width=3.5 * width, tail_width=width
-    )
-    arrow = mpatches.FancyArrowPatch(
-        (x_arrow, thres_line),
-        (x_arrow, thres_line + arrow_length),
-        arrowstyle=style,
-        color="k",
-    )  # (x1,y1), (x2,y2) vector direction
-    ax.add_patch(arrow)
-
-    # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
-    ax.arrow(x_arrow, thres_line, 0, 0, width=0, fc="k", ec="k")  # x,y,dx,dy format
-
-    # legend and regression line with 95% CI considering all possible lines (not CI of the points)
-    def make_legend_arrow(
-        legend, orig_handle, xdescent, ydescent, width, height, fontsize
-    ):
-        p = mpatches.FancyArrow(
-            0,
-            0.5 * height,
-            width,
-            0,
-            width=1.5,
-            length_includes_head=True,
-            head_width=0.58 * height,
+        ax.text(
+            0.5,
+            1.08,
+            f"VERIFY tests of {os.path.basename(path_n_suffix)}",
+            horizontalalignment="center",
+            fontsize=14,
+            fontweight="bold",
+            transform=ax.transAxes,
         )
-        return p
 
-    arrow = plt.arrow(
-        0, 0, 0, 0, label="arrow", width=0, fc="k", ec="k"
-    )  # arrow for the legend
-    plt.figlegend(
-        [thres, arrow],
-        [
-            f"Limits: {thres_line:.2} (pass), {unclear_thres_line:.2} (unclear)",
-            "Pass test",
-        ],
-        handler_map={
-            mpatches.FancyArrow: HandlerPatch(patch_func=make_legend_arrow),
-        },
-        loc="lower center",
-        ncol=2,
-        bbox_to_anchor=(0.5, -0.05),
-        fancybox=True,
-        shadow=True,
-        fontsize=14,
-    )
+        # add threshold line and arrow indicating passed test direction
+        arrow_length = np.abs(max_lim - min_lim) / 11
 
-    # Add gridlines
-    ax.grid(linestyle="--", linewidth=1)
+        if verify_results["error_type"].lower() in ["mae", "rmse"]:
+            thres_line = verify_metrics["higher_thres"]
+            unclear_thres_line = verify_metrics["unclear_higher_thres"]
+        else:
+            thres_line = verify_metrics["lower_thres"]
+            unclear_thres_line = verify_metrics["unclear_lower_thres"]
+            arrow_length = -arrow_length
 
-    # save plot
-    verify_plot_file = f"{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png"
-    plt.savefig(verify_plot_file, dpi=300, bbox_inches="tight")
+        width = 2
+        xmin = 0.237
+        thres = ax.axhline(
+            thres_line, xmin=xmin, color="black", ls="--", label="thres", zorder=0
+        )
+        thres = ax.axhline(
+            unclear_thres_line,
+            xmin=xmin,
+            color="black",
+            ls="--",
+            label="thres",
+            zorder=0,
+        )
+
+        x_arrow = 0.5
+        style = mpatches.ArrowStyle(
+            "simple", head_length=4.5 * width, head_width=3.5 * width, tail_width=width
+        )
+        arrow = mpatches.FancyArrowPatch(
+            (x_arrow, thres_line),
+            (x_arrow, thres_line + arrow_length),
+            arrowstyle=style,
+            color="k",
+        )
+        ax.add_patch(arrow)
+
+        # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
+        ax.arrow(x_arrow, thres_line, 0, 0, width=0, fc="k", ec="k")
+
+        def make_legend_arrow(
+            legend, orig_handle, xdescent, ydescent, width, height, fontsize
+        ):
+            p = mpatches.FancyArrow(
+                0,
+                0.5 * height,
+                width,
+                0,
+                width=1.5,
+                length_includes_head=True,
+                head_width=0.58 * height,
+            )
+            return p
+
+        arrow_legend = plt.arrow(0, 0, 0, 0, label="arrow", width=0, fc="k", ec="k")
+        fig.legend(
+            [thres, arrow_legend],
+            [
+                f"Limits: {thres_line:.2} (pass), {unclear_thres_line:.2} (unclear)",
+                "Pass test",
+            ],
+            handler_map={
+                mpatches.FancyArrow: HandlerPatch(patch_func=make_legend_arrow),
+            },
+            loc="lower center",
+            ncol=2,
+            bbox_to_anchor=(0.5, -0.05),
+            fancybox=True,
+            shadow=True,
+            fontsize=14,
+        )
+
+        # Add gridlines
+        ax.grid(linestyle="--", linewidth=1)
+
+        # save plot
+        verify_plot_file = f"{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png"
+        plt.savefig(verify_plot_file, dpi=300, bbox_inches="tight")
+        plt.close(fig)
 
     path_reduced = "/".join(f"{verify_plot_file}".replace("\\", "/").split("/")[-2:])
     print_ver = f"\n   o  VERIFY plot saved in {path_reduced}"

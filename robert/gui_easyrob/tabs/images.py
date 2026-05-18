@@ -42,7 +42,7 @@ try:
         Qt,
     )
 
-except ImportError as e:
+except ImportError:
     from robert.gui_easyrob.utils.utils_gui import (
         QApplication,
         QDesktopServices,
@@ -65,6 +65,7 @@ except ImportError as e:
 # ---- Standard library ----
 import os
 import glob
+
 
 class ImagesTab(QWidget):
     """Images tab for displaying images from multiple folders as workflow results."""
@@ -98,8 +99,7 @@ class ImagesTab(QWidget):
         help_button.setFixedSize(18, 18)
         help_button.setStyleSheet("font-size: 11px;")
         help_button.setToolTip(
-            "Double-click: Open image\n"
-            "Right-click: Copy, Save, or Open folder"
+            "Double-click: Open image\nRight-click: Copy, Save, or Open folder"
         )
         help_button.clicked.connect(self.show_help_dialog)
 

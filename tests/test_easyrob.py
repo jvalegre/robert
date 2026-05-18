@@ -29,10 +29,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Third-party imports
-import pandas as pd
-import pytest
-from PySide6.QtCore import Qt, QCoreApplication
-from PySide6.QtWidgets import (
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
+from PySide6.QtCore import Qt, QCoreApplication  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
     QListWidgetItem,
     QMessageBox,
     QDialog,
@@ -40,16 +40,17 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
-)
-from rdkit import Chem
+)  # noqa: E402
 
 # Local project imports
-from robert.gui_easyrob.main.window import EasyROB
-import robert.gui_easyrob.easyrob as easyrob_module
-import robert.gui_easyrob.main.window as window_module
-import robert.gui_easyrob.tabs.aqme as aqme_module
-import robert.gui_easyrob.tabs.predictions as predictions_module
-import robert.gui_easyrob.tabs.results as results_module
+from robert.gui_easyrob.main.window import EasyROB  # noqa: E402
+import robert.gui_easyrob.easyrob as easyrob_module  # noqa: E402
+import robert.gui_easyrob.main.window as window_module  # noqa: E402
+import robert.gui_easyrob.tabs.aqme as aqme_module  # noqa: E402
+import robert.gui_easyrob.tabs.predictions as predictions_module  # noqa: E402
+import robert.gui_easyrob.tabs.results as results_module  # noqa: E402
+
+from tests.conftest import aqme_installed  # noqa: E402
 
 # ----------------------------------------------------------------------
 # Constants
@@ -154,7 +155,9 @@ def dump_console_output(title, text):
     print("----- END CONSOLE OUTPUT -----")
 
 
-def process_events_until(predicate, timeout_s, poll_interval_s=WORKFLOW_POLL_INTERVAL_S):
+def process_events_until(
+    predicate, timeout_s, poll_interval_s=WORKFLOW_POLL_INTERVAL_S
+):
     """Process Qt events until a condition becomes true or the timeout expires."""
     elapsed = 0.0
     while elapsed < timeout_s:
@@ -212,10 +215,16 @@ def wait_for_workflow_completion(
         all_dirs_exist = all((output_dir / name).is_dir() for name in expected_dirs)
         pdf_exists = report_pdf.is_file()
         if workflow_started and all_dirs_exist and pdf_exists:
-            print("[OK] Workflow completed (all output folders AND report PDF detected)")
+            print(
+                "[OK] Workflow completed (all output folders AND report PDF detected)"
+            )
             return True, workflow_started, last_console, last_process
 
-        if process is not None and process.poll() is not None and not (all_dirs_exist and pdf_exists):
+        if (
+            process is not None
+            and process.poll() is not None
+            and not (all_dirs_exist and pdf_exists)
+        ):
             print(
                 f"[WARN] Process exited with code {process.returncode} "
                 "but not all outputs (folders + PDF) are present yet."
@@ -242,20 +251,27 @@ def run_full_workflow_and_wait(window, qtbot, output_dir, expected_dirs, report_
         initial_console_text=baseline_text,
     )
     if not started:
-        dump_console_output("[DEBUG] Console at timeout (no start detected):", last_console)
+        dump_console_output(
+            "[DEBUG] Console at timeout (no start detected):", last_console
+        )
         pytest.fail("Workflow did not start within timeout")
     if not completed:
         print("\n[DEBUG] Console at timeout (no completion detected):")
-        print("Existing entries in output_dir:", [path.name for path in output_dir.iterdir()])
+        print(
+            "Existing entries in output_dir:",
+            [path.name for path in output_dir.iterdir()],
+        )
         print("Report PDF exists:", report_pdf.is_file())
         if last_process is not None:
             print("Process return code:", last_process.returncode)
         dump_console_output("[DEBUG] Timed out console snapshot:", last_console)
         pytest.fail("Workflow did not complete within timeout")
 
+
 # ----------------------------------------------------------------------
 # Fixtures
 # ----------------------------------------------------------------------
+
 
 @pytest.fixture(scope="session")
 def test_output_dir():
@@ -310,6 +326,31 @@ def easyrob_window(qtbot, monkeypatch):
     return window
 
 
+@pytest.fixture
+def predictions_tab(qtbot):
+    """PredictionsTab with an active QApplication (required for QWidget construction)."""
+    tab = predictions_module.PredictionsTab()
+    qtbot.addWidget(tab)
+    return tab
+
+
+@pytest.fixture
+def results_tab_mocks(monkeypatch):
+    """Common ResultsTab mocks for unit tests that avoid PDF/WebEngine widgets."""
+    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
+    monkeypatch.setattr(
+        results_module,
+        "PDFViewer",
+        lambda pdf_path, thread_pool: results_module.QWidget(),
+    )
+
+
+def _results_tab(qtbot, input_csv_path: str):
+    tab = results_module.ResultsTab(None, str(input_csv_path))
+    qtbot.addWidget(tab)
+    return tab
+
+
 # =====================================================
 # Basic Initialization Tests
 # =====================================================
@@ -332,6 +373,7 @@ def test_easyrob_factory_returns_main_window_class():
     """The lightweight factory module returns the real main window class."""
     assert easyrob_module.get_main_window_class() is EasyROB
 
+
 def test_all_tabs_created(easyrob_window):
     """All expected top-level tabs are present."""
     window = easyrob_window
@@ -352,7 +394,9 @@ def test_dropdowns_populated(easyrob_window):
     window = easyrob_window
 
     assert window.type_dropdown.count() == 2
-    items = [window.type_dropdown.itemText(i) for i in range(window.type_dropdown.count())]
+    items = [
+        window.type_dropdown.itemText(i) for i in range(window.type_dropdown.count())
+    ]
     assert "Regression" in items
     assert "Classification" in items
 
@@ -389,8 +433,7 @@ def test_move_to_selected_and_back(easyrob_window):
         for i in range(window.available_list.count())
     ]
     ignore_items = [
-        window.ignore_list.item(i).text()
-        for i in range(window.ignore_list.count())
+        window.ignore_list.item(i).text() for i in range(window.ignore_list.count())
     ]
 
     assert "col3" in available_items
@@ -445,7 +488,9 @@ def test_load_csv_columns(easyrob_window, tmp_path):
     assert set(available_items) == {"ID", "Name", "Target", "Feature1"}
 
 
-def test_load_csv_columns_auto_ignores_smiles_and_prefers_code_name(easyrob_window, tmp_path):
+def test_load_csv_columns_auto_ignores_smiles_and_prefers_code_name(
+    easyrob_window, tmp_path
+):
     """SMILES is auto-ignored and code_name is auto-selected when present."""
     window = easyrob_window
 
@@ -467,8 +512,7 @@ def test_load_csv_columns_auto_ignores_smiles_and_prefers_code_name(easyrob_wind
         for i in range(window.available_list.count())
     }
     ignored_items = {
-        window.ignore_list.item(i).text()
-        for i in range(window.ignore_list.count())
+        window.ignore_list.item(i).text() for i in range(window.ignore_list.count())
     }
 
     assert "SMILES" not in available_items
@@ -476,7 +520,9 @@ def test_load_csv_columns_auto_ignores_smiles_and_prefers_code_name(easyrob_wind
     assert window.names_dropdown.currentText() == "code_name"
 
 
-def test_set_file_path_updates_ui_and_skips_redundant_reload(easyrob_window, tmp_path, monkeypatch):
+def test_set_file_path_updates_ui_and_skips_redundant_reload(
+    easyrob_window, tmp_path, monkeypatch
+):
     """set_file_path updates labels and avoids reloading unchanged files unless forced."""
     window = easyrob_window
     csv_path = tmp_path / "input.csv"
@@ -490,12 +536,36 @@ def test_set_file_path_updates_ui_and_skips_redundant_reload(easyrob_window, tmp
         "check_aqme_workflow": 0,
     }
 
-    monkeypatch.setattr(window, "load_csv_columns", lambda: calls.__setitem__("load_csv_columns", calls["load_csv_columns"] + 1))
-    monkeypatch.setattr(window, "refresh_tabs", lambda file_path: calls.__setitem__("refresh_tabs", calls["refresh_tabs"] + 1))
+    monkeypatch.setattr(
+        window,
+        "load_csv_columns",
+        lambda: calls.__setitem__("load_csv_columns", calls["load_csv_columns"] + 1),
+    )
+    monkeypatch.setattr(
+        window,
+        "refresh_tabs",
+        lambda file_path: calls.__setitem__("refresh_tabs", calls["refresh_tabs"] + 1),
+    )
     monkeypatch.setattr(window, "_is_molssi_csv", lambda file_path: False)
-    monkeypatch.setattr(window, "check_molssi_descriptors", lambda: calls.__setitem__("check_molssi_descriptors", calls["check_molssi_descriptors"] + 1))
-    monkeypatch.setattr(window, "_update_unified_smiles_context", lambda: calls.__setitem__("update_smiles", calls["update_smiles"] + 1))
-    monkeypatch.setattr(window, "check_aqme_workflow", lambda: calls.__setitem__("check_aqme_workflow", calls["check_aqme_workflow"] + 1))
+    monkeypatch.setattr(
+        window,
+        "check_molssi_descriptors",
+        lambda: calls.__setitem__(
+            "check_molssi_descriptors", calls["check_molssi_descriptors"] + 1
+        ),
+    )
+    monkeypatch.setattr(
+        window,
+        "_update_unified_smiles_context",
+        lambda: calls.__setitem__("update_smiles", calls["update_smiles"] + 1),
+    )
+    monkeypatch.setattr(
+        window,
+        "check_aqme_workflow",
+        lambda: calls.__setitem__(
+            "check_aqme_workflow", calls["check_aqme_workflow"] + 1
+        ),
+    )
     window.tab_widget_aqme.df_mapped_smiles = object()
 
     window.set_file_path(str(csv_path))
@@ -526,9 +596,23 @@ def test_set_and_clear_csv_test_path_updates_ui(easyrob_window, tmp_path, monkey
     pd.DataFrame({"SMILES": ["C"], "target": [1.0]}).to_csv(csv_path, index=False)
 
     calls = {"update_smiles": 0, "check_aqme_workflow": 0, "refresh_tabs": 0}
-    monkeypatch.setattr(window, "_update_unified_smiles_context", lambda: calls.__setitem__("update_smiles", calls["update_smiles"] + 1))
-    monkeypatch.setattr(window, "check_aqme_workflow", lambda: calls.__setitem__("check_aqme_workflow", calls["check_aqme_workflow"] + 1))
-    monkeypatch.setattr(window, "refresh_tabs", lambda file_path: calls.__setitem__("refresh_tabs", calls["refresh_tabs"] + 1))
+    monkeypatch.setattr(
+        window,
+        "_update_unified_smiles_context",
+        lambda: calls.__setitem__("update_smiles", calls["update_smiles"] + 1),
+    )
+    monkeypatch.setattr(
+        window,
+        "check_aqme_workflow",
+        lambda: calls.__setitem__(
+            "check_aqme_workflow", calls["check_aqme_workflow"] + 1
+        ),
+    )
+    monkeypatch.setattr(
+        window,
+        "refresh_tabs",
+        lambda file_path: calls.__setitem__("refresh_tabs", calls["refresh_tabs"] + 1),
+    )
 
     window.set_csv_test_path(str(csv_path))
 
@@ -541,7 +625,10 @@ def test_set_and_clear_csv_test_path_updates_ui(easyrob_window, tmp_path, monkey
     window.clear_test_file()
 
     assert window.csv_test_path is None
-    assert window.csv_test_label.label.text() == "Drag & Drop a CSV external test file here (optional)"
+    assert (
+        window.csv_test_label.label.text()
+        == "Drag & Drop a CSV external test file here (optional)"
+    )
     assert window.csv_test_label.toolTip() == ""
     assert window.clear_test_button.isHidden()
     assert calls["update_smiles"] == 2
@@ -569,14 +656,20 @@ def test_reset_ui_after_process_restores_buttons(easyrob_window):
 def test_open_external_url_uses_browser(easyrob_window, monkeypatch):
     """open_external_url delegates to the browser helper."""
     opened = {}
-    monkeypatch.setattr(window_module.webbrowser, "open", lambda url, new=0: opened.update({"url": url, "new": new}))
+    monkeypatch.setattr(
+        window_module.webbrowser,
+        "open",
+        lambda url, new=0: opened.update({"url": url, "new": new}),
+    )
 
     easyrob_window.open_external_url("https://example.com")
 
     assert opened == {"url": "https://example.com", "new": 2}
 
 
-def test_close_event_ignores_when_running_worker_is_not_stopped(easyrob_window, monkeypatch):
+def test_close_event_ignores_when_running_worker_is_not_stopped(
+    easyrob_window, monkeypatch
+):
     """Closing is aborted if ROBERT is still running and the user declines stopping it."""
     window = easyrob_window
 
@@ -591,7 +684,9 @@ def test_close_event_ignores_when_running_worker_is_not_stopped(easyrob_window, 
         def isRunning(self):
             return True
 
-    monkeypatch.setattr(window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.No)
+    monkeypatch.setattr(
+        window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.No
+    )
 
     event = DummyEvent()
     window.worker = DummyWorker()
@@ -646,10 +741,20 @@ def test_close_event_stops_worker_and_shuts_down(easyrob_window, monkeypatch):
     shutdown_calls = {"n": 0}
     timer_calls = {"n": 0}
 
-    monkeypatch.setattr(window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.Yes)
+    monkeypatch.setattr(
+        window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.Yes
+    )
     monkeypatch.setattr(window_module, "QEventLoop", lambda: loop)
-    monkeypatch.setattr(window_module.QTimer, "singleShot", lambda ms, fn: timer_calls.__setitem__("n", timer_calls["n"] + 1))
-    monkeypatch.setattr(window, "_shutdown_molssi_async", lambda: shutdown_calls.__setitem__("n", shutdown_calls["n"] + 1))
+    monkeypatch.setattr(
+        window_module.QTimer,
+        "singleShot",
+        lambda ms, fn: timer_calls.__setitem__("n", timer_calls["n"] + 1),
+    )
+    monkeypatch.setattr(
+        window,
+        "_shutdown_molssi_async",
+        lambda: shutdown_calls.__setitem__("n", shutdown_calls["n"] + 1),
+    )
 
     event = DummyEvent()
     window.worker = worker
@@ -664,7 +769,9 @@ def test_close_event_stops_worker_and_shuts_down(easyrob_window, monkeypatch):
     assert event.ignored == 1
 
 
-def test_close_event_without_running_worker_starts_async_shutdown(easyrob_window, monkeypatch):
+def test_close_event_without_running_worker_starts_async_shutdown(
+    easyrob_window, monkeypatch
+):
     """Closing without an active ROBERT worker still routes through async cleanup."""
     window = easyrob_window
 
@@ -676,7 +783,11 @@ def test_close_event_without_running_worker_starts_async_shutdown(easyrob_window
             self.ignored += 1
 
     shutdown_calls = {"n": 0}
-    monkeypatch.setattr(window, "_shutdown_molssi_async", lambda: shutdown_calls.__setitem__("n", shutdown_calls["n"] + 1))
+    monkeypatch.setattr(
+        window,
+        "_shutdown_molssi_async",
+        lambda: shutdown_calls.__setitem__("n", shutdown_calls["n"] + 1),
+    )
 
     event = DummyEvent()
     window.worker = None
@@ -690,7 +801,11 @@ def test_close_event_without_running_worker_starts_async_shutdown(easyrob_window
 def test_show_contact_dialog_executes_modal(easyrob_window, monkeypatch):
     """Contact dialog is created and executed."""
     exec_calls = {"n": 0}
-    monkeypatch.setattr(window_module.QDialog, "exec", lambda self: exec_calls.__setitem__("n", exec_calls["n"] + 1))
+    monkeypatch.setattr(
+        window_module.QDialog,
+        "exec",
+        lambda self: exec_calls.__setitem__("n", exec_calls["n"] + 1),
+    )
 
     easyrob_window.show_contact_dialog()
 
@@ -700,7 +815,11 @@ def test_show_contact_dialog_executes_modal(easyrob_window, monkeypatch):
 def test_show_version_dialog_executes_modal(easyrob_window, monkeypatch):
     """Version dialog is created and executed."""
     exec_calls = {"n": 0}
-    monkeypatch.setattr(window_module.QDialog, "exec", lambda self: exec_calls.__setitem__("n", exec_calls["n"] + 1))
+    monkeypatch.setattr(
+        window_module.QDialog,
+        "exec",
+        lambda self: exec_calls.__setitem__("n", exec_calls["n"] + 1),
+    )
 
     easyrob_window.show_version_dialog()
 
@@ -709,6 +828,7 @@ def test_show_version_dialog_executes_modal(easyrob_window, monkeypatch):
 
 def test_show_tutorial_dialog_reuses_visible_dialog(easyrob_window):
     """Reopening the tutorial dialog reuses the visible instance."""
+
     class DummyDialog:
         def __init__(self):
             self.raise_calls = 0
@@ -760,7 +880,11 @@ def test_check_for_pdfs_and_images_runs_with_existing_outputs(easyrob_window, tm
 def test_refresh_tabs_updates_children_and_schedules_once(easyrob_window, monkeypatch):
     """refresh_tabs stores the latest path and coalesces duplicate scheduling."""
     timer_calls = {"n": 0}
-    monkeypatch.setattr(window_module.QTimer, "singleShot", lambda ms, fn: timer_calls.__setitem__("n", timer_calls["n"] + 1))
+    monkeypatch.setattr(
+        window_module.QTimer,
+        "singleShot",
+        lambda ms, fn: timer_calls.__setitem__("n", timer_calls["n"] + 1),
+    )
 
     easyrob_window._refresh_scheduled = False
     easyrob_window.refresh_tabs("one.csv")
@@ -774,11 +898,31 @@ def test_execute_refresh_tabs_calls_all_child_refreshes(easyrob_window, monkeypa
     """_execute_refresh_tabs fans out the refresh to child tabs and file-based checks."""
     calls = {"results": 0, "images": 0, "predictions": 0, "pdfs": 0, "imgs": 0}
 
-    monkeypatch.setattr(easyrob_window.results_tab, "refresh_with_new_path", lambda p: calls.__setitem__("results", calls["results"] + 1))
-    monkeypatch.setattr(easyrob_window.images_tab, "refresh_with_new_path", lambda p: calls.__setitem__("images", calls["images"] + 1))
-    monkeypatch.setattr(easyrob_window.predictions_tab, "refresh_with_new_path", lambda p: calls.__setitem__("predictions", calls["predictions"] + 1))
-    monkeypatch.setattr(easyrob_window, "check_for_pdfs", lambda p: calls.__setitem__("pdfs", calls["pdfs"] + 1))
-    monkeypatch.setattr(easyrob_window, "check_for_images", lambda p: calls.__setitem__("imgs", calls["imgs"] + 1))
+    monkeypatch.setattr(
+        easyrob_window.results_tab,
+        "refresh_with_new_path",
+        lambda p: calls.__setitem__("results", calls["results"] + 1),
+    )
+    monkeypatch.setattr(
+        easyrob_window.images_tab,
+        "refresh_with_new_path",
+        lambda p: calls.__setitem__("images", calls["images"] + 1),
+    )
+    monkeypatch.setattr(
+        easyrob_window.predictions_tab,
+        "refresh_with_new_path",
+        lambda p: calls.__setitem__("predictions", calls["predictions"] + 1),
+    )
+    monkeypatch.setattr(
+        easyrob_window,
+        "check_for_pdfs",
+        lambda p: calls.__setitem__("pdfs", calls["pdfs"] + 1),
+    )
+    monkeypatch.setattr(
+        easyrob_window,
+        "check_for_images",
+        lambda p: calls.__setitem__("imgs", calls["imgs"] + 1),
+    )
 
     easyrob_window._pending_refresh_path = "demo.csv"
     easyrob_window._refresh_scheduled = True
@@ -790,6 +934,7 @@ def test_execute_refresh_tabs_calls_all_child_refreshes(easyrob_window, monkeypa
 
 def test_stop_process_confirms_and_stops_worker(easyrob_window, monkeypatch):
     """stop_process marks manual stop and schedules worker stop after confirmation."""
+
     class DummySignal:
         def connect(self, fn):
             self.fn = fn
@@ -807,8 +952,14 @@ def test_stop_process_confirms_and_stops_worker(easyrob_window, monkeypatch):
 
     worker = DummyWorker()
     timer_calls = {"n": 0}
-    monkeypatch.setattr(window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.Yes)
-    monkeypatch.setattr(window_module.QTimer, "singleShot", lambda ms, fn: (timer_calls.__setitem__("n", timer_calls["n"] + 1), fn())[1])
+    monkeypatch.setattr(
+        window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.Yes
+    )
+    monkeypatch.setattr(
+        window_module.QTimer,
+        "singleShot",
+        lambda ms, fn: (timer_calls.__setitem__("n", timer_calls["n"] + 1), fn())[1],
+    )
 
     easyrob_window.worker = worker
     easyrob_window.stop_button.setDisabled(False)
@@ -823,7 +974,9 @@ def test_stop_process_confirms_and_stops_worker(easyrob_window, monkeypatch):
 
 def test_stop_process_returns_when_user_declines(easyrob_window, monkeypatch):
     """stop_process does nothing if the user rejects the confirmation dialog."""
-    monkeypatch.setattr(window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.No)
+    monkeypatch.setattr(
+        window_module.QMessageBox, "question", lambda *args, **kwargs: QMessageBox.No
+    )
 
     easyrob_window.manual_stop = False
     easyrob_window.stop_process()
@@ -1011,14 +1164,24 @@ def test_predictions_filter_dataframe_orders_core_columns(easyrob_window, monkey
             "target_pred_sd": [0.3],
         }
     )
-    monkeypatch.setattr(easyrob_window.predictions_tab, "_extract_names_column_from_predict", lambda: "sample_id")
+    monkeypatch.setattr(
+        easyrob_window.predictions_tab,
+        "_extract_names_column_from_predict",
+        lambda: "sample_id",
+    )
 
     filtered = easyrob_window.predictions_tab._filter_prediction_dataframe(df)
 
-    assert list(filtered.columns) == ["Image", "sample_id", "SMILES", "target_pred", "target_pred_sd"]
+    assert list(filtered.columns) == [
+        "Image",
+        "sample_id",
+        "SMILES",
+        "target_pred",
+        "target_pred_sd",
+    ]
 
 
-def test_predictions_extract_names_column_from_predict(tmp_path):
+def test_predictions_extract_names_column_from_predict(tmp_path, predictions_tab):
     """The names field is extracted from the stored PREDICT command line."""
     predict_dir = tmp_path / "PREDICT"
     predict_dir.mkdir()
@@ -1026,23 +1189,19 @@ def test_predictions_extract_names_column_from_predict(tmp_path):
     dat_path.write_text('--names "code_name"\n', encoding="utf-8")
     (tmp_path / "input.csv").write_text("a,b\n1,2\n", encoding="utf-8")
 
-    tab = predictions_module.PredictionsTab()
-    tab._base_path = str(tmp_path / "input.csv")
+    predictions_tab._base_path = str(tmp_path / "input.csv")
 
-    assert tab._extract_names_column_from_predict() == "code_name"
+    assert predictions_tab._extract_names_column_from_predict() == "code_name"
 
 
-def test_results_tab_detects_and_refreshes_pdf_tabs(tmp_path, monkeypatch):
+def test_results_tab_detects_and_refreshes_pdf_tabs(tmp_path, qtbot, results_tab_mocks):
     """Results tab discovers PDFs and refreshes when a new path is provided."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(results_module, "PDFViewer", lambda pdf_path, thread_pool: results_module.QWidget())
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     first_pdf = run_dir / "ROBERT_report.pdf"
     first_pdf.write_text("pdf", encoding="utf-8")
 
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
 
     assert first_pdf.name in tab.title_to_path
     assert tab.pdf_tab_widget.count() == 1
@@ -1058,9 +1217,9 @@ def test_results_tab_detects_and_refreshes_pdf_tabs(tmp_path, monkeypatch):
     assert second_pdf.name in tab.title_to_path
 
 
-def test_predictions_show_header_menu_sorts_and_histogram(monkeypatch):
+def test_predictions_show_header_menu_sorts_and_histogram(predictions_tab, monkeypatch):
     """Header context menu routes to sort and histogram actions."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     df = pd.DataFrame({"num": [2, 1], "txt": ["b", "a"]})
 
     class DummyHeader:
@@ -1102,7 +1261,11 @@ def test_predictions_show_header_menu_sorts_and_histogram(monkeypatch):
 
     monkeypatch.setattr(predictions_module, "QMenu", DummyMenu)
     histogram_calls = {"n": 0}
-    monkeypatch.setattr(tab, "_show_histogram", lambda series, name: histogram_calls.__setitem__("n", histogram_calls["n"] + 1))
+    monkeypatch.setattr(
+        tab,
+        "_show_histogram",
+        lambda series, name: histogram_calls.__setitem__("n", histogram_calls["n"] + 1),
+    )
 
     header = DummyHeader()
     table = DummyTable()
@@ -1117,9 +1280,11 @@ def test_predictions_show_header_menu_sorts_and_histogram(monkeypatch):
     assert histogram_calls["n"] == 1
 
 
-def test_predictions_show_histogram_menu_non_numeric_shows_message(monkeypatch):
+def test_predictions_show_histogram_menu_non_numeric_shows_message(
+    predictions_tab, monkeypatch
+):
     """Non-numeric columns show an informational popup instead of plotting."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     df = pd.DataFrame({"txt": ["a", "b"]})
     info_calls = {"n": 0}
 
@@ -1127,48 +1292,121 @@ def test_predictions_show_histogram_menu_non_numeric_shows_message(monkeypatch):
         def logicalIndexAt(self, pos):
             return 0
 
-    monkeypatch.setattr(predictions_module.QMessageBox, "information", lambda *args, **kwargs: info_calls.__setitem__("n", info_calls["n"] + 1))
+    monkeypatch.setattr(
+        predictions_module.QMessageBox,
+        "information",
+        lambda *args, **kwargs: info_calls.__setitem__("n", info_calls["n"] + 1),
+    )
 
     tab._show_histogram_menu_header(None, df, DummyHeader())
 
     assert info_calls["n"] == 1
 
 
-def test_predictions_show_histogram_uses_matplotlib(monkeypatch):
+def test_predictions_show_histogram_uses_matplotlib(predictions_tab, monkeypatch):
     """Histogram plotting delegates to matplotlib without blocking."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     series = pd.Series([1, 2, 3])
-    calls = {"figure": 0, "title": 0, "xlabel": 0, "ylabel": 0, "grid": 0, "show": 0, "hist": 0}
+    calls = {
+        "figure": 0,
+        "title": 0,
+        "xlabel": 0,
+        "ylabel": 0,
+        "grid": 0,
+        "show": 0,
+        "hist": 0,
+    }
 
-    monkeypatch.setattr(predictions_module.plt, "figure", lambda: calls.__setitem__("figure", calls["figure"] + 1))
-    monkeypatch.setattr(predictions_module.plt, "title", lambda name: calls.__setitem__("title", calls["title"] + 1))
-    monkeypatch.setattr(predictions_module.plt, "xlabel", lambda name: calls.__setitem__("xlabel", calls["xlabel"] + 1))
-    monkeypatch.setattr(predictions_module.plt, "ylabel", lambda name: calls.__setitem__("ylabel", calls["ylabel"] + 1))
-    monkeypatch.setattr(predictions_module.plt, "grid", lambda enabled: calls.__setitem__("grid", calls["grid"] + 1))
-    monkeypatch.setattr(predictions_module.plt, "show", lambda block=False: calls.__setitem__("show", calls["show"] + 1))
-    monkeypatch.setattr(pd.Series, "hist", lambda self, bins=30: calls.__setitem__("hist", calls["hist"] + 1))
+    monkeypatch.setattr(
+        predictions_module.plt,
+        "figure",
+        lambda: calls.__setitem__("figure", calls["figure"] + 1),
+    )
+    monkeypatch.setattr(
+        predictions_module.plt,
+        "title",
+        lambda name: calls.__setitem__("title", calls["title"] + 1),
+    )
+    monkeypatch.setattr(
+        predictions_module.plt,
+        "xlabel",
+        lambda name: calls.__setitem__("xlabel", calls["xlabel"] + 1),
+    )
+    monkeypatch.setattr(
+        predictions_module.plt,
+        "ylabel",
+        lambda name: calls.__setitem__("ylabel", calls["ylabel"] + 1),
+    )
+    monkeypatch.setattr(
+        predictions_module.plt,
+        "grid",
+        lambda enabled: calls.__setitem__("grid", calls["grid"] + 1),
+    )
+    monkeypatch.setattr(
+        predictions_module.plt,
+        "show",
+        lambda block=False: calls.__setitem__("show", calls["show"] + 1),
+    )
+    monkeypatch.setattr(
+        pd.Series,
+        "hist",
+        lambda self, bins=30: calls.__setitem__("hist", calls["hist"] + 1),
+    )
 
     tab._show_histogram(series, "value")
 
-    assert calls == {"figure": 1, "title": 1, "xlabel": 1, "ylabel": 1, "grid": 1, "show": 1, "hist": 1}
+    assert calls == {
+        "figure": 1,
+        "title": 1,
+        "xlabel": 1,
+        "ylabel": 1,
+        "grid": 1,
+        "show": 1,
+        "hist": 1,
+    }
 
 
-def test_predictions_add_loaded_df_replaces_loading_tab(monkeypatch):
+def test_predictions_add_loaded_df_replaces_loading_tab(
+    predictions_tab, qtbot, monkeypatch
+):
     """Loaded prediction data replaces the placeholder tab widget."""
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     tab._base_path = "demo.csv"
     tab.subtabs.addTab(predictions_module.QLabel("Loading"), "No PFI")
 
     df = pd.DataFrame({"SMILES": ["C"], "target_pred": [1.0]})
     monkeypatch.setattr(tab, "_filter_prediction_dataframe", lambda frame: frame)
-    monkeypatch.setattr(predictions_module, "evaluate_predictions_for_model", lambda base, frame, key: {"pdf_path": "report.pdf", "model": key, "scenario": "demo"})
-    monkeypatch.setattr(predictions_module, "get_robert_report_path", lambda base: "report.pdf")
-    monkeypatch.setattr(predictions_module, "extract_robert_fragment_image", lambda path, key: None)
-    monkeypatch.setattr(predictions_module, "extract_extrapolation_scores", lambda path: {"No_PFI": None})
-    monkeypatch.setattr(predictions_module, "extract_extrapolation_fragment", lambda path, key: None)
-    monkeypatch.setattr(predictions_module, "find_external_test_pixmaps", lambda base: {})
+    monkeypatch.setattr(
+        predictions_module,
+        "evaluate_predictions_for_model",
+        lambda base, frame, key: {
+            "pdf_path": "report.pdf",
+            "model": key,
+            "scenario": "demo",
+        },
+    )
+    monkeypatch.setattr(
+        predictions_module, "get_robert_report_path", lambda base: "report.pdf"
+    )
+    monkeypatch.setattr(
+        predictions_module, "extract_robert_fragment_image", lambda path, key: None
+    )
+    monkeypatch.setattr(
+        predictions_module,
+        "extract_extrapolation_scores",
+        lambda path: {"No_PFI": None},
+    )
+    monkeypatch.setattr(
+        predictions_module, "extract_extrapolation_fragment", lambda path, key: None
+    )
+    monkeypatch.setattr(
+        predictions_module, "find_external_test_pixmaps", lambda base: {}
+    )
     widget = predictions_module.QWidget()
-    monkeypatch.setattr(tab, "_create_table_with_stats", lambda frame, info, pdf_image: widget)
+    qtbot.addWidget(widget)
+    monkeypatch.setattr(
+        tab, "_create_table_with_stats", lambda frame, info, pdf_image: widget
+    )
 
     tab._add_loaded_df("No_PFI", df)
 
@@ -1176,17 +1414,21 @@ def test_predictions_add_loaded_df_replaces_loading_tab(monkeypatch):
     assert tab.subtabs.tabText(0) == "No PFI"
 
 
-def test_predictions_refresh_with_new_path_loads_csvs_synchronously(tmp_path, monkeypatch):
+def test_predictions_refresh_with_new_path_loads_csvs_synchronously(
+    tmp_path, predictions_tab, monkeypatch
+):
     """refresh_with_new_path discovers CSVs and materializes tabs when tasks run synchronously."""
     csv_test_dir = tmp_path / "PREDICT" / "csv_test"
     csv_test_dir.mkdir(parents=True)
 
     no_pfi_path = csv_test_dir / "demo_No_PFI.csv"
     pfi_path = csv_test_dir / "demo_PFI.csv"
-    pd.DataFrame({"SMILES": ["C"], "target_pred": [1.0]}).to_csv(no_pfi_path, index=False)
+    pd.DataFrame({"SMILES": ["C"], "target_pred": [1.0]}).to_csv(
+        no_pfi_path, index=False
+    )
     pd.DataFrame({"SMILES": ["CC"], "target_pred": [2.0]}).to_csv(pfi_path, index=False)
 
-    tab = predictions_module.PredictionsTab()
+    tab = predictions_tab
     created = []
 
     class FakePlaceholder:
@@ -1273,17 +1515,32 @@ def test_predictions_refresh_with_new_path_loads_csvs_synchronously(tmp_path, mo
     monkeypatch.setattr(
         predictions_module,
         "evaluate_predictions_for_model",
-        lambda base, frame, key: {"pdf_path": "report.pdf", "model": key, "scenario": "demo"},
+        lambda base, frame, key: {
+            "pdf_path": "report.pdf",
+            "model": key,
+            "scenario": "demo",
+        },
     )
-    monkeypatch.setattr(predictions_module, "get_robert_report_path", lambda base: "report.pdf")
-    monkeypatch.setattr(predictions_module, "extract_robert_fragment_image", lambda path, key: None)
-    monkeypatch.setattr(predictions_module, "extract_extrapolation_scores", lambda path: {})
-    monkeypatch.setattr(predictions_module, "extract_extrapolation_fragment", lambda path, key: None)
-    monkeypatch.setattr(predictions_module, "find_external_test_pixmaps", lambda base: {})
+    monkeypatch.setattr(
+        predictions_module, "get_robert_report_path", lambda base: "report.pdf"
+    )
+    monkeypatch.setattr(
+        predictions_module, "extract_robert_fragment_image", lambda path, key: None
+    )
+    monkeypatch.setattr(
+        predictions_module, "extract_extrapolation_scores", lambda path: {}
+    )
+    monkeypatch.setattr(
+        predictions_module, "extract_extrapolation_fragment", lambda path, key: None
+    )
+    monkeypatch.setattr(
+        predictions_module, "find_external_test_pixmaps", lambda base: {}
+    )
     monkeypatch.setattr(
         tab,
         "_create_table_with_stats",
-        lambda frame, info, pdf_image: created.append((info["model"], frame.copy())) or object(),
+        lambda frame, info, pdf_image: created.append((info["model"], frame.copy()))
+        or object(),
     )
 
     tab.refresh_with_new_path(str(tmp_path / "input.csv"))
@@ -1291,21 +1548,23 @@ def test_predictions_refresh_with_new_path_loads_csvs_synchronously(tmp_path, mo
     assert tab.placeholder.isHidden()
     assert not tab.subtabs.isHidden()
     assert tab.subtabs.count() == 2
-    assert {tab.subtabs.tabText(i) for i in range(tab.subtabs.count())} == {"No PFI", "PFI"}
+    assert {tab.subtabs.tabText(i) for i in range(tab.subtabs.count())} == {
+        "No PFI",
+        "PFI",
+    }
     assert {model for model, _ in created} == {"No_PFI", "PFI"}
 
 
-def test_results_clear_pdf_tabs_removes_placeholders(tmp_path, monkeypatch):
+def test_results_clear_pdf_tabs_removes_placeholders(
+    tmp_path, qtbot, results_tab_mocks
+):
     """clear_pdf_tabs removes tracked tabs and resets internal maps."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(results_module, "PDFViewer", lambda pdf_path, thread_pool: results_module.QWidget())
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     pdf_path = run_dir / "ROBERT_report.pdf"
     pdf_path.write_text("pdf", encoding="utf-8")
 
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
     assert tab.pdf_tab_widget.count() == 1
 
     tab.clear_pdf_tabs()
@@ -1315,15 +1574,14 @@ def test_results_clear_pdf_tabs_removes_placeholders(tmp_path, monkeypatch):
     assert tab.title_to_path == {}
 
 
-def test_results_maybe_materialize_tab_builds_viewer(monkeypatch, tmp_path):
+def test_results_maybe_materialize_tab_builds_viewer(
+    qtbot, results_tab_mocks, monkeypatch, tmp_path
+):
     """Selecting a placeholder PDF tab materializes a real viewer."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(results_module, "PDFViewer", lambda pdf_path, thread_pool: results_module.QWidget())
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     pdf_path = run_dir / "ROBERT_report.pdf"
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
     pdf_path.write_text("pdf", encoding="utf-8")
     tab.clear_pdf_tabs()
     tab.pdf_tabs[str(pdf_path)] = None
@@ -1333,24 +1591,27 @@ def test_results_maybe_materialize_tab_builds_viewer(monkeypatch, tmp_path):
     tab.pdf_tab_widget.blockSignals(False)
 
     viewer = results_module.QWidget()
-    monkeypatch.setattr(tab, "_materialize_pdf_viewer", lambda index, path: tab.pdf_tabs.__setitem__(path, viewer))
+    monkeypatch.setattr(
+        tab,
+        "_materialize_pdf_viewer",
+        lambda index, path: tab.pdf_tabs.__setitem__(path, viewer),
+    )
 
     tab._maybe_materialize_tab(0)
 
     assert tab.pdf_tabs[str(pdf_path)] is viewer
 
 
-def test_results_index_of_title_returns_expected_index(tmp_path, monkeypatch):
+def test_results_index_of_title_returns_expected_index(
+    tmp_path, qtbot, results_tab_mocks
+):
     """Tab titles can be resolved back to their index."""
-    monkeypatch.setattr(results_module.QTimer, "singleShot", lambda ms, fn: None)
-    monkeypatch.setattr(results_module, "PDFViewer", lambda pdf_path, thread_pool: results_module.QWidget())
-
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     pdf_path = run_dir / "ROBERT_report.pdf"
     pdf_path.write_text("pdf", encoding="utf-8")
 
-    tab = results_module.ResultsTab(None, str(run_dir / "input.csv"))
+    tab = _results_tab(qtbot, run_dir / "input.csv")
 
     assert tab._index_of_title(pdf_path.name) == 0
     assert tab._index_of_title("missing.pdf") == -1
@@ -1365,7 +1626,14 @@ def test_workflow_selector_options(easyrob_window):
     """Workflow selector has all required entries and default."""
     window = easyrob_window
 
-    expected_workflows = ["Full Workflow", "CURATE", "GENERATE", "PREDICT", "VERIFY", "REPORT"]
+    expected_workflows = [
+        "Full Workflow",
+        "CURATE",
+        "GENERATE",
+        "PREDICT",
+        "VERIFY",
+        "REPORT",
+    ]
 
     workflow_items = [
         window.workflow_selector.itemText(i)
@@ -1401,6 +1669,7 @@ def test_progress_bar_exists(easyrob_window):
 # =====================================================
 # REAL End-to-End User Workflow Test (GUI)
 # =====================================================
+
 
 @pytest.mark.parametrize(
     "test_scenario",
@@ -1440,8 +1709,11 @@ def test_full_user_workflow_end_to_end(
         * AQME workflow checkbox enabled.
         * Existing ROBERT folders (if any) are removed before starting.
         * AQME generates a mapped CSV and ROBERT runs with it.
-        * Check predictions tab 
+        * Check predictions tab
     """
+    if test_scenario == "aqme_regression" and not aqme_installed():
+        pytest.skip("AQME is not installed (pip install aqme==2.0.0)")
+
     window = easyrob_window
     config = SCENARIO_CONFIG[test_scenario]
 
@@ -1523,7 +1795,9 @@ def test_full_user_workflow_end_to_end(
     window.move_to_selected()
 
     # Collect ignored items from GUI
-    ignore_items = [window.ignore_list.item(i).text() for i in range(window.ignore_list.count())]
+    ignore_items = [
+        window.ignore_list.item(i).text() for i in range(window.ignore_list.count())
+    ]
     print(f"  • Ignored columns: {ignore_items}")
 
     actual = set(ignore_items)
@@ -1546,8 +1820,7 @@ def test_full_user_workflow_end_to_end(
     extra = actual - expected
 
     assert not missing and not extra, (
-        f"\nMissing items: {missing}"
-        f"\nExtra items: {extra}"
+        f"\nMissing items: {missing}\nExtra items: {extra}"
     )
 
     available_items = [
@@ -1661,9 +1934,16 @@ def test_full_user_workflow_end_to_end(
     # ------------------------------------------------------------------
     if test_scenario == "existing_dirs_stop":
         # Bootstrap the expected output state if it is not already present.
-        if not all((output_dir / d).is_dir() for d in expected_dirs) or not report_pdf.is_file():
-            print("[SETUP] Existing output folders missing; running baseline workflow first...")
-            run_full_workflow_and_wait(window, qtbot, output_dir, expected_dirs, report_pdf)
+        if (
+            not all((output_dir / d).is_dir() for d in expected_dirs)
+            or not report_pdf.is_file()
+        ):
+            print(
+                "[SETUP] Existing output folders missing; running baseline workflow first..."
+            )
+            run_full_workflow_and_wait(
+                window, qtbot, output_dir, expected_dirs, report_pdf
+            )
             QCoreApplication.processEvents()
             assert all((output_dir / d).is_dir() for d in expected_dirs)
             assert report_pdf.is_file()
@@ -1676,12 +1956,16 @@ def test_full_user_workflow_end_to_end(
 
         started = wait_for_workflow_start(window, baseline_text)
         if not started:
-            pytest.fail("Re-run did not start within timeout after existing-folders popup")
+            pytest.fail(
+                "Re-run did not start within timeout after existing-folders popup"
+            )
 
         print("\n[STEP 8] Clicking Stop ROBERT button...")
         qtbot.mouseClick(window.stop_button, Qt.LeftButton)
 
-        print("[STEP 9] Waiting for workflow to stop and GUI to return to idle state...")
+        print(
+            "[STEP 9] Waiting for workflow to stop and GUI to return to idle state..."
+        )
         stopped = process_events_until(
             lambda: (
                 getattr(window, "worker", None) is None
@@ -1706,7 +1990,9 @@ def test_full_user_workflow_end_to_end(
         ), "Expected a stop-process QMessageBox.question"
 
         final_console_text = window.console_output.toPlainText()
-        dump_console_output("[STEP 10] Final console output (existing_dirs_stop):", final_console_text)
+        dump_console_output(
+            "[STEP 10] Final console output (existing_dirs_stop):", final_console_text
+        )
 
         assert window.file_path == str(csv_path)
 
@@ -1756,10 +2042,14 @@ def test_full_user_workflow_end_to_end(
         print(f"[OK] AQME mapped CSV exists: {mapped_csv_path}")
 
         predict_csv_test_dir = output_dir / "PREDICT" / "csv_test"
-        assert predict_csv_test_dir.is_dir(), "PREDICT/csv_test directory was not created"
+        assert predict_csv_test_dir.is_dir(), (
+            "PREDICT/csv_test directory was not created"
+        )
 
         prediction_csvs = predictions_module.find_prediction_csvs(str(csv_path))
-        assert prediction_csvs, "Predictions CSVs were not generated for the external test set"
+        assert prediction_csvs, (
+            "Predictions CSVs were not generated for the external test set"
+        )
         print(f"[OK] Predictions CSVs detected: {sorted(prediction_csvs)}")
 
     print("\n" + "=" * 80)
@@ -1777,6 +2067,9 @@ def test_run_aqme_only_end_to_end(easyrob_window, test_output_dir, qtbot, monkey
     - wait for the subprocess to finish
     - verify AQME outputs were generated
     """
+    if not aqme_installed():
+        pytest.skip("AQME is not installed (pip install aqme==2.0.0)")
+
     window = easyrob_window
     finished = {"exit_code": None}
 
@@ -1840,6 +2133,7 @@ def test_run_aqme_only_end_to_end(easyrob_window, test_output_dir, qtbot, monkey
 # ChemDraw → popup → table → CSV → main window test
 # =====================================================
 
+
 def test_open_chemdraw_popup_end_to_end_cdxml(
     easyrob_window, qtbot, monkeypatch, test_output_dir
 ):
@@ -1881,15 +2175,12 @@ def test_open_chemdraw_popup_end_to_end_cdxml(
             return QDialog.Accepted
 
     # Patch the symbol that open_chemdraw_popup uses
-    monkeypatch.setattr(
-        aqme_module, "ChemDrawFileDialog", FakeChemDrawFileDialog
-    )
+    monkeypatch.setattr(aqme_module, "ChemDrawFileDialog", FakeChemDrawFileDialog)
 
     # --------------------------------------------------------------
     # 4. Stub QFileDialog.getSaveFileName so CSV is written to tmp_path
     # --------------------------------------------------------------
     csv_path = test_output_dir / "chemdraw_table_output.csv"
-
 
     def _fake_get_save_file_name(*args, **kwargs):
         return (str(csv_path), "CSV Files (*.csv)")
@@ -1914,7 +2205,9 @@ def test_open_chemdraw_popup_end_to_end_cdxml(
         table = self.findChild(QTableWidget)
         assert table is not None, "ChemDraw table dialog should contain a QTableWidget."
 
-        headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+        headers = [
+            table.horizontalHeaderItem(i).text() for i in range(table.columnCount())
+        ]
         assert "SMILES" in headers
         assert "code_name" in headers
         assert "target" in headers
@@ -1949,7 +2242,9 @@ def test_open_chemdraw_popup_end_to_end_cdxml(
             if "Save as CSV" in btn.text():
                 save_button = btn
                 break
-        assert save_button is not None, "Could not find 'Save as CSV' button in ChemDraw dialog."
+        assert save_button is not None, (
+            "Could not find 'Save as CSV' button in ChemDraw dialog."
+        )
 
         # Click it → this will call save_to_csv() and then dialog.accept()
         save_button.click()
@@ -1984,7 +2279,6 @@ def test_open_chemdraw_popup_end_to_end_cdxml(
 
     # Columns should be loaded into dropdowns
     y_items = [window.y_dropdown.itemText(i) for i in range(window.y_dropdown.count())]
-    names_items = [window.names_dropdown.itemText(i) for i in range(window.names_dropdown.count())]
 
     assert "SMILES" in y_items
     assert "code_name" in y_items
@@ -1995,8 +2289,7 @@ def test_open_chemdraw_popup_end_to_end_cdxml(
         for i in range(window.available_list.count())
     ]
     ignored_items = [
-        window.ignore_list.item(i).text()
-        for i in range(window.ignore_list.count())
+        window.ignore_list.item(i).text() for i in range(window.ignore_list.count())
     ]
     assert "SMILES" in ignored_items
     assert "code_name" in available_items

@@ -2,41 +2,189 @@
 # See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-# Orbs are reusable packages of CircleCI configuration that you may share across projects, enabling you to create encapsulated, parameterized commands, jobs, and executors that can be used across multiple projects.
-# See: https://circleci.com/docs/2.0/orb-intro/
 orbs:
-  # The python orb contains a set of prepackaged CircleCI configuration you can use repeatedly in your configuration files
-  # Orb commands and jobs help you with common scripting around a language/tool
-  # so you dont have to copy and paste it everywhere.
-  # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/python
   python: circleci/python@2.1.1
   codecov: codecov/codecov@3.2.4
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+commands:
+  install-miniconda:
+    description: Install Miniconda on machine executors (Windows/macOS)
+    steps:
+      - run:
+          name: Install Miniconda
+          command: |
+            set -euo pipefail
+            MINICONDA_DIR="${HOME}/miniconda3"
+            if [ -x "${MINICONDA_DIR}/Scripts/conda.exe" ] || [ -x "${MINICONDA_DIR}/bin/conda" ]; then
+              echo "Miniconda already present at ${MINICONDA_DIR}"
+            else
+              case "$(uname -s)" in
+                MINGW*|MSYS*|CYGWIN*)
+                  INSTALLER_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
+                  curl -fsSL -o miniconda-installer.exe "${INSTALLER_URL}"
+                  ./miniconda-installer.exe /InstallationType=JustMe /RegisterPython=0 /S /D="${MINICONDA_DIR}"
+                  rm -f miniconda-installer.exe
+                  ;;
+                Darwin)
+                  ARCH="$(uname -m)"
+                  if [ "${ARCH}" = "arm64" ]; then
+                    INSTALLER_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh"
+                  else
+                    INSTALLER_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+                  fi
+                  curl -fsSL -o miniconda-installer.sh "${INSTALLER_URL}"
+                  bash miniconda-installer.sh -b -p "${MINICONDA_DIR}"
+                  rm -f miniconda-installer.sh
+                  ;;
+                *)
+                  echo "install-miniconda: unsupported OS $(uname -s)"
+                  exit 1
+                  ;;
+              esac
+            fi
+            {
+              echo "export MINICONDA_DIR=${MINICONDA_DIR}"
+              case "$(uname -s)" in
+                MINGW*|MSYS*|CYGWIN*)
+                  echo "export PATH=\"${MINICONDA_DIR}:${MINICONDA_DIR}/Library/bin:${MINICONDA_DIR}/Scripts:\${PATH}\""
+                  ;;
+                Darwin)
+                  echo "export PATH=\"${MINICONDA_DIR}/bin:\${PATH}\""
+                  ;;
+              esac
+            } >> "${BASH_ENV}"
+            # shellcheck source=/dev/null
+            source "${BASH_ENV}"
+            conda --version
+
+  run-conda-test-suite:
+    description: Conda env, deps, and pytest suite (mirrors Linux build-and-test)
+    parameters:
+      upload_coverage:
+        type: boolean
+        default: false
+    steps:
+      - run:
+          name: Setup conda environment, install deps, and run tests
+          command: |
+            set -euo pipefail
+            # shellcheck source=/dev/null
+            [ -f "${BASH_ENV}" ] && source "${BASH_ENV}"
+
+            eval "$(conda shell.bash hook)"
+            conda update -y conda
+            conda create -n cheminf python=3.12 -y
+            conda activate cheminf
+
+            python -m pip install --upgrade pip
+
+            # Core stack shared across Linux/Windows/macOS (matches Linux job).
+            CONDA_PKGS=(
+              openbabel=3.1.1
+              xtb=6.7.1
+              glib
+              gtk3
+              pango
+            )
+            case "$(uname -s)" in
+              Linux)
+                CONDA_PKGS+=(
+                  libgfortran=14.2.0
+                  libxkbcommon
+                  mscorefonts
+                  fonts-conda-forge
+                )
+                ;;
+              Darwin)
+                CONDA_PKGS+=(libgfortran=14.2.0)
+                ;;
+            esac
+            conda install -y -c conda-forge "${CONDA_PKGS[@]}"
+
+            case "$(uname -s)" in
+              Linux)
+                export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+                ;;
+              Darwin)
+                export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_PREFIX/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
+                ;;
+              MINGW*|MSYS*|CYGWIN*)
+                export PATH="$CONDA_PREFIX/Library/bin:$CONDA_PREFIX/Scripts:$PATH"
+                ;;
+            esac
+
+            pip install aqme==2.0.0
+            pip install .
+            pip install pytest pytest-cov pytest-qt
+
+            set +e
+
+            python -m pytest \
+              -v \
+              --ignore=tests/test_easyrob.py \
+              --cov=robert \
+              --cov-report=
+
+            CORE_EXIT_CODE=$?
+            if [ "$CORE_EXIT_CODE" -ne 0 ]; then
+              echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
+              set -e
+              exit "$CORE_EXIT_CODE"
+            fi
+
+            export QT_QPA_PLATFORM=offscreen
+            export QT_OPENGL=software
+            export QT_RHI=software
+            export QTWEBENGINE_DISABLE_SANDBOX=1
+            export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+
+            if [ "$(uname -s)" = "Linux" ] && command -v xvfb-run >/dev/null 2>&1; then
+              xvfb-run -s "-screen 0 1920x1080x24" \
+                python -m pytest \
+                  -vv \
+                  --cov=robert \
+                  --cov-append \
+                  --cov-report= \
+                  tests/test_easyrob.py
+            else
+              python -m pytest \
+                -vv \
+                --cov=robert \
+                --cov-append \
+                --cov-report= \
+                tests/test_easyrob.py
+            fi
+
+            GUI_EXIT_CODE=$?
+            set -e
+
+            if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
+              echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
+              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because all tests passed."
+              GUI_EXIT_CODE=0
+            fi
+
+            if [ "$GUI_EXIT_CODE" -ne 0 ]; then
+              echo "[CI] GUI tests failed with exit code $GUI_EXIT_CODE"
+              exit "$GUI_EXIT_CODE"
+            fi
+
+            if [ "<< parameters.upload_coverage >>" = "true" ]; then
+              coverage xml
+              rm -rf /tmp/*
+              cp coverage.xml /tmp/
+              cp -r robert /tmp/
+            fi
+
 jobs:
-  build-and-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
-    # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
-    # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
-    # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
-    # The executor is the environment in which the steps below will be executed - below will use a python 3.10.2 container
-    # Change the version below to your required version of python
+  build-and-test:
     docker:
       - image: continuumio/miniconda3
-    # working_directory: /root/project
-    # Checkout the code as the first step. This is a dedicated CircleCI step.
-    # The python orb's install-packages step will install the dependencies from a Pipfile via Pipenv by default.
-    # Here we're making sure we use just use the system-wide pip. By default it uses the project root's requirements.txt.
-    # Then run your tests!
-    # CircleCI will report the results back to your VCS provider.
     steps:
       - checkout
       - python/install-packages:
           pkg-manager: pip
-          # app-dir: ~/project/package-directory/  # If your requirements.txt isn't in the root directory.
-          # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
 
-     # Install system-level dependencies required by Qt/PySide6 and WeasyPrint
       - run:
           name: Install system dependencies for Qt/PySide6 and WeasyPrint
           command: |
@@ -108,148 +256,19 @@ jobs:
               fonts-dejavu-extra \
               ca-certificates
 
-            # ICU version can vary between base images; try the most recent, then fall back.
             apt-get install -y libicu72 || \
             apt-get install -y libicu70 || \
             apt-get install -y libicu67 || true
 
-      # Create conda environment, install ROBERT/easyROB + test stack, run tests & generate coverage
-      - run:
-          name: Run core and GUI tests with combined coverage
-          command: |
-            # ------------------------------------------------------------------
-            # Proper conda initialization (non-interactive shell)
-            # ------------------------------------------------------------------
-            eval "$(conda shell.bash hook)"
+      - run-conda-test-suite:
+          upload_coverage: true
 
-            # Optional: updating conda can be slow; keep it if we want latest solver.
-            conda update -y conda
-
-            # Create and activate project-specific environment
-            conda create -n cheminf python=3.12 -y
-            conda activate cheminf
-
-            # ------------------------------------------------------------------
-            # Install project dependencies (ROBERT, AQME, GUI stack)
-            # ------------------------------------------------------------------
-            python -m pip install --upgrade pip
-
-            # Core scientific and native dependencies from conda-forge:
-            # - openbabel / xtb / libgfortran: chemistry-related tooling
-            # - glib / gtk3 / pango / mscorefonts: required by WeasyPrint for PDF generation
-            # - libxkbcommon: required by Qt for keyboard handling
-            conda install -y -c conda-forge \
-              openbabel=3.1.1 \
-              xtb=6.7.1 \
-              libgfortran=14.2.0 \
-              glib \
-              gtk3 \
-              pango \
-              libxkbcommon \
-              mscorefonts \
-              fonts-conda-forge
-
-            # Ensure the dynamic linker can find native libraries installed inside the conda environment.
-            # WeasyPrint loads GLib/Pango/Cairo through dlopen(), and without this path the loader may miss
-            # libraries such as libgobject-2.0.so.0 that live in $CONDA_PREFIX/lib.
-            export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH}"
-
-            # AQME (external dependency used in some workflows)
-            pip install aqme==2.0.0
-
-            # Install ROBERT/easyROB from the current repository as a package.
-            # This also installs WeasyPrint==63.1 from PyPI via setup.py (install_requires).
-            pip install .
-
-            # Do NOT uninstall robert here - GUI tests import it as an installed package.
-
-            # ------------------------------------------------------------------
-            # Test tooling
-            # ------------------------------------------------------------------
-            pip install pytest pytest-cov pytest-qt
-
-            # IMPORTANT:
-            # CircleCI executes 'run' steps with 'set -e' (exit on first non-zero code).
-            # We temporarily disable it so we can inspect pytest/xvfb-run exit codes
-            # and treat the known Qt segfault (139) as a special case.
-            set +e
-
-            # ------------------------------------------------------------------
-            # Run core (non-GUI) tests first
-            # ------------------------------------------------------------------
-            python -m pytest \
-              -v \
-              --ignore=tests/test_easyrob.py \
-              --cov=robert \
-              --cov-report=
-
-            # CORE_EXIT_CODE=$?
-            # if [ "$CORE_EXIT_CODE" -ne 0 ]; then
-            #   echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
-            #   exit "$CORE_EXIT_CODE"
-            # fi
-
-            # ------------------------------------------------------------------
-            # Configure Qt/QtWebEngine for headless execution under Xvfb
-            # ------------------------------------------------------------------
-            export QT_QPA_PLATFORM=offscreen
-            export QT_OPENGL=software
-            export QT_RHI=software
-            export QTWEBENGINE_DISABLE_SANDBOX=1
-            export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
-
-            # ------------------------------------------------------------------
-            # Run GUI tests under Xvfb, capturing the exit code
-            # ------------------------------------------------------------------
-            xvfb-run -s "-screen 0 1920x1080x24" \
-              python -m pytest \
-                -vv \
-                --cov=robert \
-                --cov-append \
-                --cov-report= \
-                tests/test_easyrob.py
-
-
-            GUI_EXIT_CODE=$?
-
-            # Re-enable 'exit on error' for any subsequent commands.
-            set -e
-
-            # PySide6/Qt sometimes causes a segmentation fault (exit code 139) on interpreter shutdown
-            # after all tests have passed. In that case we treat the run as successful but emit a warning.
-            
-            if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
-              echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
-              echo "[CI WARNING] This is usually caused by threads or Qt resources not being fully cleaned up (e.g., QThread/QThreadPool/QProcess still running)."
-              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because all tests passed and coverage.xml was generated."
-              GUI_EXIT_CODE=0
-            fi
-
-            # Any other non-zero exit code is treated as a real failure.
-            if [ "$GUI_EXIT_CODE" -ne 0 ]; then
-              echo "[CI] GUI tests failed with exit code $GUI_EXIT_CODE"
-              exit "$GUI_EXIT_CODE"
-            fi
-
-            # Generate a single combined XML report after both pytest runs
-            coverage xml
-
-            # ------------------------------------------------------------------
-            # Save coverage and workspace artifacts (only if tests were successful)
-            # ------------------------------------------------------------------
-            rm -r /tmp/*
-            cp coverage.xml /tmp/
-            cp -r robert /tmp/
-
-      # Persist coverage report and source tree for the Codecov job
       - persist_to_workspace:
           root: /tmp
           paths:
             - coverage.xml
             - robert
 
-  # Same dependency stack and pytest suite as build-and-test, on Windows (win-64).
-  # No workspace: codecov stays on the Linux job only.
   build-and-test-windows:
     machine:
       image: windows-server-2022-gui:current
@@ -257,51 +276,59 @@ jobs:
     shell: bash.exe
     steps:
       - checkout
-      - run:
-          name: Conda env, install deps, pytest (Windows)
-          command: |
-            set -euo pipefail
-            conda update -y conda
-            eval "$(conda shell.bash hook)"
-            conda create -y -n cheminf python=3.12
-            conda activate cheminf
-            python -m pip install --upgrade pip
-            conda install -y -c conda-forge openbabel=3.1.1
-            conda install -y -c conda-forge xtb=6.7.1
-            conda install -y -c conda-forge glib
-            pip install weasyprint
-            conda install -y -c conda-forge gtk3
-            conda install -y -c conda-forge pango
-            pip install aqme==2.0.0
-            pip install .
-            pip uninstall -y robert
-            pip install pytest
-            pip install pytest-cov
-            python -m pytest -v --cov=robert --cov-report=xml --cov-report=term
+      - install-miniconda
+      - run-conda-test-suite:
+          upload_coverage: false
 
-  # the codecov orb doesn't work with the miniconda docker, so the coverage report
-  # needs to be stored and loaded in a new job using a python docker
+  build-and-test-macos:
+    macos:
+      xcode: "16.2.0"
+    resource_class: macos.m1.medium.gen1
+    steps:
+      - checkout
+      - install-miniconda
+      - run-conda-test-suite:
+          upload_coverage: false
 
   codecov-coverage:
     docker:
       - image: cimg/python:3.12
     steps:
-      # Attach artifacts from the previous job workspace
       - attach_workspace:
           at: /tmp
-
-      # Checkout is required so Codecov can correctly map coverage to the repo
       - checkout
-
-      # Upload the coverage report generated in the build-and-test job
       - codecov/upload:
           file: /tmp/coverage.xml
           token: CODECOV_TOKEN
 
+  lint:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install Ruff
+          command: python -m pip install 'ruff==0.14.5'
+      - run:
+          name: Ruff check
+          command: ruff check .
+      - run:
+          name: Ruff format check
+          command: ruff format --check .
+
 workflows:
   sample:
     jobs:
-      - build-and-test
+      - lint
+      - build-and-test:
+          requires:
+            - lint
+      - build-and-test-windows:
+          requires:
+            - lint
+      - build-and-test-macos:
+          requires:
+            - lint
       - codecov-coverage:
           requires:
             - build-and-test

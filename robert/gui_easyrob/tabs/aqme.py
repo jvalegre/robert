@@ -68,7 +68,7 @@ try:
 
     from utils.aqme_utils import ChemDrawFileDialog, MCSProcessWorker
 
-except ImportError as e:
+except ImportError:
     from robert.gui_easyrob.utils.utils_gui import (
         AssetLibrary,
         BytesIO,
@@ -114,21 +114,24 @@ import os
 import csv
 from functools import partial
 
+
 class AQMETab(QWidget):
     """Tab responsible for AQME-oriented chemistry preparation workflows."""
-    def __init__(self, tab_parent=None, main_window=None):
 
+    def __init__(self, tab_parent=None, main_window=None):
         super().__init__(tab_parent)  # tab_parent = QTabWidget
-        self.main_tab_widget = tab_parent # Reference to the main QTabWidget
-        self.main_window = main_window  # Reference to the main window, accessible to csv_df, csv_path, etc... 
+        self.main_tab_widget = tab_parent  # Reference to the main QTabWidget
+        self.main_window = main_window  # Reference to the main window, accessible to csv_df, csv_path, etc...
         self.selected_atoms = []
         self.box_features = "QGroupBox { font-weight: bold; }"
 
         # === Main vertical layout ===
         main_layout = QVBoxLayout(self)
 
-       # --- ChemDraw Button (modern purple style + top spacing) ---
-        self.chemdraw_button = QPushButton("Generate CSV from ChemDraw Files or SDF file")
+        # --- ChemDraw Button (modern purple style + top spacing) ---
+        self.chemdraw_button = QPushButton(
+            "Generate CSV from ChemDraw Files or SDF file"
+        )
         self.chemdraw_button.setCursor(Qt.PointingHandCursor)
         self.chemdraw_button.setFixedSize(400, 42)
 
@@ -164,7 +167,6 @@ class AQMETab(QWidget):
 
         main_layout.addLayout(button_container)
 
-
         # === Viewer container with label + viewer stacked ===
         self.mol_viewer_container = QWidget()
         self.mol_viewer_container.setFixedSize(400, 400)
@@ -182,9 +184,11 @@ class AQMETab(QWidget):
 
         # Allow text selection
         self.mol_viewer.setTextInteractionFlags(
-            Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard 
+            Qt.TextSelectableByMouse | Qt.TextSelectableByKeyboard
         )
-        self.set_mol_viewer_message("📄 Select a CSV with a SMILES column to display a common SMARTS pattern.")
+        self.set_mol_viewer_message(
+            "📄 Select a CSV with a SMILES column to display a common SMARTS pattern."
+        )
         self.mol_viewer.setFixedSize(400, 400)
 
         # === mol_info_label ===
@@ -200,15 +204,22 @@ class AQMETab(QWidget):
             border: 1px solid #aaa;
         """)
 
-        self.mol_info_label.setWordWrap(True)  
+        self.mol_info_label.setWordWrap(True)
         self.mol_info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.mol_info_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        self.mol_info_label.setMaximumWidth(600)  
-        self.mol_info_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.mol_info_label.setMaximumWidth(600)
+        self.mol_info_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+        )
 
         # === Set up the molecule viewer ===
         mol_layout.addWidget(self.mol_viewer, 0, 0)
-        mol_layout.addWidget(self.mol_info_label, 0, 0, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        mol_layout.addWidget(
+            self.mol_info_label,
+            0,
+            0,
+            alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+        )
         mol_wrapper_layout = QHBoxLayout()
         mol_wrapper_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mol_wrapper_layout.addWidget(self.mol_viewer_container)
@@ -216,7 +227,7 @@ class AQMETab(QWidget):
 
         # === AQME Box at the bottom ===
         aqme_box = QGroupBox("AQME")
-        aqme_box.setMaximumHeight(200)  
+        aqme_box.setMaximumHeight(200)
         aqme_box.setStyleSheet(self.box_features)
         aqme_layout = QFormLayout()
 
@@ -224,33 +235,35 @@ class AQMETab(QWidget):
         self.descriptor_level = QComboBox()
         self.descriptor_level.addItems(["interpret", "denovo", "full"])
         self.solvent = QComboBox()
-        self.solvent.addItems([
-            "None",
-            # "Acetone",
-            # "Acetonitrile",
-            # "Aniline",
-            # "Benzaldehyde",
-            # "Benzene",
-            # "CH2Cl2",
-            # "CHCl3",
-            # "CS2",
-            # "Dioxane",
-            # "DMF",
-            # "DMSO",
-            # "Ether",
-            # "Ethylacetate",
-            # "Furane",
-            # "Hexadecane",
-            # "Hexane",
-            # "Methanol",
-            # "Nitromethane",
-            # "Octanol",
-            # "Octanol (wet)",
-            # "Phenol",
-            # "Toluene",
-            # "THF",
-            # "Water"
-        ])
+        self.solvent.addItems(
+            [
+                "None",
+                # "Acetone",
+                # "Acetonitrile",
+                # "Aniline",
+                # "Benzaldehyde",
+                # "Benzene",
+                # "CH2Cl2",
+                # "CHCl3",
+                # "CS2",
+                # "Dioxane",
+                # "DMF",
+                # "DMSO",
+                # "Ether",
+                # "Ethylacetate",
+                # "Furane",
+                # "Hexadecane",
+                # "Hexane",
+                # "Methanol",
+                # "Nitromethane",
+                # "Octanol",
+                # "Octanol (wet)",
+                # "Phenol",
+                # "Toluene",
+                # "THF",
+                # "Water"
+            ]
+        )
 
         aqme_layout.addRow(QLabel("QDESCP Atoms:"), self.atoms)
         aqme_layout.addRow(QLabel("Descriptor Level:"), self.descriptor_level)
@@ -302,15 +315,19 @@ class AQMETab(QWidget):
         """Detects patterns in the loaded CSV and displays the first molecule."""
 
         try:
-            self.csv_df = smart_read_csv(self.file_path) # Store the DataFrame for later use
-            self.smiles_column = next((col for col in self.csv_df.columns if col.lower() == "smiles"), None)
+            self.csv_df = smart_read_csv(
+                self.file_path
+            )  # Store the DataFrame for later use
+            self.smiles_column = next(
+                (col for col in self.csv_df.columns if col.lower() == "smiles"), None
+            )
 
             self.set_mol_viewer_message("🔬 Detecting common SMARTS pattern...")
 
             # === Auto SMARTS detection ===
             self.auto_pattern()
 
-        except Exception as e:
+        except Exception:
             self.set_mol_viewer_message("❌ Failed to load or process the CSV.")
             self.mol_info_label.setText("🔬 Info here")
 
@@ -322,17 +339,14 @@ class AQMETab(QWidget):
 
     def _on_mcs_error(self, message):
         """Handle MCS detection error."""
-        self.set_mol_viewer_message(
-            message,
-            tooltip="SMARTS pattern detection failed."
-        )
+        self.set_mol_viewer_message(message, tooltip="SMARTS pattern detection failed.")
         self.mol_info_label.setText("🔬 Info here")
 
     def _on_mcs_timeout(self):
         """Handle MCS detection timeout."""
         self.set_mol_viewer_message(
             "⏱️ Timeout: MCS (Maximum Common Substructure) took too long and was aborted.",
-            tooltip="SMARTS pattern detection failed."
+            tooltip="SMARTS pattern detection failed.",
         )
         self.mol_info_label.setText("🔬 Info here")
 
@@ -342,52 +356,33 @@ class AQMETab(QWidget):
         (FMCS, ambiguity checks, metal detection).
         """
         train_df = smart_read_csv(train_csv_path)
-        smiles_col = next(
-            (c for c in train_df.columns if c.lower() == "smiles"),
-            None
-        )
+        smiles_col = next((c for c in train_df.columns if c.lower() == "smiles"), None)
         if smiles_col is None:
             raise ValueError("TRAIN CSV has no SMILES column")
 
-        unified_smiles = (
-            train_df[smiles_col]
-            .dropna()
-            .astype(str)
-            .tolist()
-        )
+        unified_smiles = train_df[smiles_col].dropna().astype(str).tolist()
 
         if test_csv_path:
             test_df = smart_read_csv(test_csv_path)
             test_smiles_col = next(
-                (c for c in test_df.columns if c.lower() == "smiles"),
-                None
+                (c for c in test_df.columns if c.lower() == "smiles"), None
             )
             if test_smiles_col is None:
                 raise ValueError("TEST CSV has no SMILES column")
 
             unified_smiles.extend(
-                test_df[test_smiles_col]
-                .dropna()
-                .astype(str)
-                .tolist()
+                test_df[test_smiles_col].dropna().astype(str).tolist()
             )
 
         return unified_smiles
-    
+
     def generate_mapped_csv_from_smiles(
-        self,
-        csv_path,
-        smarts,
-        selected_atoms,
-        suffix="_mapped"
+        self, csv_path, smarts, selected_atoms, suffix="_mapped"
     ):
         """Generate a new CSV file with mapped SMILES based on the provided SMARTS pattern"""
 
         df = smart_read_csv(csv_path)
-        smiles_col = next(
-            (c for c in df.columns if c.lower() == "smiles"),
-            None
-        )
+        smiles_col = next((c for c in df.columns if c.lower() == "smiles"), None)
 
         if smiles_col is None:
             raise ValueError("CSV has no SMILES column")
@@ -447,12 +442,7 @@ class AQMETab(QWidget):
             smiles_list = unified_smiles
         else:
             # TRAIN only → exploratory
-            smiles_list = (
-                self.csv_df[self.smiles_column]
-                .dropna()
-                .astype(str)
-                .tolist()
-            )
+            smiles_list = self.csv_df[self.smiles_column].dropna().astype(str).tolist()
 
         if not smiles_list:
             self.set_mol_viewer_message(
@@ -463,10 +453,7 @@ class AQMETab(QWidget):
         # -------------------------------
         # Launch MCS worker
         # -------------------------------
-        self.mcs_worker = MCSProcessWorker(
-            smiles_list,
-            timeout_ms=60000
-        )
+        self.mcs_worker = MCSProcessWorker(smiles_list, timeout_ms=60000)
 
         self.mcs_worker.finished.connect(self._on_mcs_success)
         self.mcs_worker.error.connect(self._on_mcs_error)
@@ -476,16 +463,57 @@ class AQMETab(QWidget):
 
     def display_molecule(self):
         """Display a SMARTS molecule and highlight atoms based on user selection."""
-        rdkit.rdBase.DisableLog('rdApp.*')
+        rdkit.rdBase.DisableLog("rdApp.*")
         rdDepictor.SetPreferCoordGen(True)
 
         self.metal_atomic_numbers = {
-            3, 11, 19, 37, 55, 87,
-            4, 12, 20, 38, 56, 88,
-            21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
-            39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
-            72, 73, 74, 75, 76, 77, 78, 79, 80,
-            13, 49, 50, 81, 82, 83
+            3,
+            11,
+            19,
+            37,
+            55,
+            87,
+            4,
+            12,
+            20,
+            38,
+            56,
+            88,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79,
+            80,
+            13,
+            49,
+            50,
+            81,
+            82,
+            83,
         }
 
         try:
@@ -556,18 +584,18 @@ class AQMETab(QWidget):
 
             highlight_colors = (
                 {idx: (0.698, 0.4, 1.0) for idx in highlight_atoms}
-                if highlight_atoms else {}
+                if highlight_atoms
+                else {}
             )
 
             drawer = rdMolDraw2D.MolDraw2DCairo(
-                self.molecule_image_width,
-                self.molecule_image_height
+                self.molecule_image_width, self.molecule_image_height
             )
             drawer.drawOptions().bondLineWidth = 1.5
             drawer.DrawMolecule(
                 self.mol,
                 highlightAtoms=list(highlight_atoms),
-                highlightAtomColors=highlight_colors
+                highlightAtomColors=highlight_colors,
             )
             drawer.FinishDrawing()
 
@@ -575,8 +603,7 @@ class AQMETab(QWidget):
             pixmap = QPixmap()
             pixmap.loadFromData(png_bytes)
             self.atom_coords = [
-                drawer.GetDrawCoords(i)
-                for i in range(self.mol.GetNumAtoms())
+                drawer.GetDrawCoords(i) for i in range(self.mol.GetNumAtoms())
             ]
 
             if self.mol_viewer:
@@ -588,16 +615,16 @@ class AQMETab(QWidget):
 
                     if self.metal_found and self.multiple_matches_detected:
                         self.mol_info_label.setText(
-                            '🧪 <b>SMARTS pattern loaded. Metal atom(s) automatically selected.</b><br>'
+                            "🧪 <b>SMARTS pattern loaded. Metal atom(s) automatically selected.</b><br>"
                             '<span style="color:red;">⚠️ Multiple matches were found. '
-                            'Atomic descriptors will be generated for the detected metal atom(s). '
-                            'Manual atom selection has been disabled to avoid ambiguity.</span>'
+                            "Atomic descriptors will be generated for the detected metal atom(s). "
+                            "Manual atom selection has been disabled to avoid ambiguity.</span>"
                         )
                     elif self.metal_found and not self.selected_atoms:
                         self.mol_info_label.setText(
-                            '🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>'
+                            "🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>"
                             '<span style="color:red;">⚠️ No atoms selected. '
-                            'Descriptors will only be generated for the detected metal.</span>'
+                            "Descriptors will only be generated for the detected metal.</span>"
                         )
                     else:
                         if highlight_atoms:
@@ -606,25 +633,24 @@ class AQMETab(QWidget):
                             )
                         else:
                             self.mol_info_label.setText(
-                                '🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>'
+                                "🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>"
                                 '<span style="color:red;">⚠️ WARNING! No atoms selected. '
-                                'Atomic descriptors will not be generated.</span>'
+                                "Atomic descriptors will not be generated.</span>"
                             )
 
         except Exception as e:
-            self.set_mol_viewer_message(
-                "❌ Error displaying molecule.",
-                tooltip=str(e)
-            )
+            self.set_mol_viewer_message("❌ Error displaying molecule.", tooltip=str(e))
             self.mol_info_label.setText("🔬 Info here")
 
     def handle_atom_selection(self, atom_idx):
         """Handle the selection of an atom in the pattern."""
 
-        if not hasattr(self, 'selected_atoms'):
+        if not hasattr(self, "selected_atoms"):
             self.selected_atoms = []
-        
-        if getattr(self, 'metal_found', False) and getattr(self, 'multiple_matches_detected', False):
+
+        if getattr(self, "metal_found", False) and getattr(
+            self, "multiple_matches_detected", False
+        ):
             # Prevent manual selection when metal match has been auto-selected due to ambiguity
             return
 
@@ -641,11 +667,12 @@ class AQMETab(QWidget):
         self.generate_mapped_smiles(
             self.smarts_targets[0],
             self.selected_atoms,
-            self.csv_df[self.smiles_column].dropna()
+            self.csv_df[self.smiles_column].dropna(),
         )
 
-
-    def generate_mapped_smiles(self, smarts_pattern, selected_pattern_indices, smiles_list):
+    def generate_mapped_smiles(
+        self, smarts_pattern, selected_pattern_indices, smiles_list
+    ):
         """
         Generate mapped SMILES using a SMARTS pattern and selected atom indices.
         Updates self.df_mapped_smiles with a copy of the original CSV where 'SMILES' is replaced.
@@ -693,42 +720,51 @@ class AQMETab(QWidget):
         df_mapped[self.smiles_column] = mapped_smiles
         self.df_mapped_smiles = df_mapped
 
-
     def mousePressEvent(self, event: QMouseEvent):
         """Handle mouse press events to select atoms and crate pattern.
         The logic is to check if the mouse press event is within the molecule_viewer area."""
 
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.position()
-            if self.mol_viewer_container and self.mol_viewer_container.geometry().contains(pos.toPoint()):
+            if (
+                self.mol_viewer_container
+                and self.mol_viewer_container.geometry().contains(pos.toPoint())
+            ):
                 relative_pos = self.mol_viewer_container.mapFrom(self, pos.toPoint())
                 x = relative_pos.x()
                 y = relative_pos.y()
                 selected_atom = self.get_atom_at_position(x, y)
                 if selected_atom is not None:
                     self.handle_atom_selection(selected_atom)
-                    self.display_molecule()  
+                    self.display_molecule()
 
     def get_atom_at_position(self, x, y):
-        """Get the atom index at the given position by 
-        checking the distance from the atom coordinates. 
+        """Get the atom index at the given position by
+        checking the distance from the atom coordinates.
         The atom coordinates are found using RDKit.
         The logic is to check if the distance between the mouse click
         and the atom coordinates is less than a threshold."""
 
-        if not hasattr(self, 'atom_coords'):
+        if not hasattr(self, "atom_coords"):
             return None
         elif self.atom_coords is not None:
             for idx, coord in enumerate(self.atom_coords):
-                if len(self.smarts_targets[0]) <= 30: # small molecule = bigger click area
-                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 300: 
-                        return idx 
-                if len(self.smarts_targets[0]) <= 50 and len(self.smarts_targets[0]) > 30: # medium molecule = medium click area
-                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 200: 
-                        return idx 
-                elif len(self.smarts_targets[0]) > 50 : # big molecule = smaller click area 
-                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 100: 
-                        return idx 
+                if (
+                    len(self.smarts_targets[0]) <= 30
+                ):  # small molecule = bigger click area
+                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 300:
+                        return idx
+                if (
+                    len(self.smarts_targets[0]) <= 50
+                    and len(self.smarts_targets[0]) > 30
+                ):  # medium molecule = medium click area
+                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 200:
+                        return idx
+                elif (
+                    len(self.smarts_targets[0]) > 50
+                ):  # big molecule = smaller click area
+                    if (coord.x - x) ** 2 + (coord.y - y) ** 2 < 100:
+                        return idx
             return None
 
     def open_chemdraw_popup(self):
@@ -744,7 +780,7 @@ class AQMETab(QWidget):
                 "• Incorrect or broken bonds<br>"
                 "• Unconnected fragments or misdrawn connections<br><br>"
                 "<i>When everything looks correct, click OK to select your file.</i>"
-            )
+            ),
         )
 
         dialog = ChemDrawFileDialog(self)
@@ -754,9 +790,10 @@ class AQMETab(QWidget):
 
     def load_chemdraw_file(self, main_path):
         """Opens a ChemDraw file and displays the molecules in a table."""
+
         def load_mols_from_path(path):
             """Load molecules from a ChemDraw or SDF file."""
-            if path.endswith('.cdxml'):
+            if path.endswith(".cdxml"):
                 try:
                     mols = MolsFromCDXMLFile(path, sanitize=False, removeHs=False)
                     total_count = len(mols)
@@ -764,13 +801,19 @@ class AQMETab(QWidget):
 
                     for mol in mols:
                         if mol is not None:
-                            fragments = GetMolFrags(mol, asMols=True, sanitizeFrags=False)
+                            fragments = GetMolFrags(
+                                mol, asMols=True, sanitizeFrags=False
+                            )
                             valid_mols.extend(fragments)
 
                     valid_count = len(valid_mols)
 
                     if valid_count == 0:
-                        QMessageBox.warning(self, "CDXML Warning", f"No valid molecules found in the file:\n{path}")
+                        QMessageBox.warning(
+                            self,
+                            "CDXML Warning",
+                            f"No valid molecules found in the file:\n{path}",
+                        )
                         return []
 
                     elif valid_count < total_count:
@@ -778,18 +821,20 @@ class AQMETab(QWidget):
                         QMessageBox.warning(
                             self,
                             "CDXML Partial Load",
-                            f"File loaded with partial success.\n{failed_count} out of {total_count} molecules failed sanitization and were skipped."
+                            f"File loaded with partial success.\n{failed_count} out of {total_count} molecules failed sanitization and were skipped.",
                         )
 
                     return valid_mols
 
                 except Exception as e:
-                    QMessageBox.critical(self, "CDXML Read Error", f"Failed to read {path}:\n{str(e)}")
+                    QMessageBox.critical(
+                        self, "CDXML Read Error", f"Failed to read {path}:\n{str(e)}"
+                    )
                     return []
 
-            elif path.endswith('.sdf'):
+            elif path.endswith(".sdf"):
                 return [mol for mol in Chem.SDMolSupplier(path) if mol is not None]
-            
+
             elif path.endswith(".cdx"):
                 QMessageBox.warning(
                     self,
@@ -807,7 +852,7 @@ class AQMETab(QWidget):
                         "4. Paste it into a new ChemDraw document.<br>"
                         "5. Save it as <b>CDXML</b>.<br><br>"
                         "This ensures proper structure recognition and full compatibility with easyROB."
-                    )
+                    ),
                 )
                 return None
 
@@ -820,7 +865,7 @@ class AQMETab(QWidget):
         # If the function returned None, it means we already handled a special case (like .cdx)
         if mols_main is None:
             return
-        
+
         # If the function returned an empty list, it means there were no valid molecules
         if not mols_main:
             QMessageBox.warning(self, "Error", "No valid molecules found in the file.")
@@ -846,7 +891,13 @@ class AQMETab(QWidget):
         # --- Table Columns ---
         base_headers = ["Image", "SMILES", "code_name", "target"]
         extra_columns = ["charge", "mult", "complex_type", "sample", "geom"]
-        complex_type_options = ["", "squareplanar", "squarepyramidal", "linear", "trigonalplanar"]
+        complex_type_options = [
+            "",
+            "squareplanar",
+            "squarepyramidal",
+            "linear",
+            "trigonalplanar",
+        ]
 
         # Table widget setup
         table = QTableWidget(len(mols), len(base_headers))
@@ -867,8 +918,10 @@ class AQMETab(QWidget):
                 return  # Only allow renaming for the 'target' column
             current_text = table.horizontalHeaderItem(index).text()
             new_text, ok = QInputDialog.getText(
-                dialog, "Edit Column Name",
-                f"Rename column '{current_text}':", text=current_text
+                dialog,
+                "Edit Column Name",
+                f"Rename column '{current_text}':",
+                text=current_text,
             )
             if ok and new_text.strip():
                 table.setHorizontalHeaderItem(index, QTableWidgetItem(new_text.strip()))
@@ -884,7 +937,11 @@ class AQMETab(QWidget):
             img.save(buffer, format="PNG")
             qimg = QImage.fromData(buffer.getvalue())
             label = QLabel()
-            label.setPixmap(QPixmap.fromImage(qimg).scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            label.setPixmap(
+                QPixmap.fromImage(qimg).scaled(
+                    100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+            )
 
             widget = QWidget()
             hbox = QHBoxLayout()
@@ -916,11 +973,14 @@ class AQMETab(QWidget):
             Add or remove an extra column based on the corresponding checkbox.
             Handles special widget for 'complex_type' column.
             """
+
             def set_all_column_widths(width):
                 for col in range(table.columnCount()):
                     table.setColumnWidth(col, width)
 
-            current_headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+            current_headers = [
+                table.horizontalHeaderItem(i).text() for i in range(table.columnCount())
+            ]
             if state:  # Checkbox checked: add column if not present
                 if col_name not in current_headers:
                     idx = table.columnCount()
@@ -961,7 +1021,9 @@ class AQMETab(QWidget):
             Collect all table data and save to a CSV file.
             Includes validation for required fields, uniqueness, types, and empty checks.
             """
-            headers = [table.horizontalHeaderItem(i).text() for i in range(table.columnCount())]
+            headers = [
+                table.horizontalHeaderItem(i).text() for i in range(table.columnCount())
+            ]
 
             # --- Mandatory column presence check ---
             try:
@@ -977,13 +1039,21 @@ class AQMETab(QWidget):
                 # Check 'SMILES' not empty
                 item = table.item(row, smiles_idx)
                 if not item or not item.text().strip():
-                    QMessageBox.warning(dialog, "WARNING!", f"Please fill in all 'SMILES' fields before saving.")
+                    QMessageBox.warning(
+                        dialog,
+                        "WARNING!",
+                        "Please fill in all 'SMILES' fields before saving.",
+                    )
                     return
 
                 # Check 'code_name' not empty
                 item = table.item(row, code_name_idx)
                 if not item or not item.text().strip():
-                    QMessageBox.warning(dialog, "WARNING!", f"Please fill in all 'code_name' fields before saving.")
+                    QMessageBox.warning(
+                        dialog,
+                        "WARNING!",
+                        "Please fill in all 'code_name' fields before saving.",
+                    )
                     return
 
                 code_names.append(table.item(row, code_name_idx).text().strip())
@@ -994,10 +1064,14 @@ class AQMETab(QWidget):
                     item = table.item(row, charge_idx)
                     val = item.text().strip() if item else ""
                     if val == "":
-                        QMessageBox.warning(dialog, "WARNING!", f"Column 'charge' cannot be empty.")
+                        QMessageBox.warning(
+                            dialog, "WARNING!", "Column 'charge' cannot be empty."
+                        )
                         return
-                    if not (val.lstrip('-').isdigit() and '.' not in val):
-                        QMessageBox.warning(dialog, "WARNING!", f"Column 'charge' must be an integer.")
+                    if not (val.lstrip("-").isdigit() and "." not in val):
+                        QMessageBox.warning(
+                            dialog, "WARNING!", "Column 'charge' must be an integer."
+                        )
                         return
 
                 # Validate 'mult' column if present (must be int, not empty)
@@ -1006,10 +1080,14 @@ class AQMETab(QWidget):
                     item = table.item(row, mult_idx)
                     val = item.text().strip() if item else ""
                     if val == "":
-                        QMessageBox.warning(dialog, "WARNING!", f"Column 'mult' cannot be empty.")
+                        QMessageBox.warning(
+                            dialog, "WARNING!", "Column 'mult' cannot be empty."
+                        )
                         return
-                    if not (val.lstrip('-').isdigit() and '.' not in val):
-                        QMessageBox.warning(dialog, "WARNING!", f"Column 'mult' must be an integer.")
+                    if not (val.lstrip("-").isdigit() and "." not in val):
+                        QMessageBox.warning(
+                            dialog, "WARNING!", "Column 'mult' must be an integer."
+                        )
                         return
 
                 # Validate 'complex_type' if present (must be selected)
@@ -1018,11 +1096,12 @@ class AQMETab(QWidget):
                     combo = table.cellWidget(row, complex_type_idx)
                     if combo is not None and combo.currentText().strip() == "":
                         QMessageBox.warning(
-                            dialog, "WARNING!",
-                            f"Column 'complex_type' cannot be empty. Please select a value."
+                            dialog,
+                            "WARNING!",
+                            "Column 'complex_type' cannot be empty. Please select a value.",
                         )
                         return
-                    
+
                 # Validate 'sample' column if present (must be int, not empty)
                 if "sample" in headers:
                     sample_idx = headers.index("sample")
@@ -1030,10 +1109,16 @@ class AQMETab(QWidget):
                         item = table.item(row, sample_idx)
                         val = item.text().strip() if item else ""
                         if val == "":
-                            QMessageBox.warning(dialog, "WARNING!", f"Column 'sample' cannot be empty.")
+                            QMessageBox.warning(
+                                dialog, "WARNING!", "Column 'sample' cannot be empty."
+                            )
                             return
-                        if not (val.lstrip('-').isdigit() and '.' not in val):
-                            QMessageBox.warning(dialog, "WARNING!", f"Column 'sample' must be an integer.")
+                        if not (val.lstrip("-").isdigit() and "." not in val):
+                            QMessageBox.warning(
+                                dialog,
+                                "WARNING!",
+                                "Column 'sample' must be an integer.",
+                            )
                             return
 
                 # Validate 'GEOM' column if present (must not be empty)
@@ -1043,16 +1128,20 @@ class AQMETab(QWidget):
                         item = table.item(row, geom_idx)
                         val = item.text().strip() if item else ""
                         if val == "":
-                            QMessageBox.warning(dialog, "WARNING!", f"Column 'geom' cannot be empty.")
+                            QMessageBox.warning(
+                                dialog, "WARNING!", "Column 'geom' cannot be empty."
+                            )
                             return
 
-
             # --- Uniqueness check for 'code_name' ---
-            duplicates = [name for name in set(code_names) if code_names.count(name) > 1]
+            duplicates = [
+                name for name in set(code_names) if code_names.count(name) > 1
+            ]
             if duplicates:
                 QMessageBox.warning(
-                    dialog, "WARNING!",
-                    f"The following 'code_name' values are duplicated:\n\n{', '.join(duplicates)}\n\nPlease make them unique before saving."
+                    dialog,
+                    "WARNING!",
+                    f"The following 'code_name' values are duplicated:\n\n{', '.join(duplicates)}\n\nPlease make them unique before saving.",
                 )
                 return
 
@@ -1061,16 +1150,20 @@ class AQMETab(QWidget):
                 item = table.item(row, self.target_col_index)
                 val = item.text().strip() if item else ""
                 if not val:
-                    QMessageBox.warning(dialog, "WARNING!", f"Target column is empty.")
+                    QMessageBox.warning(dialog, "WARNING!", "Target column is empty.")
                     return
                 try:
                     float(val)
                 except ValueError:
-                    QMessageBox.warning(dialog, "WARNING!", f"Target column must be numeric.")
+                    QMessageBox.warning(
+                        dialog, "WARNING!", "Target column must be numeric."
+                    )
                     return
 
             # --- File dialog to select save path ---
-            path, _ = QFileDialog.getSaveFileName(dialog, "Save CSV", "", "CSV Files (*.csv)")
+            path, _ = QFileDialog.getSaveFileName(
+                dialog, "Save CSV", "", "CSV Files (*.csv)"
+            )
             if not path:
                 return
 
@@ -1097,7 +1190,9 @@ class AQMETab(QWidget):
             if hasattr(self, "main_window") and self.main_window:
                 self.main_window.set_file_path(path)
             dialog.accept()
-            QMessageBox.information(dialog, "Success", "CSV file saved and loaded successfully!")
+            QMessageBox.information(
+                dialog, "Success", "CSV file saved and loaded successfully!"
+            )
 
         save_button.clicked.connect(save_to_csv)
 

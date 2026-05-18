@@ -54,7 +54,7 @@ try:
         fitz,
     )
 
-except ImportError as e:
+except ImportError:
     from robert.gui_easyrob.utils.utils_gui import (
         QImage,
         QLabel,
@@ -81,15 +81,17 @@ except ImportError as e:
 import os
 import glob
 
+
 class ResultsTab(QWidget):
     """PDF viewer for ROBERT reports."""
+
     def __init__(self, main_tab_widget, file_path):
         super().__init__()
 
         self.main_tab_widget = main_tab_widget
         self.base_path = os.path.dirname(file_path)
-        self.pdf_tabs = {}        # {pdf_path: PDFViewer|None}  None => placeholder not materialized
-        self.title_to_path = {}   # {basename: full path}
+        self.pdf_tabs = {}  # {pdf_path: PDFViewer|None}  None => placeholder not materialized
+        self.title_to_path = {}  # {basename: full path}
 
         # Shared thread pool for all PDF viewers
         self.shared_pool = QThreadPool()
@@ -207,20 +209,25 @@ class ResultsTab(QWidget):
 
 # ------------------------- Worker signals -------------------------
 
+
 class RenderSignals(QObject):
     """Signals for page rendering."""
+
     finished = Signal(int, float, int, QPixmap)  # page_num, zoom, generation, pixmap
 
 
 class MetaSignals(QObject):
     """Signals for PDF metadata loading."""
+
     done = Signal(int, list)  # page_count, page_sizes
 
 
 # ------------------------- Worker tasks -------------------------
 
+
 class RenderTask(QRunnable):
     """Background render task for a single PDF page (open by path; no big upfront I/O)."""
+
     def __init__(self, pdf_path: str, page_num: int, zoom: float, generation: int):
         super().__init__()
         self.pdf_path = pdf_path
@@ -238,15 +245,20 @@ class RenderTask(QRunnable):
                 page = doc.load_page(self.page_num)
                 mat = fitz.Matrix(self.zoom, self.zoom)
                 pix = page.get_pixmap(matrix=mat, alpha=False)
-            qimg = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGB888).copy()
+            qimg = QImage(
+                pix.samples, pix.width, pix.height, pix.stride, QImage.Format_RGB888
+            ).copy()
             qp = QPixmap.fromImage(qimg)
             self.signals.finished.emit(self.page_num, self.zoom, self.generation, qp)
         except Exception:
-            self.signals.finished.emit(self.page_num, self.zoom, self.generation, QPixmap())
+            self.signals.finished.emit(
+                self.page_num, self.zoom, self.generation, QPixmap()
+            )
 
 
 class MetaTask(QRunnable):
     """Load page count and page sizes off the UI thread."""
+
     def __init__(self, pdf_path: str):
         super().__init__()
         self.pdf_path = pdf_path
@@ -258,7 +270,9 @@ class MetaTask(QRunnable):
         try:
             with fitz.open(self.pdf_path) as doc:
                 count = len(doc)
-                sizes = [tuple(doc.load_page(i).rect.br) for i in range(count)]  # (w_pts, h_pts)
+                sizes = [
+                    tuple(doc.load_page(i).rect.br) for i in range(count)
+                ]  # (w_pts, h_pts)
         except Exception:
             count, sizes = 1, [(595, 842)]  # Fallback to A4 portrait in points
         self.signals.done.emit(count, sizes)
@@ -266,19 +280,21 @@ class MetaTask(QRunnable):
 
 # ------------------------- PDFViewer (async metadata + visible-only render) -------------------------
 
+
 class PDFViewer(QWidget):
     """Widget to display a PDF inside a scrollable area with zoom control and threading."""
+
     def __init__(self, pdf_path: str, thread_pool: QThreadPool):
         super().__init__()
         self.pdf_path = pdf_path
         self.current_zoom = 1.2
 
         self.thread_pool = thread_pool  # shared
-        self.image_cache = {}           # {(page_num, zoom): QPixmap}
-        self.labels = []                # one QLabel per page
-        self.page_sizes = None          # [(width_pts, height_pts)]
+        self.image_cache = {}  # {(page_num, zoom): QPixmap}
+        self.labels = []  # one QLabel per page
+        self.page_sizes = None  # [(width_pts, height_pts)]
         self.page_count = None
-        self._renderGeneration = 0      # cancel stale renders
+        self._renderGeneration = 0  # cancel stale renders
         self._zoomPending = False
         self._scrollPending = False
 
@@ -332,7 +348,9 @@ class PDFViewer(QWidget):
         self._build_placeholders_for_zoom(self.current_zoom)
 
         # Now that we know page geometry, hook scroll coalescing
-        self.scroll_area.verticalScrollBar().valueChanged.connect(self._schedule_visible_render)
+        self.scroll_area.verticalScrollBar().valueChanged.connect(
+            self._schedule_visible_render
+        )
 
         # Initial render: only what's visible + tiny warm
         self._kick_off_visible_render(force=True, warm=1)
@@ -355,7 +373,9 @@ class PDFViewer(QWidget):
         # Bump generation to discard in-flight renders
         self._renderGeneration += 1
         # Keep only current-zoom cache
-        self.image_cache = {k: v for k, v in self.image_cache.items() if k[1] == self.current_zoom}
+        self.image_cache = {
+            k: v for k, v in self.image_cache.items() if k[1] == self.current_zoom
+        }
         # Recompute placeholder heights and clear labels
         self._build_placeholders_for_zoom(self.current_zoom)
         # Kick minimal warm-up
@@ -465,10 +485,16 @@ class PDFViewer(QWidget):
 
     # ---------- Render completion ----------
     @Slot(int, float, int, QPixmap)
-    def on_page_rendered(self, page_num: int, zoom: float, generation: int, pixmap: QPixmap):
+    def on_page_rendered(
+        self, page_num: int, zoom: float, generation: int, pixmap: QPixmap
+    ):
         """Handle rendered page: update cache and label if still relevant."""
         # Discard outdated renders (other zoom or older generation) or failed pixmaps
-        if generation != self._renderGeneration or zoom != self.current_zoom or pixmap.isNull():
+        if (
+            generation != self._renderGeneration
+            or zoom != self.current_zoom
+            or pixmap.isNull()
+        ):
             return
         key = (page_num, zoom)
         self.image_cache[key] = pixmap

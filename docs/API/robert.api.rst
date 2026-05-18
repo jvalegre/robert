@@ -68,7 +68,7 @@ for classification (when ``auto_type`` switches the problem type).
    * - RF, GB, NN, MVL
      - scikit-learn (default screening set for regression includes MVL instead of AdaB)
    * - GP, AdaB, VR
-     - scikit-learn (opt-in; AdaB replaces MVL in the default classification set)
+     - scikit-learn (opt-in; AdaB replaces MVL in the default classification set; VR optimizes ensemble weights and RF/GB/NN member hyperparameters)
    * - **XGB**
      - XGBoost (:class:`~xgboost.XGBRegressor` / :class:`~xgboost.XGBClassifier`), opt-in;
        hyperoptimized with in-code Bayesian bounds (no packaged ``model_params/XGB_params.yaml``)
@@ -222,6 +222,16 @@ Example
    preds3, sd_cv2, hw2 = model.predict(X.iloc[25:], return_uncertainty="both")
    r2 = model.score(X.iloc[25:], y.iloc[25:])
 
+Full workflow (CSV → CURATE → GENERATE → VERIFY → PREDICT → PDF report)
+-------------------------------------------------------------------------
+
+A runnable script that loads a CSV, runs the full pipeline with ``report=True``,
+and prints the ROBERT score with sub-scores is in
+``Examples/API_workflow/robert_api_full_workflow.py``.
+
+After ``fit`` with ``report=True``, use :meth:`~robert.api.RobertModel.robert_scores`
+to read the same score components as ``ROBERT_report.pdf`` without parsing the PDF.
+
 .. autoclass:: robert.api.RobertModel
-   :members: fit, predict, score, get_params, set_params
+   :members: fit, predict, score, robert_scores, get_params, set_params
    :no-inherited-members:

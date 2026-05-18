@@ -5,15 +5,15 @@ Parameters
     destination : str, default=None,
         Directory to create the output file(s).
     varfile : str, default=None
-        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).
     params_dir : str, default=''
         Folder containing the database and parameters of the ML model.
     csv_test : str, default=''
-        Name of the CSV file containing the test set (if any). A path can be provided (i.e. 
-        'C:/Users/FOLDER/FILE.csv'). 
+        Name of the CSV file containing the test set (if any). A path can be provided (i.e.
+        'C:/Users/FOLDER/FILE.csv').
     t_value : float, default=2
         t-value that will be the threshold to identify outliers (check tables for t-values elsewhere).
-        The higher the t-value the more restrictive the analysis will be (i.e. there will be more 
+        The higher the t-value the more restrictive the analysis will be (i.e. there will be more
         outliers with t-value=1 than with t-value = 4).
     alpha : float, default=0.05
         Significance level, or probability of making a wrong decision. This parameter is related to
@@ -61,6 +61,7 @@ from robert.utils import (
     should_plot_predict_deep_diagnostics,
 )
 
+
 class predict:
     """
     Class containing all the functions from the PREDICT module.
@@ -72,7 +73,6 @@ class predict:
     """
 
     def __init__(self, **kwargs):
-
         start_time = time.time()
 
         # load default and user-specified variables
@@ -85,12 +85,13 @@ class predict:
             self.args.params_dir
         ):
             if os.path.exists(params_dir):
-
-                _ = print_pfi(self,params_dir)
+                _ = print_pfi(self, params_dir)
 
                 # load the Xy databse and model parameters
-                Xy_data, model_data, suffix_title = load_db_n_params(self,params_dir,suffix,suffix_title,"verify",True) # module 'verify' since PREDICT follows similar protocols
-                
+                Xy_data, model_data, suffix_title = load_db_n_params(
+                    self, params_dir, suffix, suffix_title, "verify", True
+                )  # module 'verify' since PREDICT follows similar protocols
+
                 # get results from training, test and external test (if any)
                 Xy_data = load_n_predict(self, model_data, Xy_data, BO_opt=False)
                 if getattr(self.args, "uq_enable_meta", False):
@@ -98,9 +99,7 @@ class predict:
                         self, Xy_data, model_data, params_dir
                     )
                 if getattr(self.args, "uq_auto_enable", False):
-                    Xy_data = apply_auto_uq(
-                        self, Xy_data, model_data, params_dir
-                    )
+                    Xy_data = apply_auto_uq(self, Xy_data, model_data, params_dir)
 
                 # save predictions for all sets
                 path_n_suffix, name_points, Xy_data = save_predictions(
@@ -146,4 +145,4 @@ class predict:
                                 self, Xy_data, path_n_suffix, model_data
                             )
 
-        _ = finish_print(self,start_time,'PREDICT')
+        _ = finish_print(self, start_time, "PREDICT")

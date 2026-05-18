@@ -24,11 +24,13 @@ from importlib.metadata import PackageNotFoundError, version
 
 EASYROB_VERSION = "2.0.0"
 
+
 def get_python_package_version(pkg):
     try:
         return version(pkg)
     except PackageNotFoundError:
         return "Not found"
+
 
 def get_cli_version(cmd):
     try:
@@ -36,6 +38,7 @@ def get_cli_version(cmd):
         return result.stdout.splitlines()[0]
     except Exception:
         return "Not found"
+
 
 def get_xtb_version():
     try:
@@ -48,6 +51,7 @@ def get_xtb_version():
     except Exception:
         return "Not found"
 
+
 def get_software_versions():
     return {
         "easyROB": EASYROB_VERSION,
@@ -59,5 +63,6 @@ def get_software_versions():
             "ROBERT": get_python_package_version("robert"),
         },
     }
+
 
 SOFTWARE_VERSIONS = get_software_versions()

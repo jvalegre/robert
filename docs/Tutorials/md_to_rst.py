@@ -1,36 +1,34 @@
 import os
 import re
 
+
 def clean_text(text):
     text = text.replace("<br><br>", "\n\n")
     text = text.replace("<br>", "\n")
 
     # bold
     text = re.sub(
-        r"<\s*b\s*>(.*?)<\s*/\s*b\s*>",
-        r"**\1**",
-        text,
-        flags=re.DOTALL | re.IGNORECASE
+        r"<\s*b\s*>(.*?)<\s*/\s*b\s*>", r"**\1**", text, flags=re.DOTALL | re.IGNORECASE
     )
 
     # italic
     text = re.sub(
-        r"<\s*i\s*>(.*?)<\s*/\s*i\s*>",
-        r"*\1*",
-        text,
-        flags=re.DOTALL | re.IGNORECASE
+        r"<\s*i\s*>(.*?)<\s*/\s*i\s*>", r"*\1*", text, flags=re.DOTALL | re.IGNORECASE
     )
 
     return text.strip()
 
+
 def sort_key(filename):
     name = filename.replace(".png", "")
-    numbers = re.findall(r'\d+', name)
+    numbers = re.findall(r"\d+", name)
     return tuple(int(n) for n in numbers)
+
 
 def indent_block(text, spaces=3):
     prefix = " " * spaces
     return "\n".join(prefix + line if line.strip() else "" for line in text.split("\n"))
+
 
 def convert(md_path, img_folder, out_path, prefix):
     print(f"\n===== {prefix.upper()} =====")
@@ -38,11 +36,10 @@ def convert(md_path, img_folder, out_path, prefix):
     with open(md_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    steps = [clean_text(s) for s in content.split('---') if s.strip()]
+    steps = [clean_text(s) for s in content.split("---") if s.strip()]
 
     images = sorted(
-        [f for f in os.listdir(img_folder) if f.endswith(".png")],
-        key=sort_key
+        [f for f in os.listdir(img_folder) if f.endswith(".png")], key=sort_key
     )
 
     print(f"Steps: {len(steps)}")
@@ -51,7 +48,7 @@ def convert(md_path, img_folder, out_path, prefix):
     rst = ""
 
     # ONE container per tutorial
-    rst += f".. container:: step\n\n"
+    rst += ".. container:: step\n\n"
 
     for i, step in enumerate(steps):
         step_id = i + 1
@@ -75,10 +72,10 @@ def convert(md_path, img_folder, out_path, prefix):
         buttons = '      <div class="step-nav">\n'
 
         if step_id > 1:
-            buttons += f'         <button onclick="prevStep(\'{prefix}\',{step_id})">Previous</button>\n'
+            buttons += f"         <button onclick=\"prevStep('{prefix}',{step_id})\">Previous</button>\n"
 
         if step_id < len(steps):
-            buttons += f'         <button onclick="nextStep(\'{prefix}\',{step_id})">Next</button>\n'
+            buttons += f"         <button onclick=\"nextStep('{prefix}',{step_id})\">Next</button>\n"
 
         buttons += "      </div>\n"
 
@@ -100,6 +97,10 @@ def convert(md_path, img_folder, out_path, prefix):
 # RUN ALL
 convert("chemdraw.md", "tutorial_images/chemdraw", "chemdraw.rst", "chemdraw")
 convert("csv.md", "tutorial_images/csv", "csv.rst", "csv")
-convert("descriptors.md", "tutorial_images/descriptors", "descriptors.rst", "descriptors")
+convert(
+    "descriptors.md", "tutorial_images/descriptors", "descriptors.rst", "descriptors"
+)
 convert("overview.md", "tutorial_images/overview", "overview.rst", "overview")
-convert("predictions.md", "tutorial_images/predictions", "predictions.rst", "predictions")
+convert(
+    "predictions.md", "tutorial_images/predictions", "predictions.rst", "predictions"
+)

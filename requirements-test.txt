@@ -1,0 +1,7 @@
+# Test dependencies (install after robert: pip install -e . && pip install -r requirements-test.txt)
+pytest>=7.0
+pytest-cov>=4.0
+pytest-qt>=4.0
+
+# Optional: AQME integration tests (also matches CI)
+# aqme==2.0.0

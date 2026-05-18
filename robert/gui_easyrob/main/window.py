@@ -36,16 +36,21 @@ Notes:
 import webbrowser
 
 try:
-
     from version import SOFTWARE_VERSIONS
     from utils import utils_gui, molssi_utils
     from tabs import predictions, aqme, advanced_options, molssi, results, images
 
-except ImportError as e:
-
+except ImportError:
     from robert.gui_easyrob.version import SOFTWARE_VERSIONS
     from robert.gui_easyrob.utils import utils_gui, molssi_utils
-    from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images
+    from robert.gui_easyrob.tabs import (
+        predictions,
+        aqme,
+        advanced_options,
+        molssi,
+        results,
+        images,
+    )
 
 
 # ------------------------------------------------------------
@@ -119,27 +124,31 @@ ImagesTab = images.ImagesTab
 # ------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
 class EasyROB(QMainWindow):
     """Main window for the easyROB application."""
+
     def __init__(self):
         super().__init__()
         self.file_path = ""
         self.csv_test_path = ""
-        self.process = None  
+        self.process = None
         self.available_list = None
         self.ignore_list = None
         self.manual_stop = False
         self.worker = None
         self._last_loaded_file_path = None
-        self._molssi_workers = set() # Keep track of MolSSI workers
+        self._molssi_workers = set()  # Keep track of MolSSI workers
         self.molssi_is_closing = False
         self.initUI()
-        self.clear_test_button.setVisible(False) # Hide the button initially
-        self.molssi_tab.load_test_requested.connect(self.set_csv_test_path) # Connect signal with molssi tab donwload test requested
+        self.clear_test_button.setVisible(False)  # Hide the button initially
+        self.molssi_tab.load_test_requested.connect(
+            self.set_csv_test_path
+        )  # Connect signal with molssi tab donwload test requested
 
     def closeEvent(self, event):
         """Handle the window close event, ensuring proper shutdown of workers."""
-        worker = getattr(self, 'worker', None)
+        worker = getattr(self, "worker", None)
 
         if worker is not None and worker.isRunning():
             reply = QMessageBox.question(
@@ -147,7 +156,7 @@ class EasyROB(QMainWindow):
                 "Exit Confirmation",
                 "ROBERT is still running. Do you want to stop the process and exit?",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+                QMessageBox.No,
             )
             if reply == QMessageBox.No:
                 event.ignore()
@@ -211,8 +220,8 @@ class EasyROB(QMainWindow):
             self.available_list.addItem(item.text())  #  Add back to left list
             row = self.ignore_list.row(item)  #  Get correct row index
             self.ignore_list.takeItem(row)  #  Remove from right list
-            
-    def open_external_url(self,url: str):
+
+    def open_external_url(self, url: str):
         """Open URL using the system default browser."""
         try:
             webbrowser.open(url, new=2)  # new=2 → new tab if possible
@@ -241,7 +250,7 @@ class EasyROB(QMainWindow):
         }
         """
         self.setWindowTitle("easyROB")
-        
+
         # Create main tab widget
         self.tab_widget = QTabWidget()
         self.setCentralWidget(self.tab_widget)
@@ -275,7 +284,9 @@ class EasyROB(QMainWindow):
         tutorial_btn = QToolButton()
         tutorial_btn.setText("Tutorial")
         tutorial_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        tutorial_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+        tutorial_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        )
         tutorial_btn.setIconSize(QSize(14, 14))
         tutorial_btn.setCursor(Qt.PointingHandCursor)
         tutorial_btn.setStyleSheet(tool_style)
@@ -291,7 +302,9 @@ class EasyROB(QMainWindow):
         youtube_btn.setCursor(Qt.PointingHandCursor)
         youtube_btn.setStyleSheet(tool_style)
         youtube_btn.clicked.connect(
-            lambda: self.open_external_url("https://www.youtube.com/@thealegregroup4964/videos")
+            lambda: self.open_external_url(
+                "https://www.youtube.com/@thealegregroup4964/videos"
+            )
         )
 
         # Documentation
@@ -311,7 +324,9 @@ class EasyROB(QMainWindow):
         contact_btn = QToolButton()
         contact_btn.setText("Contact")
         contact_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        contact_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation))
+        contact_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
+        )
         contact_btn.setIconSize(QSize(14, 14))
         contact_btn.setCursor(Qt.PointingHandCursor)
         contact_btn.setStyleSheet(tool_style)
@@ -321,7 +336,9 @@ class EasyROB(QMainWindow):
         version_btn = QToolButton()
         version_btn.setText("Version")
         version_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        version_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogInfoView))
+        version_btn.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogInfoView)
+        )
         version_btn.setIconSize(QSize(14, 14))
         version_btn.setCursor(Qt.PointingHandCursor)
         version_btn.setStyleSheet(tool_style)
@@ -353,7 +370,9 @@ class EasyROB(QMainWindow):
         # --- Add logo with frame ---
         with AssetLibrary.Robert_logo_transparent.get_path() as path_logo:
             pixmap = QPixmap(str(path_logo))
-            scaled_pixmap = pixmap.scaled(300, 110, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            scaled_pixmap = pixmap.scaled(
+                300, 110, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
 
             logo_label = QLabel(self)
             logo_label.setPixmap(scaled_pixmap)
@@ -379,9 +398,9 @@ class EasyROB(QMainWindow):
             "Drag & Drop a CSV file here",
             self,
             file_filter="CSV Files (*.csv)",
-            extensions=(".csv",)
+            extensions=(".csv",),
         )
-        self.file_label.set_callback(self.set_file_path)        
+        self.file_label.set_callback(self.set_file_path)
         input_layout.addWidget(self.file_title)
         input_layout.addWidget(self.file_label)
 
@@ -396,7 +415,7 @@ class EasyROB(QMainWindow):
             "Drag & Drop a external CSV test file here (optional)",
             self,
             file_filter="CSV Files (*.csv)",
-            extensions=(".csv",)
+            extensions=(".csv",),
         )
         self.csv_test_label.set_callback(self.set_csv_test_path)
 
@@ -417,7 +436,6 @@ class EasyROB(QMainWindow):
         test_layout.addWidget(self.csv_test_title)
         test_layout.addWidget(test_label_container)
 
-
         # --- CSV Section with Button in the Middle ---
         csv_layout = QHBoxLayout()
         csv_layout.addLayout(input_layout)
@@ -425,15 +443,15 @@ class EasyROB(QMainWindow):
 
         # --- Add All to Main Layout ---
         main_layout.addLayout(csv_layout)
-   
+
         # --- Select column for --y ---
         self.y_label = QLabel("Select Target Column (y)")
         self.y_label.setStyleSheet("font-size:13px;")
         main_layout.addWidget(self.y_label)
-        self.y_dropdown = NoScrollComboBox()        
+        self.y_dropdown = NoScrollComboBox()
         main_layout.addWidget(self.y_dropdown)
         self.y_dropdown.setStyleSheet(box_features)
-        
+
         # --- Select prediction type ---
         self.type_label = QLabel("Prediction Type")
         self.type_label.setStyleSheet("font-size:13px;")
@@ -442,15 +460,15 @@ class EasyROB(QMainWindow):
         self.type_dropdown.addItems(["Regression", "Classification"])
         main_layout.addWidget(self.type_dropdown)
         self.type_dropdown.setStyleSheet(box_features)
-        
+
         # --- Select column for --names ---
         self.names_label = QLabel("Select name column")
         self.names_label.setStyleSheet("font-size:13px;")
         main_layout.addWidget(self.names_label)
         self.names_dropdown = NoScrollComboBox()
-        main_layout.addWidget(self.names_dropdown) 
+        main_layout.addWidget(self.names_dropdown)
         self.names_dropdown.setStyleSheet(box_features)
-     
+
         # Main horizontal layout for column selection
         column_layout = QHBoxLayout()
 
@@ -470,10 +488,14 @@ class EasyROB(QMainWindow):
 
         self.add_button = QPushButton(">>")
         self.add_button.setFixedSize(30, 24)
-        self.add_button.clicked.connect(self.move_to_selected)   # Moves selected items to "Ignored Columns"
+        self.add_button.clicked.connect(
+            self.move_to_selected
+        )  # Moves selected items to "Ignored Columns"
         self.remove_button = QPushButton("<<")
         self.remove_button.setFixedSize(30, 24)
-        self.remove_button.clicked.connect(self.move_to_available) # Moves selected items back to "Available Columns"
+        self.remove_button.clicked.connect(
+            self.move_to_available
+        )  # Moves selected items back to "Available Columns"
         button_style = """
             QPushButton {
                 border: 1px solid palette(mid);
@@ -486,13 +508,13 @@ class EasyROB(QMainWindow):
             """
 
         self.add_button.setStyleSheet(button_style)
-        self.remove_button.setStyleSheet(button_style)  
+        self.remove_button.setStyleSheet(button_style)
 
         # Add buttons to the button layout
-        button_layout.addStretch()  
+        button_layout.addStretch()
         button_layout.addWidget(self.add_button, alignment=Qt.AlignCenter)
         button_layout.addWidget(self.remove_button, alignment=Qt.AlignCenter)
-        button_layout.addStretch()  
+        button_layout.addStretch()
 
         # Right side (Ignored Columns)
         right_layout = QVBoxLayout()
@@ -512,32 +534,27 @@ class EasyROB(QMainWindow):
         # Create a container for the column layout and resize it
         column_container = QWidget()
         column_container.setLayout(column_layout)
-        column_container.setFixedHeight(120) 
+        column_container.setFixedHeight(120)
 
         # Insert the column container into the main layout
         main_layout.addWidget(column_container)
         main_layout.addSpacing(10)
 
         # AQME Workflow Checkbox
-        self.aqme_workflow = QCheckBox("Enable AQME Workflow") 
+        self.aqme_workflow = QCheckBox("Enable AQME Workflow")
         self.aqme_workflow.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.aqme_workflow.stateChanged.connect(self.check_aqme_workflow)
         main_layout.addWidget(self.aqme_workflow)
-        main_layout.addSpacing(10)  
+        main_layout.addSpacing(10)
 
         # Workflow selection dropdown
         self.workflow_selector = NoScrollComboBox()
         self.workflow_selector.setStyleSheet("font-weight: bold; font-size: 14px;")
 
         # Add options
-        self.workflow_selector.addItems([
-            "Full Workflow",
-            "CURATE",
-            "GENERATE",
-            "PREDICT",
-            "VERIFY",
-            "REPORT"
-        ])
+        self.workflow_selector.addItems(
+            ["Full Workflow", "CURATE", "GENERATE", "PREDICT", "VERIFY", "REPORT"]
+        )
 
         # Set default selection
         self.workflow_selector.setCurrentText("Full Workflow")
@@ -613,7 +630,6 @@ class EasyROB(QMainWindow):
                 color: rgba(255, 255, 255, 120);
             }
         """)
-
 
         self.run_aqme_button.clicked.connect(self.run_aqme)
 
@@ -693,9 +709,9 @@ class EasyROB(QMainWindow):
             }
         """)
         # Set minimum height for the console output and make it expandable
-        self.console_output.setMinimumHeight(250)  
+        self.console_output.setMinimumHeight(250)
         self.console_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        
+
         # Create ANSI converter to display colors in the console and special characters
         self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Preserves colors
         main_layout.addWidget(QLabel("Console Output"))
@@ -747,7 +763,9 @@ class EasyROB(QMainWindow):
         # Wrap options tab in a scroll area to handle large content
         options_scroll = QScrollArea()
         options_scroll.setWidgetResizable(True)
-        options_scroll.setMinimumSize(0, 0)  # Prevent the scroll area from imposing a big minimum on the window
+        options_scroll.setMinimumSize(
+            0, 0
+        )  # Prevent the scroll area from imposing a big minimum on the window
         options_scroll.setWidget(self.options_tab)
 
         # Images tab
@@ -765,10 +783,12 @@ class EasyROB(QMainWindow):
         # ===============================
 
         self.tab_widget.addTab(self.tab_widget_aqme, "AQME")
-        self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.tab_widget_aqme), False)
+        self.tab_widget.setTabEnabled(
+            self.tab_widget.indexOf(self.tab_widget_aqme), False
+        )
 
         self.tab_widget.addTab(options_scroll, "Advanced Options")
-        
+
         self.tab_widget.addTab(self.molssi_tab, "MolSSI Databases")
 
         self.tab_widget.addTab(self.results_tab, "Reports")
@@ -781,15 +801,13 @@ class EasyROB(QMainWindow):
 
         # Start disabled
         self.tab_widget.setTabEnabled(
-            self.tab_widget.indexOf(self.predictions_tab),
-            False
+            self.tab_widget.indexOf(self.predictions_tab), False
         )
 
         # React to availability decided by the tab itself
         self.predictions_tab.availabilityChanged.connect(
             lambda ok: self.tab_widget.setTabEnabled(
-                self.tab_widget.indexOf(self.predictions_tab),
-                ok
+                self.tab_widget.indexOf(self.predictions_tab), ok
             )
         )
 
@@ -805,8 +823,7 @@ class EasyROB(QMainWindow):
         label = QLabel()
         label.setTextFormat(Qt.RichText)
         label.setTextInteractionFlags(
-            Qt.TextSelectableByMouse |
-            Qt.LinksAccessibleByMouse
+            Qt.TextSelectableByMouse | Qt.LinksAccessibleByMouse
         )
         label.setOpenExternalLinks(True)
 
@@ -843,7 +860,7 @@ class EasyROB(QMainWindow):
             block.strip().replace("\n", " ")
             for block in text.split("---")
             if block.strip()
-    ]
+        ]
 
     def show_tutorial_dialog(self):
         """Display workflow tutorial dialog."""
@@ -888,10 +905,7 @@ class EasyROB(QMainWindow):
 
         for folder, title in tutorials:
             texts = self.load_tutorial(folder)
-            tabs.addTab(
-                self.create_tutorial_tab(folder, texts),
-                title
-            )
+            tabs.addTab(self.create_tutorial_tab(folder, texts), title)
 
         self.tutorial_layout.addWidget(tabs)
 
@@ -906,7 +920,7 @@ class EasyROB(QMainWindow):
         base = BASE_DIR / "tutorials" / "tutorial_images" / folder_name
         images = sorted(
             base.glob(f"{folder_name}_*.png"),
-            key=lambda p: [int(s) if s.isdigit() else s for s in p.stem.split("_")]
+            key=lambda p: [int(s) if s.isdigit() else s for s in p.stem.split("_")],
         )
 
         tab = QWidget()
@@ -915,7 +929,6 @@ class EasyROB(QMainWindow):
         stacked = QStackedWidget()
 
         for i, image_path in enumerate(images):
-
             page = QWidget()
             page_layout = QHBoxLayout(page)
             page_layout.setContentsMargins(0, 0, 0, 0)
@@ -935,10 +948,7 @@ class EasyROB(QMainWindow):
 
             if not pixmap.isNull():
                 scaled = pixmap.scaled(
-                    520,
-                    520,
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation
+                    520, 520, Qt.KeepAspectRatio, Qt.SmoothTransformation
                 )
                 image_label.setPixmap(scaled)
             else:
@@ -991,7 +1001,7 @@ class EasyROB(QMainWindow):
         layout.addLayout(nav_layout)
 
         def update_step():
-            step_label.setText(f"Step {stacked.currentIndex()+1} / {stacked.count()}")
+            step_label.setText(f"Step {stacked.currentIndex() + 1} / {stacked.count()}")
 
         def next_step():
             i = (stacked.currentIndex() + 1) % stacked.count()
@@ -1009,7 +1019,7 @@ class EasyROB(QMainWindow):
         update_step()
 
         return tab
-        
+
     def show_version_dialog(self):
         """Display styled version dialog."""
 
@@ -1078,10 +1088,14 @@ class EasyROB(QMainWindow):
             # Enable the AQME tab if not already enabled
             if not self.tab_widget.isTabEnabled(tab_index):
                 self.tab_widget.setTabEnabled(tab_index, True)
-                QMessageBox.information(self, "AQME Tab Enabled", "AQME tab unlocked to specify AQME parameters.")
+                QMessageBox.information(
+                    self,
+                    "AQME Tab Enabled",
+                    "AQME tab unlocked to specify AQME parameters.",
+                )
 
             # Always refresh AQME tab content if file path is available
-            if hasattr(self, 'file_path') and self.file_path:
+            if hasattr(self, "file_path") and self.file_path:
                 self.tab_widget_aqme.selected_atoms = []
                 self.tab_widget_aqme.file_path = self.file_path
                 self.tab_widget_aqme.detect_patterns_and_display()
@@ -1136,7 +1150,7 @@ class EasyROB(QMainWindow):
 
         self._refresh_scheduled = True
 
-        # Schedule refresh after a short delay for avoid freeze popups 
+        # Schedule refresh after a short delay for avoid freeze popups
         QTimer.singleShot(50, self._execute_refresh_tabs)
 
     def _execute_refresh_tabs(self):
@@ -1160,13 +1174,17 @@ class EasyROB(QMainWindow):
 
     def select_file(self):
         """Opens file dialog to select a CSV file."""
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select CSV File", "", "CSV Files (*.csv)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select CSV File", "", "CSV Files (*.csv)"
+        )
         if file_path:
             self.set_file_path(file_path)
 
     def select_csv_test_file(self):
         """Opens file dialog to select a test CSV file."""
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select Test CSV File", "", "CSV Files (*.csv)")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Test CSV File", "", "CSV Files (*.csv)"
+        )
         if file_path:
             self.set_csv_test_path(file_path)
 
@@ -1176,8 +1194,8 @@ class EasyROB(QMainWindow):
         Reloads if the file path changed OR the file was modified (mtime) OR force=True.
         """
         p = Path(file_path)
-        current_path = getattr(self, 'file_path', None)
-        current_mtime = getattr(self, '_file_mtime', None)
+        current_path = getattr(self, "file_path", None)
+        current_mtime = getattr(self, "_file_mtime", None)
 
         # Compute new file's modification time (None if missing)
         try:
@@ -1185,8 +1203,8 @@ class EasyROB(QMainWindow):
         except OSError:
             new_mtime = None
 
-        same_path = (current_path == file_path)
-        same_mtime = (current_mtime == new_mtime)
+        same_path = current_path == file_path
+        same_mtime = current_mtime == new_mtime
 
         # If nothing changed and not forced, bail early
         if same_path and same_mtime and not force:
@@ -1209,7 +1227,7 @@ class EasyROB(QMainWindow):
         self.load_csv_columns()
         self.refresh_tabs(file_path)
 
-        # Check for MolSSI descriptors 
+        # Check for MolSSI descriptors
         if not self._is_molssi_csv(file_path):
             self.check_molssi_descriptors()
 
@@ -1220,7 +1238,6 @@ class EasyROB(QMainWindow):
         self.check_aqme_workflow()
 
     def set_csv_test_path(self, file_path):
-
         """Sets the path for the test CSV file and updates the label."""
         self.csv_test_path = file_path
         file_name = Path(file_path).name
@@ -1300,20 +1317,13 @@ class EasyROB(QMainWindow):
             popup.close()
             popup.deleteLater()
 
-            self.molssi_tab.handle_external_download(
-                path,
-                context="molssi_test"
-            )
+            self.molssi_tab.handle_external_download(path, context="molssi_test")
 
         def _error(msg):
             popup.close()
             popup.deleteLater()
 
-            QMessageBox.warning(
-                self,
-                "MolSSI download failed",
-                msg
-            )
+            QMessageBox.warning(self, "MolSSI download failed", msg)
 
         self._molssi_download_worker.finished.connect(_finished)
         self._molssi_download_worker.error.connect(_error)
@@ -1324,14 +1334,14 @@ class EasyROB(QMainWindow):
         Return True if the file path corresponds to a MolSSI-generated CSV.
         """
         return "_molssi_" in Path(file_path).stem
-    
+
     def check_molssi_descriptors(self):
         """Check for MolSSI descriptors in the current dataset."""
         worker = MolSSIWorker(
             self.df,
             self.file_path,
             should_abort=lambda: self.molssi_is_closing,
-            debug=True
+            debug=True,
         )
 
         self._molssi_workers.add(worker)
@@ -1341,7 +1351,7 @@ class EasyROB(QMainWindow):
         worker.finished.connect(worker.deleteLater)
 
         worker.start()
-                
+
     def on_molssi_finished(self, result):
         """Called when MolSSI worker finishes."""
 
@@ -1418,19 +1428,15 @@ class EasyROB(QMainWindow):
         msg.setText(
             "Your molecules are fully covered by the MolSSI "
             f"{result['library']} ({result['data_type']}) database.\n\n"
-
             "In addition to generating descriptors for your current dataset, "
             "you can also load the complete MolSSI database as an external test set.\n\n"
-
             "This external dataset contains all molecules available in the MolSSI "
             "database with the same type of descriptors and can be used to:\n\n"
             "• Evaluate model performance\n"
             "• Validate predictions\n"
             "• Explore new candidate molecules\n\n"
-
             "The test dataset will be loaded separately and will NOT modify your "
             "current dataset.\n\n"
-
             "Do you want to load the full MolSSI dataset as a test set?"
         )
 
@@ -1444,9 +1450,7 @@ class EasyROB(QMainWindow):
             self.current_download_context = "molssi_test"
 
             # Start automatic MolSSI download
-            self.start_molssi_test_download(
-                library_slug=result["library"]
-            )
+            self.start_molssi_test_download(library_slug=result["library"])
 
     def _update_unified_smiles_context(self):
         """
@@ -1463,14 +1467,13 @@ class EasyROB(QMainWindow):
 
         if self.csv_test_path:
             unified_smiles = self.tab_widget_aqme.build_unified_smiles_context(
-                self.file_path,
-                self.csv_test_path
+                self.file_path, self.csv_test_path
             )
         else:
             unified_smiles = self.tab_widget_aqme.build_unified_smiles_context(
                 self.file_path
             )
-        
+
         self.tab_widget_aqme.unified_smiles = unified_smiles
 
     def set_main_chemdraw_path(self, file_path):
@@ -1576,7 +1579,7 @@ class EasyROB(QMainWindow):
                 "No atoms are currently selected. This is not an error.\n"
                 "Atom selection may not always be available depending on the structures.\n\n"
                 "To access the AQME tab and enable atom selection, check "
-                "\"Enable AQME Workflow\".\n\n"
+                '"Enable AQME Workflow".\n\n'
                 "You can safely continue with the current setup, or go back and select "
                 "atoms if that option is available and relevant.\n\n"
                 "Do you want to continue?"
@@ -1597,15 +1600,11 @@ class EasyROB(QMainWindow):
             )
 
         reply = QMessageBox.question(
-            self,
-            title,
-            message,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes
+            self, title, message, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
         )
 
         return reply == QMessageBox.Yes
-    
+
     def handle_predict_with_test(self, run_dir):
         """Preflight checks for PREDICT with test CSV."""
 
@@ -1640,17 +1639,12 @@ class EasyROB(QMainWindow):
             "the required descriptors generated without AQME."
         )
         aqme_btn = msg.addButton(
-            "Generate descriptors with AQME",
-            QMessageBox.AcceptRole
+            "Generate descriptors with AQME", QMessageBox.AcceptRole
         )
         existing_btn = msg.addButton(
-            "Descriptors already present",
-            QMessageBox.AcceptRole
+            "Descriptors already present", QMessageBox.AcceptRole
         )
-        cancel_btn = msg.addButton(
-            "Cancel",
-            QMessageBox.RejectRole
-        )
+        msg.addButton("Cancel", QMessageBox.RejectRole)
 
         msg.exec()
 
@@ -1663,7 +1657,7 @@ class EasyROB(QMainWindow):
             return "existing"
 
         return "cancel"
-    
+
     def _run_aqme_for_test_descriptors(self, run_dir):
         """
         Automatically detects how AQME descriptors were generated
@@ -1677,10 +1671,8 @@ class EasyROB(QMainWindow):
         # Scenario 1: AQME-ROBERT (integrated workflow)
         # ==================================================
         if os.path.exists(aqme_dat):
-
             robert_cmd = self._read_command_from_dat(
-                aqme_dat,
-                expected_prefix="Command line used in ROBERT"
+                aqme_dat, expected_prefix="Command line used in ROBERT"
             )
 
             # Extract --qdescp_keywords "..." if present
@@ -1689,9 +1681,7 @@ class EasyROB(QMainWindow):
             if match:
                 qdescp_keywords = match.group(1)
 
-            aqme_cmd = self._build_test_aqme_command(
-                qdescp_keywords=qdescp_keywords
-            )
+            aqme_cmd = self._build_test_aqme_command(qdescp_keywords=qdescp_keywords)
 
             return aqme_cmd
 
@@ -1699,15 +1689,11 @@ class EasyROB(QMainWindow):
         # Scenario 2: AQME -> ROBERT (separate runs)
         # ==================================================
         if os.path.exists(qdescp_dat):
-
             aqme_cmd_original = self._read_command_from_dat(
-                qdescp_dat,
-                expected_prefix="Command line used in AQME"
+                qdescp_dat, expected_prefix="Command line used in AQME"
             )
 
-            aqme_cmd = self._build_test_aqme_command(
-                original_command=aqme_cmd_original
-            )
+            aqme_cmd = self._build_test_aqme_command(original_command=aqme_cmd_original)
 
             return aqme_cmd
 
@@ -1718,11 +1704,11 @@ class EasyROB(QMainWindow):
             self,
             "AQME information not found",
             "Could not automatically determine how descriptors were generated.\n\n"
-            "No AQME metadata files were found for this model."
+            "No AQME metadata files were found for this model.",
         )
 
         return None
-    
+
     def _read_command_from_dat(self, dat_path, expected_prefix):
         """
         Reads a .dat file and extracts the command line
@@ -1735,9 +1721,7 @@ class EasyROB(QMainWindow):
                 if line.startswith(expected_prefix):
                     return line.split(":", 1)[1].strip()
 
-        raise RuntimeError(
-            f"Expected command line not found in {dat_path}"
-    )
+        raise RuntimeError(f"Expected command line not found in {dat_path}")
 
     def _build_test_aqme_command(self, original_command=None, qdescp_keywords=None):
         """Builds an AQME command for generating descriptors for the test CSV."""
@@ -1760,22 +1744,16 @@ class EasyROB(QMainWindow):
         if original_command:
             # 1. Remove any leading python executable
             #    Keep everything from "-m aqme" onwards
-            match = re.search(r'(-m\s+aqme.*)', original_command)
+            match = re.search(r"(-m\s+aqme.*)", original_command)
             if not match:
                 raise RuntimeError("Could not locate '-m aqme' in AQME command")
 
             aqme_args = match.group(1)
 
             # 2. Replace CSV references
+            aqme_args = re.sub(r'--input\s+"[^"]+"', f'--input "{test_csv}"', aqme_args)
             aqme_args = re.sub(
-                r'--input\s+"[^"]+"',
-                f'--input "{test_csv}"',
-                aqme_args
-            )
-            aqme_args = re.sub(
-                r'--csv_name\s+"[^"]+"',
-                f'--csv_name "{test_csv}"',
-                aqme_args
+                r'--csv_name\s+"[^"]+"', f'--csv_name "{test_csv}"', aqme_args
             )
 
             # 3. Rebuild command with correct python
@@ -1788,26 +1766,26 @@ class EasyROB(QMainWindow):
         cmd = (
             f'"{python_pointer}" -u -m aqme --qdescp '
             f'--input "{test_csv}" '
-            f'--program xtb '
+            f"--program xtb "
             f'--csv_name "{test_csv}" '
-            f'--robert'
+            f"--robert"
         )
 
         if qdescp_keywords:
-            cmd += f' {qdescp_keywords}'
+            cmd += f" {qdescp_keywords}"
 
         return cmd
-    
+
     def run_test_aqme(self, aqme_command, run_dir):
         """Launches an AQME worker for generating descriptors for the test CSV."""
-        
+
         self.console_output.append(
             "<b><span style='color:cyan;'>Running AQME...</span></b><br>"
         )
         self.progress.setRange(0, 0)
 
         self.current_process = "AQME"
-        self.aqme_role = "test" 
+        self.aqme_role = "test"
 
         self.worker = RobertWorker(aqme_command, run_dir)
         self.worker.output_received.connect(self.console_output.append)
@@ -1826,9 +1804,7 @@ class EasyROB(QMainWindow):
         run_dir = os.path.dirname(self.csv_test_path)
 
         # Original CSV name without extension)
-        original_name = os.path.splitext(
-            os.path.basename(self.csv_test_path)
-        )[0]
+        original_name = os.path.splitext(os.path.basename(self.csv_test_path))[0]
 
         # Expected output CSV
         expected_csv = f"AQME-ROBERT_full_{original_name}.csv"
@@ -1838,13 +1814,13 @@ class EasyROB(QMainWindow):
             return expected_path
 
         return None
-    
+
     def _write_atom_mapping_dat(
         self,
         smarts: str,
         selected_atoms: list,
         run_dir: str,
-        filename: str = "AtomMapping_data.dat"
+        filename: str = "AtomMapping_data.dat",
     ):
         """
         Write an atomic mapping contract to disk.
@@ -1915,9 +1891,10 @@ class EasyROB(QMainWindow):
             self.console_output.append(
                 f"<span style='color:orange;'>WARNING: Failed to write atom mapping dat: {e}</span>"
             )
+
     def _check_generate_folder(self, run_dir):
         """Checks if a GENERATE folder exists in the run directory."""
-        
+
         generate_dir = os.path.join(run_dir, "GENERATE")
 
         if not os.path.exists(generate_dir):
@@ -1926,12 +1903,12 @@ class EasyROB(QMainWindow):
                 "Trained model not found",
                 "No trained model was found in this folder.\n\n"
                 "Prediction with a test CSV requires an existing model "
-                "generated in a previous run (GENERATE step).\n"
+                "generated in a previous run (GENERATE step).\n",
             )
             return False
 
         return True
-    
+
     def _validate_robert_workflow(self):
         """
         Validates workflow state and resolves mismatches.
@@ -1943,14 +1920,18 @@ class EasyROB(QMainWindow):
         # ---------------------------------------------------
         # Detect mismatch: test CSV loaded but not PREDICT
         # ---------------------------------------------------
-        if self.csv_test_path and not self.file_path and workflow not in ["PREDICT", "REPORT"]:
+        if (
+            self.csv_test_path
+            and not self.file_path
+            and workflow not in ["PREDICT", "REPORT"]
+        ):
             reply = QMessageBox.question(
                 self,
                 "Possible workflow mismatch",
                 "You loaded a test CSV but selected 'Full Workflow'.\n\n"
                 "Did you mean to generate predictions instead?",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                QMessageBox.Yes,
             )
 
             if reply == QMessageBox.Yes:
@@ -1961,7 +1942,7 @@ class EasyROB(QMainWindow):
                     self,
                     "Execution stopped",
                     "To run 'Full Workflow' in ROBERT, please load the training CSV "
-                    "and select the appropriate target and name columns."
+                    "and select the appropriate target and name columns.",
                 )
                 return False
 
@@ -1973,7 +1954,7 @@ class EasyROB(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "WARNING!",
-                    "Please load a training CSV file before running the workflow."
+                    "Please load a training CSV file before running the workflow.",
                 )
                 return False
 
@@ -1981,12 +1962,9 @@ class EasyROB(QMainWindow):
         # PREDICT validation
         # ---------------------------------------------------
         if workflow == "PREDICT":
-
             if not self.csv_test_path:
                 QMessageBox.warning(
-                    self,
-                    "WARNING!",
-                    "Please select a test CSV file for prediction."
+                    self, "WARNING!", "Please select a test CSV file for prediction."
                 )
                 return False
 
@@ -1999,12 +1977,11 @@ class EasyROB(QMainWindow):
         # REPORT validation
         # ---------------------------------------------------
         if workflow == "REPORT":
-
             if not self.file_path and not self.csv_test_path:
                 QMessageBox.warning(
                     self,
                     "WARNING!",
-                    "Please load a CSV file to determine the report directory."
+                    "Please load a CSV file to determine the report directory.",
                 )
                 return False
 
@@ -2018,7 +1995,7 @@ class EasyROB(QMainWindow):
         # --------------------------------------------------
         if not self._validate_robert_workflow():
             return
-        
+
         # --------------------------------------------------
         # Init process
         # --------------------------------------------------
@@ -2033,7 +2010,7 @@ class EasyROB(QMainWindow):
             "<pre style='color:white; background-color:black; font-family:monospace;'></pre>"
         )
 
-        # Path to run directory 
+        # Path to run directory
         if self.file_path:
             run_dir = os.path.dirname(self.file_path)
         elif self.csv_test_path:
@@ -2048,8 +2025,7 @@ class EasyROB(QMainWindow):
             folders_to_check.extend(["CSEARCH", "QDESCP"])
 
         existing_folders = [
-            f for f in folders_to_check
-            if os.path.exists(os.path.join(run_dir, f))
+            f for f in folders_to_check if os.path.exists(os.path.join(run_dir, f))
         ]
 
         if existing_folders and self.workflow_selector.currentText() == "Full Workflow":
@@ -2061,7 +2037,7 @@ class EasyROB(QMainWindow):
                 "or will be overwritten if the previous run completed successfully.\n\n"
                 "Are you sure you want to continue and delete them?",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+                QMessageBox.No,
             )
 
             if confirmation == QMessageBox.No:
@@ -2076,8 +2052,8 @@ class EasyROB(QMainWindow):
                         f"[ERROR] Could not delete folder '{folder}': {e}"
                     )
                     self._reset_ui_after_process()
-                    return   
-      
+                    return
+
         # --------------------------------------------------
         # Collect GUI values
         # --------------------------------------------------
@@ -2089,7 +2065,7 @@ class EasyROB(QMainWindow):
                 "WARNING! Invalid parameters. Please fix them before running."
             )
             return
-        
+
         # Rename pdf if full workflow or report selected
         wf_predict = self.workflow_selector.currentText()
         if wf_predict == "Full Workflow" or wf_predict == "REPORT":
@@ -2113,10 +2089,10 @@ class EasyROB(QMainWindow):
 
             train_source_csv = self._get_unmapped_csv(self.file_path)
 
-            self.mapped_train_csv = self.tab_widget_aqme.generate_mapped_csv_from_smiles(
-                train_source_csv,
-                smarts,
-                selected_atoms_for_robert
+            self.mapped_train_csv = (
+                self.tab_widget_aqme.generate_mapped_csv_from_smiles(
+                    train_source_csv, smarts, selected_atoms_for_robert
+                )
             )
 
             is_robert_mapped = True
@@ -2124,18 +2100,16 @@ class EasyROB(QMainWindow):
             if getattr(self, "csv_test_path", None):
                 test_source_csv = self._get_unmapped_csv(self.csv_test_path)
 
-                self.mapped_test_csv = self.tab_widget_aqme.generate_mapped_csv_from_smiles(
-                    test_source_csv,
-                    smarts,
-                    selected_atoms_for_robert
+                self.mapped_test_csv = (
+                    self.tab_widget_aqme.generate_mapped_csv_from_smiles(
+                        test_source_csv, smarts, selected_atoms_for_robert
+                    )
                 )
 
             #  Save atomic mapping contract in .dat
             run_dir = os.path.dirname(self.file_path)
             self._write_atom_mapping_dat(
-                smarts=smarts,
-                selected_atoms=selected_atoms_for_robert,
-                run_dir=run_dir
+                smarts=smarts, selected_atoms=selected_atoms_for_robert, run_dir=run_dir
             )
 
         # --------------------------------------------------
@@ -2151,7 +2125,7 @@ class EasyROB(QMainWindow):
             self.mapped_test_csv
             if is_robert_mapped and self.mapped_test_csv
             else getattr(self, "csv_test_path", None)
-        ) 
+        )
 
         # --------------------------------------------------------------------------
         # AQME-origin CSV check, disable AQME workflow if detected previously runned
@@ -2169,14 +2143,11 @@ class EasyROB(QMainWindow):
             if not self.check_atomic_descriptors("ROBERT"):
                 self._reset_ui_after_process()
                 return
-            
+
         # --------------------------------------------------
         # PREDICT + csv_test preflight
         # --------------------------------------------------
-        if (
-            self.workflow_selector.currentText() == "PREDICT"
-            and self.csv_test_path
-        ):
+        if self.workflow_selector.currentText() == "PREDICT" and self.csv_test_path:
             run_dir = os.path.dirname(self.csv_test_path)
 
             # -----------------------------------------------
@@ -2185,7 +2156,6 @@ class EasyROB(QMainWindow):
             dat_path = os.path.join(run_dir, "AtomMapping_data.dat")
 
             if os.path.isfile(dat_path):
-
                 self.console_output.append(
                     f"[INFO] Atomic mapping contract detected: {dat_path}"
                 )
@@ -2196,15 +2166,14 @@ class EasyROB(QMainWindow):
 
                     # Validate + Apply in one step
                     new_mapped_csv = self._apply_mapping_smarts(
-                        self.csv_test_path,
-                        contract
+                        self.csv_test_path, contract
                     )
 
                     self.console_output.append(
                         f"[INFO] Generated mapped test CSV: {new_mapped_csv}"
                     )
 
-                    # Save original test CSV only 
+                    # Save original test CSV only
                     if not getattr(self, "_original_test_csv_path", None):
                         self._original_test_csv_path = self.csv_test_path
 
@@ -2217,7 +2186,7 @@ class EasyROB(QMainWindow):
                         "Atomic mapping mismatch",
                         f"{e}\n\n"
                         "Prediction cannot continue because atomic descriptors "
-                        "would not be consistent with the trained model."
+                        "would not be consistent with the trained model.",
                     )
                     self._reset_ui_after_process()
                     return
@@ -2253,13 +2222,13 @@ class EasyROB(QMainWindow):
             run_dir = os.path.dirname(selected_file_path)
         elif self.csv_test_path:
             run_dir = os.path.dirname(self.csv_test_path)
-     
+
         self.worker = RobertWorker(command, run_dir)
         self.worker.output_received.connect(self.console_output.append)
         self.worker.error_received.connect(self.console_output.append)
         self.worker.process_finished.connect(self.on_process_finished)
         self.worker.start()
-    
+
     def _read_atom_mapping_dat(self, dat_path):
         """
         Read atomic mapping contract from .dat file.
@@ -2284,13 +2253,17 @@ class EasyROB(QMainWindow):
         mapping = []
 
         for line in lines:
-
             # SMARTS line
             if line.startswith("SMARTS pattern"):
                 continue  # skip header line
 
-            if smarts is None and not line.startswith("-") and "Pattern atoms" not in line and "Pattern atom" not in line:
-                # First non-header SMARTS candidate 
+            if (
+                smarts is None
+                and not line.startswith("-")
+                and "Pattern atoms" not in line
+                and "Pattern atom" not in line
+            ):
+                # First non-header SMARTS candidate
                 if "[" in line or "#" in line:
                     smarts = line
 
@@ -2303,28 +2276,26 @@ class EasyROB(QMainWindow):
                 # Extract using regex
                 match = re.search(
                     r"Pattern atom\s+(\d+)\s+→\s+atomMap\s+(\d+)\s+\(Element:\s+(\w+)\)",
-                    line
+                    line,
                 )
                 if match:
                     pattern_idx = int(match.group(1))
                     map_num = int(match.group(2))
                     element = match.group(3)
 
-                    mapping.append({
-                        "pattern_idx": pattern_idx,
-                        "map_num": map_num,
-                        "element": element
-                    })
+                    mapping.append(
+                        {
+                            "pattern_idx": pattern_idx,
+                            "map_num": map_num,
+                            "element": element,
+                        }
+                    )
 
         if smarts is None or pattern_atoms is None or not mapping:
             raise ValueError("Invalid atom_mapping.dat format")
-        
-        return {
-            "smarts": smarts,
-            "pattern_atoms": pattern_atoms,
-            "mapping": mapping
-        }
-    
+
+        return {"smarts": smarts, "pattern_atoms": pattern_atoms, "mapping": mapping}
+
     def _apply_mapping_smarts(self, csv_path, contract):
         """
         Validate and apply atomic mapping contract to CSV.
@@ -2335,10 +2306,7 @@ class EasyROB(QMainWindow):
 
         df = smart_read_csv(csv_path)
 
-        smiles_col = next(
-            (c for c in df.columns if c.lower() == "smiles"),
-            None
-        )
+        smiles_col = next((c for c in df.columns if c.lower() == "smiles"), None)
 
         if smiles_col is None:
             raise ValueError("CSV has no SMILES column")
@@ -2354,7 +2322,7 @@ class EasyROB(QMainWindow):
 
         if pattern_mol.GetNumAtoms() != expected_pattern_atoms:
             raise ValueError("SMARTS atom count mismatch with contract")
-        
+
         # --------------------------------------------------
         # Step 1: Detect if already mapped correctly
         # --------------------------------------------------
@@ -2367,7 +2335,6 @@ class EasyROB(QMainWindow):
         mapped_smiles = []
 
         for smiles in df[smiles_col].dropna().astype(str):
-
             mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
             if mol is None:
                 raise ValueError(f"Invalid SMILES: {smiles}")
@@ -2445,7 +2412,7 @@ class EasyROB(QMainWindow):
                     command += f' --csv_test "{csv_test}"'
 
             return command
-        
+
         # ==================================================
         # NORMAL WORKFLOW (CURATE / GENERATE / VERIFY)
         # ==================================================
@@ -2466,8 +2433,7 @@ class EasyROB(QMainWindow):
 
         # ---------- IGNORE COLUMNS ----------
         selected_columns = [
-            self.ignore_list.item(i).text()
-            for i in range(self.ignore_list.count())
+            self.ignore_list.item(i).text() for i in range(self.ignore_list.count())
         ]
         if selected_columns:
             formatted_columns = [f"'{col}'" for col in selected_columns]
@@ -2487,21 +2453,21 @@ class EasyROB(QMainWindow):
             command += " --auto_type False"
 
         if self.seed_value:
-            command += f' --seed {self.seed_value}'
+            command += f" --seed {self.seed_value}"
 
         if self.kfold_value:
-            command += f' --kfold {self.kfold_value}'
+            command += f" --kfold {self.kfold_value}"
 
         if self.repeat_kfolds_value:
-            command += f' --repeat_kfolds {self.repeat_kfolds_value}'
+            command += f" --repeat_kfolds {self.repeat_kfolds_value}"
 
         if self.split_value != "even":
-            command += f' --split {self.split_value.lower()}'
+            command += f" --split {self.split_value.lower()}"
 
         # ---------- AQME ----------
         if self.aqme_workflow.isChecked():
-            command += ' --aqme'
-            command += f' --descp_lvl {self.descriptor_level_selected}'
+            command += " --aqme"
+            command += f" --descp_lvl {self.descriptor_level_selected}"
 
             atoms_entries = []
 
@@ -2527,66 +2493,66 @@ class EasyROB(QMainWindow):
 
         # ---------- CURATE ----------
         if self.categorical_value != "onehot":
-            command += f' --categorical {self.categorical_value}'
+            command += f" --categorical {self.categorical_value}"
 
         if not self.corr_filter_x_value:
-            command += ' --corr_filter_x False'
+            command += " --corr_filter_x False"
 
         if self.corr_filter_y_value:
-            command += ' --corr_filter_y True'
+            command += " --corr_filter_y True"
 
         if self.desc_thres_value:
-            command += f' --desc_thres {self.desc_thres_value}'
+            command += f" --desc_thres {self.desc_thres_value}"
 
         if self.thres_x_value:
-            command += f' --thres_x {self.thres_x_value}'
+            command += f" --thres_x {self.thres_x_value}"
 
         if self.thres_y_value:
-            command += f' --thres_y {self.thres_y_value}'
+            command += f" --thres_y {self.thres_y_value}"
 
         # ---------- GENERATE ----------
         if self.selected_models != self.default_models:
-            model_list = "[" + ",".join(
-                f"'{m}'" for m in sorted(self.selected_models)
-            ) + "]"
+            model_list = (
+                "[" + ",".join(f"'{m}'" for m in sorted(self.selected_models)) + "]"
+            )
             command += f' --model "{model_list}"'
 
         if self.error_type_value != self.default_error_type:
-            command += f' --error_type {self.error_type_value}'
+            command += f" --error_type {self.error_type_value}"
 
         if self.init_points_value:
-            command += f' --init_points {self.init_points_value}'
+            command += f" --init_points {self.init_points_value}"
 
         if self.n_iter_value:
-            command += f' --n_iter {self.n_iter_value}'
+            command += f" --n_iter {self.n_iter_value}"
 
         if not self.pfi_filter_value:
             command += " --pfi_filter False"
 
         if self.pfi_epochs_value:
-            command += f' --pfi_epochs {self.pfi_epochs_value}'
+            command += f" --pfi_epochs {self.pfi_epochs_value}"
 
         if self.pfi_threshold_value:
-            command += f' --pfi_threshold {self.pfi_threshold_value}'
+            command += f" --pfi_threshold {self.pfi_threshold_value}"
 
         if self.pfi_max_value:
-            command += f' --pfi_max {self.pfi_max_value}'
+            command += f" --pfi_max {self.pfi_max_value}"
 
         if not self.auto_test_value:
             command += " --auto_test False"
 
         if self.test_set_value:
-            command += f' --test_set {self.test_set_value}'
+            command += f" --test_set {self.test_set_value}"
 
         # ---------- PREDICT OPTIONS (shared flags) ----------
         if self.t_value:
-            command += f' --t_value {self.t_value}'
+            command += f" --t_value {self.t_value}"
 
         if self.shap_show:
-            command += f' --shap_show {self.shap_show}'
+            command += f" --shap_show {self.shap_show}"
 
         if self.pfi_show:
-            command += f' --pfi_show {self.pfi_show}'
+            command += f" --pfi_show {self.pfi_show}"
 
         return command
 
@@ -2601,7 +2567,9 @@ class EasyROB(QMainWindow):
         self.split_value = self.options_tab.split.currentText().strip()
 
         # ---------- AQME ----------
-        self.descriptor_level_selected = self.tab_widget_aqme.descriptor_level.currentText()
+        self.descriptor_level_selected = (
+            self.tab_widget_aqme.descriptor_level.currentText()
+        )
         self.atoms_selected = self.tab_widget_aqme.atoms.text().strip()
         self.solvent_selected = self.tab_widget_aqme.solvent.currentText()
 
@@ -2617,15 +2585,15 @@ class EasyROB(QMainWindow):
         type_mode = self.type_dropdown.currentText()
 
         self.default_models = (
-            {"RF", "GB", "NN", "MVL"} if type_mode == "Regression"
+            {"RF", "GB", "NN", "MVL"}
+            if type_mode == "Regression"
             else {"RF", "GB", "NN", "AdaB"}
         )
 
-        self.default_error_type = (
-            "rmse" if type_mode == "Regression" else "mcc"
-        )
+        self.default_error_type = "rmse" if type_mode == "Regression" else "mcc"
         self.selected_models = {
-            model for model, checkbox in self.options_tab.modellist.items()
+            model
+            for model, checkbox in self.options_tab.modellist.items()
             if checkbox.isChecked()
         }
 
@@ -2662,9 +2630,7 @@ class EasyROB(QMainWindow):
             df_test = pd.read_csv(self.csv_test_path)
         except Exception as e:
             QMessageBox.warning(
-                self,
-                "Test dataset error",
-                f"Could not read test CSV file:\n\n{e}"
+                self, "Test dataset error", f"Could not read test CSV file:\n\n{e}"
             )
             return False
 
@@ -2686,7 +2652,7 @@ class EasyROB(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Test dataset error",
-                    f"Could not update test CSV file:\n\n{e}"
+                    f"Could not update test CSV file:\n\n{e}",
                 )
                 return False
 
@@ -2703,7 +2669,7 @@ class EasyROB(QMainWindow):
             "Incompatible test dataset",
             f"The selected name column '{name_col}' is not present in the test dataset.\n\n"
             "The test CSV does not contain this column, nor a fallback 'code_name' column.\n\n"
-            "Please select a compatible test dataset or change the name column."
+            "Please select a compatible test dataset or change the name column.",
         )
 
         return False
@@ -2722,9 +2688,7 @@ class EasyROB(QMainWindow):
         # ------------------------
         if is_predict and not self.file_path and not self.csv_test_path:
             QMessageBox.warning(
-                self,
-                "Invalid Selection",
-                "Predict requires at least one CSV file."
+                self, "Invalid Selection", "Predict requires at least one CSV file."
             )
             return False
 
@@ -2736,7 +2700,7 @@ class EasyROB(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Invalid Selection",
-                    "The name column and the target value column cannot be the same. Please select different columns."
+                    "The name column and the target value column cannot be the same. Please select different columns.",
                 )
                 return False
 
@@ -2763,10 +2727,14 @@ class EasyROB(QMainWindow):
         # AQME (skip in PREDICT)
         # ------------------------
         if self.aqme_workflow.isChecked() and not is_predict:
-
             total_columns = []
-            total_columns += [self.available_list.item(i).text() for i in range(self.available_list.count())]
-            total_columns += [self.ignore_list.item(i).text() for i in range(self.ignore_list.count())]
+            total_columns += [
+                self.available_list.item(i).text()
+                for i in range(self.available_list.count())
+            ]
+            total_columns += [
+                self.ignore_list.item(i).text() for i in range(self.ignore_list.count())
+            ]
             lowercase_columns = [col.lower() for col in total_columns]
 
             if not any(col.startswith("smiles") for col in lowercase_columns):
@@ -2853,7 +2821,7 @@ class EasyROB(QMainWindow):
             return False
 
         return True
-    
+
     def build_aqme_command(self, selected_file_path, selected_atoms_override=None):
         """Builds the AQME command based on the GUI selections."""
 
@@ -2873,9 +2841,9 @@ class EasyROB(QMainWindow):
         command = (
             f'"{python_pointer}" -u -m aqme --qdescp '
             f'--input "{csv_name}" '
-            f'--program xtb '
+            f"--program xtb "
             f'--csv_name "{csv_name}" '
-            f'--robert'
+            f"--robert"
         )
 
         # ------------------------
@@ -2946,8 +2914,7 @@ class EasyROB(QMainWindow):
         # ---------------------------
         folders_to_check = ["AQME", "CSEARCH", "QDESCP", "AQME_RUNS"]
         existing_folders = [
-            f for f in folders_to_check
-            if os.path.exists(os.path.join(run_dir, f))
+            f for f in folders_to_check if os.path.exists(os.path.join(run_dir, f))
         ]
 
         if existing_folders:
@@ -2959,7 +2926,7 @@ class EasyROB(QMainWindow):
                 "They may be reused or overwritten.\n\n"
                 "Do you want to continue?",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+                QMessageBox.No,
             )
 
             if confirmation == QMessageBox.No:
@@ -2979,36 +2946,32 @@ class EasyROB(QMainWindow):
 
             smarts = self.tab_widget_aqme.smarts_targets[0]
 
-            self.mapped_train_csv = self.tab_widget_aqme.generate_mapped_csv_from_smiles(
-                self.file_path,
-                smarts,
-                selected_atoms_for_aqme
+            self.mapped_train_csv = (
+                self.tab_widget_aqme.generate_mapped_csv_from_smiles(
+                    self.file_path, smarts, selected_atoms_for_aqme
+                )
             )
 
             self.is_aqme_mapped = True
 
             if self.csv_test_path:
-                self.mapped_test_csv = self.tab_widget_aqme.generate_mapped_csv_from_smiles(
-                    self.csv_test_path,
-                    smarts,
-                    selected_atoms_for_aqme
+                self.mapped_test_csv = (
+                    self.tab_widget_aqme.generate_mapped_csv_from_smiles(
+                        self.csv_test_path, smarts, selected_atoms_for_aqme
+                    )
                 )
 
             #  Save atomic mapping contract in .dat
             run_dir = os.path.dirname(self.file_path)
             self._write_atom_mapping_dat(
-                smarts=smarts,
-                selected_atoms=selected_atoms_for_aqme,
-                run_dir=run_dir
+                smarts=smarts, selected_atoms=selected_atoms_for_aqme, run_dir=run_dir
             )
 
         # ------------------------------------------------
         # Decide REAL input CSVs for AQME
         # ------------------------------------------------
         train_input_csv = (
-            self.mapped_train_csv
-            if self.is_aqme_mapped
-            else self.file_path
+            self.mapped_train_csv if self.is_aqme_mapped else self.file_path
         )
 
         test_input_csv = (
@@ -3021,26 +2984,20 @@ class EasyROB(QMainWindow):
         # Build AQME command queue
         # -------------------------
         main_cmd, self.aqme_run_dir = self.build_aqme_command(
-            train_input_csv,
-            selected_atoms_override=selected_atoms_for_aqme
+            train_input_csv, selected_atoms_override=selected_atoms_for_aqme
         )
 
-        self.aqme_command_queue.append({
-            "command": main_cmd,
-            "csv": train_input_csv,
-            "role": "train"
-        })
+        self.aqme_command_queue.append(
+            {"command": main_cmd, "csv": train_input_csv, "role": "train"}
+        )
 
         if test_input_csv:
             test_cmd, _ = self.build_aqme_command(
-                test_input_csv,
-                selected_atoms_override=selected_atoms_for_aqme
+                test_input_csv, selected_atoms_override=selected_atoms_for_aqme
             )
-            self.aqme_command_queue.append({
-                "command": test_cmd,
-                "csv": test_input_csv,
-                "role": "test"
-            })
+            self.aqme_command_queue.append(
+                {"command": test_cmd, "csv": test_input_csv, "role": "test"}
+            )
 
         # ------------
         # Launch AQME
@@ -3052,7 +3009,7 @@ class EasyROB(QMainWindow):
         self._run_next_aqme()
 
     def _run_next_aqme(self):
-        """ Runs the next AQME command in the queue."""
+        """Runs the next AQME command in the queue."""
         if not self.aqme_command_queue:
             return
 
@@ -3071,23 +3028,25 @@ class EasyROB(QMainWindow):
         """Stops the ROBERT and AQME process safely after user confirmation, non-blocking."""
 
         confirmation = QMessageBox.question(
-            self, 
-            "WARNING!", 
+            self,
+            "WARNING!",
             "Are you sure you want to stop the process?",
-            QMessageBox.Yes | QMessageBox.No, 
-            QMessageBox.No
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
         )
 
         if confirmation == QMessageBox.No:
-            return  
+            return
 
         self.manual_stop = True
 
         if self.worker and self.worker.isRunning():
-            self.console_output.append("<br><b><span style='color:orangered;'>Stopping ROBERT...</span></b>")
+            self.console_output.append(
+                "<br><b><span style='color:orangered;'>Stopping ROBERT...</span></b>"
+            )
             self.progress.setRange(0, 100)
             self.stop_button.setDisabled(True)
-            QTimer.singleShot(0, self.worker.stop) 
+            QTimer.singleShot(0, self.worker.stop)
 
     def _on_aqme_step_finished(self, exit_code):
         """Handles the completion of an AQME step and manages the queue."""
@@ -3163,7 +3122,7 @@ class EasyROB(QMainWindow):
             QMessageBox.information(
                 self,
                 "WARNING!",
-                f"{self.current_process} has been successfully stopped."
+                f"{self.current_process} has been successfully stopped.",
             )
             self.manual_stop = False
             self._reset_ui_after_process()
@@ -3175,17 +3134,14 @@ class EasyROB(QMainWindow):
         # AQME COMPLETION LOGIC
         # ==================================================
         if self.current_process == "AQME":
-
             # ==================================================
             # AQME SUCCESS
             # ==================================================
             if exit_code == 0 and "Time QDESCP:" in output_text:
-
                 # =============================================
                 # AQME TEST -> chain directly to ROBERT PREDICT
                 # =============================================
                 if getattr(self, "aqme_role", None) == "test":
-
                     # Reset AQME state to avoid conflicts with future runs
                     self.aqme_role = None
 
@@ -3197,7 +3153,7 @@ class EasyROB(QMainWindow):
                             "AQME error",
                             "AQME finished successfully, but the expected output CSV was not found.\n\n"
                             "Descriptor generation for the test set completed, but the generated "
-                            "CSV file could not be detected, so prediction cannot continue."
+                            "CSV file could not be detected, so prediction cannot continue.",
                         )
                         self.manual_stop = False
                         self._reset_ui_after_process()
@@ -3212,8 +3168,8 @@ class EasyROB(QMainWindow):
                     # --------------------------------------------------
                     # Launch ROBERT prediction (force AQME output as test CSV)
                     # --------------------------------------------------
-                
-                    # Save original test CSV only 
+
+                    # Save original test CSV only
                     if not getattr(self, "_original_test_csv_path", None):
                         self._original_test_csv_path = self.csv_test_path
 
@@ -3230,22 +3186,17 @@ class EasyROB(QMainWindow):
                     self.worker.error_received.connect(self.console_output.append)
                     self.worker.process_finished.connect(self.on_process_finished)
                     self.worker.start()
-                    return 
+                    return
 
                 # =============================================
                 # AQME TRAIN -> original popup logic (unchanged)
                 # =============================================
                 train_run = next(
-                    (r for r in self.aqme_runs if r["role"] == "train"),
-                    None
+                    (r for r in self.aqme_runs if r["role"] == "train"), None
                 )
 
                 if not train_run:
-                    QMessageBox.warning(
-                        self,
-                        "WARNING!",
-                        "No AQME train output found."
-                    )
+                    QMessageBox.warning(self, "WARNING!", "No AQME train output found.")
                     self.manual_stop = False
                     self._reset_ui_after_process()
                     return
@@ -3255,8 +3206,12 @@ class EasyROB(QMainWindow):
                 base_name = os.path.splitext(os.path.basename(aqme_base))[0]
 
                 aqme_csvs = {
-                    "denovo": os.path.join(base_dir, f"AQME-ROBERT_denovo_{base_name}.csv"),
-                    "interpret": os.path.join(base_dir, f"AQME-ROBERT_interpret_{base_name}.csv"),
+                    "denovo": os.path.join(
+                        base_dir, f"AQME-ROBERT_denovo_{base_name}.csv"
+                    ),
+                    "interpret": os.path.join(
+                        base_dir, f"AQME-ROBERT_interpret_{base_name}.csv"
+                    ),
                     "full": os.path.join(base_dir, f"AQME-ROBERT_full_{base_name}.csv"),
                 }
 
@@ -3316,17 +3271,10 @@ class EasyROB(QMainWindow):
                 )
 
                 btn_interpret = msg.addButton(
-                    "Interpret descriptors (recommended)",
-                    QMessageBox.ActionRole
+                    "Interpret descriptors (recommended)", QMessageBox.ActionRole
                 )
-                btn_denovo = msg.addButton(
-                    "DeNovo descriptors",
-                    QMessageBox.ActionRole
-                )
-                btn_full = msg.addButton(
-                    "Full descriptors",
-                    QMessageBox.ActionRole
-                )
+                btn_denovo = msg.addButton("DeNovo descriptors", QMessageBox.ActionRole)
+                btn_full = msg.addButton("Full descriptors", QMessageBox.ActionRole)
                 msg.addButton("Cancel", QMessageBox.RejectRole)
 
                 msg.exec()
@@ -3356,8 +3304,7 @@ class EasyROB(QMainWindow):
                         base_name = os.path.splitext(os.path.basename(run["csv"]))[0]
 
                         output_csv = os.path.join(
-                            base_dir,
-                            f"AQME-ROBERT_{selected_level}_{base_name}.csv"
+                            base_dir, f"AQME-ROBERT_{selected_level}_{base_name}.csv"
                         )
 
                         if not os.path.isfile(output_csv):
@@ -3386,7 +3333,7 @@ class EasyROB(QMainWindow):
                         # --------------------------------------------------
                         for level in ["denovo", "interpret", "full"]:
                             if not user_cancelled and level == selected_level:
-                                continue # keep active CSV where it is
+                                continue  # keep active CSV where it is
 
                             csv_name = f"AQME-ROBERT_{level}_{base_name}.csv"
                             csv_path = Path(self.aqme_run_dir) / csv_name
@@ -3399,7 +3346,7 @@ class EasyROB(QMainWindow):
                                 target_path.unlink()
 
                             shutil.move(str(csv_path), str(target_path))
-                            
+
                         # --------------------------------------------------
                         # 2) Move mapped CSVs (PER RUN, TRAIN + TEST)
                         # --------------------------------------------------
@@ -3430,7 +3377,7 @@ class EasyROB(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "WARNING!",
-                    "AQME encountered an issue while finishing. Please check the logs."
+                    "AQME encountered an issue while finishing. Please check the logs.",
                 )
             # End of AQME workflow
             self.manual_stop = False
@@ -3454,8 +3401,13 @@ class EasyROB(QMainWindow):
         # ------------------------
         # Full workflow / REPORT
         # ------------------------
-        if not self.manual_stop and (workflow == "Full Workflow" or workflow == "REPORT"):
-            if exit_code == 0 and "ROBERT_report.pdf was created successfully" in output_text:
+        if not self.manual_stop and (
+            workflow == "Full Workflow" or workflow == "REPORT"
+        ):
+            if (
+                exit_code == 0
+                and "ROBERT_report.pdf was created successfully" in output_text
+            ):
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Information)
                 msg_box.setWindowTitle("Success!")
@@ -3476,7 +3428,7 @@ class EasyROB(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "WARNING!",
-                    "ROBERT encountered an issue while finishing. Please check the logs."
+                    "ROBERT encountered an issue while finishing. Please check the logs.",
                 )
 
         # ------------------------
@@ -3485,41 +3437,57 @@ class EasyROB(QMainWindow):
         elif workflow == "CURATE":
             if exit_code == 0 and "Time CURATE:" in output_text:
                 QMessageBox.information(
-                    self, "Success", "ROBERT has successfully completed the CURATE step."
+                    self,
+                    "Success",
+                    "ROBERT has successfully completed the CURATE step.",
                 )
             else:
                 QMessageBox.warning(
-                    self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs."
+                    self,
+                    "WARNING!",
+                    "ROBERT encountered an issue while finishing. Please check the logs.",
                 )
 
         elif workflow == "GENERATE":
             if exit_code == 0 and "Time GENERATE:" in output_text:
                 QMessageBox.information(
-                    self, "Success", "ROBERT has successfully completed the GENERATE step."
+                    self,
+                    "Success",
+                    "ROBERT has successfully completed the GENERATE step.",
                 )
             else:
                 QMessageBox.warning(
-                    self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs."
+                    self,
+                    "WARNING!",
+                    "ROBERT encountered an issue while finishing. Please check the logs.",
                 )
 
         elif workflow == "PREDICT":
             if exit_code == 0 and "Time PREDICT:" in output_text:
                 QMessageBox.information(
-                    self, "Success", "ROBERT has successfully completed the PREDICT step."
+                    self,
+                    "Success",
+                    "ROBERT has successfully completed the PREDICT step.",
                 )
             else:
                 QMessageBox.warning(
-                    self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs."
+                    self,
+                    "WARNING!",
+                    "ROBERT encountered an issue while finishing. Please check the logs.",
                 )
 
         elif workflow == "VERIFY":
             if exit_code == 0 and "Time VERIFY:" in output_text:
                 QMessageBox.information(
-                    self, "Success", "ROBERT has successfully completed the VERIFY step."
+                    self,
+                    "Success",
+                    "ROBERT has successfully completed the VERIFY step.",
                 )
             else:
                 QMessageBox.warning(
-                    self, "WARNING!", "ROBERT encountered an issue while finishing. Please check the logs."
+                    self,
+                    "WARNING!",
+                    "ROBERT encountered an issue while finishing. Please check the logs.",
                 )
 
         # Restore previous test CSV if overridden for test workflow aqme generation

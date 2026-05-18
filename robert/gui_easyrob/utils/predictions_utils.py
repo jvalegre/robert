@@ -72,9 +72,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+
 def get_predict_dir(selected_file_path: str) -> Path:
     """Given the path to a selected file, return the corresponding PREDICT/csv_test directory."""
     return Path(selected_file_path).parent / "PREDICT" / "csv_test"
+
 
 def find_prediction_csvs(selected_file_path: str) -> dict[str, Path]:
     """Search for prediction CSV files in the PREDICT/csv_test directory related to the selected file."""
@@ -91,9 +93,11 @@ def find_prediction_csvs(selected_file_path: str) -> dict[str, Path]:
             results["PFI"] = path
     return results
 
+
 def get_robert_report_path(selected_file_path: str | Path) -> Path:
     """Given the path to a selected file, return the corresponding ROBERT_report.pdf file."""
     return Path(selected_file_path).parent / "ROBERT_report.pdf"
+
 
 def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
     """Search for external test images in the PREDICT/csv_test directory related to the selected file."""
@@ -119,6 +123,7 @@ def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
 
     return results
 
+
 def extract_scores_from_robert_report(pdf_path: Path) -> dict:
     """Extract scores from the ROBERT report PDF file."""
     result = {"pdf_found": False, "PFI": None, "No_PFI": None}
@@ -133,6 +138,7 @@ def extract_scores_from_robert_report(pdf_path: Path) -> dict:
 
     return result
 
+
 def extract_extrapolation_fragment(pdf_path: Path, model_key: str) -> QPixmap | None:
     """Render the extrapolation block from parsed ROBERT report data."""
     details = _extract_extrapolation_details(pdf_path, model_key)
@@ -140,12 +146,14 @@ def extract_extrapolation_fragment(pdf_path: Path, model_key: str) -> QPixmap | 
         return None
     return _render_extrapolation_pixmap(details)
 
+
 def extract_robert_fragment_image(pdf_path: Path, model_key: str) -> QPixmap | None:
     """Render the ROBERT score block from parsed report data."""
     details = _extract_robert_score_details(pdf_path, model_key)
     if not details:
         return None
     return _render_robert_score_pixmap(details)
+
 
 def _get_extrapolation_bbox(page, model_key: str):
     """Return the PDF area containing the extrapolation block for the requested model."""
@@ -158,7 +166,9 @@ def _get_extrapolation_bbox(page, model_key: str):
 
 def _normalize_extrapolation_lines(text: str) -> list[str]:
     """Collapse noisy PDF whitespace while preserving the content of each line."""
-    return [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    return [
+        re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()
+    ]
 
 
 def _parse_extrapolation_block(text: str) -> dict | None:
@@ -168,7 +178,9 @@ def _parse_extrapolation_block(text: str) -> dict | None:
 
     lines = _normalize_extrapolation_lines(text)
     title_line = next((line for line in lines if "Extrapolation" in line), None)
-    rmse_line = next((line for line in lines if "[" in line and "]" in line and "%" in line), None)
+    rmse_line = next(
+        (line for line in lines if "[" in line and "]" in line and "%" in line), None
+    )
     scoring_line = next((line for line in lines if "Scoring from" in line), None)
     rule_line = next((line for line in lines if "Every two folds" in line), None)
 
@@ -183,7 +195,11 @@ def _parse_extrapolation_block(text: str) -> dict | None:
     if rmse_line:
         values_match = re.search(r"\[(.*?)\]", rmse_line)
         if values_match:
-            values = [value.strip() for value in values_match.group(1).split(",") if value.strip()]
+            values = [
+                value.strip()
+                for value in values_match.group(1).split(",")
+                if value.strip()
+            ]
 
     clean_title = re.sub(r"\(\s*\d+\s*/\s*\d+\s*\)", "", title_line).strip()
 
@@ -217,7 +233,9 @@ def _extract_extrapolation_details(pdf_path: Path, model_key: str) -> dict | Non
         return None
 
 
-def _score_fill_rgb(obtained: int | None, maximum: int | None) -> tuple[float, float, float]:
+def _score_fill_rgb(
+    obtained: int | None, maximum: int | None
+) -> tuple[float, float, float]:
     """Return a fill color for the extrapolation score indicator."""
     if obtained is None or maximum in (None, 0):
         return (0.78, 0.78, 0.78)
@@ -295,8 +313,15 @@ def _render_extrapolation_pixmap(details: dict) -> QPixmap | None:
             fontname="hebo",
             color=(0.12, 0.20, 0.30),
         )
-        rmse_text = f"[{', '.join(details['rmse_values'])}]" if details["rmse_values"] else "[]"
-        values_rect = fitz.Rect(margin - 2, title_y + line_gap + 12, width - margin, title_y + line_gap * 2 + 20)
+        rmse_text = (
+            f"[{', '.join(details['rmse_values'])}]" if details["rmse_values"] else "[]"
+        )
+        values_rect = fitz.Rect(
+            margin - 2,
+            title_y + line_gap + 12,
+            width - margin,
+            title_y + line_gap * 2 + 20,
+        )
         page.draw_rect(values_rect, color=(0.86, 0.86, 0.86), fill=(1, 1, 1), width=0.8)
         page.insert_text(
             fitz.Point(margin + 8, title_y + line_gap * 2 + 8),
@@ -334,17 +359,24 @@ def _parse_robert_score_block(text: str) -> dict | None:
     if not text:
         return None
 
-    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    lines = [
+        re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()
+    ]
     if not lines:
         return None
 
-    title_line = next((line for line in lines if re.search(r"\bScore\s+\d+\b", line, re.IGNORECASE)), None)
+    title_line = next(
+        (line for line in lines if re.search(r"\bScore\s+\d+\b", line, re.IGNORECASE)),
+        None,
+    )
     if not title_line:
         joined_text = " ".join(lines)
         score_match = re.search(r"\bScore\s+(\d+)\b", joined_text, re.IGNORECASE)
         if not score_match:
             return None
-        title_match = re.search(r"(.+?)\s*[.\-·]?\s*Score\s+\d+\b", joined_text, re.IGNORECASE)
+        title_match = re.search(
+            r"(.+?)\s*[.\-·]?\s*Score\s+\d+\b", joined_text, re.IGNORECASE
+        )
         title = title_match.group(1).strip() if title_match else "ROBERT Score"
         return {
             "title": title,
@@ -357,7 +389,9 @@ def _parse_robert_score_block(text: str) -> dict | None:
     if not score_match:
         return None
 
-    title = re.sub(r"\s*[·\.-]?\s*Score\s+\d+\b.*$", "", title_line, flags=re.IGNORECASE).strip()
+    title = re.sub(
+        r"\s*[·\.-]?\s*Score\s+\d+\b.*$", "", title_line, flags=re.IGNORECASE
+    ).strip()
     return {
         "title": title,
         "score": int(score_match.group(1)),
@@ -412,16 +446,46 @@ def _extract_robert_score_details(pdf_path: Path, model_key: str) -> dict | None
 def _robert_score_style(score: int | None) -> dict:
     """Return the visual style associated with a ROBERT score."""
     if score is None:
-        return {"label": "UNKNOWN", "segments": 0, "fill": (0.92, 0.90, 0.96), "text": (0.35, 0.35, 0.35)}
+        return {
+            "label": "UNKNOWN",
+            "segments": 0,
+            "fill": (0.92, 0.90, 0.96),
+            "text": (0.35, 0.35, 0.35),
+        }
     if score <= 0:
-        return {"label": "VERY WEAK", "segments": 0, "fill": (1.0, 0.42, 0.42), "text": (1.0, 0.42, 0.42)}
+        return {
+            "label": "VERY WEAK",
+            "segments": 0,
+            "fill": (1.0, 0.42, 0.42),
+            "text": (1.0, 0.42, 0.42),
+        }
     if score <= 3:
-        return {"label": "VERY WEAK", "segments": score, "fill": (1.0, 0.42, 0.42), "text": (1.0, 0.42, 0.42)}
+        return {
+            "label": "VERY WEAK",
+            "segments": score,
+            "fill": (1.0, 0.42, 0.42),
+            "text": (1.0, 0.42, 0.42),
+        }
     if score <= 6:
-        return {"label": "WEAK", "segments": score, "fill": (1.0, 0.79, 0.38), "text": (1.0, 0.79, 0.38)}
+        return {
+            "label": "WEAK",
+            "segments": score,
+            "fill": (1.0, 0.79, 0.38),
+            "text": (1.0, 0.79, 0.38),
+        }
     if score <= 8:
-        return {"label": "MODERATE", "segments": score, "fill": (0.60, 0.78, 0.95), "text": (0.60, 0.78, 0.95)}
-    return {"label": "STRONG", "segments": min(score, 10), "fill": (0.38, 0.60, 0.80), "text": (0.38, 0.60, 0.80)}
+        return {
+            "label": "MODERATE",
+            "segments": score,
+            "fill": (0.60, 0.78, 0.95),
+            "text": (0.60, 0.78, 0.95),
+        }
+    return {
+        "label": "STRONG",
+        "segments": min(score, 10),
+        "fill": (0.38, 0.60, 0.80),
+        "text": (0.38, 0.60, 0.80),
+    }
 
 
 def _render_robert_score_pixmap(details: dict) -> QPixmap | None:
@@ -521,13 +585,18 @@ def extract_extrapolation_scores(pdf_path: Path) -> dict:
 
     for model_key in ("No_PFI", "PFI"):
         details = _extract_extrapolation_details(pdf_path, model_key)
-        if details and details.get("obtained") is not None and details.get("maximum") is not None:
+        if (
+            details
+            and details.get("obtained") is not None
+            and details.get("maximum") is not None
+        ):
             result[model_key] = {
                 "obtained": details["obtained"],
                 "maximum": details["maximum"],
             }
 
     return result
+
 
 def extract_prediction_info(df: pd.DataFrame) -> dict:
     """Extract prediction information from a DataFrame."""
@@ -548,18 +617,27 @@ def extract_prediction_info(df: pd.DataFrame) -> dict:
     result["has_pred_column"] = True
     result["pred_column"] = col
     result["n_unique"] = series.nunique()
-    result["predictions_identical"] = None if result["n_unique"] == 0 else result["n_unique"] == 1
+    result["predictions_identical"] = (
+        None if result["n_unique"] == 0 else result["n_unique"] == 1
+    )
     return result
 
-def evaluate_model_scenario(score: int | None, predictions_identical: bool | None) -> dict:
+
+def evaluate_model_scenario(
+    score: int | None, predictions_identical: bool | None
+) -> dict:
     """Evaluate the model scenario based on ROBERT score and predictions."""
     almos_link = "https://github.com/MiguelMartzFdez/almos"
     almos_html = f'<a href="{almos_link}">ALMOS</a>'
     result = {"state": "UNKNOWN", "messages": [], "recommendations": []}
 
     if score is None:
-        result["messages"].append("No valid ROBERT score was detected. Model reliability cannot be evaluated.")
-        result["recommendations"].append("You may verify that ROBERT_report.pdf was generated correctly.")
+        result["messages"].append(
+            "No valid ROBERT score was detected. Model reliability cannot be evaluated."
+        )
+        result["recommendations"].append(
+            "You may verify that ROBERT_report.pdf was generated correctly."
+        )
         return result
 
     if predictions_identical is True:
@@ -576,7 +654,9 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if 0 <= score <= 3:
         result["state"] = "FAILED"
-        result["messages"].append(f"ROBERT score is {score}. Model performance is critically low.")
+        result["messages"].append(
+            f"ROBERT score is {score}. Model performance is critically low."
+        )
         result["recommendations"].append(
             "You may avoid using these predictions and rebuild the dataset "
             f"using Clustering module in {almos_html}."
@@ -585,7 +665,9 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if 4 <= score <= 6:
         result["state"] = "WEAK"
-        result["messages"].append(f"ROBERT score is {score}. The model works, but reliability is limited.")
+        result["messages"].append(
+            f"ROBERT score is {score}. The model works, but reliability is limited."
+        )
         result["recommendations"].append(
             "You may use predictions cautiously and improve robustness "
             f"through Active Learning module with {almos_html}."
@@ -594,7 +676,9 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if 7 <= score <= 8:
         result["state"] = "DECENT"
-        result["messages"].append(f"ROBERT score is {score}. The model is solid but can still improve.")
+        result["messages"].append(
+            f"ROBERT score is {score}. The model is solid but can still improve."
+        )
         result["recommendations"].append(
             "You may use these predictions while considering further optimization "
             f"through Active Learning module with {almos_html}."
@@ -603,7 +687,9 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if score > 8:
         result["state"] = "STRONG"
-        result["messages"].append(f"ROBERT score is {score}. The model shows strong predictive performance.")
+        result["messages"].append(
+            f"ROBERT score is {score}. The model shows strong predictive performance."
+        )
         result["recommendations"].append(
             "You may confidently use these predictions for candidate prioritization."
         )
@@ -611,7 +697,10 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     return result
 
-def evaluate_predictions_for_model(selected_file_path: str | Path, df: pd.DataFrame, model_key: str) -> dict:
+
+def evaluate_predictions_for_model(
+    selected_file_path: str | Path, df: pd.DataFrame, model_key: str
+) -> dict:
     """Evaluate predictions for a specific model."""
     pdf_path = get_robert_report_path(selected_file_path)
     scores = extract_scores_from_robert_report(pdf_path)
@@ -627,6 +716,7 @@ def evaluate_predictions_for_model(selected_file_path: str | Path, df: pd.DataFr
         "prediction_info": prediction_info,
         "scenario": scenario,
     }
+
 
 def collect_model_info(selected_file_path: str | Path, df: pd.DataFrame) -> dict:
     """Collect information for all models."""
@@ -644,9 +734,19 @@ def collect_model_info(selected_file_path: str | Path, df: pd.DataFrame) -> dict
         "scenario": scenario,
     }
 
+
 class PredictionDashboardPanel(QWidget):
     """A collapsible dashboard panel to display ROBERT prediction evaluation results and diagnostics."""
-    def __init__(self, scenario: dict, pdf_image=None, extrapolation_score=None, extrapolation_image=None, external_plot=None, parent=None):
+
+    def __init__(
+        self,
+        scenario: dict,
+        pdf_image=None,
+        extrapolation_score=None,
+        extrapolation_image=None,
+        external_plot=None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._pdf_image = pdf_image
         self._extrapolation_score = extrapolation_score
@@ -715,7 +815,9 @@ class PredictionDashboardPanel(QWidget):
 
         self._build_status_block(content_layout, scenario)
         self._build_pdf_snapshot_block(content_layout)
-        self._build_extrapolation_block(content_layout, self._extrapolation_score, self._extrapolation_image)
+        self._build_extrapolation_block(
+            content_layout, self._extrapolation_score, self._extrapolation_image
+        )
         self._build_external_validation_block(content_layout, self._external_plot)
         content_layout.addStretch()
 
@@ -747,7 +849,9 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet(
+            "QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }"
+        )
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -758,13 +862,19 @@ class PredictionDashboardPanel(QWidget):
 
         image_frame = QWidget()
         image_frame.setObjectName("imageFrame")
-        image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+        image_frame.setStyleSheet(
+            "QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }"
+        )
         image_layout = QVBoxLayout(image_frame)
         image_layout.setContentsMargins(6, 6, 6, 6)
 
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignCenter)
-        image_label.setPixmap(self._pdf_image.scaledToWidth(self.expanded_width - 120, Qt.SmoothTransformation))
+        image_label.setPixmap(
+            self._pdf_image.scaledToWidth(
+                self.expanded_width - 120, Qt.SmoothTransformation
+            )
+        )
         image_layout.addWidget(image_label)
         container_layout.addWidget(image_frame)
         layout.addWidget(container)
@@ -777,7 +887,9 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet(
+            "QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }"
+        )
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -786,7 +898,9 @@ class PredictionDashboardPanel(QWidget):
         title.setStyleSheet("font-weight: bold; font-size: 13px;")
         container_layout.addWidget(title)
 
-        subtitle = QLabel("Assessment of the model's ability to predict beyond the range of the training data.")
+        subtitle = QLabel(
+            "Assessment of the model's ability to predict beyond the range of the training data."
+        )
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("font-size: 11px;")
         container_layout.addWidget(subtitle)
@@ -794,12 +908,16 @@ class PredictionDashboardPanel(QWidget):
         if pixmap:
             image_frame = QWidget()
             image_frame.setObjectName("imageFrame")
-            image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+            image_frame.setStyleSheet(
+                "QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }"
+            )
             image_layout = QVBoxLayout(image_frame)
             image_layout.setContentsMargins(6, 6, 6, 6)
             image_label = QLabel()
             image_label.setAlignment(Qt.AlignCenter)
-            image_label.setPixmap(pixmap.scaledToWidth(self.expanded_width - 120, Qt.SmoothTransformation))
+            image_label.setPixmap(
+                pixmap.scaledToWidth(self.expanded_width - 120, Qt.SmoothTransformation)
+            )
             image_layout.addWidget(image_label)
             container_layout.addWidget(image_frame)
 
@@ -848,7 +966,9 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet(
+            "QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }"
+        )
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -857,19 +977,25 @@ class PredictionDashboardPanel(QWidget):
         title.setStyleSheet("font-weight: bold; font-size: 13px;")
         container_layout.addWidget(title)
 
-        subtitle = QLabel("Predicted vs experimental values for molecules with known target data.")
+        subtitle = QLabel(
+            "Predicted vs experimental values for molecules with known target data."
+        )
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("font-size: 11px;")
         container_layout.addWidget(subtitle)
 
         image_frame = QWidget()
         image_frame.setObjectName("imageFrame")
-        image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+        image_frame.setStyleSheet(
+            "QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }"
+        )
         image_layout = QVBoxLayout(image_frame)
         image_layout.setContentsMargins(6, 6, 6, 6)
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignCenter)
-        image_label.setPixmap(pixmap.scaledToWidth(self.expanded_width - 120, Qt.SmoothTransformation))
+        image_label.setPixmap(
+            pixmap.scaledToWidth(self.expanded_width - 120, Qt.SmoothTransformation)
+        )
         image_layout.addWidget(image_label)
         container_layout.addWidget(image_frame)
 
@@ -891,6 +1017,7 @@ class PredictionDashboardPanel(QWidget):
 
 class PandasTableModel(QAbstractTableModel):
     """A Qt table model that wraps a pandas DataFrame, with special handling for SMILES rendering and sorting optimization."""
+
     def __init__(self, df: pd.DataFrame):
         super().__init__()
         self._df = df
@@ -950,8 +1077,10 @@ class PandasTableModel(QAbstractTableModel):
                 self._sort_cache[column] = col.astype(str).to_numpy()
         return self._sort_cache[column]
 
+
 class StatsHeader(QHeaderView):
     """A custom header view that displays column names and basic statistics for numeric columns."""
+
     def __init__(self, df: pd.DataFrame, orientation, parent=None):
         super().__init__(orientation, parent)
         self._df = df
@@ -998,11 +1127,15 @@ class StatsHeader(QHeaderView):
         bold_font.setBold(True)
         painter.setFont(bold_font)
         fm = QFontMetrics(bold_font)
-        name_height = fm.boundingRect(0, 0, r.width(), 1000, Qt.AlignHCenter | Qt.TextWordWrap, col_name).height()
+        name_height = fm.boundingRect(
+            0, 0, r.width(), 1000, Qt.AlignHCenter | Qt.TextWordWrap, col_name
+        ).height()
 
         name_rect = rect.adjusted(margin, margin, -margin, -margin)
         name_rect.setHeight(name_height)
-        painter.drawText(name_rect, Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap, col_name)
+        painter.drawText(
+            name_rect, Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap, col_name
+        )
 
         if stats is not None:
             normal_font = painter.font()
@@ -1016,12 +1149,18 @@ class StatsHeader(QHeaderView):
             )
             metrics_rect = r
             metrics_rect.setTop(name_rect.bottom() + 6)
-            painter.drawText(metrics_rect, Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap, metrics_text)
+            painter.drawText(
+                metrics_rect,
+                Qt.AlignHCenter | Qt.AlignTop | Qt.TextWordWrap,
+                metrics_text,
+            )
 
         painter.restore()
 
+
 class ColumnStatsWidget(QWidget):
     """A widget that displays basic statistics for numeric columns in a DataFrame."""
+
     def __init__(self, df: pd.DataFrame, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
@@ -1049,10 +1188,13 @@ class ColumnStatsWidget(QWidget):
 
 class LoadCsvSignals(QObject):
     """Signals for the LoadCsvTask."""
+
     done = Signal(str, pd.DataFrame)
+
 
 class LoadCsvTask(QRunnable):
     """A task for loading a CSV file."""
+
     def __init__(self, key: str, path: Path):
         super().__init__()
         self.key = key
@@ -1066,8 +1208,10 @@ class LoadCsvTask(QRunnable):
         except Exception as exc:
             print(f"Failed to load CSV {self.path}: {exc}")
 
+
 class NumericSortProxy(QSortFilterProxyModel):
     """A proxy model that optimizes sorting for numeric columns by caching sort keys."""
+
     def lessThan(self, left, right):
         model = self.sourceModel()
         keys = model.sort_key(left.column())

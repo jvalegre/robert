@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.1.0"
+version = "2.2.0"
 
 setup(
     name="robert",
@@ -34,11 +34,11 @@ setup(
     url="https://github.com/jvalegre/robert",
     download_url=f"https://github.com/jvalegre/robert/archive/refs/tags/{version}.tar.gz",
     classifiers=[
-        "Development Status :: 5 - Production/Stable", # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
-        "Intended Audience :: Developers", # Define that your audience are developers
+        "Development Status :: 5 - Production/Stable",  # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
+        "Intended Audience :: Developers",  # Define that your audience are developers
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.11", # Specify which python versions you want to support
+        "Programming Language :: Python :: 3.11",  # Specify which python versions you want to support
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: 3.14",
@@ -68,6 +68,13 @@ setup(
     ],
     python_requires=">=3.11",
     include_package_data=True,
+    extras_require={
+        "test": [
+            "pytest>=7.0",
+            "pytest-cov>=4.0",
+            "pytest-qt>=4.0",
+        ],
+    },
     entry_points={
         "console_scripts": [
             "easyrob=robert.gui_easyrob.easyrob_launcher:main",

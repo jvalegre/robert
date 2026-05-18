@@ -4,6 +4,15 @@
 Versions
 ========
 
+Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
+   -  Python API: :class:`~robert.api.RobertModel` with ``fit``, ``predict``, ``score``, and :meth:`~robert.api.RobertModel.robert_scores`
+   -  Opt-in XGBoost screening (``XGB``) with in-code Bayesian optimization bounds
+   -  Voting Regressor/Classifier (``VR``): Bayesian optimization of ensemble weights and member RF/GB/NN hyperparameters
+   -  Regression uncertainty: conformal intervals, meta-model UQ, and auto-UQ (``uq_auto``)
+   -  ``plot_verbosity`` and ``predict_diagnostics`` control diagnostic figure generation
+   -  Matplotlib threading workaround consolidated in ``_mpl_plot_context``; figures closed after saving
+   -  VERIFY metrics plot handles degenerate axis limits when all test scores are equal
+
 Version 2.1.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.1>`__]
    - Adding RMSE values for each fold to calculate t- and Wilconxon tests
    - Add code for BO function

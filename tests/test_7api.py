@@ -12,7 +12,6 @@ import subprocess
 import sys
 import tempfile
 import warnings
-from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -33,10 +32,33 @@ from robert.utils import (
     should_plot_verify_metrics,
 )
 
-_REPO = Path(__file__).resolve().parent.parent
+from tests.conftest import REPO_ROOT, robert_module_dirs
+
+_REPO = REPO_ROOT
 _REG_CSV = _REPO / "tests" / "Robert_example.csv"
 _CLAS_CSV = _REPO / "tests" / "Robert_example_clas.csv"
 _FIXTURE_MODEL = _REPO / "tests" / "fixtures" / "custom_predict_model"
+
+
+@pytest.fixture(autouse=True)
+def api_test_repo_isolation(repo_root):
+    """
+    RobertModel.fit uses os.chdir(workdir); ensure cwd and repo-root artifacts
+    do not leak into legacy integration tests (e.g. test_3verify).
+    """
+    dirs_before = robert_module_dirs(repo_root)
+    yield
+    try:
+        os.chdir(repo_root)
+    except OSError:
+        pass
+    for name in robert_module_dirs(repo_root) - dirs_before:
+        shutil.rmtree(repo_root / name, ignore_errors=True)
+    for dat_file in repo_root.glob("*.dat"):
+        if any(
+            tag in dat_file.name for tag in ("CURATE", "GENERATE", "PREDICT", "VERIFY")
+        ):
+            dat_file.unlink(missing_ok=True)
 
 
 @pytest.fixture
@@ -59,7 +81,9 @@ def _holdout_for_predict(X: pd.DataFrame, n_fit: int) -> pd.DataFrame:
 
 
 def test_yaml_unknown_key_warns_and_known_key_applies(capsys):
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+    ) as f:
         f.write("not_a_robert_option: 1\nseed: 99\n")
         path = f.name
     try:
@@ -76,7 +100,9 @@ def test_yaml_unknown_key_warns_and_known_key_applies(capsys):
 
 def test_yaml_missing_file_message():
     opts = set_options({})
-    opts.varfile = os.path.join(tempfile.gettempdir(), "robert_nonexistent_params_xyz.yaml")
+    opts.varfile = os.path.join(
+        tempfile.gettempdir(), "robert_nonexistent_params_xyz.yaml"
+    )
     _, msg = load_from_yaml(opts)
     assert "not found" in msg.lower()
 
@@ -305,6 +331,29 @@ def test_predict_row_order_matches_input_order(tmp_path, fast_robert_kwargs):
     pred_realigned = np.array([name_to_pred[str(n)] for n in X_hold["Name"]])
     assert pred_realigned.shape == pred_natural.shape
     assert np.allclose(pred_natural, pred_realigned)
+
+
+def test_fit_with_report_and_robert_scores(tmp_path, fast_robert_kwargs):
+    """Full API path with REPORT and robert_scores()."""
+    pytest.importorskip("weasyprint")
+    df = pd.read_csv(_REG_CSV, encoding="utf-8")
+    X = df.drop(columns=["Target_values"])
+    y = df["Target_values"]
+    model = RobertModel(
+        problem_type="reg",
+        filter_mode="no_pfi",
+        workdir=tmp_path,
+        names="Name",
+        report=True,
+        **fast_robert_kwargs,
+    )
+    model.fit(X.iloc[:20], y.iloc[:20])
+    scores = model.robert_scores()
+    assert 0 <= scores["robert_score"] <= 10
+    assert "cv_score_combined" in scores["components"]
+    pdf = tmp_path / "ROBERT_report.pdf"
+    assert pdf.is_file()
+    assert scores["pdf_path"] == str(pdf)
 
 
 def test_fit_accepts_unused_fit_params(tmp_path, fast_robert_kwargs):

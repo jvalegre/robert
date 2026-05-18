@@ -8,22 +8,25 @@ orbs:
 
 commands:
   install-miniconda:
-    description: Install Miniconda on machine executors (Windows/macOS)
+    description: Install Miniconda on machine executors (macOS only; Windows images ship with Miniconda)
     steps:
       - run:
           name: Install Miniconda
           command: |
             set -euo pipefail
+            if command -v conda >/dev/null 2>&1; then
+              echo "Conda already available at $(command -v conda)"
+              conda --version
+              exit 0
+            fi
             MINICONDA_DIR="${HOME}/miniconda3"
             if [ -x "${MINICONDA_DIR}/Scripts/conda.exe" ] || [ -x "${MINICONDA_DIR}/bin/conda" ]; then
               echo "Miniconda already present at ${MINICONDA_DIR}"
             else
               case "$(uname -s)" in
                 MINGW*|MSYS*|CYGWIN*)
-                  INSTALLER_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
-                  curl -fsSL -o miniconda-installer.exe "${INSTALLER_URL}"
-                  ./miniconda-installer.exe /InstallationType=JustMe /RegisterPython=0 /S /D="${MINICONDA_DIR}"
-                  rm -f miniconda-installer.exe
+                  echo "install-miniconda: unexpected Windows path without preinstalled conda"
+                  exit 1
                   ;;
                 Darwin)
                   ARCH="$(uname -m)"
@@ -276,7 +279,6 @@ jobs:
     shell: bash.exe
     steps:
       - checkout
-      - install-miniconda
       - run-conda-test-suite:
           upload_coverage: false
 

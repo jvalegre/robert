@@ -8,7 +8,7 @@ orbs:
 
 commands:
   install-miniconda:
-    description: Install Miniconda on machine executors (macOS only; Windows images ship with Miniconda)
+    description: Ensure conda is on PATH (install on macOS; use image Miniconda on Windows)
     steps:
       - run:
           name: Install Miniconda
@@ -19,7 +19,27 @@ commands:
               conda --version
               exit 0
             fi
-            MINICONDA_DIR="${HOME}/miniconda3"
+
+            MINICONDA_DIR=""
+            case "$(uname -s)" in
+              MINGW*|MSYS*|CYGWIN*)
+                # CircleCI/GitHub Windows images ship Miniconda at C:\Miniconda (not on PATH).
+                for candidate in "${CONDA:-}" "/c/Miniconda" "${HOME}/miniconda3"; do
+                  if [ -n "${candidate}" ] && [ -x "${candidate}/Scripts/conda.exe" ]; then
+                    MINICONDA_DIR="${candidate}"
+                    break
+                  fi
+                done
+                ;;
+              Darwin)
+                MINICONDA_DIR="${HOME}/miniconda3"
+                ;;
+            esac
+
+            if [ -z "${MINICONDA_DIR}" ]; then
+              MINICONDA_DIR="${HOME}/miniconda3"
+            fi
+
             if [ -x "${MINICONDA_DIR}/Scripts/conda.exe" ] || [ -x "${MINICONDA_DIR}/bin/conda" ]; then
               echo "Miniconda already present at ${MINICONDA_DIR}"
             else
@@ -279,6 +299,7 @@ jobs:
     shell: bash.exe
     steps:
       - checkout
+      - install-miniconda
       - run-conda-test-suite:
           upload_coverage: false
 

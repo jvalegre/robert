@@ -34,11 +34,11 @@ setup(
     url="https://github.com/jvalegre/robert",
     download_url=f"https://github.com/jvalegre/robert/archive/refs/tags/{version}.tar.gz",
     classifiers=[
-        "Development Status :: 5 - Production/Stable", # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
-        "Intended Audience :: Developers", # Define that your audience are developers
+        "Development Status :: 5 - Production/Stable",  # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
+        "Intended Audience :: Developers",  # Define that your audience are developers
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.11", # Specify which python versions you want to support
+        "Programming Language :: Python :: 3.11",  # Specify which python versions you want to support
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: 3.14",

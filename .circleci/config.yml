@@ -298,10 +298,31 @@ jobs:
           file: /tmp/coverage.xml
           token: CODECOV_TOKEN
 
+  lint:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install Ruff
+          command: python -m pip install 'ruff==0.14.5'
+      - run:
+          name: Ruff check
+          command: ruff check .
+      - run:
+          name: Ruff format check
+          command: ruff format --check .
+
 workflows:
   sample:
     jobs:
-      - build-and-test
+      - lint
+      - build-and-test:
+          requires:
+            - lint
+      - build-and-test-windows:
+          requires:
+            - lint
       - codecov-coverage:
           requires:
             - build-and-test

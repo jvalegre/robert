@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 import numpy as np
 from scipy.stats import norm
@@ -34,7 +34,9 @@ def _as_float_array(x: Sequence[float]) -> np.ndarray:
     return np.asarray(x, dtype=float).ravel()
 
 
-def _normalize_metric_weights(weights: Optional[Mapping[str, float]]) -> Dict[str, float]:
+def _normalize_metric_weights(
+    weights: Optional[Mapping[str, float]],
+) -> Dict[str, float]:
     base = dict(DEFAULT_METRIC_WEIGHTS)
     if weights is not None:
         for key in base:
@@ -131,7 +133,9 @@ def apply_uncertainty_scaler(
         knots_r = np.asarray(params.get("knots_r", []), dtype=float)
         if knots_u.size == 0:
             return u
-        return np.maximum(np.interp(u, knots_u, knots_r, left=knots_r[0], right=knots_r[-1]), 0.0)
+        return np.maximum(
+            np.interp(u, knots_u, knots_r, left=knots_r[0], right=knots_r[-1]), 0.0
+        )
 
     raise ValueError(f"Unknown scaler method in params: {method!r}")
 
@@ -149,8 +153,8 @@ def _coverage_error(abs_resid: np.ndarray, sigma: np.ndarray, coverage: float) -
 def _gaussian_nll(abs_resid: np.ndarray, sigma: np.ndarray) -> float:
     sigma = np.maximum(sigma, 1e-12)
     # NLL for Laplace-like on abs residual under Gaussian proxy
-    var = sigma ** 2
-    return float(np.mean(0.5 * np.log(2.0 * np.pi * var) + 0.5 * (abs_resid ** 2) / var))
+    var = sigma**2
+    return float(np.mean(0.5 * np.log(2.0 * np.pi * var) + 0.5 * (abs_resid**2) / var))
 
 
 def _sharpness(sigma: np.ndarray) -> float:
@@ -177,7 +181,9 @@ def score_uncertainty_candidate(
 
 def _oof_mean_train(Xy_data: Mapping[str, Any]) -> np.ndarray:
     preds_all = Xy_data.get("y_pred_train_all", [])
-    return np.array([float(np.mean(p)) if len(p) else np.nan for p in preds_all], dtype=float)
+    return np.array(
+        [float(np.mean(p)) if len(p) else np.nan for p in preds_all], dtype=float
+    )
 
 
 def _train_abs_residuals(Xy_data: Mapping[str, Any]) -> np.ndarray:
@@ -275,7 +281,9 @@ def evaluate_uq_candidates(
 
     Returns dict with keys: selected, scaler_params, candidate_scores, coverage, n_eval.
     """
-    candidates_cfg = getattr(args, "uq_auto_candidates", None) or list(DEFAULT_CANDIDATES)
+    candidates_cfg = getattr(args, "uq_auto_candidates", None) or list(
+        DEFAULT_CANDIDATES
+    )
     if isinstance(candidates_cfg, str):
         candidates_cfg = [c.strip() for c in candidates_cfg.split(",") if c.strip()]
 
@@ -320,7 +328,9 @@ def evaluate_uq_candidates(
             params = fit_uncertainty_scaler(
                 scaler_method, u_raw[fit_ix], abs_resid[fit_ix]
             )
-            u_scaled_eval = apply_uncertainty_scaler(scaler_method, u_raw[eval_ix], params)
+            u_scaled_eval = apply_uncertainty_scaler(
+                scaler_method, u_raw[eval_ix], params
+            )
             score = score_uncertainty_candidate(
                 u_scaled_eval, abs_resid[eval_ix], coverage, metric_weights
             )
@@ -409,8 +419,7 @@ def apply_auto_uq(
     meta_path = Path("PREDICT") / "uq_auto_metadata.json"
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     serializable = {
-        k: (v if not isinstance(v, dict) else dict(v))
-        for k, v in selection.items()
+        k: (v if not isinstance(v, dict) else dict(v)) for k, v in selection.items()
     }
     with meta_path.open("w", encoding="utf-8") as fh:
         json.dump(serializable, fh, indent=2)

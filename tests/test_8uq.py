@@ -82,9 +82,7 @@ def test_fit_predict_meta_uncertainty_modes(tmp_path, fast_robert_kwargs):
     assert y_hat.shape == uq_meta.shape
     assert np.isfinite(uq_meta).all() and (uq_meta >= 0).all()
     _, uq_total = model.predict(X_hold, return_uncertainty="total")
-    y_d, uq_m, uq_meta2, uq_tot = model.predict(
-        X_hold, return_uncertainty="decomposed"
-    )
+    y_d, uq_m, uq_meta2, uq_tot = model.predict(X_hold, return_uncertainty="decomposed")
     assert y_d.shape == uq_m.shape == uq_meta2.shape == uq_tot.shape
     assert np.all(uq_tot >= uq_m - 1e-9)
     assert np.allclose(uq_tot, uq_total, rtol=1e-5, atol=1e-5)
@@ -130,9 +128,9 @@ def test_score_prefers_calibrated_scale():
     abs_res = np.array([1.0, 1.0, 1.0, 1.0])
     bad = np.full(4, 10.0)
     good = np.full(4, 1.0)
-    assert score_uncertainty_candidate(good, abs_res, 0.9) < score_uncertainty_candidate(
-        bad, abs_res, 0.9
-    )
+    assert score_uncertainty_candidate(
+        good, abs_res, 0.9
+    ) < score_uncertainty_candidate(bad, abs_res, 0.9)
 
 
 def test_evaluate_uq_candidates_deterministic():

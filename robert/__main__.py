@@ -12,9 +12,11 @@ from robert import robert
 # If we are running from a wheel, add the wheel to sys.path
 # This allows the usage python pip-*.whl/pip install pip-*.whl
 
-if __package__ != 'robert':
-    print('ROBERT is not installed! Use: pip install robert or conda install -y -c conda-forge robert.')
+if __package__ != "robert":
+    print(
+        "ROBERT is not installed! Use: pip install robert or conda install -y -c conda-forge robert."
+    )
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     robert.main()
     sys.exit()

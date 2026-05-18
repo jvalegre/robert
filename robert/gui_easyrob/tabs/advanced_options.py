@@ -28,7 +28,6 @@ Notes:
 # Attempt local imports first (portable mode). If they fail,
 # fall back to installed package imports.
 try:
-
     from utils.utils_gui import (
         AssetLibrary,
         QCheckBox,
@@ -47,8 +46,7 @@ try:
         Qt,
     )
 
-except ImportError as e:
-
+except ImportError:
     from robert.gui_easyrob.utils.utils_gui import (
         AssetLibrary,
         QCheckBox,
@@ -67,14 +65,16 @@ except ImportError as e:
         Qt,
     )
 
+
 class AdvancedOptionsTab(QWidget):
     """Tab for advanced options in the easyROB application."""
+
     def __init__(self, type_dropdown, tab_widget):
         super().__init__()
         self.type = type_dropdown
         self.tab_widget = tab_widget  # Reference to the main QTabWidget
         main_layout = QVBoxLayout(self)
-        grid_layout = QGridLayout()  
+        grid_layout = QGridLayout()
         self.box_features = "QGroupBox { font-weight: bold; }"
 
         # Create section boxes
@@ -93,14 +93,13 @@ class AdvancedOptionsTab(QWidget):
         # PREDICT (Bottom Row, Full Width)
         grid_layout.addWidget(predict_box, 2, 0, 1, 2)
 
-
         # Add the grid layout to the main layout
         main_layout.addLayout(grid_layout)
         self.setLayout(main_layout)
 
     def go_to_help_section(self, anchor):
         """Open a documentation section in the browser."""
-        
+
         base_url = "https://robert.readthedocs.io/en/latest/Technical/defaults.html"
 
         if anchor.upper() == "GENERAL":
@@ -139,7 +138,7 @@ class AdvancedOptionsTab(QWidget):
         self.seed = QLineEdit()
         self.seed.setPlaceholderText("0")
         layout.addRow(QLabel("seed:"), self.seed)
-        
+
         self.kfold = QLineEdit()
         self.kfold.setPlaceholderText("5")
         layout.addRow(QLabel("kfold:"), self.kfold)
@@ -149,7 +148,7 @@ class AdvancedOptionsTab(QWidget):
         layout.addRow(QLabel("repeat_kfolds:"), self.repeat_kfolds)
 
         self.split = QComboBox()
-        self.split.addItems([ "even", "RND", "stratified", "KN", "extra_q1", "extra_q5" ])
+        self.split.addItems(["even", "RND", "stratified", "KN", "extra_q1", "extra_q5"])
         layout.addRow(QLabel("split:"), self.split)
 
         # --- Help button at the bottom ---
@@ -165,7 +164,7 @@ class AdvancedOptionsTab(QWidget):
     def create_curate_section(self):
         """Creates the CURATE section with a box and input fields."""
         box = QGroupBox("CURATE")
-        box.setStyleSheet(self.box_features)  
+        box.setStyleSheet(self.box_features)
         layout = QFormLayout()
 
         # Add new input fields for additional options
@@ -206,7 +205,7 @@ class AdvancedOptionsTab(QWidget):
     def create_generate_section(self):
         """Creates the GENERATE section with a box and input fields."""
         box = QGroupBox("GENERATE")
-        box.setStyleSheet(self.box_features)  
+        box.setStyleSheet(self.box_features)
         layout = QFormLayout()
 
         self.model_group = QGroupBox("Models")
@@ -220,9 +219,19 @@ class AdvancedOptionsTab(QWidget):
 
             # Determine which models should be checked by default
             if self.type.currentText() == "Regression":
-                default_checked_models = ["RF", "GB", "NN", "MVL"]  # Regression defaults
+                default_checked_models = [
+                    "RF",
+                    "GB",
+                    "NN",
+                    "MVL",
+                ]  # Regression defaults
             else:
-                default_checked_models = ["RF", "GB", "NN", "AdaB"]  # Classification defaults
+                default_checked_models = [
+                    "RF",
+                    "GB",
+                    "NN",
+                    "AdaB",
+                ]  # Classification defaults
 
             # Update check states instead of recreating widgets
             for model, checkbox in self.modellist.items():
@@ -248,14 +257,14 @@ class AdvancedOptionsTab(QWidget):
         # Error type selection that changes dynamically but is also user-selectable
         self.error_type = QComboBox()
         layout.addRow(QLabel("error_type:"), self.error_type)
-        
+
         def update_error_type():
             self.error_type.clear()
             if self.type.currentText() == "Regression":
                 self.error_type.addItems(["rmse", "mae", "r2"])
             else:
                 self.error_type.addItems(["mcc", "f1", "acc"])
-        
+
         self.type.currentIndexChanged.connect(update_error_type)
         update_error_type()  # Initialize with the correct default values
 
@@ -308,17 +317,17 @@ class AdvancedOptionsTab(QWidget):
     def create_predict_section(self):
         """Creates the PREDICT section with a box and input fields."""
         box = QGroupBox("PREDICT")
-        box.setStyleSheet(self.box_features)  
+        box.setStyleSheet(self.box_features)
         layout = QFormLayout()
-        
+
         self.t_value = QLineEdit()
         self.t_value.setPlaceholderText("2")
         layout.addRow(QLabel("t_value:"), self.t_value)
-        
+
         self.shap_show = QLineEdit()
         self.shap_show.setPlaceholderText("10")
         layout.addRow(QLabel("shap_show:"), self.shap_show)
-        
+
         self.pfi_show = QLineEdit()
         self.pfi_show.setPlaceholderText("10")
         layout.addRow(QLabel("pfi_show:"), self.pfi_show)

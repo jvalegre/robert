@@ -83,7 +83,9 @@ def _suffix_title(filter_mode: str) -> str:
 def _find_params_csv(best_subdir: Path) -> Path:
     if not best_subdir.is_dir():
         raise FileNotFoundError(str(best_subdir))
-    csvs = sorted(p for p in best_subdir.glob("*.csv") if not p.name.endswith("_db.csv"))
+    csvs = sorted(
+        p for p in best_subdir.glob("*.csv") if not p.name.endswith("_db.csv")
+    )
     if len(csvs) != 1:
         raise RuntimeError(
             "Expected exactly one parameter CSV in "
@@ -124,7 +126,9 @@ def _resolve_prediction_id_column(
     )
 
 
-def _resolve_predict_csv(workdir: Path, pred_stem: str, model_code: str, suffix: str) -> str:
+def _resolve_predict_csv(
+    workdir: Path, pred_stem: str, model_code: str, suffix: str
+) -> str:
     """Path to PREDICT output CSV for the external set (exact file, else sorted glob)."""
     csv_dir = workdir / "PREDICT" / "csv_test"
     exact = csv_dir / f"{pred_stem}_{model_code}_{suffix}.csv"
@@ -204,7 +208,9 @@ class RobertModel(BaseEstimator):
                 stacklevel=2,
             )
             if problem_type != "reg":
-                raise ValueError("Pass only one of 'problem_type' or deprecated 'type'.")
+                raise ValueError(
+                    "Pass only one of 'problem_type' or deprecated 'type'."
+                )
             problem_type = kwargs.pop("type")  # type: ignore[assignment]
         if "filter" in kwargs:
             warnings.warn(
@@ -213,7 +219,9 @@ class RobertModel(BaseEstimator):
                 stacklevel=2,
             )
             if filter_mode != "pfi":
-                raise ValueError("Pass only one of 'filter_mode' or deprecated 'filter'.")
+                raise ValueError(
+                    "Pass only one of 'filter_mode' or deprecated 'filter'."
+                )
             filter_mode = kwargs.pop("filter")  # type: ignore[assignment]
 
         self.problem_type = problem_type
@@ -387,7 +395,9 @@ class RobertModel(BaseEstimator):
         y_series.name = y_col
         return X_df, y_series, names_col
 
-    def _build_train_frame(self, X_df: pd.DataFrame, y_series: pd.Series) -> pd.DataFrame:
+    def _build_train_frame(
+        self, X_df: pd.DataFrame, y_series: pd.Series
+    ) -> pd.DataFrame:
         out = X_df.copy()
         out[y_series.name] = y_series.values
         return out
@@ -472,7 +482,11 @@ class RobertModel(BaseEstimator):
             self.feature_names_in_ = None
         model_names = str(model_data.get("names") or "")
         if model_names != names_col:
-            if model_names and names_col and model_names.casefold() == names_col.casefold():
+            if (
+                model_names
+                and names_col
+                and model_names.casefold() == names_col.casefold()
+            ):
                 warnings.warn(
                     f"Names column casing normalized to saved model column {model_names!r} "
                     f"(was {names_col!r}).",
@@ -570,9 +584,7 @@ class RobertModel(BaseEstimator):
             missing = [c for c in descriptors if c not in X_df.columns]
             if missing:
                 tail = "..." if len(missing) > 10 else ""
-                raise ValueError(
-                    f"Missing descriptor columns: {missing[:10]!r}{tail}"
-                )
+                raise ValueError(f"Missing descriptor columns: {missing[:10]!r}{tail}")
 
         pred_id = uuid.uuid4().hex[:12]
         pred_name = f"_robert_predict_{pred_id}.csv"

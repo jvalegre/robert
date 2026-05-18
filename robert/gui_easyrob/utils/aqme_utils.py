@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
 # ------------------------------------------------------------
 from .utils_gui import DropLabel
 
+
 class ChemDrawFileDialog(QDialog):
     """Dialog that collects the main ChemDraw/SDF input file."""
 
@@ -88,9 +89,12 @@ class ChemDrawFileDialog(QDialog):
     def continue_clicked(self):
         """Check if a main ChemDraw file has been selected and accept the dialog."""
         if not self.main_chemdraw_path:
-            QMessageBox.warning(self, "Missing File", "Please select a main ChemDraw file.")
+            QMessageBox.warning(
+                self, "Missing File", "Please select a main ChemDraw file."
+            )
             return
         self.accept()
+
 
 def mcs_process(smiles_list, result_queue):
     """Find the maximum common substructure for a list of SMILES."""

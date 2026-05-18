@@ -59,7 +59,9 @@ def _holdout_for_predict(X: pd.DataFrame, n_fit: int) -> pd.DataFrame:
 
 
 def test_yaml_unknown_key_warns_and_known_key_applies(capsys):
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False, encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+    ) as f:
         f.write("not_a_robert_option: 1\nseed: 99\n")
         path = f.name
     try:
@@ -76,7 +78,9 @@ def test_yaml_unknown_key_warns_and_known_key_applies(capsys):
 
 def test_yaml_missing_file_message():
     opts = set_options({})
-    opts.varfile = os.path.join(tempfile.gettempdir(), "robert_nonexistent_params_xyz.yaml")
+    opts.varfile = os.path.join(
+        tempfile.gettempdir(), "robert_nonexistent_params_xyz.yaml"
+    )
     _, msg = load_from_yaml(opts)
     assert "not found" in msg.lower()
 

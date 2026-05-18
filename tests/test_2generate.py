@@ -75,9 +75,7 @@ def _log_line_metric_close(line, prefix, expected, *, rel_tol=0.05, abs_tol=0.02
         (
             "reduced_adab"
         ),  # test for other GP model (important since PFI filter tries to discard all the descriptors)
-        (
-            "reduced_xgb"
-        ),  # test for XGB model (tree booster with feature importances)
+        ("reduced_xgb"),  # test for XGB model (tree booster with feature importances)
         ("reduced_vr"),  # test for Voting Regressor model
         ("reduced_vr_clas"),  # test Voting Classifier workflow
         ("reduced_clas"),  # test for clasification models
@@ -126,7 +124,13 @@ def test_GENERATE(test_job):
         generate_kwargs = {"generate": True, "csv_name": csv_name, "y": "Target_values"}
         if test_job != "standard":
             # add model
-            if test_job not in ["reduced_gp", "reduced_adab", "reduced_xgb", "reduced_vr", "reduced_vr_clas"]:
+            if test_job not in [
+                "reduced_gp",
+                "reduced_adab",
+                "reduced_xgb",
+                "reduced_vr",
+                "reduced_vr_clas",
+            ]:
                 generate_kwargs["model"] = ["RF"]
             elif test_job == "reduced_gp":
                 generate_kwargs["model"] = ["GP"]
@@ -465,7 +469,9 @@ def test_GENERATE(test_job):
         if test_job in ["reduced_clas", "reduced_vr_clas"]:
             model_name = "RF" if test_job == "reduced_clas" else "VR"
             csv_clas = glob.glob(
-                os.path.join(path_generate, "Best_model", "PFI", f"{model_name}_PFI.csv")
+                os.path.join(
+                    path_generate, "Best_model", "PFI", f"{model_name}_PFI.csv"
+                )
             )
             df = pd.read_csv(csv_clas[0])
             if "error_type" in df.columns:

@@ -86,7 +86,7 @@ class report:
             print(
                 "\nx The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'"
             )
-            sys.exit()
+            sys.exit(1)
         finally:
             if platform.system() == "Windows":
                 os.dup2(old_stderr, 2)
@@ -174,22 +174,34 @@ class report:
 
         # Suppress fontconfig warnings from WeasyPrint on Windows
         # These warnings come from the C library level, so we need to redirect at OS level
-        if platform.system() == "Windows":
-            import tempfile
+        try:
+            if platform.system() == "Windows":
+                import tempfile
 
-            # Create a temporary file to redirect stderr
-            temp_stderr = tempfile.TemporaryFile(mode="w+")
-            old_stderr = os.dup(2)  # Duplicate stderr file descriptor
-            os.dup2(temp_stderr.fileno(), 2)  # Redirect stderr to temp file
+                # Create a temporary file to redirect stderr
+                temp_stderr = tempfile.TemporaryFile(mode="w+")
+                old_stderr = os.dup(2)  # Duplicate stderr file descriptor
+                os.dup2(temp_stderr.fileno(), 2)  # Redirect stderr to temp file
 
-            try:
+                try:
+                    _ = make_report(report_html, HTML)
+                finally:
+                    os.dup2(old_stderr, 2)  # Restore stderr
+                    os.close(old_stderr)
+                    temp_stderr.close()
+            else:
                 _ = make_report(report_html, HTML)
-            finally:
-                os.dup2(old_stderr, 2)  # Restore stderr
-                os.close(old_stderr)
-                temp_stderr.close()
-        else:
-            _ = make_report(report_html, HTML)
+        except Exception as exc:
+            print(f"\nx  ROBERT_report.pdf could not be created: {exc}")
+            sys.exit(1)
+
+        pdf_path = Path(os.getcwd()) / "ROBERT_report.pdf"
+        if not pdf_path.is_file():
+            print(
+                "\nx  ROBERT_report.pdf was not written to the working directory "
+                "(WeasyPrint may have failed silently)."
+            )
+            sys.exit(1)
 
         # Remove report.css file
         os.remove("report.css")
@@ -238,7 +250,8 @@ class report:
                 data_score = calc_score(dat_files, suffix, pred_type, data_score)
 
                 # initial two-column ROBERT score summary
-                score_info = f"""{spacing}<img src="file:///{self.args.path_icons}/score_{data_score[f"robert_score_{suffix}"]}.jpg" style="width: 330px; margin-top:7px; margin-bottom:-18px;"></p>"""
+                score_idx = max(0, min(int(data_score[f"robert_score_{suffix}"]), 10))
+                score_info = f"""{spacing}<img src="file:///{self.args.path_icons}/score_{score_idx}.jpg" style="width: 330px; margin-top:7px; margin-bottom:-18px;"></p>"""
                 columns_score.append(
                     get_col_score(score_info, data_score, suffix, spacing, eval_only)
                 )

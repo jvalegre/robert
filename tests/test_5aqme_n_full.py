@@ -145,20 +145,37 @@ def test_AQME(test_job):
     if test_job == "2smiles_columns":
         cmd_robert = cmd_robert + ["--aqme", "--alpha", "0.5"]
 
+    # Logger.print() writes to stdout; capturing it can fill the pipe buffer on
+    # long AQME workflows and block ROBERT before REPORT finishes on CI.
+    env = os.environ.copy()
+    if sys.platform != "win32":
+        lib = os.path.join(sys.prefix, "lib")
+        if os.path.isdir(lib):
+            prev = env.get("LD_LIBRARY_PATH", "")
+            if lib not in prev.split(os.pathsep):
+                env["LD_LIBRARY_PATH"] = lib + (os.pathsep + prev if prev else "")
+
     completed = subprocess.run(
         cmd_robert,
         cwd=path_main,
-        capture_output=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
+        env=env,
     )
+    stderr_tail = (completed.stderr or "")[-8000:]
     assert completed.returncode == 0, (
-        "ROBERT subprocess failed "
-        f"(exit {completed.returncode}):\n{completed.stderr[-8000:]}"
+        f"ROBERT subprocess failed (exit {completed.returncode}):\n{stderr_tail}"
     )
 
     # check that all the plots, CSV and DAT files are created
-    # find ROBERT_report.pdf
-    assert (Path(path_main) / "ROBERT_report.pdf").is_file()
+    pdf_path = Path(path_main) / "ROBERT_report.pdf"
+    debug_path = Path(path_main) / "report_debug.txt"
+    assert pdf_path.is_file(), (
+        "ROBERT_report.pdf missing after ROBERT exited 0. "
+        f"report_debug.txt exists={debug_path.is_file()}. "
+        f"stderr tail:\n{stderr_tail[-4000:]}"
+    )
 
     # CURATE folder
     if (

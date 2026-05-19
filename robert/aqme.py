@@ -276,7 +276,13 @@ class aqme:
             for keyword in extra_keywords.split():
                 command.append(keyword)
 
-        subprocess.run(command)
+        result = subprocess.run(command)
+        if result.returncode != 0:
+            self.args.log.write(
+                f"\nx  AQME subprocess failed with exit code {result.returncode}."
+            )
+            self.args.log.finalize()
+            sys.exit(1)
 
     def init_aqme(self):
         """

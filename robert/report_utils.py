@@ -1272,7 +1272,7 @@ def make_report(report_html, HTML):
             print(
                 '\nx  ROBERT_report.pdf is open! Please, close the PDF file and run ROBERT again with --report (i.e., "python -m robert --report").'
             )
-            sys.exit()
+            sys.exit(1)
     pdf = make_pdf(report_html, HTML, css_files)
     _ = Path(outfile).write_bytes(pdf)
 

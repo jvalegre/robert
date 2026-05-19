@@ -112,7 +112,7 @@ class aqme:
                     f"\nx  WARNING! The names provided in the CSV contain * (i.e. {name_csv_indiv}). Please, remove all the * characters."
                 )
                 self.args.log.finalize()
-                sys.exit()
+                sys.exit(1)
 
         # find if there is more than one SMILES column in the CSV file
         for column in csv_df.columns:
@@ -170,7 +170,8 @@ class aqme:
                         self.args.log.write(
                             "x  WARNING! ROBERT stopped due to a problem with the AQME job. Please, check the previous AQME warnings."
                         )
-                        sys.exit()
+                        self.args.log.finalize()
+                        sys.exit(1)
                     df_temp.columns = [
                         f"{col}_{smi_suffix}"
                         if col not in ["code_name", "SMILES"] and col not in aqme_args
@@ -252,7 +253,8 @@ class aqme:
             self.args.log.write(
                 "\nx  The initial AQME descriptor protocol did not create any CSV output!"
             )
-            sys.exit()
+            self.args.log.finalize()
+            sys.exit(1)
 
         # remove atomic properties if no SMARTS patterns were selected in qdescp,
         # and drop AQME argument columns from CSV inputs (single read/write)
@@ -295,7 +297,8 @@ class aqme:
             self.args.log.write(
                 "x  AQME is not installed (required for the --aqme option)! The program is typically installed within 2-5 minutes (https://aqme.readthedocs.io, see the Installation section)"
             )
-            sys.exit()
+            self.args.log.finalize()
+            sys.exit(1)
 
 
 def filter_atom_prop_and_aqme_args(aqme_db, csv_df, *, strip_atom_lists):

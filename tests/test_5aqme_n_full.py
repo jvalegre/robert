@@ -387,7 +387,7 @@ def test_AQME(test_job):
         if test_job == "full_workflow":
             # model summary, robert score, predict graphs and model metrics
             assert robert_score[0] == "5"
-            assert robert_score[1] == "6"
+            assert robert_score[1] == "7"
             assert ml_model_count == 2
             assert partition_count == 2
             assert points_desc[0] == "30:5"
@@ -402,8 +402,8 @@ def test_AQME(test_job):
             # advanced analysis, predictive ability section 2
             assert "1 / 2" in pred_ability[0]
             assert "report/score_w_2_1.jpg" in pred_ability[0]
-            assert "1 / 2" in pred_ability[1]
-            assert "report/score_w_2_1.jpg" in pred_ability[1]
+            assert "2 / 2" in pred_ability[1]
+            assert "report/score_w_2_2.jpg" in pred_ability[1]
             # advanced analysis, predictive ability of external test set section 3a
             assert "2 / 2" in pred_test_ability[0]
             assert "report/score_w_2_2.jpg" in pred_test_ability[0]
@@ -435,11 +435,11 @@ def test_AQME(test_job):
 
         elif test_job == "full_clas":
             # model summary, robert score, predict graphs and model metrics
-            assert robert_score[0] == "4"
-            assert robert_score[1] == "6"
+            assert robert_score[0] == "6"
+            assert robert_score[1] == "3"
             assert ml_model_count == 2
             assert points_desc[0] == "29:6"
-            assert points_desc[1] == "29:4"
+            assert points_desc[1] == "29:2"
             # advanced analysis, flawed models section 1
             assert "-2 / 0" in flawed_models[0]
             assert "-2 / 0" in flawed_models[1]
@@ -447,21 +447,21 @@ def test_AQME(test_job):
             # advanced analysis, predictive ability section 2
             assert "2 / 3" in pred_ability[0]
             assert "report/score_w_3_2.jpg" in pred_ability[0]
-            assert "2 / 3" in pred_ability[1]
-            assert "report/score_w_3_2.jpg" in pred_ability[1]
+            assert "1 / 3" in pred_ability[1]
+            assert "report/score_w_3_1.jpg" in pred_ability[1]
             # advanced analysis, predictive ability of external test set section 3a
             assert "3 / 3" in pred_test_ability[0]
             assert "report/score_w_3_3.jpg" in pred_test_ability[0]
-            assert "3 / 3" in pred_test_ability[1]
-            assert "report/score_w_3_3.jpg" in pred_test_ability[1]
+            assert "1 / 3" in pred_test_ability[1]
+            assert "report/score_w_3_1.jpg" in pred_test_ability[1]
             # advanced analysis, predictive ability of CV vs test section 3b
             assert "1 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             assert "2 / 2" in cv_vs_test_models[1]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[1]
-            # advanced analysis, extrapolation section 3d
-            assert "0 / 2" in extrapol_ability_clas[0]
-            assert "report/score_w_2_0.jpg" in extrapol_ability_clas[0]
+            # advanced analysis, consistency (sorted CV) section 3c
+            assert "2 / 2" in extrapol_ability_clas[0]
+            assert "report/score_w_2_2.jpg" in extrapol_ability_clas[0]
             assert "1 / 2" in extrapol_ability_clas[1]
             assert "report/score_w_2_1.jpg" in extrapol_ability_clas[1]
             # y distribution and Pearson images

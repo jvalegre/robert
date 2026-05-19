@@ -11,6 +11,7 @@ import pytest
 import shutil
 import subprocess
 import pandas as pd
+from pathlib import Path
 
 # saves the working directory
 path_main = os.getcwd()
@@ -144,11 +145,20 @@ def test_AQME(test_job):
     if test_job == "2smiles_columns":
         cmd_robert = cmd_robert + ["--aqme", "--alpha", "0.5"]
 
-    subprocess.run(cmd_robert)
+    completed = subprocess.run(
+        cmd_robert,
+        cwd=path_main,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, (
+        "ROBERT subprocess failed "
+        f"(exit {completed.returncode}):\n{completed.stderr[-8000:]}"
+    )
 
     # check that all the plots, CSV and DAT files are created
     # find ROBERT_report.pdf
-    assert os.path.exists(f"{path_main}/ROBERT_report.pdf")
+    assert (Path(path_main) / "ROBERT_report.pdf").is_file()
 
     # CURATE folder
     if (

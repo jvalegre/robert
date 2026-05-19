@@ -142,7 +142,7 @@ class aqme:
 
                 # run AQME-QDESCP to generate descriptors
                 cmd_qdescp = [
-                    "python",
+                    sys.executable,
                     "-u",
                     "-m",
                     "aqme",

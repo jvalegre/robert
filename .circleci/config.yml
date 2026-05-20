@@ -184,7 +184,7 @@ commands:
             esac
             command -v xtb
             xtb --version
-            python -c "import aqme; print('aqme', aqme.__version__)"
+            python -c "import importlib.metadata as m; import aqme; print('aqme', m.version('aqme'))"
 
             set +e
 

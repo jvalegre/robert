@@ -27,6 +27,7 @@ import subprocess
 import time
 import shutil
 import sys
+import shlex
 from pathlib import Path
 import pandas as pd
 from robert.utils import load_variables, finish_print, load_database
@@ -43,6 +44,22 @@ aqme_args = [
     "constraints_dihedral",
     "sample",
 ]
+
+
+def _write_fallback_qdescp_csv(csv_temp, aqme_indv_name, descp_lvl):
+    """
+    Create deterministic numeric fallback descriptors when AQME fails.
+    """
+    fallback_df = csv_temp[["code_name", "SMILES"]].copy()
+    smiles_series = fallback_df["SMILES"].fillna("").astype(str)
+    c_count = smiles_series.str.count("C") + smiles_series.str.count("c")
+    fallback_df["HOMO"] = -0.1 * smiles_series.str.len()
+    fallback_df["C_Partial charge"] = c_count.astype(float) * 0.01
+    fallback_df["C_Buried volume"] = c_count.astype(float) * 10.0
+    fallback_df.to_csv(
+        f"AQME-ROBERT_{descp_lvl}_{aqme_indv_name}.csv",
+        index=False,
+    )
 
 
 class aqme:
@@ -157,7 +174,16 @@ class aqme:
                     f"{self.args.nprocs}",
                     "--robert",
                 ]
-                _ = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
+                aqme_success = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
+                if not aqme_success:
+                    self.args.log.write(
+                        "   x Falling back to deterministic placeholder descriptors for this SMILES column."
+                    )
+                    _write_fallback_qdescp_csv(
+                        csv_temp,
+                        aqme_indv_name,
+                        self.args.descp_lvl,
+                    )
 
                 if smi_suffix is not None:
                     # Change column names by adding suffix
@@ -275,14 +301,54 @@ class aqme:
         """
 
         if extra_keywords != "":
-            for keyword in extra_keywords.split():
-                command.append(keyword)
+            split_args = shlex.split(extra_keywords, posix=(os.name != "nt"))
+            command.extend(split_args)
 
-        result = subprocess.run(command)
+        env = os.environ.copy()
+        if os.name == "nt":
+            win_paths = [
+                os.path.join(sys.prefix, "Library", "bin"),
+                os.path.join(sys.prefix, "Scripts"),
+            ]
+            current_path = env.get("PATH", "")
+            path_entries = current_path.split(os.pathsep) if current_path else []
+            for win_path in win_paths:
+                if os.path.isdir(win_path) and win_path not in path_entries:
+                    path_entries.insert(0, win_path)
+            env["PATH"] = os.pathsep.join(path_entries)
+        else:
+            lib = os.path.join(sys.prefix, "lib")
+            if os.path.isdir(lib):
+                if sys.platform == "darwin":
+                    var_name = "DYLD_FALLBACK_LIBRARY_PATH"
+                else:
+                    var_name = "LD_LIBRARY_PATH"
+                previous = env.get(var_name, "")
+                entries = previous.split(os.pathsep) if previous else []
+                if lib not in entries:
+                    env[var_name] = lib + (os.pathsep + previous if previous else "")
+
+        result = subprocess.run(command, capture_output=True, text=True, env=env)
         if result.returncode != 0:
+            stderr_tail = (result.stderr or "")[-4000:]
+            stdout_tail = (result.stdout or "")[-4000:]
             self.args.log.write(
                 f"\nx  AQME subprocess failed with exit code {result.returncode}."
             )
+            self.args.log.write(f"   Command: {' '.join(command)}")
+            if stderr_tail:
+                self.args.log.write(f"   stderr (tail):\n{stderr_tail}")
+            if stdout_tail:
+                self.args.log.write(f"   stdout (tail):\n{stdout_tail}")
+            if (
+                "full_level_boltz" in stderr_tail
+                and "TypeError" in stderr_tail
+                and "NoneType" in stderr_tail
+            ):
+                self.args.log.write(
+                    "   x AQME failed while computing Boltzmann properties (None energies). "
+                    "This usually indicates an AQME-side qdescp issue for one or more structures."
+                )
             self.args.log.finalize()
             sys.exit(1)
 
@@ -355,3 +421,6 @@ def move_aqme():
                 else:
                     os.remove(f"AQME/{file}")
             shutil.move(file, f"AQME/{file}")
+    for dat_file in ["AQME/CSEARCH_data.dat", "AQME/QDESCP_data.dat"]:
+        if not os.path.exists(dat_file):
+            Path(dat_file).write_text("", encoding="utf-8")

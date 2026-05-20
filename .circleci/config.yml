@@ -145,6 +145,7 @@ commands:
               Linux)
                 CONDA_PKGS+=(
                   libgfortran=14.2.0
+                  libgomp
                   libxkbcommon
                   mscorefonts
                   fonts-conda-forge
@@ -172,7 +173,16 @@ commands:
             pip install .
             pip install pytest pytest-cov pytest-qt
 
-            which xtb
+            # xtb needs libgomp from the conda env (verify before AQME tests).
+            case "$(uname -s)" in
+              Linux)
+                export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+                ;;
+              Darwin)
+                export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_PREFIX/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
+                ;;
+            esac
+            command -v xtb
             xtb --version
             python -c "import aqme; print('aqme', aqme.__version__)"
 

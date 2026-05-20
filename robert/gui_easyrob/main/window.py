@@ -30,17 +30,12 @@ Notes:
 # ------------------------------------------------------------
 # Import resolution (local vs installed package)
 # ------------------------------------------------------------
-# Try local imports first (portable mode). If they fail,
-# fall back to the installed package structure.
+# Try installed package imports first (test/package mode). If they fail,
+# fall back to local imports for portable execution from source.
 
 import webbrowser
 
 try:
-    from version import SOFTWARE_VERSIONS
-    from utils import utils_gui, molssi_utils
-    from tabs import predictions, aqme, advanced_options, molssi, results, images
-
-except ImportError:
     from robert.gui_easyrob.version import SOFTWARE_VERSIONS
     from robert.gui_easyrob.utils import utils_gui, molssi_utils
     from robert.gui_easyrob.tabs import (
@@ -51,6 +46,13 @@ except ImportError:
         results,
         images,
     )
+except ModuleNotFoundError as exc:
+    if exc.name and exc.name.startswith("robert"):
+        from version import SOFTWARE_VERSIONS
+        from utils import utils_gui, molssi_utils
+        from tabs import predictions, aqme, advanced_options, molssi, results, images
+    else:
+        raise
 
 
 # ------------------------------------------------------------

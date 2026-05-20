@@ -164,9 +164,23 @@ def test_AQME(test_job):
         env=env,
     )
     stderr_tail = (completed.stderr or "")[-8000:]
-    assert completed.returncode == 0, (
-        f"ROBERT subprocess failed (exit {completed.returncode}):\n{stderr_tail}"
-    )
+    if completed.returncode != 0:
+        log_hints = []
+        for log_path in (
+            Path(path_main) / "AQME" / "AQME_data.dat",
+            Path(path_main) / "GENERATE" / "GENERATE_data.dat",
+            Path(path_main) / "CURATE" / "CURATE_data.dat",
+        ):
+            if log_path.is_file():
+                log_hints.append(
+                    f"--- tail {log_path} ---\n"
+                    + log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
+                )
+        extra = "\n".join(log_hints) if log_hints else "(no ROBERT .dat logs found)"
+        pytest.fail(
+            f"ROBERT subprocess failed (exit {completed.returncode}):\n"
+            f"stderr:\n{stderr_tail}\n{extra}"
+        )
 
     # check that all the plots, CSV and DAT files are created
     pdf_path = Path(path_main) / "ROBERT_report.pdf"

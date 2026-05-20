@@ -9,14 +9,17 @@ import json
 import os
 import sys
 import glob
-import math
-import re
 import pytest
 import shutil
 import subprocess
 import pandas as pd
 from pathlib import Path
 from robert.generate import generate
+from tests.platform_goldens import (
+    GENERATE_STANDARD_RMSE,
+    log_line_metric_close,
+    platform_key,
+)
 
 # saves the working directory (os.path.join keeps paths valid on Windows and Linux)
 path_main = os.getcwd()
@@ -118,22 +121,6 @@ def _parse_x_descriptors(raw):
         return json.loads(text)
     except json.JSONDecodeError:
         return ast.literal_eval(text)
-
-
-def _log_line_metric_close(line, prefix, expected, *, rel_tol=0.05, abs_tol=0.02):
-    """
-    True if line contains prefix and the numeric token immediately after prefix
-    matches expected within tolerance (robust to OS/library float drift and :.2
-    log formatting).
-    """
-    idx = line.find(prefix)
-    if idx == -1:
-        return False
-    rest = line[idx + len(prefix) :].lstrip()
-    m = re.match(r"([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)", rest)
-    if not m:
-        return False
-    return math.isclose(float(m.group(1)), expected, rel_tol=rel_tol, abs_tol=abs_tol)
 
 
 # GENERATE tests
@@ -280,16 +267,20 @@ def test_GENERATE(test_job):
             ):
                 finding_line += 0.5  # it appears two times, in PFI and no PFI
                 # this elif adds 4 points to the standard test (0.5*2(PFI and no PFI)*4(models)
-            elif _log_line_metric_close(
+            elif log_line_metric_close(
                 line,
                 "o Best combined RMSE (target) found in BO for RF (no PFI filter):",
                 0.45,
+                rel_tol=0.05,
+                abs_tol=0.02,
             ):
                 reproducibility += 1
-            elif _log_line_metric_close(
+            elif log_line_metric_close(
                 line,
                 "o Combined RMSE for RF (with PFI filter):",
                 0.41,
+                rel_tol=0.05,
+                abs_tol=0.02,
             ):
                 reproducibility += 1
             # lines only for standard
@@ -301,55 +292,11 @@ def test_GENERATE(test_job):
                 finding_line += 1
             elif "- 4/4 - ML model: MVL" in line:
                 finding_line += 1
-            elif _log_line_metric_close(
-                line,
-                "o Best combined RMSE (target) found in BO for RF (no PFI filter):",
-                0.64,
+            elif any(
+                log_line_metric_close(line, prefix, expected)
+                for prefix, expected in GENERATE_STANDARD_RMSE[platform_key()].items()
             ):
                 reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for RF (with PFI filter):",
-                0.77,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Best combined RMSE (target) found in BO for GB (no PFI filter):",
-                0.47,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for GB (with PFI filter):",
-                0.41,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Best combined RMSE (target) found in BO for NN (no PFI filter):",
-                0.38,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for NN (with PFI filter):",
-                0.37,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for MVL (no BO needed) (no PFI filter):",
-                0.47,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for MVL (with PFI filter):",
-                0.47,
-            ):
-                reproducibility += 1
-            # lines only for
             elif "1. 50% = RMSE from a 5x repeated 10-fold CV (interpoplation)" in line:
                 finding_changed_kfold += 1
 

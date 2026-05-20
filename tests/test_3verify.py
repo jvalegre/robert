@@ -16,6 +16,7 @@ from tests.conftest import (
     clas_generate_layout,
     restore_regression_generate_layout,
 )
+from tests.platform_goldens import assert_verify_standard_rmse_line
 
 
 # VERIFY tests
@@ -86,10 +87,7 @@ def _run_verify(test_job, repo_root, path_verify):
                         in outlines[i + 5]
                     )
                 elif test_job in ["standard", "standard_cmd"]:
-                    assert (
-                        "Original RMSE (10x 5-fold CV) 0.29 + 15% & 30% threshold = 0.33 & 0.37"
-                        in outlines[i + 1]
-                    )
+                    assert_verify_standard_rmse_line(outlines[i + 1])
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]
                     assert "o y_shuffle: PASSED, RMSE = 1.0" in outlines[i + 3]
                     assert "x onehot: FAILED, RMSE = 0.3" in outlines[i + 4]

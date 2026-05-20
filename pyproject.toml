@@ -10,7 +10,11 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-per-file-ignores = { "robert/gui_easyrob/easyrob_launcher.py" = ["E402"], "tests/test_easyrob.py" = ["E402"] }
+per-file-ignores = {
+    "robert/gui_easyrob/easyrob_launcher.py" = ["E402"],
+    "robert/gui_easyrob/utils/utils_gui.py" = ["F401"],
+    "tests/test_easyrob.py" = ["E402"],
+}
 
 [tool.ruff.format]
 quote-style = "double"

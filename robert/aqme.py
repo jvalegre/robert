@@ -349,8 +349,8 @@ class aqme:
                     "   x AQME failed while computing Boltzmann properties (None energies). "
                     "This usually indicates an AQME-side qdescp issue for one or more structures."
                 )
-            self.args.log.finalize()
-            sys.exit(1)
+            return False
+        return True
 
     def init_aqme(self):
         """

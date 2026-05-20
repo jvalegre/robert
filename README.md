@@ -15,7 +15,7 @@ Full documentation with installation instructions, technical details and example
 Don't miss out the latest hands-on tutorials from our [YouTube channel](https://www.youtube.com/channel/UCHRqI8N61bYxWV9BjbUI4Xw)!
 
 ## Recommended installation
-1. (Only once) Create new conda environment: `conda create -n robert python=3.10`  
+1. (Only once) Create new conda environment: `conda create -n robert python=3.12`  
 2. Activate conda environment: `conda activate robert`  
 3. Install ROBERT using pip: `pip install robert`
 4. Install RDKit (only if you plan to use easyROB): `pip install rdkit`

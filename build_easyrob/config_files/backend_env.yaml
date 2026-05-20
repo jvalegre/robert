@@ -13,5 +13,5 @@ dependencies:
   - mscorefonts
   - pip
   - pip:
-      - robert==2.0.2
+      - robert==2.2.0
       - aqme==2.0.0

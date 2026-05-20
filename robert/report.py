@@ -41,6 +41,7 @@ from robert.report_utils import (
     adv_sorted_cv,
     get_col_text,
     repro_info,
+    get_repro_ml_stack_versions,
     make_report,
     css_content,
     format_lines,
@@ -1148,6 +1149,9 @@ class report:
             repro_dat += f"""{reduced_line}{space}- Install CREST: conda install -c conda-forge crest</p>"""
             if find_crest:
                 repro_dat += f"""{reduced_line}{space}- Adjust CREST version: conda install -c conda-forge crest={crest_version})</p>"""
+
+        for display_name, pkg_name, pkg_version in get_repro_ml_stack_versions():
+            repro_dat += f"""{reduced_line}{space}- {display_name}: pip install {pkg_name}=={pkg_version}</p>"""
 
         character_line = ""
         if self.args.csv_test != "":

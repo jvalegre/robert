@@ -1218,6 +1218,46 @@ def calc_penalty_r2(r2_val):
     return penalty_r2
 
 
+REPRO_PACKAGES = [
+    ("numpy", "numpy"),
+    ("pandas", "pandas"),
+    ("scipy", "scipy"),
+    ("scikit-learn", "scikit-learn"),
+    ("xgboost", "xgboost"),
+    ("bayesian-optimization", "bayesian-optimization"),
+    ("numba", "numba"),
+    ("shap", "shap"),
+    ("rdkit", "rdkit"),
+    ("PyYAML", "PyYAML"),
+    ("matplotlib", "matplotlib"),
+    ("weasyprint", "weasyprint"),
+]
+
+OPTIONAL_REPRO_PACKAGES = [
+    ("scikit-learn-intelex", "scikit-learn-intelex"),
+]
+
+
+def get_repro_ml_stack_versions():
+    """
+    Installed versions of core ML/report dependencies for the PDF repro section.
+    """
+    from importlib.metadata import PackageNotFoundError, version as importlib_version
+
+    versions = []
+    for display_name, pkg_name in REPRO_PACKAGES:
+        try:
+            versions.append((display_name, pkg_name, importlib_version(pkg_name)))
+        except PackageNotFoundError:
+            continue
+    for display_name, pkg_name in OPTIONAL_REPRO_PACKAGES:
+        try:
+            versions.append((display_name, pkg_name, importlib_version(pkg_name)))
+        except PackageNotFoundError:
+            continue
+    return versions
+
+
 def repro_info(modules):
     """
     Retrieves variables used in the Reproducibility section

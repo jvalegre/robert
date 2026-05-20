@@ -131,3 +131,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# ROBERT module run outputs (local working directory artifacts)
+CURATE/
+GENERATE/
+VERIFY/
+PREDICT/
+AQME/
+EVALUATE/
+ROBERT_report.pdf
+report_debug.txt
+report.css

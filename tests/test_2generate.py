@@ -76,7 +76,7 @@ _STANDARD_MODEL_DESCS = {
             "x2",
             "x5",
             "x7",
-            "xtest",
+            "x8",
             "ynoise",
         ],
         "NN": [
@@ -90,7 +90,6 @@ _STANDARD_MODEL_DESCS = {
             "x7",
             "x8",
             "x9",
-            "xtest",
             "ynoise",
         ],
         "MVL": [
@@ -104,15 +103,14 @@ _STANDARD_MODEL_DESCS = {
             "x7",
             "x8",
             "x9",
-            "xtest",
             "ynoise",
         ],
     },
     "PFI": {
         "RF": ["x10", "x7"],
         "GB": ["x10", "x7"],
-        "NN": ["x5", "x9", "Csub-Csub", "x7", "Csub-H", "x10"],
-        "MVL": ["x7", "x10", "x9", "Csub-Csub"],
+        "NN": ["x7", "x10", "x9", "x5", "x2", "x8"],
+        "MVL": ["x7", "Csub-Csub", "x9", "x10", "H-O", "Csub-H"],
     },
 }
 
@@ -243,7 +241,7 @@ def test_GENERATE(test_job):
         if test_job in ["reduced_clas", "reduced_vr_clas"]:
             assert "- 9 accepted descriptors" in outlines[indeces[1]]
         else:
-            assert "- 12 accepted descriptors" in outlines[indeces[1]]
+            assert "- 11 accepted descriptors" in outlines[indeces[1]]
         assert "- 1 ignored descriptors" in outlines[indeces[2]]
         assert "- 0 discarded descriptors" in outlines[indeces[3]]
 

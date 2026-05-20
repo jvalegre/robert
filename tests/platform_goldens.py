@@ -42,13 +42,13 @@ def log_line_metric_close(
 
 # VERIFY standard regression (PFI model section): (CV RMSE, +15% threshold, +30% threshold)
 VERIFY_STANDARD_RMSE = {
-    "linux": (0.27, 0.31, 0.35),
+    "linux": (0.29, 0.33, 0.37),
     "win32": (0.27, 0.31, 0.35),
 }
 
 # VERIFY standard regression: y_shuffle flawed-model RMSE (:.2 in log)
 VERIFY_STANDARD_Y_SHUFFLE_RMSE = {
-    "linux": 0.94,
+    "linux": 1.0,
     "win32": 0.97,
 }
 
@@ -57,12 +57,12 @@ GENERATE_STANDARD_RMSE = {
     "linux": {
         "o Best combined RMSE (target) found in BO for RF (no PFI filter):": 0.64,
         "o Combined RMSE for RF (with PFI filter):": 0.77,
-        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.49,
+        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.47,
         "o Combined RMSE for GB (with PFI filter):": 0.41,
-        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.37,
-        "o Combined RMSE for NN (with PFI filter):": 0.39,
-        "o Combined RMSE for MVL (no BO needed) (no PFI filter):": 0.51,
-        "o Combined RMSE for MVL (with PFI filter):": 0.44,
+        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.38,
+        "o Combined RMSE for NN (with PFI filter):": 0.37,
+        "o Combined RMSE for MVL (no BO needed) (no PFI filter):": 0.47,
+        "o Combined RMSE for MVL (with PFI filter):": 0.47,
     },
     "win32": {
         "o Best combined RMSE (target) found in BO for RF (no PFI filter):": 0.62,

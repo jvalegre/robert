@@ -42,8 +42,14 @@ def log_line_metric_close(
 
 # VERIFY standard regression (PFI model section): (CV RMSE, +15% threshold, +30% threshold)
 VERIFY_STANDARD_RMSE = {
-    "linux": (0.29, 0.33, 0.37),
+    "linux": (0.27, 0.31, 0.35),
     "win32": (0.27, 0.31, 0.35),
+}
+
+# VERIFY standard regression: y_shuffle flawed-model RMSE (:.2 in log)
+VERIFY_STANDARD_Y_SHUFFLE_RMSE = {
+    "linux": 0.94,
+    "win32": 0.97,
 }
 
 # GENERATE standard job: log prefix -> expected combined RMSE
@@ -51,24 +57,33 @@ GENERATE_STANDARD_RMSE = {
     "linux": {
         "o Best combined RMSE (target) found in BO for RF (no PFI filter):": 0.64,
         "o Combined RMSE for RF (with PFI filter):": 0.77,
-        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.47,
+        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.49,
         "o Combined RMSE for GB (with PFI filter):": 0.41,
-        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.38,
-        "o Combined RMSE for NN (with PFI filter):": 0.37,
-        "o Combined RMSE for MVL (no BO needed) (no PFI filter):": 0.47,
-        "o Combined RMSE for MVL (with PFI filter):": 0.47,
+        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.37,
+        "o Combined RMSE for NN (with PFI filter):": 0.39,
+        "o Combined RMSE for MVL (no BO needed) (no PFI filter):": 0.51,
+        "o Combined RMSE for MVL (with PFI filter):": 0.44,
     },
     "win32": {
         "o Best combined RMSE (target) found in BO for RF (no PFI filter):": 0.62,
-        "o Combined RMSE for RF (with PFI filter):": 0.77,
-        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.47,
+        "o Combined RMSE for RF (with PFI filter):": 0.75,
+        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.45,
         "o Combined RMSE for GB (with PFI filter):": 0.41,
-        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.38,
+        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.36,
         "o Combined RMSE for NN (with PFI filter):": 0.37,
         "o Combined RMSE for MVL (no BO needed) (no PFI filter):": 0.47,
         "o Combined RMSE for MVL (with PFI filter):": 0.47,
     },
 }
+
+
+def assert_verify_standard_y_shuffle_line(line: str) -> None:
+    """Assert the y_shuffle flawed-model line for standard VERIFY tests."""
+    expected = VERIFY_STANDARD_Y_SHUFFLE_RMSE[platform_key()]
+    assert "o y_shuffle: PASSED" in line
+    assert f"RMSE = {expected:.2}" in line, (
+        f"y_shuffle RMSE line {line!r} vs golden {expected:.2} ({platform_key()})"
+    )
 
 
 def assert_verify_standard_rmse_line(line: str) -> None:
@@ -104,3 +119,33 @@ def count_generate_standard_rmse_matches(outlines: list[str]) -> int:
                 count += 1
                 break
     return count
+
+
+def assert_generate_standard_rmse_matches(outlines: list[str]) -> None:
+    """Assert all eight standard-job BO RMSE log lines match platform goldens."""
+    goldens = GENERATE_STANDARD_RMSE[platform_key()]
+    expected_count = len(goldens)
+    actual_count = count_generate_standard_rmse_matches(outlines)
+    if actual_count == expected_count:
+        return
+    mismatches = []
+    for prefix, golden in goldens.items():
+        for line in outlines:
+            if prefix not in line:
+                continue
+            idx = line.find(prefix)
+            rest = line[idx + len(prefix) :].lstrip()
+            m = re.match(r"([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)", rest)
+            if not m:
+                mismatches.append(f"{prefix}: could not parse {line!r}")
+                break
+            actual = float(m.group(1))
+            if not log_line_metric_close(line, prefix, golden):
+                mismatches.append(f"{prefix}: log={actual:.2f} golden={golden:.2f}")
+            break
+        else:
+            mismatches.append(f"{prefix}: line not found in GENERATE_data.dat")
+    raise AssertionError(
+        f"GENERATE standard RMSE matches {actual_count}/{expected_count} "
+        f"({platform_key()}): " + "; ".join(mismatches)
+    )

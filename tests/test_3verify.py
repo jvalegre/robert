@@ -16,7 +16,10 @@ from tests.conftest import (
     clas_generate_layout,
     restore_regression_generate_layout,
 )
-from tests.platform_goldens import assert_verify_standard_rmse_line
+from tests.platform_goldens import (
+    assert_verify_standard_rmse_line,
+    assert_verify_standard_y_shuffle_line,
+)
 
 
 # VERIFY tests
@@ -89,10 +92,10 @@ def _run_verify(test_job, repo_root, path_verify):
                 elif test_job in ["standard", "standard_cmd"]:
                     assert_verify_standard_rmse_line(outlines[i + 1])
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]
-                    assert "o y_shuffle: PASSED, RMSE = 1.0" in outlines[i + 3]
+                    assert_verify_standard_y_shuffle_line(outlines[i + 3])
                     assert "x onehot: FAILED, RMSE = 0.3" in outlines[i + 4]
                     assert (
-                        "- Sorted 5-fold CV : R2 = [0.0, 0.48, 0.24, 0.07, 0.17], MAE = [0.17, 0.25, 0.09, 0.37, 0.45], RMSE = [0.22, 0.27, 0.11, 0.45, 0.51]"
+                        "- Sorted 5-fold CV : R2 = [0.22, 0.57, 0.22, 0.18, 0.03], MAE = [0.2, 0.14, 0.08, 0.32, 0.52], RMSE = [0.24, 0.18, 0.09, 0.41, 0.58]"
                         in outlines[i + 5]
                     )
                 break

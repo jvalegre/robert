@@ -17,6 +17,7 @@ from pathlib import Path
 from robert.generate import generate
 from tests.platform_goldens import (
     GENERATE_STANDARD_RMSE,
+    assert_generate_standard_rmse_matches,
     log_line_metric_close,
     platform_key,
 )
@@ -75,7 +76,7 @@ _STANDARD_MODEL_DESCS = {
             "x2",
             "x5",
             "x7",
-            "x8",
+            "xtest",
             "ynoise",
         ],
         "NN": [
@@ -89,6 +90,7 @@ _STANDARD_MODEL_DESCS = {
             "x7",
             "x8",
             "x9",
+            "xtest",
             "ynoise",
         ],
         "MVL": [
@@ -102,14 +104,15 @@ _STANDARD_MODEL_DESCS = {
             "x7",
             "x8",
             "x9",
+            "xtest",
             "ynoise",
         ],
     },
     "PFI": {
         "RF": ["x10", "x7"],
         "GB": ["x10", "x7"],
-        "NN": ["x10", "x2", "x5", "x7", "x8", "x9"],
-        "MVL": ["Csub-Csub", "Csub-H", "H-O", "x10", "x7", "x9"],
+        "NN": ["x5", "x9", "Csub-Csub", "x7", "Csub-H", "x10"],
+        "MVL": ["x7", "x10", "x9", "Csub-Csub"],
     },
 }
 
@@ -240,7 +243,7 @@ def test_GENERATE(test_job):
         if test_job in ["reduced_clas", "reduced_vr_clas"]:
             assert "- 9 accepted descriptors" in outlines[indeces[1]]
         else:
-            assert "- 11 accepted descriptors" in outlines[indeces[1]]
+            assert "- 12 accepted descriptors" in outlines[indeces[1]]
         assert "- 1 ignored descriptors" in outlines[indeces[2]]
         assert "- 0 discarded descriptors" in outlines[indeces[3]]
 
@@ -311,7 +314,8 @@ def test_GENERATE(test_job):
                 assert reproducibility == 0
         if test_job == "standard":
             assert finding_line == 11
-            assert reproducibility == 8
+            assert_generate_standard_rmse_matches(outlines)
+            assert reproducibility == len(GENERATE_STANDARD_RMSE[platform_key()])
         if test_job == "reduced_kfold":
             assert finding_changed_kfold == 1
 

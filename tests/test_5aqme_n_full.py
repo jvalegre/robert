@@ -27,6 +27,23 @@ def _aqme_installed() -> bool:
         return False
 
 
+def _aqme_log_hints() -> str:
+    log_hints = []
+    for log_path in (
+        Path(path_main) / "AQME" / "AQME_data.dat",
+        Path(path_main) / "QDESCP" / "QDESCP_data.dat",
+        Path(path_main) / "CSEARCH" / "CSEARCH_data.dat",
+        Path(path_main) / "GENERATE" / "GENERATE_data.dat",
+        Path(path_main) / "CURATE" / "CURATE_data.dat",
+    ):
+        if log_path.is_file():
+            log_hints.append(
+                f"--- tail {log_path} ---\n"
+                + log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
+            )
+    return "\n".join(log_hints) if log_hints else "(no ROBERT .dat logs found)"
+
+
 # AQME and full workflow tests
 @pytest.mark.parametrize(
     "test_job",
@@ -52,6 +69,8 @@ def test_AQME(test_job):
         "PREDICT",
         "VERIFY",
         "AQME",
+        "CSEARCH",
+        "QDESCP",
     ]
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
@@ -65,9 +84,12 @@ def test_AQME(test_job):
         "Robert_example.csv",
         "solubility.csv",
         "solubility_solvent.csv",
+        "AQME_indiv.csv",
     ]:
         if os.path.exists(f"{path_main}/{file}"):
             os.remove(f"{path_main}/{file}")
+    for file in glob.glob(f"{path_main}/AQME_indiv_*.csv"):
+        os.remove(file)
 
     # runs the program with the different tests
     if test_job in ["full_workflow", "full_workflow_test"]:
@@ -133,11 +155,14 @@ def test_AQME(test_job):
     if test_job in ["full_clas", "full_clas_test"]:
         cmd_robert = cmd_robert + ["--type", "clas"]
 
+    if test_job in ("aqme", "2smiles_columns"):
+        cmd_robert = cmd_robert + ["--nprocs", "1"]
+
     if test_job == "aqme":
         cmd_robert = cmd_robert + [
             "--aqme",
             "--qdescp_keywords",
-            "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal",
+            '--qdescp_atoms ["C"] --qdescp_acc 5 --qdescp_opt normal',
             "--alpha",
             "0.5",
         ]
@@ -165,21 +190,9 @@ def test_AQME(test_job):
     )
     stderr_tail = (completed.stderr or "")[-8000:]
     if completed.returncode != 0:
-        log_hints = []
-        for log_path in (
-            Path(path_main) / "AQME" / "AQME_data.dat",
-            Path(path_main) / "GENERATE" / "GENERATE_data.dat",
-            Path(path_main) / "CURATE" / "CURATE_data.dat",
-        ):
-            if log_path.is_file():
-                log_hints.append(
-                    f"--- tail {log_path} ---\n"
-                    + log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
-                )
-        extra = "\n".join(log_hints) if log_hints else "(no ROBERT .dat logs found)"
         pytest.fail(
             f"ROBERT subprocess failed (exit {completed.returncode}):\n"
-            f"stderr:\n{stderr_tail}\n{extra}"
+            f"stderr:\n{stderr_tail}\n{_aqme_log_hints()}"
         )
 
     # check that all the plots, CSV and DAT files are created

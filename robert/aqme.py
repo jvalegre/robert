@@ -172,18 +172,17 @@ class aqme:
                     f"{aqme_indv_name}.csv",
                     "--nprocs",
                     f"{self.args.nprocs}",
+                    "--sample",
+                    "3",
                     "--robert",
                 ]
                 expected_csv = _expected_robert_csv(self.args.descp_lvl, aqme_indv_name)
-                aqme_success = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
+                aqme_success = self.run_aqme(
+                    cmd_qdescp,
+                    self.args.qdescp_keywords,
+                    expected_csv=expected_csv,
+                )
                 if not aqme_success:
-                    self._fail_aqme_job(
-                        "x  ROBERT stopped because the AQME subprocess failed."
-                    )
-                if not os.path.isfile(expected_csv):
-                    self.args.log.write(
-                        f"\nx  Expected AQME output not found: {expected_csv}"
-                    )
                     self._fail_aqme_job(
                         "x  ROBERT stopped because AQME did not create descriptor "
                         "CSV output. Please, check the previous AQME warnings."
@@ -296,7 +295,7 @@ class aqme:
         self.args.log.finalize()
         sys.exit(1)
 
-    def run_aqme(self, command, extra_keywords):
+    def run_aqme(self, command, extra_keywords, *, expected_csv=None):
         """
         Function that runs the AQME jobs
         """
@@ -333,18 +332,28 @@ class aqme:
             if lib not in entries:
                 env[var_name] = lib + (os.pathsep + previous if previous else "")
 
-        result = subprocess.run(command, capture_output=True, text=True, env=env)
-        if result.returncode != 0:
-            stderr_tail = (result.stderr or "")[-4000:]
-            stdout_tail = (result.stdout or "")[-4000:]
-            self.args.log.write(
-                f"\nx  AQME subprocess failed with exit code {result.returncode}."
-            )
+        # Avoid pipe deadlock: nested AQME/CSEARCH can be very verbose on stdout.
+        result = subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        stderr_tail = (result.stderr or "")[-4000:]
+        missing_csv = expected_csv is not None and not os.path.isfile(expected_csv)
+        if result.returncode != 0 or missing_csv:
+            if result.returncode != 0:
+                self.args.log.write(
+                    f"\nx  AQME subprocess failed with exit code {result.returncode}."
+                )
+            if missing_csv:
+                self.args.log.write(
+                    f"\nx  Expected AQME output not found: {expected_csv}"
+                )
             self.args.log.write(f"   Command: {' '.join(command)}")
             if stderr_tail:
                 self.args.log.write(f"   stderr (tail):\n{stderr_tail}")
-            if stdout_tail:
-                self.args.log.write(f"   stdout (tail):\n{stdout_tail}")
             if (
                 "full_level_boltz" in stderr_tail
                 and "TypeError" in stderr_tail
@@ -354,6 +363,7 @@ class aqme:
                     "   x AQME failed while computing Boltzmann properties (None energies). "
                     "This usually indicates an AQME-side qdescp issue for one or more structures."
                 )
+            _append_aqme_job_logs(self.args.log)
             return False
         return True
 

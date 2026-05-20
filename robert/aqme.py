@@ -46,20 +46,20 @@ aqme_args = [
 ]
 
 
-def _write_fallback_qdescp_csv(csv_temp, aqme_indv_name, descp_lvl):
-    """
-    Create deterministic numeric fallback descriptors when AQME fails.
-    """
-    fallback_df = csv_temp[["code_name", "SMILES"]].copy()
-    smiles_series = fallback_df["SMILES"].fillna("").astype(str)
-    c_count = smiles_series.str.count("C") + smiles_series.str.count("c")
-    fallback_df["HOMO"] = -0.1 * smiles_series.str.len()
-    fallback_df["C_Partial charge"] = c_count.astype(float) * 0.01
-    fallback_df["C_Buried volume"] = c_count.astype(float) * 10.0
-    fallback_df.to_csv(
-        f"AQME-ROBERT_{descp_lvl}_{aqme_indv_name}.csv",
-        index=False,
-    )
+def _expected_robert_csv(descp_lvl, aqme_indv_name):
+    return f"AQME-ROBERT_{descp_lvl}_{aqme_indv_name}.csv"
+
+
+def _append_aqme_job_logs(log, tail=4000):
+    for log_path in (
+        Path("QDESCP/QDESCP_data.dat"),
+        Path("CSEARCH/CSEARCH_data.dat"),
+    ):
+        if log_path.is_file():
+            log.write(
+                f"\n--- tail {log_path} ---\n"
+                + log_path.read_text(encoding="utf-8", errors="replace")[-tail:]
+            )
 
 
 class aqme:
@@ -174,30 +174,24 @@ class aqme:
                     f"{self.args.nprocs}",
                     "--robert",
                 ]
+                expected_csv = _expected_robert_csv(self.args.descp_lvl, aqme_indv_name)
                 aqme_success = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
                 if not aqme_success:
-                    self.args.log.write(
-                        "   x Falling back to deterministic placeholder descriptors for this SMILES column."
+                    self._fail_aqme_job(
+                        "x  ROBERT stopped because the AQME subprocess failed."
                     )
-                    _write_fallback_qdescp_csv(
-                        csv_temp,
-                        aqme_indv_name,
-                        self.args.descp_lvl,
+                if not os.path.isfile(expected_csv):
+                    self.args.log.write(
+                        f"\nx  Expected AQME output not found: {expected_csv}"
+                    )
+                    self._fail_aqme_job(
+                        "x  ROBERT stopped because AQME did not create descriptor "
+                        "CSV output. Please, check the previous AQME warnings."
                     )
 
                 if smi_suffix is not None:
                     # Change column names by adding suffix
-                    try:
-                        df_temp = pd.read_csv(
-                            f"AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv",
-                            encoding="utf-8",
-                        )
-                    except FileNotFoundError:
-                        self.args.log.write(
-                            "x  WARNING! ROBERT stopped due to a problem with the AQME job. Please, check the previous AQME warnings."
-                        )
-                        self.args.log.finalize()
-                        sys.exit(1)
+                    df_temp = pd.read_csv(expected_csv, encoding="utf-8")
                     df_temp.columns = [
                         f"{col}_{smi_suffix}"
                         if col not in ["code_name", "SMILES"] and col not in aqme_args
@@ -279,6 +273,7 @@ class aqme:
             self.args.log.write(
                 "\nx  The initial AQME descriptor protocol did not create any CSV output!"
             )
+            _append_aqme_job_logs(self.args.log)
             self.args.log.finalize()
             sys.exit(1)
 
@@ -295,6 +290,12 @@ class aqme:
         # this returns stores options just in case csv_test is included
         return self
 
+    def _fail_aqme_job(self, message):
+        self.args.log.write(f"\n{message}")
+        _append_aqme_job_logs(self.args.log)
+        self.args.log.finalize()
+        sys.exit(1)
+
     def run_aqme(self, command, extra_keywords):
         """
         Function that runs the AQME jobs
@@ -305,28 +306,32 @@ class aqme:
             command.extend(split_args)
 
         env = os.environ.copy()
+        py_bin = os.path.dirname(sys.executable)
         if os.name == "nt":
             win_paths = [
+                py_bin,
                 os.path.join(sys.prefix, "Library", "bin"),
                 os.path.join(sys.prefix, "Scripts"),
             ]
-            current_path = env.get("PATH", "")
-            path_entries = current_path.split(os.pathsep) if current_path else []
-            for win_path in win_paths:
-                if os.path.isdir(win_path) and win_path not in path_entries:
-                    path_entries.insert(0, win_path)
-            env["PATH"] = os.pathsep.join(path_entries)
         else:
-            lib = os.path.join(sys.prefix, "lib")
-            if os.path.isdir(lib):
-                if sys.platform == "darwin":
-                    var_name = "DYLD_FALLBACK_LIBRARY_PATH"
-                else:
-                    var_name = "LD_LIBRARY_PATH"
-                previous = env.get(var_name, "")
-                entries = previous.split(os.pathsep) if previous else []
-                if lib not in entries:
-                    env[var_name] = lib + (os.pathsep + previous if previous else "")
+            win_paths = [py_bin]
+        current_path = env.get("PATH", "")
+        path_entries = current_path.split(os.pathsep) if current_path else []
+        for path_dir in win_paths:
+            if os.path.isdir(path_dir) and path_dir not in path_entries:
+                path_entries.insert(0, path_dir)
+        env["PATH"] = os.pathsep.join(path_entries)
+
+        lib = os.path.join(sys.prefix, "lib")
+        if os.path.isdir(lib):
+            if sys.platform == "darwin":
+                var_name = "DYLD_FALLBACK_LIBRARY_PATH"
+            else:
+                var_name = "LD_LIBRARY_PATH"
+            previous = env.get(var_name, "")
+            entries = previous.split(os.pathsep) if previous else []
+            if lib not in entries:
+                env[var_name] = lib + (os.pathsep + previous if previous else "")
 
         result = subprocess.run(command, capture_output=True, text=True, env=env)
         if result.returncode != 0:

@@ -62,6 +62,35 @@ def _append_aqme_job_logs(log, tail=4000):
             )
 
 
+def _append_aqme_runtime_diagnostics(log):
+    """Log xTB/PATH context to simplify CI triage when AQME subprocess fails."""
+    import shutil
+
+    xtb_exe = shutil.which("xtb")
+    if xtb_exe:
+        try:
+            version = subprocess.run(
+                [xtb_exe, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            version_text = (version.stdout or version.stderr or "").strip()
+            if len(version_text) > 500:
+                version_text = version_text[:500] + "..."
+            log.write(f"   xtb executable: {xtb_exe}\n   xtb --version: {version_text}")
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            log.write(f"   xtb executable: {xtb_exe} (version check failed: {exc})")
+    else:
+        log.write("   xtb executable: not found on PATH")
+
+    path_preview = os.environ.get("PATH", "")
+    if len(path_preview) > 800:
+        path_preview = path_preview[:800] + "..."
+    log.write(f"   PATH: {path_preview}")
+
+
 class aqme:
     """
     Class containing all the functions from the AQME module.
@@ -363,6 +392,7 @@ class aqme:
                     "   x AQME failed while computing Boltzmann properties (None energies). "
                     "This usually indicates an AQME-side qdescp issue for one or more structures."
                 )
+            _append_aqme_runtime_diagnostics(self.args.log)
             _append_aqme_job_logs(self.args.log)
             return False
         return True

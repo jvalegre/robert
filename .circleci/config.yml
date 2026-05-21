@@ -157,6 +157,13 @@ commands:
               Darwin)
                 CONDA_PKGS+=(libgfortran=14.2.0)
                 ;;
+              MINGW*|MSYS*|CYGWIN*)
+                # xTB on win-64 is built with MinGW; match Linux/macOS Fortran/OpenMP runtimes.
+                CONDA_PKGS+=(
+                  libgfortran=14.2.0
+                  llvm-openmp
+                )
+                ;;
             esac
             if ! conda install -y -q -c conda-forge "${CONDA_PKGS[@]}" >conda-install.log 2>&1; then
               echo "conda install failed; last 200 lines:"
@@ -181,7 +188,7 @@ commands:
             pip install .
             pip install pytest pytest-cov pytest-qt
 
-            # xtb needs libgomp from the conda env (verify before AQME tests).
+            # xtb needs OpenMP/Fortran runtimes from the conda env (verify before AQME tests).
             case "$(uname -s)" in
               Linux)
                 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
@@ -189,10 +196,67 @@ commands:
               Darwin)
                 export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_PREFIX/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
                 ;;
+              MINGW*|MSYS*|CYGWIN*)
+                export PATH="$CONDA_PREFIX/Library/bin:$CONDA_PREFIX/Scripts:$PATH"
+                ;;
             esac
             command -v xtb
             xtb --version
             python -c "import importlib.metadata as m; import aqme; print('aqme', m.version('aqme'))"
+            # Windows-only preflight: Linux/macOS AQME tests already pass in CI.
+            case "$(uname -s)" in
+              MINGW*|MSYS*|CYGWIN*)
+                conda list | grep -E '^(xtb|aqme|libgfortran|libgomp|llvm-openmp)\s' || true
+                echo "=== Windows AQME/xTB preflight ==="
+                PREFLIGHT_DIR="$(mktemp -d)"
+                cat > "${PREFLIGHT_DIR}/preflight.xyz" << 'EOF'
+3
+preflight
+C   0.000000   0.000000   0.000000
+H   1.089000   0.000000   0.000000
+H  -0.363000   1.028000   0.000000
+EOF
+                set +e
+                xtb_out="$(xtb "${PREFLIGHT_DIR}/preflight.xyz" --gfn 2 --chrg 0 --uhf 0 2>&1)"
+                xtb_rc=$?
+                set -e
+                echo "${xtb_out}" | tail -n 40
+                if [ "${xtb_rc}" -ne 0 ]; then
+                  echo "xtb preflight failed (exit ${xtb_rc})"
+                  exit 1
+                fi
+                if ! echo "${xtb_out}" | grep -qiE 'total energy|:: total energy'; then
+                  echo "xtb preflight: no energy line in output"
+                  exit 1
+                fi
+
+                printf 'code_name,SMILES\npreflight,C\n' > "${PREFLIGHT_DIR}/AQME_indiv.csv"
+                (
+                  cd "${PREFLIGHT_DIR}"
+                  python -u -m aqme --qdescp \
+                    --input AQME_indiv.csv \
+                    --program xtb \
+                    --csv_name AQME_indiv.csv \
+                    --nprocs 1 \
+                    --sample 1 \
+                    --robert
+                )
+                if [ ! -f "${PREFLIGHT_DIR}/AQME-ROBERT_interpret_AQME_indiv.csv" ]; then
+                  echo "AQME preflight: expected CSV not created"
+                  ls -la "${PREFLIGHT_DIR}" || true
+                  for log in "${PREFLIGHT_DIR}/QDESCP/QDESCP_data.dat" \
+                             "${PREFLIGHT_DIR}/CSEARCH/CSEARCH_data.dat"; do
+                    if [ -f "${log}" ]; then
+                      echo "--- tail ${log} ---"
+                      tail -n 80 "${log}"
+                    fi
+                  done
+                  exit 1
+                fi
+                echo "Windows AQME/xTB preflight passed"
+                rm -rf "${PREFLIGHT_DIR}"
+                ;;
+            esac
 
             set +e
 

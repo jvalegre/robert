@@ -44,6 +44,42 @@ def _aqme_log_hints() -> str:
     return "\n".join(log_hints) if log_hints else "(no ROBERT .dat logs found)"
 
 
+def _aqme_runtime_context() -> str:
+    """Collect xTB/AQME artifact hints when a subprocess-based AQME test fails."""
+    lines = []
+    xtb_exe = shutil.which("xtb")
+    lines.append(f"xtb on PATH: {xtb_exe or '(not found)'}")
+    if xtb_exe:
+        try:
+            version = subprocess.run(
+                [xtb_exe, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            version_text = (version.stdout or version.stderr or "").strip()
+            if len(version_text) > 400:
+                version_text = version_text[:400] + "..."
+            lines.append(f"xtb --version: {version_text}")
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            lines.append(f"xtb --version check failed: {exc}")
+
+    for pattern in (
+        "AQME-ROBERT_*.csv",
+        "AQME_indiv*.csv",
+        "QDESCP/**/*.json",
+        "CSEARCH/*.sdf",
+    ):
+        matches = sorted(glob.glob(f"{path_main}/{pattern}", recursive=True))
+        if matches:
+            lines.append(f"{pattern}: {', '.join(matches[:8])}")
+            if len(matches) > 8:
+                lines.append(f"  ... and {len(matches) - 8} more")
+
+    return "\n".join(lines) if lines else "(no AQME runtime context)"
+
+
 # AQME and full workflow tests
 @pytest.mark.parametrize(
     "test_job",
@@ -173,7 +209,18 @@ def test_AQME(test_job):
     # Logger.print() writes to stdout; capturing it can fill the pipe buffer on
     # long AQME workflows and block ROBERT before REPORT finishes on CI.
     env = os.environ.copy()
-    if sys.platform != "win32":
+    py_bin = os.path.dirname(sys.executable)
+    path_entries = env.get("PATH", "").split(os.pathsep) if env.get("PATH") else []
+    if sys.platform == "win32":
+        for path_dir in (
+            py_bin,
+            os.path.join(sys.prefix, "Library", "bin"),
+            os.path.join(sys.prefix, "Scripts"),
+        ):
+            if os.path.isdir(path_dir) and path_dir not in path_entries:
+                path_entries.insert(0, path_dir)
+        env["PATH"] = os.pathsep.join(path_entries)
+    else:
         lib = os.path.join(sys.prefix, "lib")
         if os.path.isdir(lib):
             prev = env.get("LD_LIBRARY_PATH", "")
@@ -190,9 +237,12 @@ def test_AQME(test_job):
     )
     stderr_tail = (completed.stderr or "")[-8000:]
     if completed.returncode != 0:
+        runtime_ctx = ""
+        if test_job in ("aqme", "2smiles_columns"):
+            runtime_ctx = f"\n{_aqme_runtime_context()}\n"
         pytest.fail(
             f"ROBERT subprocess failed (exit {completed.returncode}):\n"
-            f"stderr:\n{stderr_tail}\n{_aqme_log_hints()}"
+            f"stderr:\n{stderr_tail}{runtime_ctx}{_aqme_log_hints()}"
         )
 
     # check that all the plots, CSV and DAT files are created

@@ -22,6 +22,8 @@ commands:
 
             if command -v conda >/dev/null 2>&1; then
               echo "Conda already available at $(command -v conda)"
+              conda config --set console_progress_bar false
+              conda config --set quiet true
               conda --version
               exit 0
             fi
@@ -110,6 +112,8 @@ commands:
             } >> "${BASH_ENV}"
             # shellcheck source=/dev/null
             source "${BASH_ENV}"
+            conda config --set console_progress_bar false
+            conda config --set quiet true
             conda --version
 
   run-conda-test-suite:
@@ -127,8 +131,10 @@ commands:
             [ -f "${BASH_ENV}" ] && source "${BASH_ENV}"
 
             eval "$(conda shell.bash hook)"
-            conda update -y conda
-            conda create -n cheminf python=3.11 -y
+            conda config --set console_progress_bar false
+            conda config --set quiet true
+            conda update -y -q conda
+            conda create -n cheminf python=3.11 -y -q
             conda activate cheminf
 
             python -m pip install --upgrade pip
@@ -155,7 +161,12 @@ commands:
                 CONDA_PKGS+=(libgfortran=14.2.0)
                 ;;
             esac
-            conda install -y -c conda-forge "${CONDA_PKGS[@]}"
+            if ! conda install -y -q -c conda-forge "${CONDA_PKGS[@]}" >conda-install.log 2>&1; then
+              echo "conda install failed; last 200 lines:"
+              tail -n 200 conda-install.log
+              exit 1
+            fi
+            echo "conda install finished ($(wc -c < conda-install.log) bytes of log)"
 
             case "$(uname -s)" in
               Linux)

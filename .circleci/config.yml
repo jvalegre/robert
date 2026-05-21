@@ -209,13 +209,13 @@ commands:
                 conda list | grep -E '^(xtb|aqme|libgfortran|libgomp|llvm-openmp)\s' || true
                 echo "=== Windows AQME/xTB preflight ==="
                 PREFLIGHT_DIR="$(mktemp -d)"
-                cat > "${PREFLIGHT_DIR}/preflight.xyz" << 'EOF'
-3
-preflight
-C   0.000000   0.000000   0.000000
-H   1.089000   0.000000   0.000000
-H  -0.363000   1.028000   0.000000
-EOF
+                printf '%s\n' \
+                  '3' \
+                  'preflight' \
+                  'C   0.000000   0.000000   0.000000' \
+                  'H   1.089000   0.000000   0.000000' \
+                  'H  -0.363000   1.028000   0.000000' \
+                  > "${PREFLIGHT_DIR}/preflight.xyz"
                 set +e
                 xtb_out="$(xtb "${PREFLIGHT_DIR}/preflight.xyz" --gfn 2 --chrg 0 --uhf 0 2>&1)"
                 xtb_rc=$?

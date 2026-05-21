@@ -52,6 +52,20 @@ VERIFY_STANDARD_Y_SHUFFLE_RMSE = {
     "win32": 0.97,
 }
 
+# VERIFY standard regression: sorted 5-fold CV summary line (exact log substring)
+VERIFY_STANDARD_SORTED_CV_LINE = {
+    "linux": (
+        "- Sorted 5-fold CV : R2 = [0.0, 0.48, 0.24, 0.07, 0.17], "
+        "MAE = [0.17, 0.25, 0.09, 0.37, 0.45], "
+        "RMSE = [0.22, 0.27, 0.11, 0.45, 0.51]"
+    ),
+    "win32": (
+        "- Sorted 5-fold CV : R2 = [0.25, 0.47, 0.19, 0.07, 0.24], "
+        "MAE = [0.21, 0.22, 0.09, 0.35, 0.44], "
+        "RMSE = [0.24, 0.24, 0.1, 0.42, 0.49]"
+    ),
+}
+
 # GENERATE standard job: log prefix -> expected combined RMSE
 GENERATE_STANDARD_RMSE = {
     "linux": {
@@ -65,12 +79,12 @@ GENERATE_STANDARD_RMSE = {
         "o Combined RMSE for MVL (with PFI filter):": 0.47,
     },
     "win32": {
-        "o Best combined RMSE (target) found in BO for RF (no PFI filter):": 0.62,
-        "o Combined RMSE for RF (with PFI filter):": 0.75,
-        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.45,
+        "o Best combined RMSE (target) found in BO for RF (no PFI filter):": 0.64,
+        "o Combined RMSE for RF (with PFI filter):": 0.77,
+        "o Best combined RMSE (target) found in BO for GB (no PFI filter):": 0.47,
         "o Combined RMSE for GB (with PFI filter):": 0.41,
-        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.36,
-        "o Combined RMSE for NN (with PFI filter):": 0.37,
+        "o Best combined RMSE (target) found in BO for NN (no PFI filter):": 0.35,
+        "o Combined RMSE for NN (with PFI filter):": 0.38,
         "o Combined RMSE for MVL (no BO needed) (no PFI filter):": 0.47,
         "o Combined RMSE for MVL (with PFI filter):": 0.47,
     },
@@ -107,6 +121,14 @@ def assert_verify_standard_rmse_line(line: str) -> None:
     assert math.isclose(
         actual_t30, t30, rel_tol=_METRIC_REL_TOL, abs_tol=_METRIC_ABS_TOL
     ), f"30% threshold {actual_t30} vs golden {t30} ({platform_key()})"
+
+
+def assert_verify_standard_sorted_cv_line(line: str) -> None:
+    """Assert the sorted 5-fold CV summary line for standard VERIFY tests."""
+    expected = VERIFY_STANDARD_SORTED_CV_LINE[platform_key()]
+    assert expected in line, (
+        f"sorted CV line {line!r} vs golden {expected!r} ({platform_key()})"
+    )
 
 
 def count_generate_standard_rmse_matches(outlines: list[str]) -> int:

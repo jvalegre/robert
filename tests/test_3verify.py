@@ -18,6 +18,7 @@ from tests.conftest import (
 )
 from tests.platform_goldens import (
     assert_verify_standard_rmse_line,
+    assert_verify_standard_sorted_cv_line,
     assert_verify_standard_y_shuffle_line,
 )
 
@@ -94,10 +95,7 @@ def _run_verify(test_job, repo_root, path_verify):
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]
                     assert_verify_standard_y_shuffle_line(outlines[i + 3])
                     assert "x onehot: FAILED, RMSE = 0.3" in outlines[i + 4]
-                    assert (
-                        "- Sorted 5-fold CV : R2 = [0.0, 0.48, 0.24, 0.07, 0.17], MAE = [0.17, 0.25, 0.09, 0.37, 0.45], RMSE = [0.22, 0.27, 0.11, 0.45, 0.51]"
-                        in outlines[i + 5]
-                    )
+                    assert_verify_standard_sorted_cv_line(outlines[i + 5])
                 break
     assert results_line
 

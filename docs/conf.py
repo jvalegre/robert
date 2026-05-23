@@ -11,20 +11,26 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
+from pathlib import Path
+
 # Ensure that modules can be imported without installing ROBERT
-sys.path.insert(0, os.path.abspath('..')) 
+sys.path.insert(0, os.path.abspath(".."))
 
-
+_root = Path(__file__).resolve().parents[1]
+_setup = (_root / "setup.py").read_text(encoding="utf-8")
+_version_match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', _setup)
+version = _version_match.group(1) if _version_match else "unknown"
 
 # -- Project information -----------------------------------------------------
 
-project = 'robert'
-copyright = '2023, Juan V. Alegre Requena, David Dalmau Ginesta'
-author = '2023, Juan V. Alegre Requena, David Dalmau Ginesta'
+project = "robert"
+copyright = "2023, Juan V. Alegre Requena, David Dalmau Ginesta"
+author = "2023, Juan V. Alegre Requena, David Dalmau Ginesta"
 
 # The full version, including alpha/beta/rc tags
-release = 'v1.0'
+release = version
 
 
 # -- General configuration ---------------------------------------------------
@@ -32,30 +38,48 @@ release = 'v1.0'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc',
-              'sphinx_design',
-              ]
-# Add any paths that contain templates here, relative to this directory.
-html_theme_options = {
-    'collapse_navigation': False,
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx_design",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
+]
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
+    "sklearn": ("https://scikit-learn.org/stable/", None),
+    "xgboost": ("https://xgboost.readthedocs.io/en/stable/", None),
 }
 
-# Avoid paths in class names i.e. 
+# Shared image substitutions (used in README partial includes)
+rst_prolog = """
+.. |download| image:: /Modules/images/download.png
+   :width: 140
+   :align: middle
+"""
+
+html_theme_options = {
+    "collapse_navigation": False,
+}
+
+# Avoid paths in class names i.e.
 # class robert.robert.curate.curate -> class curate
 add_module_names = False
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # Build htlm steps for tutorials
-html_static_path = ['_static']
-html_js_files = ['steps.js']
-html_css_files = ['custom.css']
+html_static_path = ["_static"]
+html_js_files = ["steps.js"]
+html_css_files = ["custom.css"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # Disable  smartquotes which might transform '--' into a different character
 smartquotes = False
@@ -64,9 +88,9 @@ smartquotes = False
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]

@@ -1,0 +1,2 @@
+model,type,kfold,repeat_kfolds,seed,error_type,y,names,X_descriptors,params,combined_rmse,split
+RF,reg,5,10,0,rmse,Target_values,Name,"[""x10"", ""x2"", ""x5"", ""x7"", ""x9""]","{""n_estimators"": 59, ""max_depth"": 16, ""min_samples_split"": 7, ""min_samples_leaf"": 4, ""min_weight_fraction_leaf"": 0.021182739966945238, ""max_features"": 0.7344205847999921, ""ccp_alpha"": 0.004375872112626925, ""max_samples"": 0.9188297505865598, ""random_state"": 0}",0.5518457913196202,even

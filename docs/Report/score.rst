@@ -211,11 +211,11 @@ The following examples might help clarify these points:
 
 Differences in the RMSE/MCC obtained across the five folds of a sorted 5-fold CV (where target values, y, are sorted from minimum to maximum and not shuffled during CV). First, the minimum RMSE/mMCC among the five folds is identified. Then, the differences between each fold’s RMSE/MCC and this minimum RMSE/MCC are evaluated
 
-+------------+--------------------------------------------------+
-| Points     | Condition                                        |
-+============+==================================================+
-| • 1      | Every two folds with RMSE/MCC ≤ 1.25*min RMSE/MCC |
-+------------+--------------------------------------------------+
++------------+---------------------------------------------------+
+| Points     | Condition                                         |
++============+===================================================+
+| 1          | Every two folds with RMSE/MCC ≤ 1.25*min RMSE/MCC |
++------------+---------------------------------------------------+
 
 Score ranges
 ++++++++++++

@@ -23,6 +23,7 @@ Notes:
 - Designed to keep the main window decoupled from download logic.
 
 """
+
 try:
     from utils.utils_gui import (
         Path,
@@ -42,7 +43,7 @@ try:
     )
     from utils.molssi_utils import ExcelToCSVWorker
 
-except ImportError as e:
+except ImportError:
     from robert.gui_easyrob.utils.utils_gui import (
         Path,
         QFileDialog,
@@ -64,6 +65,7 @@ except ImportError as e:
 # ---- Standard library ----
 import os
 
+
 class MolSSIDatabasesTab(QWidget):
     """
     Tab widget embedding the MolSSI descriptor databases web interface.
@@ -74,9 +76,10 @@ class MolSSIDatabasesTab(QWidget):
     - Allows saving descriptor files locally
     - Optionally converts downloaded Excel files to CSV
     """
-     # Signal emitted when a test file download is requested
+
+    # Signal emitted when a test file download is requested
     load_test_requested = Signal(str)
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -100,6 +103,7 @@ class MolSSIDatabasesTab(QWidget):
             Custom QWebEngineView that prevents opening external windows.
             Any request to open a new window is redirected to the same view.
             """
+
             def createWindow(self, webWindowType):
                 tmp = QWebEngineView(self)
                 tmp.setAttribute(Qt.WA_DeleteOnClose, True)
@@ -109,9 +113,7 @@ class MolSSIDatabasesTab(QWidget):
                 return tmp
 
         # Base URL for MolSSI databases
-        self.databases_home_url = QUrl(
-            "https://descriptor-libraries.molssi.org/"
-        )
+        self.databases_home_url = QUrl("https://descriptor-libraries.molssi.org/")
 
         # --------------------------------------------------
         # Home bar
@@ -173,16 +175,10 @@ class MolSSIDatabasesTab(QWidget):
 
         def open_dialog():
             suggested = (
-                req.downloadFileName()
-                or QUrl(req.url()).fileName()
-                or "download"
+                req.downloadFileName() or QUrl(req.url()).fileName() or "download"
             )
 
-            path, _ = QFileDialog.getSaveFileName(
-                self,
-                "Save File",
-                suggested
-            )
+            path, _ = QFileDialog.getSaveFileName(self, "Save File", suggested)
 
             if not path:
                 req.cancel()
@@ -239,7 +235,7 @@ class MolSSIDatabasesTab(QWidget):
                 "(for example, an experimental property or value you want to predict).\n\n"
                 "Do you want to convert this Excel file to CSV now?",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                QMessageBox.Yes,
             )
 
             if reply != QMessageBox.Yes:
@@ -274,9 +270,7 @@ class MolSSIDatabasesTab(QWidget):
                 return
 
             QMessageBox.information(
-                self,
-                "Conversion completed",
-                "Excel converted to CSV successfully."
+                self, "Conversion completed", "Excel converted to CSV successfully."
             )
 
         def error(msg):
@@ -307,7 +301,7 @@ class MolSSIDatabasesTab(QWidget):
         popup.setModal(False)
         popup.show()
         return popup
-    
+
     def load_test_molssi(self, csv_path, source=None):
         """
         Finalizes a MolSSI test dataset.

@@ -39,6 +39,7 @@ from rdkit import Chem
 
 from PySide6.QtCore import QThread, Signal
 
+
 class MolSSIWorker(QThread):
     """Background worker responsible for resolving MolSSI descriptors."""
 
@@ -132,7 +133,7 @@ def resolve_molssi_descriptors(df):
     def chunked(lst, size):
         """Split a list into chunks of a specified size."""
         for i in range(0, len(lst), size):
-            yield lst[i:i + size]
+            yield lst[i : i + size]
 
     def safe_query_batched(smiles, library, data_type, batch_size=200):
         """Query MolSSI API in batches and handle partial failures."""
@@ -197,11 +198,15 @@ def resolve_molssi_descriptors(df):
     for lib in dft_libraries:
         df_api = safe_query_batched(smiles_list, lib, "DFT")
         if full_coverage(smiles_list, df_api):
-            return _prepare_export(df_work, df_api, smiles_col, lib, "DFT", original_input_columns)
+            return _prepare_export(
+                df_work, df_api, smiles_col, lib, "DFT", original_input_columns
+            )
 
     df_api = safe_query_batched(smiles_list, "kraken", "ML")
     if full_coverage(smiles_list, df_api):
-        return _prepare_export(df_work, df_api, smiles_col, "kraken", "ML", original_input_columns)
+        return _prepare_export(
+            df_work, df_api, smiles_col, "kraken", "ML", original_input_columns
+        )
 
     return {
         "available": False,
@@ -225,7 +230,9 @@ def _molssi_test_dataset_available(library_slug):
         return False
 
 
-def _prepare_export(df_work, df_api, smiles_col, library, data_type, original_input_columns):
+def _prepare_export(
+    df_work, df_api, smiles_col, library, data_type, original_input_columns
+):
     """Prepare the merged MolSSI export DataFrame for use in easyROB."""
     try:
         df_api = df_api.copy()
@@ -237,7 +244,9 @@ def _prepare_export(df_work, df_api, smiles_col, library, data_type, original_in
 
         df_merged = df_work.merge(df_api, on="_smiles_canonical", how="left")
         export_df = df_merged.drop(
-            columns=[c for c in ["_smiles_canonical", "smiles"] if c in df_merged.columns]
+            columns=[
+                c for c in ["_smiles_canonical", "smiles"] if c in df_merged.columns
+            ]
         )
         export_df[smiles_col] = export_df["_smiles_original"]
         export_df = export_df.drop(columns=["_smiles_original"])
@@ -251,7 +260,10 @@ def _prepare_export(df_work, df_api, smiles_col, library, data_type, original_in
         ]
 
         if "molecule_id" in export_df.columns:
-            only_smiles_input = len(original_input_columns) == 1 and original_input_columns[0].lower() == "smiles"
+            only_smiles_input = (
+                len(original_input_columns) == 1
+                and original_input_columns[0].lower() == "smiles"
+            )
             if not only_smiles_input:
                 export_df = export_df.drop(columns=["molecule_id"])
 
@@ -278,26 +290,67 @@ def _prepare_export(df_work, df_api, smiles_col, library, data_type, original_in
 def fix_greek_caps_columns(col: str) -> str:
     """Normalize Greek characters and canonical spelling in MolSSI headers."""
     greek_map = {
-        "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta",
-        "ε": "epsilon", "ζ": "zeta", "η": "eta", "θ": "theta",
-        "ι": "iota", "κ": "kappa", "λ": "lambda", "μ": "mu",
-        "ν": "nu", "ξ": "xi", "ο": "omicron", "π": "pi",
-        "ρ": "rho", "σ": "sigma", "τ": "tau", "υ": "upsilon",
-        "φ": "phi", "χ": "chi", "ψ": "psi", "ω": "omega",
-        "Α": "alpha", "Β": "beta", "Γ": "gamma", "Δ": "delta",
-        "Ε": "epsilon", "Ζ": "zeta", "Η": "eta", "Θ": "theta",
-        "Ι": "iota", "Κ": "kappa", "Λ": "lambda", "Μ": "mu",
-        "Ν": "nu", "Ξ": "xi", "Ο": "omicron", "Π": "pi",
-        "Ρ": "rho", "Σ": "sigma", "Τ": "tau", "Υ": "upsilon",
-        "Φ": "phi", "Χ": "chi", "Ψ": "psi", "Ω": "omega",
+        "α": "alpha",
+        "β": "beta",
+        "γ": "gamma",
+        "δ": "delta",
+        "ε": "epsilon",
+        "ζ": "zeta",
+        "η": "eta",
+        "θ": "theta",
+        "ι": "iota",
+        "κ": "kappa",
+        "λ": "lambda",
+        "μ": "mu",
+        "ν": "nu",
+        "ξ": "xi",
+        "ο": "omicron",
+        "π": "pi",
+        "ρ": "rho",
+        "σ": "sigma",
+        "τ": "tau",
+        "υ": "upsilon",
+        "φ": "phi",
+        "χ": "chi",
+        "ψ": "psi",
+        "ω": "omega",
+        "Α": "alpha",
+        "Β": "beta",
+        "Γ": "gamma",
+        "Δ": "delta",
+        "Ε": "epsilon",
+        "Ζ": "zeta",
+        "Η": "eta",
+        "Θ": "theta",
+        "Ι": "iota",
+        "Κ": "kappa",
+        "Λ": "lambda",
+        "Μ": "mu",
+        "Ν": "nu",
+        "Ξ": "xi",
+        "Ο": "omicron",
+        "Π": "pi",
+        "Ρ": "rho",
+        "Σ": "sigma",
+        "Τ": "tau",
+        "Υ": "upsilon",
+        "Φ": "phi",
+        "Χ": "chi",
+        "Ψ": "psi",
+        "Ω": "omega",
     }
 
     for greek_char, latin in greek_map.items():
         col = col.replace(greek_char, latin)
 
-    col = re.sub(r"(?<![A-Za-z0-9])low[_]?e(?![A-Za-z0-9])", "low_e", col, flags=re.IGNORECASE)
-    col = re.sub(r"(?<![A-Za-z0-9])boltz(?![A-Za-z0-9])", "boltz", col, flags=re.IGNORECASE)
+    col = re.sub(
+        r"(?<![A-Za-z0-9])low[_]?e(?![A-Za-z0-9])", "low_e", col, flags=re.IGNORECASE
+    )
+    col = re.sub(
+        r"(?<![A-Za-z0-9])boltz(?![A-Za-z0-9])", "boltz", col, flags=re.IGNORECASE
+    )
     return col
+
 
 class ExcelToCSVWorker(QThread):
     """Convert MolSSI spreadsheets into normalized CSV files for easyROB."""
@@ -340,7 +393,9 @@ class ExcelToCSVWorker(QThread):
 
         for i in range(min(15, len(raw))):
             row = raw.iloc[i].astype(str).str.lower().tolist()
-            if any(key in row for key in ("id", "numerical_id", "compound_name", "smiles")):
+            if any(
+                key in row for key in ("id", "numerical_id", "compound_name", "smiles")
+            ):
                 return pd.read_excel(self.path, sheet_name=sheet_name, header=i)
 
         return pd.read_excel(self.path, sheet_name=sheet_name)
@@ -360,7 +415,9 @@ class ExcelToCSVWorker(QThread):
 
             descriptor_sheet = self._detect_descriptor_sheet(sheets)
             if not descriptor_sheet:
-                raise ValueError("No descriptor sheet found. Expected one of: Descriptors, all_properties, DFT")
+                raise ValueError(
+                    "No descriptor sheet found. Expected one of: Descriptors, all_properties, DFT"
+                )
 
             df_desc = self._normalize_columns(self._read_descriptors(descriptor_sheet))
             needs_merge = descriptor_sheet == "Descriptors"
@@ -368,7 +425,9 @@ class ExcelToCSVWorker(QThread):
             if not needs_merge:
                 smiles_col = self._find_smiles_column(df_desc.columns)
                 if not smiles_col:
-                    raise ValueError(f"No SMILES column found in {descriptor_sheet} sheet")
+                    raise ValueError(
+                        f"No SMILES column found in {descriptor_sheet} sheet"
+                    )
 
                 df_final = df_desc.rename(columns={smiles_col: "SMILES"})
                 for key in ("Compound_Name", "ID", "Numerical_ID"):
@@ -380,14 +439,19 @@ class ExcelToCSVWorker(QThread):
                 if smiles_col_desc:
                     df_final = df_desc.rename(columns={smiles_col_desc: "SMILES"})
                     for key in ("Compound_Name", "ID", "Numerical_ID"):
-                        if key in df_final.columns and "code_name" not in df_final.columns:
+                        if (
+                            key in df_final.columns
+                            and "code_name" not in df_final.columns
+                        ):
                             df_final.rename(columns={key: "code_name"}, inplace=True)
                             break
                 else:
                     if "Identifiers" not in sheets:
                         raise ValueError("Identifiers sheet not found")
 
-                    df_id = self._normalize_columns(pd.read_excel(self.path, sheet_name="Identifiers"))
+                    df_id = self._normalize_columns(
+                        pd.read_excel(self.path, sheet_name="Identifiers")
+                    )
                     smiles_col_id = self._find_smiles_column(df_id.columns)
                     if not smiles_col_id:
                         raise ValueError("No SMILES column found in Identifiers")
@@ -406,7 +470,9 @@ class ExcelToCSVWorker(QThread):
 
                     df_desc = self._force_string_key(df_desc, join_key)
                     df_id = self._force_string_key(df_id, join_key)
-                    df_final = df_desc.merge(df_id[[join_key, smiles_col_id]], on=join_key, how="left")
+                    df_final = df_desc.merge(
+                        df_id[[join_key, smiles_col_id]], on=join_key, how="left"
+                    )
 
                     if "code_name" not in df_final.columns:
                         df_final.rename(columns={join_key: "code_name"}, inplace=True)
@@ -419,6 +485,6 @@ class ExcelToCSVWorker(QThread):
             csv_path = str(Path(self.path).with_suffix(".csv"))
             df_final.to_csv(csv_path, index=False)
             self.finished.emit(csv_path)
-            
+
         except Exception as exc:
             self.error.emit(str(exc))

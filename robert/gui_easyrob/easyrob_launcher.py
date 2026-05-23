@@ -17,6 +17,7 @@ Notes:
 import os
 import sys
 
+
 def configure_environment():
     """Configure Qt environment for stable rendering."""
     os.environ.setdefault("QT_QUICK_BACKEND", "software")
@@ -35,9 +36,10 @@ def configure_environment():
 
 configure_environment()
 
-from PySide6.QtCore import Qt, QCoreApplication
-from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QPalette
+from PySide6.QtCore import Qt, QCoreApplication  # noqa: E402
+from PySide6.QtGui import QPalette  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
 
 def main():
     """Main entry point for the EasyROB application."""
@@ -63,6 +65,7 @@ def main():
     window.show()
 
     sys.exit(app.exec())
+
 
 if __name__ == "__main__":
     main()

@@ -29,36 +29,21 @@ Notes:
 # ------------------------------------------------------------
 # Standard library
 # ------------------------------------------------------------
-import csv
-import glob
 import os
 import platform
-import re
 import shlex
-import shutil
 import subprocess
 import sys
 import threading
-from functools import partial
-from io import BytesIO
 from pathlib import Path
-from importlib.metadata import PackageNotFoundError, version
 from importlib.resources import as_file, files
 
 # ------------------------------------------------------------
 # Third-party libraries
 # ------------------------------------------------------------
 import pandas as pd
-import matplotlib.pyplot as plt
 import psutil
-import fitz
 
-import rdkit
-from rdkit import Chem
-from rdkit.Chem import Draw, rdDepictor, rdFMCS
-from rdkit.Chem.Draw import rdMolDraw2D
-from rdkit.Chem.rdmolfiles import MolsFromCDXMLFile
-from rdkit.Chem.rdmolops import GetMolFrags
 
 from ansi2html import Ansi2HTMLConverter
 
@@ -66,80 +51,32 @@ from ansi2html import Ansi2HTMLConverter
 # Qt (PySide6)
 # ------------------------------------------------------------
 from PySide6.QtCore import (
-    QByteArray,
-    QEventLoop,
-    QAbstractTableModel,
-    QModelIndex,
-    QObject,
-    QRunnable,
-    QRect,
-    QSize,
-    QSortFilterProxyModel,
     QThread,
-    QThreadPool,
-    QTimer,
     Qt,
     Signal,
-    Slot,
-    QUrl,
 )
 
 from PySide6.QtGui import (
-    QDesktopServices,
-    QFontMetrics,
-    QIcon,
-    QImage,
-    QMouseEvent,
-    QPalette,
-    QPixmap,
     QWheelEvent,
 )
 
-from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
-from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from PySide6.QtWidgets import (
-    QApplication,
-    QCheckBox,
     QComboBox,
-    QDialog,
     QFileDialog,
-    QFormLayout,
     QFrame,
-    QGridLayout,
-    QGroupBox,
-    QHBoxLayout,
-    QHeaderView,
-    QInputDialog,
     QLabel,
-    QLineEdit,
-    QListWidget,
-    QMainWindow,
-    QMenu,
-    QMessageBox,
-    QProgressBar,
     QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QSlider,
-    QStackedWidget,
-    QStatusBar,
-    QStyle,
-    QStyleOptionHeader,
-    QTabWidget,
-    QTableView,
-    QTableWidget,
-    QTableWidgetItem,
-    QTextEdit,
-    QToolButton,
     QVBoxLayout,
-    QWidget,
 )
+
 
 class DropLabel(QFrame):
     """Frame-based drop target with an optional file dialog button."""
 
-    def __init__(self, text, parent=None, file_filter="CSV Files (*.csv)", extensions=(".csv",)):
+    def __init__(
+        self, text, parent=None, file_filter="CSV Files (*.csv)", extensions=(".csv",)
+    ):
         super().__init__(parent)
         self.file_filter = file_filter
         self.valid_extensions = extensions
@@ -186,7 +123,9 @@ class DropLabel(QFrame):
 
     def open_file_dialog(self):
         """Open a file dialog to select a file."""
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "", self.file_filter)
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select File", "", self.file_filter
+        )
         if file_path and self.callback:
             self.set_file_path(file_path)
 
@@ -220,6 +159,7 @@ class DropLabel(QFrame):
         """Set the text of the label."""
         self.label.setText(text)
 
+
 class RobertWorker(QThread):
     """QThread that runs a subprocess asynchronously and streams real-time output."""
 
@@ -250,7 +190,8 @@ class RobertWorker(QThread):
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    | subprocess.CREATE_NO_WINDOW,
                 )
             else:
                 self.process = subprocess.Popen(
@@ -270,7 +211,9 @@ class RobertWorker(QThread):
                     for line in self.process.stdout:
                         if self._stop_requested:
                             break
-                        formatted_line = self.ansi_converter.convert(line.strip(), full=False)
+                        formatted_line = self.ansi_converter.convert(
+                            line.strip(), full=False
+                        )
                         self.output_received.emit(formatted_line)
                 except Exception as exc:
                     self.error_received.emit(f"Error reading stdout: {exc}")
@@ -281,7 +224,9 @@ class RobertWorker(QThread):
                     for line in self.process.stderr:
                         if self._stop_requested:
                             break
-                        formatted_line = f'<span style="color:red;">{line.strip()}</span>'
+                        formatted_line = (
+                            f'<span style="color:red;">{line.strip()}</span>'
+                        )
                         self.error_received.emit(formatted_line)
 
                     reset_line = self.ansi_converter.convert("\033[0m", full=False)
@@ -339,6 +284,7 @@ class RobertWorker(QThread):
         except Exception as exc:
             self.error_received.emit(f"Error stopping process: {exc}")
 
+
 def smart_read_csv(filepath):
     """Read a CSV file with automatic delimiter detection."""
     try:
@@ -350,6 +296,7 @@ def smart_read_csv(filepath):
     except (FileNotFoundError, OSError):
         return None
 
+
 class NoScrollComboBox(QComboBox):
     """Combo box that ignores wheel events while the popup is closed."""
 
@@ -358,6 +305,7 @@ class NoScrollComboBox(QComboBox):
             super().wheelEvent(event)
         else:
             event.ignore()
+
 
 class AssetPath:
     """Resolve asset paths both in development and in frozen distributions."""
@@ -378,6 +326,7 @@ class AssetPath:
                 / self._filename
             )
         return as_file(files("robert") / "icons" / self._filename)
+
 
 class AssetLibrary:
     """Central registry of asset files used by the GUI."""

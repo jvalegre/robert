@@ -1,0 +1,16 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+extend-exclude = [
+    ".git",
+    "build",
+    "dist",
+    "*.egg-info",
+    "Examples/**/*.ipynb",
+]
+
+[tool.ruff.lint]
+per-file-ignores = { "robert/gui_easyrob/easyrob_launcher.py" = ["E402"], "tests/test_easyrob.py" = ["E402"] }
+
+[tool.ruff.format]
+quote-style = "double"

@@ -9,6 +9,7 @@ predictions, uncertainty columns, and matplotlib handling are documented in
 from __future__ import annotations
 
 import glob
+import json
 import os
 import tempfile
 import uuid
@@ -25,12 +26,6 @@ from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score, r2_score
 
 from robert.argument_parser import options_add, var_dict
-from robert.curate import curate
-from robert.generate import generate
-from robert.predict import predict as predict_module
-from robert.report import report as report_module
-from robert.utils import load_params
-from robert.verify import verify
 
 _NAME_COL = "__robert_name__"
 _DEFAULT_Y = "__robert_y__"
@@ -88,7 +83,9 @@ def _suffix_title(filter_mode: str) -> str:
 def _find_params_csv(best_subdir: Path) -> Path:
     if not best_subdir.is_dir():
         raise FileNotFoundError(str(best_subdir))
-    csvs = sorted(p for p in best_subdir.glob("*.csv") if not p.name.endswith("_db.csv"))
+    csvs = sorted(
+        p for p in best_subdir.glob("*.csv") if not p.name.endswith("_db.csv")
+    )
     if len(csvs) != 1:
         raise RuntimeError(
             "Expected exactly one parameter CSV in "
@@ -129,7 +126,9 @@ def _resolve_prediction_id_column(
     )
 
 
-def _resolve_predict_csv(workdir: Path, pred_stem: str, model_code: str, suffix: str) -> str:
+def _resolve_predict_csv(
+    workdir: Path, pred_stem: str, model_code: str, suffix: str
+) -> str:
     """Path to PREDICT output CSV for the external set (exact file, else sorted glob)."""
     csv_dir = workdir / "PREDICT" / "csv_test"
     exact = csv_dir / f"{pred_stem}_{model_code}_{suffix}.csv"
@@ -174,8 +173,19 @@ class RobertModel(BaseEstimator):
     :param y_column: If ``fit(X)`` is called with ``y is None``, name of the target column
         in ``X`` (DataFrame only).
     :param kwargs: Additional ROBERT options (keys in ``robert.argument_parser.var_dict``),
-        e.g. ``model``, ``n_iter``. Regression uncertainty tuning includes
+        e.g. ``model``, ``n_iter``, ``plot_verbosity`` (``0``–``2``): ``0`` skips
+        matplotlib artifacts; ``1`` keeps CURATE/GENERATE/VERIFY summary plots and main
+        PREDICT result plots when ``predict_diagnostics`` is True; ``2`` additionally
+        enables SHAP/PFI/Pearson/outlier/distribution diagnostics when
+        ``predict_diagnostics`` is True. Regression uncertainty tuning includes
         ``conformal_enable``, ``conformal_calib_frac``, and ``conformal_coverage``.
+        Top-k meta-model uncertainty (opt-in) uses ``uq_enable_meta``,
+        ``uq_top_k_models``, and ``uq_model_weighting`` (``"score_weighted"`` or
+        ``"uniform"``). Auto uncertainty (regression, opt-in) uses ``uq_auto_enable``,
+        ``uq_auto_candidates``, ``uq_auto_scaler``, ``uq_auto_metric_weights``,
+        ``uq_auto_min_samples``, ``uq_auto_random_state``, and ``uq_auto_clas_mode``
+        (``"error"`` by default); ``return_uncertainty`` ``"auto"`` or
+        ``"auto_decomposed"`` enables auto mode for that predict call.
     """
 
     def __init__(
@@ -198,7 +208,9 @@ class RobertModel(BaseEstimator):
                 stacklevel=2,
             )
             if problem_type != "reg":
-                raise ValueError("Pass only one of 'problem_type' or deprecated 'type'.")
+                raise ValueError(
+                    "Pass only one of 'problem_type' or deprecated 'type'."
+                )
             problem_type = kwargs.pop("type")  # type: ignore[assignment]
         if "filter" in kwargs:
             warnings.warn(
@@ -207,7 +219,9 @@ class RobertModel(BaseEstimator):
                 stacklevel=2,
             )
             if filter_mode != "pfi":
-                raise ValueError("Pass only one of 'filter_mode' or deprecated 'filter'.")
+                raise ValueError(
+                    "Pass only one of 'filter_mode' or deprecated 'filter'."
+                )
             filter_mode = kwargs.pop("filter")  # type: ignore[assignment]
 
         self.problem_type = problem_type
@@ -381,14 +395,18 @@ class RobertModel(BaseEstimator):
         y_series.name = y_col
         return X_df, y_series, names_col
 
-    def _build_train_frame(self, X_df: pd.DataFrame, y_series: pd.Series) -> pd.DataFrame:
+    def _build_train_frame(
+        self, X_df: pd.DataFrame, y_series: pd.Series
+    ) -> pd.DataFrame:
         out = X_df.copy()
         out[y_series.name] = y_series.values
         return out
 
     def _read_model_snapshot(self, workdir: Path) -> dict[str, Any]:
         sub = "PFI" if self.filter_mode == "pfi" else "No_PFI"
-        folder = workdir / "GENERATE" / "Best_model" / sub
+        from robert.utils import load_params, path_generate_best_model
+
+        folder = path_generate_best_model(workdir, sub)
         params_path = _find_params_csv(folder)
         seed = int(self._rob_kwargs.get("seed", var_dict["seed"]))
         adapter = _ParamsAdapter(seed, self.problem_type)
@@ -416,6 +434,13 @@ class RobertModel(BaseEstimator):
         base["command_line"] = False
         base["csv_test"] = ""
 
+        from robert.curate import curate
+        from robert.generate import generate
+        from robert.predict import predict as predict_module
+        from robert.report import report as report_module
+        from robert.verify import verify
+        from robert.utils import path_generate_best_model
+
         with _noninteractive_mpl(), _chdir(workdir):
             curate(
                 csv_name=train_rel,
@@ -434,8 +459,8 @@ class RobertModel(BaseEstimator):
             if self.run_report:
                 report_module(**base)
 
-        best_sub = workdir / "GENERATE" / "Best_model" / (
-            "PFI" if self.filter_mode == "pfi" else "No_PFI"
+        best_sub = path_generate_best_model(
+            workdir, "PFI" if self.filter_mode == "pfi" else "No_PFI"
         )
         if self.filter_mode == "pfi" and not best_sub.is_dir():
             raise RuntimeError(
@@ -457,7 +482,11 @@ class RobertModel(BaseEstimator):
             self.feature_names_in_ = None
         model_names = str(model_data.get("names") or "")
         if model_names != names_col:
-            if model_names and names_col and model_names.casefold() == names_col.casefold():
+            if (
+                model_names
+                and names_col
+                and model_names.casefold() == names_col.casefold()
+            ):
                 warnings.warn(
                     f"Names column casing normalized to saved model column {model_names!r} "
                     f"(was {names_col!r}).",
@@ -491,11 +520,23 @@ class RobertModel(BaseEstimator):
         self,
         X: Union[pd.DataFrame, np.ndarray],
         return_std: bool = False,
-        return_uncertainty: Literal[False, "cv_sd", "conformal", "both"] = False,
+        return_uncertainty: Literal[
+            False,
+            "cv_sd",
+            "conformal",
+            "both",
+            "meta",
+            "total",
+            "decomposed",
+            "auto",
+            "auto_decomposed",
+        ] = False,
     ) -> Union[
         np.ndarray,
         Tuple[np.ndarray, np.ndarray],
         Tuple[np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, dict],
     ]:
         if not self.is_fitted_:
             raise RuntimeError("Call fit before predict.")
@@ -503,7 +544,17 @@ class RobertModel(BaseEstimator):
         assert workdir is not None
 
         if return_uncertainty is not False:
-            umode: Literal[False, "cv_sd", "conformal", "both"] = return_uncertainty
+            umode: Literal[
+                False,
+                "cv_sd",
+                "conformal",
+                "both",
+                "meta",
+                "total",
+                "decomposed",
+                "auto",
+                "auto_decomposed",
+            ] = return_uncertainty
             if return_std:
                 warnings.warn(
                     "return_uncertainty is set; return_std is ignored.",
@@ -533,9 +584,7 @@ class RobertModel(BaseEstimator):
             missing = [c for c in descriptors if c not in X_df.columns]
             if missing:
                 tail = "..." if len(missing) > 10 else ""
-                raise ValueError(
-                    f"Missing descriptor columns: {missing[:10]!r}{tail}"
-                )
+                raise ValueError(f"Missing descriptor columns: {missing[:10]!r}{tail}")
 
         pred_id = uuid.uuid4().hex[:12]
         pred_name = f"_robert_predict_{pred_id}.csv"
@@ -559,6 +608,16 @@ class RobertModel(BaseEstimator):
         base["csv_test"] = pred_name
         base["params_dir"] = "GENERATE/Best_model"
         base["names"] = self.names_col_
+        base["predict_diagnostics"] = False
+        if umode in ("auto", "auto_decomposed"):
+            if self.problem_type != "reg":
+                raise ValueError(
+                    "return_uncertainty='auto' or 'auto_decomposed' is only "
+                    "supported for problem_type='reg'."
+                )
+            base["uq_auto_enable"] = True
+
+        from robert.predict import predict as predict_module
 
         with _noninteractive_mpl(), _chdir(workdir):
             predict_module(**base)
@@ -572,6 +631,11 @@ class RobertModel(BaseEstimator):
         pred_col = f"{y_target}_pred"
         sd_col = f"{y_target}_pred_sd"
         hw_col = f"{y_target}_pred_conformal_hw"
+        uq_model_col = f"{y_target}_pred_uq_model"
+        uq_meta_col = f"{y_target}_pred_uq_meta"
+        uq_total_col = f"{y_target}_pred_uq_total"
+        uq_auto_col = f"{y_target}_pred_uq_auto"
+        uq_auto_src_col = f"{y_target}_pred_uq_auto_source"
         if pred_col not in result_df.columns:
             raise RuntimeError(f"Column {pred_col!r} missing in {csv_path}")
 
@@ -621,12 +685,124 @@ class RobertModel(BaseEstimator):
                     f"Column {hw_col!r} has no finite values; disable conformal "
                     "or use a larger training set."
                 )
+        if umode in ("auto", "auto_decomposed"):
+            if uq_auto_col not in result_df.columns:
+                raise RuntimeError(
+                    f"Column {uq_auto_col!r} missing in {csv_path}; ensure "
+                    "uq_auto_enable=True or use return_uncertainty='auto'."
+                )
+            y_uq_auto = ordered[uq_auto_col].to_numpy(dtype=float)
+            if not (np.isfinite(y_uq_auto).all() and (y_uq_auto >= 0).all()):
+                raise RuntimeError(
+                    f"Column {uq_auto_col!r} has invalid uncertainty values."
+                )
+            auto_metadata: dict[str, Any] = {}
+            meta_path = workdir / "PREDICT" / "uq_auto_metadata.json"
+            if meta_path.is_file():
+                with meta_path.open(encoding="utf-8") as fh:
+                    auto_metadata = json.load(fh)
+            elif uq_auto_src_col in result_df.columns:
+                src_vals = ordered[uq_auto_src_col].dropna().unique()
+                if len(src_vals):
+                    auto_metadata["selected"] = str(src_vals[0])
+
+        if umode in ("meta", "total", "decomposed"):
+            if not bool(self._rob_kwargs.get("uq_enable_meta", False)):
+                raise ValueError(
+                    "return_uncertainty='meta', 'total', or 'decomposed' requires "
+                    "uq_enable_meta=True when constructing RobertModel."
+                )
+            for col in (uq_model_col, uq_meta_col, uq_total_col):
+                if col not in result_df.columns:
+                    raise RuntimeError(
+                        f"Column {col!r} missing in {csv_path}; refit with "
+                        "uq_enable_meta=True or run predict after enabling meta UQ."
+                    )
+            y_uq_model = ordered[uq_model_col].to_numpy(dtype=float)
+            y_uq_meta = ordered[uq_meta_col].to_numpy(dtype=float)
+            y_uq_total = ordered[uq_total_col].to_numpy(dtype=float)
+            if not (np.isfinite(y_uq_total).all() and (y_uq_total >= 0).all()):
+                raise RuntimeError(
+                    f"Column {uq_total_col!r} has invalid uncertainty values."
+                )
 
         if umode == "cv_sd":
             return y_pred, y_sd
         if umode == "conformal":
             return y_pred, y_hw
-        return y_pred, y_sd, y_hw
+        if umode == "both":
+            return y_pred, y_sd, y_hw
+        if umode == "auto":
+            return y_pred, y_uq_auto
+        if umode == "auto_decomposed":
+            return y_pred, y_uq_auto, auto_metadata
+        if umode == "meta":
+            return y_pred, y_uq_meta
+        if umode == "total":
+            return y_pred, y_uq_total
+        return y_pred, y_uq_model, y_uq_meta, y_uq_total
+
+    def robert_scores(
+        self,
+        suffix: Optional[Literal["No PFI", "PFI"]] = None,
+    ) -> dict[str, Any]:
+        """
+        Return the ROBERT report score and sub-scores from VERIFY/PREDICT outputs.
+
+        Requires a prior :meth:`fit` that ran VERIFY and PREDICT (and REPORT if a
+        PDF is expected). Reads ``*_data.dat`` files in :attr:`workdir_`.
+        """
+        if not self.is_fitted_:
+            raise RuntimeError("Call fit before robert_scores.")
+        workdir = self.workdir_
+        if workdir is None:
+            raise RuntimeError("workdir is not set.")
+
+        if suffix is None:
+            suffix = "PFI" if self.filter_mode == "pfi" else "No PFI"
+
+        from robert.report_utils import calc_score, repro_info
+
+        modules = ["CURATE", "GENERATE", "VERIFY", "PREDICT"]
+        with _chdir(workdir):
+            _, _, _, _, _, dat_files = repro_info(modules)
+            if "PREDICT" not in dat_files or "VERIFY" not in dat_files:
+                raise RuntimeError(
+                    "PREDICT/VERIFY outputs missing in workdir; "
+                    "run fit() with the full pipeline first."
+                )
+            data_score: dict[str, Any] = {}
+            data_score = calc_score(dat_files, suffix, self.problem_type, data_score)
+
+        score_key = f"robert_score_{suffix}"
+        if self.problem_type == "reg":
+            component_keys = [
+                "cv_score_combined",
+                "test_score_combined",
+                "cv_sd_score",
+                "diff_scaled_rmse_score",
+                "flawed_mod_score",
+                "sorted_cv_score",
+            ]
+        else:
+            component_keys = [
+                "cv_score_combined",
+                "test_score_combined",
+                "flawed_mod_score",
+                "sorted_cv_score",
+                "diff_mcc_score",
+                "descp_score",
+            ]
+        components = {
+            key: data_score.get(f"{key}_{suffix}", 0) for key in component_keys
+        }
+        pdf_path = workdir / "ROBERT_report.pdf"
+        return {
+            "suffix": suffix,
+            "robert_score": int(data_score.get(score_key, 0)),
+            "components": components,
+            "pdf_path": str(pdf_path) if pdf_path.is_file() else None,
+        }
 
     def score(
         self,

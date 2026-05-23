@@ -14,8 +14,9 @@ A to M                                        N to Z
 **GB:** gradient boosting                     **RND:** random
 **GP:** gaussian process                      **SHAP:** Shapley additive explanations
 **KN:** k-nearest neighbors                   **VR:** voting regressor
-**MAE:** root-mean-square error 
+**MAE:** mean absolute error 
 **MCC:** Matthew's correlation coefficient
 **ML:** machine learning                         
 **MVL:** multivariate lineal models
+**XGB:** extreme gradient boosting
 ===========================================   =======================================

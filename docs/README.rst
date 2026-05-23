@@ -73,11 +73,18 @@ standards for cheminformatics studies, including:
       Requires the `AQME program <https://aqme.readthedocs.io>`__.  
    *  **Data curation**, including filters for correlated descriptors, noise, and duplicates, 
       as well as conversion of categorical descriptors.  
+   *  **EVALUATE**, to run VERIFY/PREDICT on a pre-specified linear model (``MVL``) without
+      GENERATE screening (see :doc:`Modules/evaluate`).
    *  **Model selection**, including the comparison of multiple hyperoptimized models using 
       multiple cross-validation techniques. This approach mitigates overfitting in low-data regimes.
+      The default screening set is RF/GB/NN/MVL for regression (or RF/GB/NN/AdaB for classification);
+      add ``XGB`` explicitly with ``--model`` (CLI) or ``model=[..., "XGB"]`` (Python API).
    *  **Prediction** of external test sets, as well as SHAP and PFI feature analysis.  
    *  **VERIFY tests** to assess the predictive ability of the models, including y-shuffle,
       y-mean, and one-hot encoding tests.  
+   *  **Python API** (:class:`~robert.api.RobertModel`): sklearn-style ``fit``, ``predict``, and
+      ``score`` on DataFrames, with optional split-conformal, meta-model, and auto uncertainty
+      quantification. See :doc:`API/robert.api`.
 
 The code has been designed for:
 
@@ -107,7 +114,7 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
    :width: 140
    :align: middle
 
-**1.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+**1.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/master/environment/env.yaml>`__ by clicking this button on GitHub |download|.
 
 **2.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
 
@@ -135,7 +142,7 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
    No additional manual installation is required.
 
 **Alternative installation**
-===========================
+============================
 
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
@@ -202,10 +209,6 @@ You need a terminal with Python to install and run ROBERT. These are some sugges
 If you prefer a faster and easier installation, you can use the preconfigured **YAML environment file**.  
 This method automatically installs Python, ROBERT, and all required dependencies.
 
-.. |download| image:: /Modules/images/download.png
-   :width: 140
-   :align: middle
-
 **1.** Install `Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>`__ for your 
 operating system (Windows, macOS or Linux). Alternatively, if you're familiar with conda installers, 
 you can install `Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
@@ -241,7 +244,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 ----
 
 **Alternative installation**
-===========================
+============================
 
 If you prefer to install ROBERT manually, follow these steps:
 
@@ -299,7 +302,7 @@ without using command lines — just by selecting files and options through an i
 
 .. note::
 
-   For video tutorials on how to use easyROB, check out our `YouTube channel <https://www.youtube.com/@thealegregroup4964/videos>`_.
+   For video tutorials on how to use easyROB, check out our `easyROB video tutorials <https://www.youtube.com/@thealegregroup4964/videos>`_.
 
 
 
@@ -382,6 +385,7 @@ Python and Python libraries
 *  seaborn
 *  scipy
 *  scikit-learn
+*  xgboost (dependency for optional ``XGB`` model screening; not part of the default model list)
 *  hyperopt
 *  numba
 *  shap

@@ -3,6 +3,7 @@ import sys
 import subprocess
 from pathlib import Path
 
+
 def run_postinstall():
     """
     Execute platform-specific post-installation steps.
@@ -11,12 +12,12 @@ def run_postinstall():
     - Setting execution permissions
     - Running the script to unpack the conda environment
     """
-    if sys.platform == 'darwin':
-        if getattr(sys, 'frozen', False):
+    if sys.platform == "darwin":
+        if getattr(sys, "frozen", False):
             # Get the app bundle path when running as a frozen application
             app_path = Path(sys._MEIPASS)
-            install_script = app_path / 'Contents' / 'Resources' / 'postinstall.sh'
-            
+            install_script = app_path / "Contents" / "Resources" / "postinstall.sh"
+
             if install_script.exists():
                 try:
                     # Set execute permissions
@@ -26,5 +27,6 @@ def run_postinstall():
                 except subprocess.CalledProcessError as e:
                     print(f"Post-installation error: {e}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     run_postinstall()

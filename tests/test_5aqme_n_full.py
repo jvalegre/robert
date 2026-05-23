@@ -17,6 +17,15 @@ path_main = os.getcwd()
 path_aqme = os.path.join(path_main, "AQME")
 
 
+def _aqme_installed() -> bool:
+    try:
+        import aqme  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 # AQME and full workflow tests
 @pytest.mark.parametrize(
     "test_job",
@@ -30,6 +39,9 @@ path_aqme = os.path.join(path_main, "AQME")
     ],
 )
 def test_AQME(test_job):
+    if test_job in ("aqme", "2smiles_columns") and not _aqme_installed():
+        pytest.skip("AQME is not installed (pip install aqme==2.0.0)")
+
     # reset the folders (to avoid interferences with previous failed tests)
     folders = [
         "CURATE",

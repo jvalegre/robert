@@ -57,6 +57,7 @@ Special acknowledgments
    
    Modules/database
    Modules/curate
+   Modules/evaluate
    Modules/generate
    Modules/predict
    Modules/verify

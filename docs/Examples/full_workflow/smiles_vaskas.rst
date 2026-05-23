@@ -136,6 +136,13 @@ By default, the workflow sets:
 
 * :code:`--names code_name` (name of the column containing the names of the datapoints)  
 
+.. note::
+
+   Default model screening in this workflow uses RF/GB/NN/MVL. XGBoost is available as opt-in
+   by setting :code:`--model "[...,XGB]"`. For Python API usage and uncertainty controls
+   (``conformal_*``, ``uq_enable_meta``/``uq_top_k_models``/``uq_model_weighting``, ``uq_auto_*``),
+   see :doc:`../../API/robert.api`.
+
 Execution time and versions
 +++++++++++++++++++++++++++
 
@@ -160,7 +167,7 @@ Results
    :target: ../../_static/AQME-ROBERT_vaska_short.csv
    :width: 30
 
-* The workflow starts with a CSEARCH-RDKit conformer sampling (using RDKit by default, although CREST is also available if :code:`--csearch_keywords "--program crest"` is added).
+* The workflow starts with a CSEARCH-RDKit conformer sampling (using RDKit by default). For CREST or other CSEARCH engines/settings, use the `AQME <https://aqme.readthedocs.io>`__ CLI or API directly, then continue ROBERT with the produced descriptor CSV—ROBERT exposes ``--qdescp_keywords`` for the internal QDESCP step, not a separate CSEARCH flag.
 
 * Then, QDESCP is used to generate more than 200 RDKit and xTB Boltzmann-averaged molecular descriptors (using xTB geometry optimizations and different single-point calculations).
 

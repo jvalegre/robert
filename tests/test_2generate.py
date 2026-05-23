@@ -4,6 +4,8 @@
 # 	        Testing GENERATE with pytest 	         #
 ######################################################.
 
+import ast
+import json
 import os
 import sys
 import glob
@@ -31,6 +33,15 @@ def _read_best_model_pair(best_dir):
     return pd.read_csv(params_paths[0], encoding="utf-8"), pd.read_csv(
         db_paths[0], encoding="utf-8"
     )
+
+
+def _parse_x_descriptors(raw):
+    """Parse X_descriptors from GENERATE CSV (JSON or Python literal list)."""
+    text = raw if isinstance(raw, str) else str(raw)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return ast.literal_eval(text)
 
 
 def _log_line_metric_close(line, prefix, expected, *, rel_tol=0.05, abs_tol=0.02):
@@ -64,6 +75,9 @@ def _log_line_metric_close(line, prefix, expected, *, rel_tol=0.05, abs_tol=0.02
         (
             "reduced_adab"
         ),  # test for other GP model (important since PFI filter tries to discard all the descriptors)
+        ("reduced_xgb"),  # test for XGB model (tree booster with feature importances)
+        ("reduced_vr"),  # test for Voting Regressor model
+        ("reduced_vr_clas"),  # test Voting Classifier workflow
         ("reduced_clas"),  # test for clasification models
         ("standard"),  # standard test
     ],
@@ -83,7 +97,7 @@ def test_GENERATE(test_job):
         shutil.rmtree(os.path.join(path_main, "GENERATE_clas"))
 
     # runs the program with the different tests
-    if test_job == "reduced_clas":
+    if test_job in ["reduced_clas", "reduced_vr_clas"]:
         csv_name = os.path.join("tests", "Robert_example_clas.csv")
     else:
         csv_name = os.path.join("CURATE", "Robert_example_CURATE.csv")
@@ -110,12 +124,22 @@ def test_GENERATE(test_job):
         generate_kwargs = {"generate": True, "csv_name": csv_name, "y": "Target_values"}
         if test_job != "standard":
             # add model
-            if test_job not in ["reduced_gp", "reduced_adab"]:
+            if test_job not in [
+                "reduced_gp",
+                "reduced_adab",
+                "reduced_xgb",
+                "reduced_vr",
+                "reduced_vr_clas",
+            ]:
                 generate_kwargs["model"] = ["RF"]
             elif test_job == "reduced_gp":
                 generate_kwargs["model"] = ["GP"]
             elif test_job == "reduced_adab":
                 generate_kwargs["model"] = ["Adab"]
+            elif test_job == "reduced_xgb":
+                generate_kwargs["model"] = ["XGB"]
+            elif test_job in ["reduced_vr", "reduced_vr_clas"]:
+                generate_kwargs["model"] = ["VR"]
 
             # adjust cmd for tests
             if test_job == "reduced_noPFI":
@@ -125,7 +149,7 @@ def test_GENERATE(test_job):
             elif test_job == "reduced_kfold":
                 generate_kwargs["kfold"] = 10
                 generate_kwargs["repeat_kfolds"] = 5
-            elif test_job in ["reduced_clas"]:
+            elif test_job in ["reduced_clas", "reduced_vr_clas"]:
                 generate_kwargs["type"] = "clas"
 
             generate_kwargs["init_points"] = 1
@@ -150,7 +174,7 @@ def test_GENERATE(test_job):
         else:
             indeces = [7, 8, 9, 10]
         assert "- 37 datapoints" in outlines[indeces[0]]
-        if test_job == "reduced_clas":
+        if test_job in ["reduced_clas", "reduced_vr_clas"]:
             assert "- 9 accepted descriptors" in outlines[indeces[1]]
         else:
             assert "- 11 accepted descriptors" in outlines[indeces[1]]
@@ -256,9 +280,12 @@ def test_GENERATE(test_job):
         if test_job == "reduced_noPFI":
             assert finding_line == 3.5
             assert reproducibility == 1
-        elif test_job in ["reduced", "reduced_cmd"]:
+        elif test_job in ["reduced", "reduced_cmd", "reduced_vr"]:
             assert finding_line == 4
-            assert reproducibility == 2
+            if test_job in ["reduced", "reduced_cmd"]:
+                assert reproducibility == 2
+            else:
+                assert reproducibility == 0
         if test_job == "standard":
             assert finding_line == 11
             assert reproducibility == 8
@@ -291,6 +318,7 @@ def test_GENERATE(test_job):
                 "reduced_PFImax",
                 "reduced_gp",
                 "reduced_adab",
+                "reduced_xgb",
                 "reduced_clas",
                 "standard",
             ]:
@@ -311,7 +339,7 @@ def test_GENERATE(test_job):
                             "x9",
                             "ynoise",
                         ]
-                    elif test_job == "reduced_adab":
+                    elif test_job in ["reduced_xgb", "reduced_adab"]:
                         desc_list = [
                             "Csub-Csub",
                             "Csub-H",
@@ -358,6 +386,8 @@ def test_GENERATE(test_job):
                         desc_list = ["x10"]
                     elif test_job == "reduced_gp":
                         desc_list = ["x5", "Csub-Csub", "x7", "x10", "x8", "Csub-H"]
+                    elif test_job == "reduced_xgb":
+                        desc_list = ["x10", "x7"]
                     elif test_job == "reduced_adab":
                         desc_list = ["x10", "x9"]
                     elif test_job == "reduced_clas":
@@ -391,9 +421,10 @@ def test_GENERATE(test_job):
                     for i, expected_col in enumerate(expected_cols):
                         assert db_best.columns[i] == expected_col
 
+                stored_descs = _parse_x_descriptors(params_best["X_descriptors"][0])
                 for var in desc_list:
-                    assert var in params_best["X_descriptors"][0]
-                assert len(desc_list) == len(params_best["X_descriptors"][0].split(","))
+                    assert var in stored_descs
+                assert len(desc_list) == len(stored_descs)
 
                 if test_job == "reduced_clas":
                     metric_bo = "mcc"
@@ -435,9 +466,12 @@ def test_GENERATE(test_job):
             )
 
         # Check that the default metric for classification models is MCC
-        if test_job == "reduced_clas":
+        if test_job in ["reduced_clas", "reduced_vr_clas"]:
+            model_name = "RF" if test_job == "reduced_clas" else "VR"
             csv_clas = glob.glob(
-                os.path.join(path_generate, "Best_model", "PFI", "RF_PFI.csv")
+                os.path.join(
+                    path_generate, "Best_model", "PFI", f"{model_name}_PFI.csv"
+                )
             )
             df = pd.read_csv(csv_clas[0])
             if "error_type" in df.columns:

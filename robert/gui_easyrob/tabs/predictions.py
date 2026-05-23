@@ -23,6 +23,7 @@ Notes:
 - Designed to keep heavy logic delegated to utils.predictions_utils
 
 """
+
 # ------------------------------------------------------------
 # Import resolution (local vs installed package)
 # ------------------------------------------------------------
@@ -60,7 +61,7 @@ try:
         get_robert_report_path,
     )
 
-except ImportError as e:
+except ImportError:
     from robert.gui_easyrob.utils.utils_gui import (
         QFrame,
         QHBoxLayout,
@@ -102,8 +103,10 @@ import re
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 class PredictionsTab(QWidget):
     """Tab for displaying prediction results from ROBERT runs."""
+
     availabilityChanged = Signal(bool)
 
     def __init__(self, parent=None):
@@ -147,7 +150,7 @@ class PredictionsTab(QWidget):
             return match.group(1)
 
         return None
-    
+
     def _filter_prediction_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Keeps and orders columns as:
@@ -193,7 +196,7 @@ class PredictionsTab(QWidget):
             df.insert(0, "Image", df[smiles_cols[0]])
 
         return df[ordered_columns]
-    
+
     def refresh_with_new_path(self, selected_file_path: str):
         """Refreshes the predictions tab with new data from the selected file path."""
         # This is the ONLY base path used by PredictionsTab
@@ -231,7 +234,7 @@ class PredictionsTab(QWidget):
         info = evaluate_predictions_for_model(
             self._base_path,
             df,
-            key # "PFI" or "No_PFI"
+            key,  # "PFI" or "No_PFI"
         )
 
         # Extract fragment image
@@ -271,7 +274,7 @@ class PredictionsTab(QWidget):
     def _create_table_with_stats(self, df, info, pdf_image):
         """Creates the main table view with the predictions and the side dashboard with stats and diagnostics."""
 
-        # ---- Container ----        
+        # ---- Container ----
         container = QWidget()
         container.setStyleSheet("background: palette(window);")
 
@@ -308,7 +311,7 @@ class PredictionsTab(QWidget):
             lambda pos, d=df, h=header: self._show_header_menu(pos, d, h)
         )
 
-       # ---- Side Dashboard ----
+        # ---- Side Dashboard ----
         pdf_path = info["pdf_path"]
         model_key = info["model"]  # "PFI" or "No_PFI"
 
@@ -325,7 +328,7 @@ class PredictionsTab(QWidget):
             pdf_image=pdf_image,
             extrapolation_score=extrap_scores.get(model_key),
             extrapolation_image=extrap_pixmap,
-            external_plot=external_pixmap
+            external_plot=external_pixmap,
         )
 
         # ---- Separator ----
@@ -353,11 +356,11 @@ class PredictionsTab(QWidget):
 
         menu = QMenu(header)
 
-        # Sorting actions 
+        # Sorting actions
         action_sort_asc = menu.addAction("Sort ascending")
         action_sort_desc = menu.addAction("Sort descending")
 
-        menu.addSeparator() 
+        menu.addSeparator()
 
         # Histogram action (only for numeric columns)
         action_hist = None

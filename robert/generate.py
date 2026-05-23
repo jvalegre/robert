@@ -3,9 +3,9 @@ Parameters
 ----------
 
     csv_name : str, default=''
-        Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). 
+        Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv').
     y : str, default=''
-        Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). 
+        Name of the column containing the response variable in the input CSV file (i.e. 'solubility').
     discard : list, default=[]
         List containing the columns of the input CSV file that will not be included as descriptors
         in the curated CSV file (i.e. ['name','SMILES']).
@@ -16,22 +16,24 @@ Parameters
     destination : str, default=None
         Directory to create the output file(s).
     varfile : str, default=None
-        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
+        Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
-    model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) 
-        ML models available: 
+    model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification)
+        ML models available:
         1. 'RF' (Random forest)
         2. 'MVL' (Multivariate lineal models)
         3. 'GB' (Gradient boosting)
         4. 'NN' (MLP neural network)
         5. 'GP' (Gaussian Process)
         6. 'AdaB' (AdaBoost)
+        7. 'VR' (Voting Regressor/Classifier with RF, GB and NN base estimators)
+        8. 'XGB' (XGBoost regressor/classifier; opt-in, not in default model list)
     custom_params : str, default=None
         Define new parameters for the ML models used in the hyperoptimization workflow. The path
         to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')
     type : str, default='reg'
-        Type of the pedictions. Options: 
+        Type of the pedictions. Options:
         1. 'reg' (Regressor)
         2. 'clas' (Classifier)
     seed : int, default=0
@@ -50,7 +52,7 @@ Parameters
         Number of initial points for Bayesian optimization (exploration)
     n_iter : int, default=10
         Number of iterations for Bayesian optimization (exploitation)
-    expect_improv : int, default=0.05
+    expect_improv : float, default=0.05
         Expected improvement for Bayesian optimization
     pfi_filter : bool, default=True
         Activate the PFI filter of descriptors.
@@ -69,7 +71,7 @@ Parameters
         hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select
         --test_set 0 to use only training and validation.
     kfold : int, default=5
-        Number of random data splits for the cross-validation of the models. 
+        Number of random data splits for the cross-validation of the models.
     repeat_kfolds : int, default=10
         Number of repetitions for the k-fold cross-validation of the models.
     split : str, default= 'even' (regression) or 'rnd' (classification)
@@ -80,7 +82,7 @@ Parameters
         4. 'KN': uses a k-means approach to select representative samples for training (good for intrapolation, bad for extrapolation).
         5. 'extra_q1': selects the 20% lowest values.
         6. 'extra_q5': selects the 20% highest values.
-        
+
 """
 #####################################################.
 #        This file stores the GENERATE class        #
@@ -90,17 +92,18 @@ Parameters
 import os
 import time
 from robert.utils import (
-    load_variables, 
+    load_variables,
     finish_print,
     load_database,
     check_clas_problem,
-    prepare_sets
+    prepare_sets,
+    should_plot_generate_heatmap,
 )
 from robert.generate_utils import (
     BO_workflow,
     PFI_workflow,
     heatmap_workflow,
-    detect_best
+    detect_best,
 )
 
 
@@ -115,98 +118,141 @@ class generate:
     """
 
     def __init__(self, **kwargs):
-
         start_time = time.time()
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "generate")
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df, _, _ = load_database(self,self.args.csv_name,"generate")
+        csv_df, _, _ = load_database(self, self.args.csv_name, "generate")
 
         # changes type to classification if there are only two different y values
-        if self.args.type.lower() == 'reg' and self.args.auto_type:
-            self = check_clas_problem(self,csv_df)
-        
+        if self.args.type.lower() == "reg" and self.args.auto_type:
+            self = check_clas_problem(self, csv_df)
+
         # scan different ML models
         txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models ({self.args.model})."
 
         # scan different training partition sizes
         cycle = 1
-        txt_heatmap += f'\n   Heatmap generation:'
+        txt_heatmap += "\n   Heatmap generation:"
         self.args.log.write(txt_heatmap)
 
         # scan different ML models
-        self.args.log.write(f'''   o Starting BO-based hyperoptimization using the combined target:
+        self.args.log.write(f"""   o Starting BO-based hyperoptimization using the combined target:
                     \n     1. 50% = {self.args.error_type.upper()} from a {self.args.repeat_kfolds}x repeated {self.args.kfold}-fold CV (interpoplation)
                     \n     2. 50% = {self.args.error_type.upper()} from the bottom or top (worst performing) fold in a sorted {self.args.kfold}-fold CV (extrapolation)
-                    \n''')
+                    \n""")
 
         for ML_model in self.args.model:
-
-            self.args.log.write(f'   - {cycle}/{len(self.args.model)} - ML model: {ML_model} ')
+            self.args.log.write(
+                f"   - {cycle}/{len(self.args.model)} - ML model: {ML_model} "
+            )
 
             # Try to load model-specific curated CSV first, fall back to general CSV
             # Get the base name from the original csv_name (remove path if any)
-            if 'CURATE' in str(self.args.csv_name):
+            if "CURATE" in str(self.args.csv_name):
                 # If csv_name is already a CURATE file, extract the original base name
-                csv_basename = os.path.basename(f'{self.args.csv_name}').replace('_CURATE.csv', '').replace('.csv', '')
+                csv_basename = (
+                    os.path.basename(f"{self.args.csv_name}")
+                    .replace("_CURATE.csv", "")
+                    .replace(".csv", "")
+                )
             else:
-                csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
-            
-            curate_folder = self.args.initial_dir.joinpath('CURATE')
-            csv_model_specific = curate_folder.joinpath(f'{csv_basename}_CURATE_{ML_model}.csv')
-            
+                csv_basename = os.path.basename(f"{self.args.csv_name}").split(".")[0]
+
+            curate_folder = self.args.initial_dir.joinpath("CURATE")
+            csv_model_specific = curate_folder.joinpath(
+                f"{csv_basename}_CURATE_{ML_model}.csv"
+            )
+
             # Store the original csv_name temporarily
             original_csv_name = self.args.csv_name
-            
+
             if os.path.exists(csv_model_specific):
                 csv_to_load = csv_model_specific
                 # Temporarily update csv_name to the model-specific CSV
                 self.args.csv_name = str(csv_model_specific)
-                self.args.log.write(f'      o Using model-specific curated database: {os.path.basename(csv_model_specific)}')
+                self.args.log.write(
+                    f"      o Using model-specific curated database: {os.path.basename(csv_model_specific)}"
+                )
             else:
                 csv_to_load = self.args.csv_name
-                self.args.log.write(f'      x Using general database (model-specific not found): {os.path.basename(self.args.csv_name)}')
-            
+                self.args.log.write(
+                    f"      x Using general database (model-specific not found): {os.path.basename(self.args.csv_name)}"
+                )
+
             # load database, discard user-defined descriptors and perform data checks
-            csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
-            
+            csv_df, csv_X, csv_y = load_database(
+                self, csv_to_load, "generate", print_info=False
+            )
 
             # standardizes and separates an external test set
-            Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
+            Xy_data = prepare_sets(
+                self,
+                csv_df,
+                csv_X,
+                csv_y,
+                None,
+                self.args.names,
+                None,
+                None,
+                None,
+                BO_opt=True,
+            )
 
             # hyperopt process for ML models
             _ = BO_workflow(self, Xy_data, csv_df, ML_model)
 
             # apply the PFI descriptor filter if it's activated
             if self.args.pfi_filter:
-                # load database, discard user-defined descriptors and perform data checks
-                csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
+                # Reuse processed dataframe: BO adds a Set column in-memory; drop it and
+                # rebuild X/y splits without re-reading the curated CSV from disk.
+                csv_df_pfi = csv_df.drop(columns=["Set"], errors="ignore")
+                cols_to_ignore = [
+                    col for col in self.args.ignore if col in csv_df_pfi.columns
+                ]
+                csv_df_ignore = csv_df_pfi.drop(cols_to_ignore, axis=1)
+                csv_X = csv_df_ignore.drop([self.args.y], axis=1)
+                csv_y = csv_df_ignore[self.args.y]
+                csv_X = csv_X[sorted([col for col in csv_X.columns])]
 
                 # standardizes and separates an external test set
-                Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
+                Xy_data = prepare_sets(
+                    self,
+                    csv_df_pfi,
+                    csv_X,
+                    csv_y,
+                    None,
+                    self.args.names,
+                    None,
+                    None,
+                    None,
+                    BO_opt=True,
+                )
 
-                _ = PFI_workflow(self, csv_df, ML_model, Xy_data)
-            
+                _ = PFI_workflow(self, csv_df_pfi, ML_model, Xy_data)
+
             # Restore the original csv_name
             self.args.csv_name = original_csv_name
 
             cycle += 1
 
         # detects best combinations
-        dir_csv = self.args.destination.joinpath(f"Raw_data")
-        _ = detect_best(f'{dir_csv}/No_PFI')
+        dir_csv = self.args.destination.joinpath("Raw_data")
+        _ = detect_best(f"{dir_csv}/No_PFI")
 
         # create heatmap plot(s)
-        _ = heatmap_workflow(self,"No_PFI")
+        if should_plot_generate_heatmap(self.args):
+            _ = heatmap_workflow(self, "No_PFI")
 
         # detect best and create heatmap for PFI models
         if self.args.pfi_filter:
-            try: # if no models were found
-                _ = detect_best(f'{dir_csv}/PFI')
-                _ = heatmap_workflow(self,"PFI")
+            try:  # if no models were found
+                _ = detect_best(f"{dir_csv}/PFI")
+                if should_plot_generate_heatmap(self.args):
+                    _ = heatmap_workflow(self, "PFI")
             except UnboundLocalError:
                 pass
 
-        _ = finish_print(self,start_time,'GENERATE')
+        _ = finish_print(self, start_time, "GENERATE")

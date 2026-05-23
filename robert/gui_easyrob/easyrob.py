@@ -22,6 +22,7 @@ Note:
 
 """
 
+
 def get_main_window_class():
     """Factory function to retrieve the main application window class."""
     try:

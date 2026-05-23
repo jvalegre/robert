@@ -25,7 +25,7 @@ def setup_logger():
     # PyInstaller logger
     pyinstaller_logger = logging.getLogger("pyinstaller_logger")
     pyinstaller_logger.setLevel(logging.INFO)
-    pyinstaller_logger.propagate = False 
+    pyinstaller_logger.propagate = False
 
     pyinstaller_log_path = Path("pyinstaller.log")
     pyinstaller_file_handler = logging.FileHandler(pyinstaller_log_path, mode="w")

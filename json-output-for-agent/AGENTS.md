@@ -39,6 +39,23 @@ The preferred strategy is to add helper functions in one project-specific helper
 
 ---
 
+## Standard Output Preservation Rule
+
+Normal ROBERT outputs must remain in their default root locations.
+
+This includes `.dat`, `.csv`, image files, and `ROBERT_report.pdf` behavior.
+
+If a timestamped run archive is used, it must be copy-only:
+
+- run ROBERT normally,
+- do not reroute ROBERT output destinations,
+- do not modify default output paths,
+- after completion, duplicate generated files into `json-output-for-agent/runs/<timestamp>_<input>/`.
+
+The wrapper archive is a project-side mirror, not a replacement output path.
+
+---
+
 ## Project Folder Convention
 
 Use one dedicated project folder for this work:

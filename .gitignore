@@ -122,6 +122,9 @@ venv.bak/
 /PREDICT/
 /REPORT/
 
+# Local project archive created by the timestamped wrapper
+/json-output-for-agent/runs/
+
 # Spyder project settings
 .spyderproject
 .spyproject

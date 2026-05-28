@@ -175,6 +175,43 @@ What remains uncertain:
 Next suggested step:
 - Stop here per scope; do not extend beyond this protection fix.
 
+### Entry 005
+
+Date: 2026-05-28
+
+Goal of this step:
+- Add a timestamped archive wrapper without changing normal ROBERT output behavior.
+
+What changed:
+- Added a wrapper script: `json-output-for-agent/scripts/run_robert_timestamped.py`.
+- Wrapper runs ROBERT from the repository root exactly as normal.
+- After ROBERT finishes, wrapper copies generated outputs into:
+	- `json-output-for-agent/runs/<timestamp>_<input_csv_stem>/`
+- Added explicit copy-only policy text in `AGENTS.md` and `PROJECT_RULES.md`.
+
+Files changed:
+- `json-output-for-agent/scripts/run_robert_timestamped.py`
+- `json-output-for-agent/AGENTS.md`
+- `json-output-for-agent/PROJECT_RULES.md`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+- `json-output-for-agent/README.md`
+
+Why this change was made:
+- To keep the established ROBERT audience and workflows fully intact while creating a project-side run archive for JSON/export tracking.
+
+How this was tested:
+- Wrapper dry-run check to confirm command build, folder creation, and metadata write without executing ROBERT.
+
+Confirmed results:
+- Wrapper policy is explicit: normal root outputs are preserved; archive is duplicate-copy only.
+
+What remains uncertain:
+- A full end-to-end wrapper run validation is still pending.
+
+Next suggested step:
+- Execute one full wrapper run and verify archive completeness for CURATE/GENERATE/VERIFY/PREDICT/REPORT artifacts.
+
 ---
 
 ## Template for Future Entries

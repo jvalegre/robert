@@ -25,6 +25,10 @@ The project does not change ROBERT's scientific behavior.
 
 ## Current Priority
 
-Map where ROBERT creates outputs across CURATE, GENERATE, VERIFY, PREDICT, and REPORT.
+Preserve normal ROBERT output behavior while adding project-side JSON/export support.
 
-No code should be changed until the relevant files are inspected and a plan is approved.
+Current wrapper policy:
+- ROBERT still writes normal outputs in default root folders.
+- A timestamped archive wrapper duplicates generated outputs into:
+  - `json-output-for-agent/runs/<timestamp>_<input_csv_stem>/`
+- The archive is copy-only and does not replace ROBERT output paths.

@@ -12,6 +12,8 @@ Goal: Add structured JSON outputs to ROBERT with minimal changes to existing cod
 
 Implement and validate the first additive JSON artifact in CURATE.
 
+Also maintain a copy-only timestamped run archive outside ROBERT core behavior.
+
 ---
 
 ## Phase 1 — Inspect Existing ROBERT Outputs
@@ -180,6 +182,28 @@ This phase adds one JSON artifact that profiles observable facts from the incomi
 ### Done
 
 - [ ] Not started.
+
+---
+
+## Phase 8 — Timestamped Archive Wrapper (Copy-Only)
+
+Goal:
+- Keep normal ROBERT root outputs unchanged.
+- Duplicate generated outputs into a timestamped project archive folder.
+
+### To Do
+
+- [x] Confirm feasibility outside ROBERT core.
+- [x] Implement wrapper script in project folder.
+- [x] Ensure wrapper runs ROBERT in normal root mode.
+- [x] Ensure wrapper copies outputs (including JSON artifacts) to timestamped run folder.
+- [x] Document explicit copy-only rule in AGENTS and project rules docs.
+- [ ] Validate on one full run and inspect copied archive contents.
+
+### Done
+
+- [x] Added wrapper script: `json-output-for-agent/scripts/run_robert_timestamped.py`.
+- [x] Added policy language that standard output paths remain unchanged and archive behavior is copy-only.
 
 ---
 

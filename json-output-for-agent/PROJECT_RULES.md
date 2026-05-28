@@ -72,6 +72,12 @@ Not allowed without explicit approval:
 - introducing network/API calls,
 - making LLM calls part of standard ROBERT execution.
 
+For timestamped run archives:
+
+- preserve standard ROBERT root output behavior,
+- do not change default output destinations,
+- use copy-only duplication into `json-output-for-agent/runs/<timestamp>_<input>/`.
+
 ---
 
 ## Comment Rule

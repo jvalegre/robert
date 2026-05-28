@@ -62,6 +62,7 @@ Parameters
 import time
 import os
 import pandas as pd
+from robert.json_output_for_agent import profile_input_dataset, write_json, write_json_output_audit
 from robert.utils import (load_variables, finish_print, load_database, pearson_map,
                           check_clas_problem, categorical_transform, correlation_filter)
 
@@ -82,6 +83,41 @@ class curate:
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "curate")
+
+        # Save a raw-input dataset profile JSON for downstream UI/agent workflows.
+        # This is additive and fail-soft: any JSON issue must not affect CURATE outputs.
+        dataset_profile_path = self.args.destination.joinpath("dataset_profile.json")
+        json_audit_path = self.args.destination.joinpath("json_output_audit.json")
+        try:
+            dataset_profile = profile_input_dataset(self.args.csv_name, self.args.y, self.args.ignore)
+            json_write_ok = write_json(dataset_profile, dataset_profile_path)
+            if not json_write_ok:
+                _ = write_json_output_audit(
+                    json_audit_path,
+                    module="CURATE",
+                    attempted_output_path=dataset_profile_path,
+                    attempted=True,
+                    succeeded=False,
+                    error=RuntimeError("dataset_profile_json_write_returned_false"),
+                )
+            else:
+                _ = write_json_output_audit(
+                    json_audit_path,
+                    module="CURATE",
+                    attempted_output_path=dataset_profile_path,
+                    attempted=True,
+                    succeeded=True,
+                    error=None,
+                )
+        except Exception as json_error:
+            _ = write_json_output_audit(
+                json_audit_path,
+                module="CURATE",
+                attempted_output_path=dataset_profile_path,
+                attempted=True,
+                succeeded=False,
+                error=json_error,
+            )
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df,_,_ = load_database(self,self.args.csv_name,"curate")

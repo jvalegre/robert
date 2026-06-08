@@ -172,3 +172,20 @@ Failure-tolerance validation completed:
 - Do we need a run-level manifest file that indexes every generated artifact path?
 - For REPORT, should we store only final data_score or also parsed intermediate values from get_predict_scores/get_verify_scores?
 - Should JSON writes fail-soft (warn and continue) to guarantee no behavior change in scientific outputs?
+
+## Implementation Update (2026-05-28)
+
+Implemented now (wrapper-side, archive-only):
+- `robert/json_output_for_agent.py` now includes helpers to build module file manifests from copied archive outputs.
+- `json-output-for-agent/scripts/run_robert_timestamped.py` now generates:
+  - `<MODULE>_manifest.json` for CURATE, GENERATE, VERIFY, PREDICT, REPORT (and AQME/EVALUATE when present),
+  - `run_summary.json` with command, return code, module manifest index, and top-level artifact manifest,
+  - `json_output_audit.json` with manifest write status.
+
+What this means for capture timing:
+- Current implementation captures after ROBERT run completion and after copy into timestamped archive.
+- This keeps normal ROBERT outputs untouched and ensures JSON reflects final saved artifacts.
+
+What is not implemented yet:
+- Module-native simultaneous JSON writes during `.dat`/CSV/image write points inside CURATE/GENERATE/VERIFY/PREDICT/REPORT.
+- That path is still optional for later if real-time event streaming is required.

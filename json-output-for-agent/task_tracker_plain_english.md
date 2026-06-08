@@ -212,6 +212,61 @@ What remains uncertain:
 Next suggested step:
 - Execute one full wrapper run and verify archive completeness for CURATE/GENERATE/VERIFY/PREDICT/REPORT artifacts.
 
+### Entry 006
+
+Date: 2026-05-28
+
+Goal of this step:
+- Start implementation of full-run JSON mirroring with minimal complexity and no change to standard ROBERT behavior.
+
+What changed:
+- Extended `robert/json_output_for_agent.py` with archive-manifest helpers.
+- Added file metadata capture helpers (path, extension, size, modified time, sha256).
+- Added safe text preview extraction for textual files and best-effort PDF text preview extraction.
+- Added `collect_module_manifest(...)` and `write_module_manifest(...)`.
+- Added `write_archive_manifests(...)` to generate one manifest per module folder in a run archive.
+- Added `collect_run_summary(...)` and `write_run_summary(...)`.
+- Updated wrapper script `json-output-for-agent/scripts/run_robert_timestamped.py` to generate manifests and run summary after copy.
+- Added archive-level JSON write status artifact: `json_output_audit.json` in each run folder.
+
+Files changed:
+- `robert/json_output_for_agent.py`
+- `json-output-for-agent/scripts/run_robert_timestamped.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To deliver immediate full-run JSON mirrors from exact copied output artifacts while avoiding high-risk changes inside CURATE/GENERATE/VERIFY/PREDICT/REPORT internals.
+- To keep standard outputs as source of truth and maintain copy-only archive behavior.
+
+How this was tested:
+- Wrapper dry run:
+	- `python json-output-for-agent/scripts/run_robert_timestamped.py --wrapper-dry-run --csv_name tests/Robert_example.csv`
+- Full wrapper run (CURATE example):
+	- `python json-output-for-agent/scripts/run_robert_timestamped.py --curate --discard "['xtest']" --y Target_values --csv_name tests/Robert_example.csv --names Name`
+- Verified archive folder contains:
+	- `CURATE_manifest.json`
+	- `GENERATE_manifest.json`
+	- `VERIFY_manifest.json`
+	- `PREDICT_manifest.json`
+	- `REPORT_manifest.json`
+	- `run_summary.json`
+	- `json_output_audit.json`
+	- `wrapper_run.json`
+
+Confirmed results:
+- Standard ROBERT execution and outputs remain unchanged.
+- JSON mirrors are generated in timestamped archive only.
+- Manifest records include hashes and file-level metadata suitable for exact comparisons.
+- Missing module folders produce valid manifests with `module_dir_exists=false` and `file_count=0`.
+
+What remains uncertain:
+- Module-native write-time hooks are still not added.
+- Automated tests for helper-manifest functions are still not added.
+
+Next suggested step:
+- Add small helper tests for manifest and run-summary functions, then (if still needed) add module-native hooks incrementally behind a low-risk option.
+
 ---
 
 ## Template for Future Entries

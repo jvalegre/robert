@@ -6,12 +6,244 @@ These helpers are intentionally fail-soft and do not modify ROBERT calculations.
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
+
+
+_MANIFEST_SCHEMA_VERSION = "0.1"
+_SUMMARY_SCHEMA_VERSION = "0.1"
+_DEFAULT_MODULES = ["CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "AQME", "EVALUATE"]
+
+
+def _iso_timestamp_from_epoch(epoch_seconds: float) -> str:
+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).isoformat()
+
+
+def _sha256_file(file_path: Path, chunk_size: int = 1024 * 1024) -> str | None:
+    hasher = hashlib.sha256()
+    try:
+        with file_path.open("rb") as handle:
+            while True:
+                chunk = handle.read(chunk_size)
+                if not chunk:
+                    break
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except Exception:
+        return None
+
+
+def _extract_pdf_text_preview(file_path: Path, max_chars: int) -> str | None:
+    # Prefer simple best-effort extraction. Failures are acceptable and represented as None.
+    try:
+        import fitz
+
+        doc = fitz.open(str(file_path))
+        chunks: List[str] = []
+        chars = 0
+        for page in doc:
+            if chars >= max_chars:
+                break
+            text = page.get_text("text")
+            if not text:
+                continue
+            remaining = max_chars - chars
+            fragment = text[:remaining]
+            chunks.append(fragment)
+            chars += len(fragment)
+        doc.close()
+        out = "\n".join(chunks).strip()
+        return out if out else None
+    except Exception:
+        return None
+
+
+def _extract_text_preview(file_path: Path, max_chars: int = 4000) -> str | None:
+    suffix = file_path.suffix.lower()
+    try:
+        if suffix in {".dat", ".txt", ".log", ".csv", ".json", ".yaml", ".yml"}:
+            text = file_path.read_text(encoding="utf-8", errors="replace")
+            return text[:max_chars] if text else None
+        if suffix == ".pdf":
+            return _extract_pdf_text_preview(file_path, max_chars=max_chars)
+    except Exception:
+        return None
+    return None
+
+
+def _infer_artifact_type(file_path: Path) -> str:
+    suffix = file_path.suffix.lower()
+    if suffix == ".csv":
+        return "csv"
+    if suffix == ".dat":
+        return "dat"
+    if suffix in {".png", ".jpg", ".jpeg", ".svg", ".tif", ".tiff", ".gif", ".webp"}:
+        return "image"
+    if suffix == ".pdf":
+        return "pdf"
+    if suffix in {".json", ".yaml", ".yml", ".txt", ".log"}:
+        return "textual"
+    return "binary_or_other"
+
+
+def _build_file_record(file_path: Path, run_dir: Path) -> Dict[str, Any]:
+    stats = file_path.stat()
+    rel = file_path.relative_to(run_dir)
+    artifact_type = _infer_artifact_type(file_path)
+
+    return {
+        "path": str(file_path),
+        "path_relative_to_run": str(rel).replace("\\", "/"),
+        "artifact_type": artifact_type,
+        "extension": file_path.suffix.lower(),
+        "size_bytes": int(stats.st_size),
+        "modified_utc": _iso_timestamp_from_epoch(stats.st_mtime),
+        "sha256": _sha256_file(file_path),
+        "text_preview": _extract_text_preview(file_path),
+    }
+
+
+def collect_module_manifest(module_name: str, run_dir: str | Path, max_files: int = 1000) -> Dict[str, Any]:
+    """Collect an archive-only manifest for one module from an existing run directory."""
+
+    run_root = Path(run_dir)
+    module_dir = run_root / module_name
+    payload: Dict[str, Any] = {
+        "schema_version": _MANIFEST_SCHEMA_VERSION,
+        "artifact_type": "module_manifest",
+        "module": str(module_name),
+        "run_dir": str(run_root),
+        "module_dir": str(module_dir),
+        "module_dir_exists": bool(module_dir.exists() and module_dir.is_dir()),
+        "captured_utc": datetime.now(timezone.utc).isoformat(),
+        "file_count": 0,
+        "files": [],
+    }
+
+    if not (module_dir.exists() and module_dir.is_dir()):
+        return payload
+
+    files: List[Path] = []
+    for candidate in module_dir.rglob("*"):
+        if candidate.is_file():
+            files.append(candidate)
+
+    files = sorted(files, key=lambda p: str(p).lower())
+    if max_files > 0:
+        files = files[:max_files]
+
+    records = [_build_file_record(fp, run_root) for fp in files]
+    payload["file_count"] = int(len(records))
+    payload["files"] = records
+    return _to_json_safe(payload)
+
+
+def write_module_manifest(module_name: str, run_dir: str | Path) -> bool:
+    """Write one module manifest JSON into the archive run root."""
+
+    run_root = Path(run_dir)
+    output_path = run_root / f"{module_name}_manifest.json"
+    manifest = collect_module_manifest(module_name, run_root)
+    return write_json(manifest, output_path)
+
+
+def write_archive_manifests(run_dir: str | Path, modules: List[str] | None = None) -> Dict[str, Any]:
+    """Write manifests for archive module folders and return a write-status payload."""
+
+    run_root = Path(run_dir)
+    module_names = modules or list(_DEFAULT_MODULES)
+
+    status: Dict[str, Any] = {
+        "schema_version": _MANIFEST_SCHEMA_VERSION,
+        "artifact_type": "archive_manifest_write_status",
+        "run_dir": str(run_root),
+        "captured_utc": datetime.now(timezone.utc).isoformat(),
+        "module_results": [],
+    }
+
+    for module_name in module_names:
+        output_path = run_root / f"{module_name}_manifest.json"
+        succeeded = write_module_manifest(module_name, run_root)
+        status["module_results"].append(
+            {
+                "module": str(module_name),
+                "manifest_path": str(output_path),
+                "succeeded": bool(succeeded),
+            }
+        )
+
+    return _to_json_safe(status)
+
+
+def collect_run_summary(
+    run_dir: str | Path,
+    command: List[str] | None = None,
+    return_code: int | None = None,
+    wrapper_metadata_path: str | Path | None = None,
+) -> Dict[str, Any]:
+    """Collect a run-level summary that indexes module manifests and top-level outputs."""
+
+    run_root = Path(run_dir)
+    manifest_paths = sorted(run_root.glob("*_manifest.json"))
+
+    summary: Dict[str, Any] = {
+        "schema_version": _SUMMARY_SCHEMA_VERSION,
+        "artifact_type": "run_summary",
+        "run_dir": str(run_root),
+        "captured_utc": datetime.now(timezone.utc).isoformat(),
+        "return_code": return_code,
+        "command": command or [],
+        "wrapper_metadata_path": str(wrapper_metadata_path) if wrapper_metadata_path is not None else None,
+        "module_manifests": [],
+        "top_level_files": [],
+    }
+
+    for manifest_path in manifest_paths:
+        try:
+            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest_data = {}
+
+        summary["module_manifests"].append(
+            {
+                "module": manifest_data.get("module"),
+                "manifest_path": str(manifest_path),
+                "file_count": manifest_data.get("file_count"),
+                "module_dir_exists": manifest_data.get("module_dir_exists"),
+            }
+        )
+
+    top_level_files = []
+    for file_path in sorted(run_root.glob("*")):
+        if file_path.is_file():
+            top_level_files.append(_build_file_record(file_path, run_root))
+    summary["top_level_files"] = top_level_files
+
+    return _to_json_safe(summary)
+
+
+def write_run_summary(
+    run_dir: str | Path,
+    command: List[str] | None = None,
+    return_code: int | None = None,
+    wrapper_metadata_path: str | Path | None = None,
+) -> bool:
+    """Write run_summary.json at the run root."""
+
+    run_root = Path(run_dir)
+    output_path = run_root / "run_summary.json"
+    summary = collect_run_summary(
+        run_root,
+        command=command,
+        return_code=return_code,
+        wrapper_metadata_path=wrapper_metadata_path,
+    )
+    return write_json(summary, output_path)
 
 
 def _read_raw_csv(csv_path: str | Path) -> pd.DataFrame:

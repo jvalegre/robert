@@ -149,6 +149,16 @@ def main() -> int:
     cmd = [known.wrapper_python, "-m", "robert", *normalized_robert_args]
 
     run_dir = _make_run_dir(runs_root, _sanitize_name(label))
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+
+    try:
+        from robert.json_output_for_agent import write_archive_manifests, write_run_summary, write_json
+    except Exception:
+        write_archive_manifests = None
+        write_run_summary = None
+        write_json = None
+
     metadata = {
         "timestamp": datetime.now().isoformat(),
         "repo_root": str(repo_root),
@@ -174,7 +184,20 @@ def main() -> int:
 
     _copy_outputs(repo_root, run_dir)
     metadata["return_code"] = completed.returncode
-    (run_dir / "wrapper_run.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    metadata_path = run_dir / "wrapper_run.json"
+    metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+    if write_archive_manifests is not None and write_json is not None:
+        manifest_status = write_archive_manifests(run_dir)
+        _ = write_json(manifest_status, run_dir / "json_output_audit.json")
+
+    if write_run_summary is not None:
+        _ = write_run_summary(
+            run_dir,
+            command=cmd,
+            return_code=completed.returncode,
+            wrapper_metadata_path=metadata_path,
+        )
 
     print(f"o Copied generated outputs to: {run_dir}")
     return completed.returncode

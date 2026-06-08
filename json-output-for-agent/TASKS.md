@@ -102,14 +102,16 @@ This phase adds one JSON artifact that profiles observable facts from the incomi
 - [x] Create `robert/json_output_for_agent.py`.
 - [x] Add safe JSON writing helper.
 - [x] Add JSON-safe conversion helper for common Python, NumPy, pandas, and pathlib objects.
-- [ ] Add file manifest helper.
-- [ ] Add module summary helper.
+- [x] Add file manifest helper.
+- [x] Add module summary helper.
+- [x] Add run-level summary helper.
 - [ ] Add plain-English comments to helper functions.
 - [ ] Add simple tests for helper functions.
 
 ### Done
 
 - [x] Core dataset-profile helper implemented.
+- [x] Archive manifest and run summary helpers implemented.
 
 ---
 
@@ -135,17 +137,19 @@ This phase adds one JSON artifact that profiles observable facts from the incomi
 
 ### To Do
 
-- [ ] Add CURATE JSON summary.
-- [ ] Add GENERATE JSON summary.
-- [ ] Add VERIFY JSON summary.
-- [ ] Add PREDICT JSON summary.
-- [ ] Add REPORT JSON summary.
+- [x] Add CURATE JSON summary.
+- [x] Add GENERATE JSON summary.
+- [x] Add VERIFY JSON summary.
+- [x] Add PREDICT JSON summary.
+- [x] Add REPORT JSON summary.
 - [ ] Add run-level context JSON if appropriate.
-- [ ] Add generated file manifest.
+- [x] Add generated file manifest.
 
 ### Done
 
-- [ ] Not started.
+- [x] Wrapper-side archive manifests implemented for CURATE/GENERATE/VERIFY/PREDICT/REPORT (plus AQME/EVALUATE when present).
+- [x] Wrapper-side run-level `run_summary.json` implemented.
+- [ ] Module-native write-time hooks are not implemented yet (deferred to keep low complexity and minimal behavior risk).
 
 ---
 
@@ -197,13 +201,16 @@ Goal:
 - [x] Implement wrapper script in project folder.
 - [x] Ensure wrapper runs ROBERT in normal root mode.
 - [x] Ensure wrapper copies outputs (including JSON artifacts) to timestamped run folder.
+- [x] Generate per-module JSON manifests from the copied run artifacts.
+- [x] Generate run-level `run_summary.json` in the archive.
 - [x] Document explicit copy-only rule in AGENTS and project rules docs.
-- [ ] Validate on one full run and inspect copied archive contents.
+- [x] Validate on one full run and inspect copied archive contents.
 
 ### Done
 
 - [x] Added wrapper script: `json-output-for-agent/scripts/run_robert_timestamped.py`.
 - [x] Added policy language that standard output paths remain unchanged and archive behavior is copy-only.
+- [x] Added archive-side manifest generation and run summary generation after copy.
 
 ---
 

@@ -63,7 +63,10 @@ import time
 import os
 import pandas as pd
 from robert.json_output_for_agent import (
-    build_curate_audit_payload,
+    audit_event,
+    audit_set,
+    finalize_module_audit,
+    init_module_audit,
     profile_input_dataset,
     write_json,
     write_json_output_audit,
@@ -88,6 +91,20 @@ class curate:
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "curate")
+
+        # Initialize runtime CURATE audit capture with direct input evidence.
+        # This records structured evidence beside existing .dat logging.
+        self.args.curate_audit = init_module_audit(
+            module="CURATE",
+            artifact_type="curate_audit",
+            source_files=[str(self.args.csv_name)],
+            command_line=None,
+        )
+        self.args.curate_audit = audit_set(self.args.curate_audit, "inputs", "source_csv", self.args.csv_name)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "inputs", "target_column", self.args.y)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "inputs", "names_column", self.args.names)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "inputs", "ignored_columns", self.args.ignore)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "inputs", "discarded_columns_requested", self.args.discard)
 
         # Save a raw-input dataset profile JSON for downstream UI/agent workflows.
         # This is additive and fail-soft: any JSON issue must not affect CURATE outputs.
@@ -132,6 +149,8 @@ class curate:
         csv_df,_,_ = load_database(self,self.args.csv_name,"curate")
         rows_before_curate = int(len(csv_df))
         columns_before_curate = int(len(csv_df.columns))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "counts", "rows_before_curate", rows_before_curate)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "counts", "columns_before_curate", columns_before_curate)
 
         # adjust options of classification problems and detects whether the right type of problem was used
         self = check_clas_problem(self,csv_df)
@@ -164,22 +183,18 @@ class curate:
         # create Pearson heatmap (use the general filtered dataframe)
         _ = pearson_map(self,csv_df,'curate')
 
-        # Save a CURATE audit JSON with direct, observable evidence from this module.
-        # This is fail-soft and never writes JSON-layer status into standard ROBERT files.
+        self.args.curate_audit = audit_set(self.args.curate_audit, "counts", "rows_after_curate", int(len(csv_df)))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "counts", "columns_after_curate", int(len(csv_df.columns)))
+        self.args.curate_audit = audit_set(
+            self.args.curate_audit,
+            "runtime",
+            "module_runtime_seconds",
+            round(time.time() - start_time, 2),
+        )
+
+        # Save the CURATE runtime audit JSON without affecting standard ROBERT outputs.
         try:
-            curate_audit = build_curate_audit_payload(
-                source_csv=self.args.csv_name,
-                destination_dir=self.args.destination,
-                target_column=self.args.y,
-                names_column=self.args.names,
-                ignored_columns=self.args.ignore,
-                discarded_columns_requested=self.args.discard,
-                rows_before_curate=rows_before_curate,
-                rows_after_curate=int(len(csv_df)),
-                columns_before_curate=columns_before_curate,
-                columns_after_curate=int(len(csv_df.columns)),
-            )
-            audit_write_ok = write_json(curate_audit, curate_audit_path)
+            audit_write_ok = finalize_module_audit(self.args.curate_audit, curate_audit_path, status="completed")
             if not audit_write_ok:
                 _ = write_json_output_audit(
                     json_audit_path,
@@ -239,6 +254,17 @@ class curate:
         csv_df_dup.reset_index(drop=True)
         self.args.log.write(txt_dup)
 
+        self.args.curate_audit = audit_set(self.args.curate_audit, "duplicate_filter", "activated", True)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "duplicate_filter", "removed_datapoint_indices", datapoint_drop)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "duplicate_filter", "removed_count", len(datapoint_drop))
+        self.args.curate_audit = audit_event(
+            self.args.curate_audit,
+            event_type="duplicate_filter",
+            payload={"removed_count": len(datapoint_drop), "removed_datapoint_indices": datapoint_drop},
+            evidence_level="direct",
+            dat_text=txt_dup,
+        )
+
         return csv_df_dup
 
 
@@ -252,6 +278,9 @@ class curate:
         # Check if csv_df is a tuple (csv_df_filtered, csv_df_per_model) from correlation_filter
         if isinstance(csv_df, tuple):
             csv_df_filtered, csv_df_per_model = csv_df
+
+            model_descriptor_counts = {}
+            model_descriptors = {}
             
             # Save model-specific curated databases (sorted for reproducibility)
             for model in csv_df_per_model:
@@ -270,6 +299,22 @@ class curate:
                 txt_csv = f'\n   o Model {model}: {len(csv_df_per_model[model].columns)-len(self.args.ignore)-count_y} descriptors remaining:\n'
                 txt_csv += '      ' + ', '.join(f'{var}' for var in csv_df_per_model[model].columns if var not in self.args.ignore and var != self.args.y)
                 self.args.log.write(txt_csv)
+
+                final_descs = [var for var in csv_df_per_model[model].columns if var not in self.args.ignore and var != self.args.y]
+                model_descriptor_counts[str(model)] = len(final_descs)
+                model_descriptors[str(model)] = final_descs
+                self.args.curate_audit = audit_event(
+                    self.args.curate_audit,
+                    event_type="save_curate_model_output",
+                    payload={
+                        "model": str(model),
+                        "curated_csv_path": str(csv_curate_name),
+                        "final_descriptor_count": len(final_descs),
+                        "final_descriptors": final_descs,
+                    },
+                    evidence_level="direct",
+                    dat_text=txt_csv,
+                )
             
             self.args.log.write(f'\no  Model-specific curated databases were stored in {self.args.destination}')
             
@@ -279,6 +324,9 @@ class curate:
             csv_df_to_save_general = csv_df_filtered.reset_index(drop=True).sort_values(by=self.args.y).reset_index(drop=True)
             _ = csv_df_to_save_general.to_csv(f'{csv_curate_name_general}', index=None, header=True)
 
+            self.args.curate_audit = audit_set(self.args.curate_audit, "outputs", "model_descriptor_count", model_descriptor_counts)
+            self.args.curate_audit = audit_set(self.args.curate_audit, "outputs", "model_descriptors", model_descriptors)
+
         else:
             # Original behavior: save single curated database
             csv_curate_name_general = f'{csv_basename}_CURATE.csv'
@@ -286,6 +334,10 @@ class curate:
             _ = csv_df.to_csv(f'{csv_curate_name_general}', index=None, header=True)
             path_reduced = '/'.join(f'{csv_curate_name_general}'.replace('\\','/').split('/')[-2:])
             self.args.log.write(f'\no  The curated database was stored in {path_reduced}.')
+
+            final_descs = [var for var in csv_df.columns if var not in self.args.ignore and var != self.args.y]
+            self.args.curate_audit = audit_set(self.args.curate_audit, "outputs", "model_descriptor_count", {"default": len(final_descs)})
+            self.args.curate_audit = audit_set(self.args.curate_audit, "outputs", "model_descriptors", {"default": final_descs})
 
         # Save important options used in CURATE
         options_name = f'CURATE_options.csv'
@@ -302,3 +354,12 @@ class curate:
             options_df['class_1_label'] = [self.args.class_1_label]
         
         _ = options_df.to_csv(f'{options_name}', index=None, header=True)
+
+        self.args.curate_audit = audit_set(self.args.curate_audit, "outputs", "general_curated_csv_path", str(csv_curate_name_general))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "outputs", "curate_options_csv_path", str(options_name))
+        self.args.curate_audit = audit_set(
+            self.args.curate_audit,
+            "outputs",
+            "curated_csv_paths",
+            [str(fp) for fp in sorted(self.args.destination.glob(f"{csv_basename}_CURATE*.csv"))],
+        )

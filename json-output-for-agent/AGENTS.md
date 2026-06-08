@@ -39,6 +39,134 @@ The preferred strategy is to add helper functions in one project-specific helper
 
 ---
 
+## Runtime Evidence Capture Rule
+
+The JSON-output-for-agent layer must capture structured evidence at runtime, not merely summarize files after the run when the relevant values are available during the run.
+
+Whenever ROBERT writes meaningful scientific or workflow evidence to a module `.dat` file, the same underlying values should also be captured in a structured in-memory audit object and written to a module audit JSON file.
+
+Existing `.dat` behavior must be preserved exactly.
+
+Do not remove, rewrite, reroute, or replace existing `self.args.log.write(...)` calls.
+
+Add JSON capture beside existing logging, not instead of existing logging.
+
+The preferred pattern is:
+
+1. ROBERT computes or identifies an important value.
+2. ROBERT builds the same text it already writes to `.dat`.
+3. ROBERT writes that text to `.dat` exactly as before.
+4. The JSON-output-for-agent layer stores the same underlying value as structured evidence.
+
+Evidence must be labeled conceptually as:
+
+- `direct`: captured directly from ROBERT runtime values,
+- `derived`: computed from direct values only for convenience,
+- `unavailable`: not recoverable from current runtime values without deeper instrumentation.
+
+Do not invent scientific interpretations, new diagnostics, new thresholds, new scores, or new model-quality judgments.
+
+Do not parse `.dat` files as the primary strategy when the same values are available in memory at the point of logging. `.dat` parsing may be used only as a temporary fallback and must be labeled as such.
+
+JSON write failures must remain fail-soft and must never change ROBERT scientific behavior, CLI behavior, or standard `.dat`, `.csv`, image, model, or report outputs.
+
+Example pattern:
+
+```python
+# Existing ROBERT behavior: preserve this exactly.
+self.args.log.write(txt)
+
+# Additive JSON-output-for-agent behavior: capture the same event as structured evidence.
+self.args.curate_audit = audit_event(
+    self.args.curate_audit,
+    event_type="correlation_filter_removed_descriptor",
+    payload={
+        "removed": removed_descriptor,
+        "kept": kept_descriptor,
+        "r2": r2_value,
+        "reason": "high correlation with kept descriptor",
+    },
+    evidence_level="direct",
+    dat_text=txt,
+)
+```
+
+The purpose of the JSON artifacts is not to replace ROBERT outputs. The purpose is to expose ROBERT's existing evidence in a structured form so ChatBob can explain completed runs to chemists.
+
+The first proof of concept is:
+
+```text
+CURATE/curate_audit.json
+```
+
+This file must capture the important evidence currently written to `CURATE_data.dat`, including:
+
+- input counts,
+- target column,
+- names column,
+- ignored columns,
+- categorical handling,
+- duplicate filtering,
+- constant descriptor removals,
+- correlated descriptor removals with removed descriptor, kept descriptor, and R²,
+- RFECV applied/skipped status and reason,
+- final descriptor counts and final descriptor list,
+- curated files written,
+- Pearson heatmap generated/skipped status,
+- runtime status.
+
+Only after CURATE works should this pattern be scaled to GENERATE, VERIFY, PREDICT, and AQME.
+
+---
+
+## Likely JSON Artifacts
+
+Module-level JSON files should be named as audit files, not generic summaries, because their role is to expose ROBERT decision evidence in structured form.
+
+Preferred module-level files:
+
+```text
+CURATE/curate_audit.json
+GENERATE/generate_audit.json
+VERIFY/verify_audit.json
+PREDICT/predict_audit.json
+AQME/aqme_audit.json
+REPORT/report_audit.json
+```
+
+Use `REPORT/report_audit.json` only if report-specific provenance is needed.
+
+Supporting JSON artifacts may also exist, but they have different purposes:
+
+```text
+dataset_profile.json
+```
+
+Profiles the raw incoming dataset before ROBERT changes it. This is not a CURATE decision audit.
+
+```text
+*_manifest.json
+```
+
+Inventories generated files, paths, sizes, timestamps, and artifact types. This is not scientific decision evidence.
+
+```text
+json_output_audit.json
+```
+
+Records whether JSON artifacts were attempted and whether writing succeeded or failed. This is not ROBERT scientific evidence.
+
+Possible run-level files:
+
+```text
+run_context.json
+run_summary.json
+```
+
+The exact names should be confirmed after inspecting existing ROBERT conventions.
+
+---
+
 ## Standard Output Preservation Rule
 
 Normal ROBERT outputs must remain in their default root locations.

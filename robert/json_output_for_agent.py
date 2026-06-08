@@ -591,6 +591,120 @@ def write_json(data: Dict[str, Any], output_path: str | Path) -> bool:
         return False
 
 
+def init_module_audit(
+    module: str,
+    artifact_type: str,
+    source_files: List[str] | None = None,
+    command_line: str | None = None,
+) -> Dict[str, Any]:
+    """Initialize a module audit payload in a fail-soft way."""
+
+    try:
+        payload = {
+            "schema_version": "0.1",
+            "module": str(module),
+            "artifact_type": str(artifact_type),
+            "status": "in_progress",
+            "started_utc": datetime.now(timezone.utc).isoformat(),
+            "source_files": [str(p) for p in (source_files or [])],
+            "command_line": str(command_line) if command_line is not None else None,
+            "sections": {},
+            "events": [],
+            "notes": [],
+        }
+        return _to_json_safe(payload)
+    except Exception:
+        return {
+            "schema_version": "0.1",
+            "module": str(module),
+            "artifact_type": str(artifact_type),
+            "status": "in_progress",
+            "sections": {},
+            "events": [],
+        }
+
+
+def audit_event(
+    audit: Dict[str, Any],
+    event_type: str,
+    payload: Dict[str, Any] | None = None,
+    evidence_level: str = "direct",
+    dat_text: str | None = None,
+) -> Dict[str, Any]:
+    """Append one structured runtime event without interrupting ROBERT flow."""
+
+    try:
+        if not isinstance(audit, dict):
+            return audit
+
+        event = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_type": str(event_type),
+            "evidence_level": str(evidence_level),
+            "payload": _to_json_safe(payload or {}),
+        }
+        if dat_text is not None:
+            event["dat_text_preview"] = str(dat_text)[:1000]
+
+        events = audit.get("events", [])
+        if not isinstance(events, list):
+            events = []
+        events.append(event)
+        audit["events"] = events
+        return audit
+    except Exception:
+        return audit
+
+
+def audit_set(
+    audit: Dict[str, Any],
+    section: str,
+    key: str,
+    value: Any,
+    evidence_level: str = "direct",
+) -> Dict[str, Any]:
+    """Set one structured value in a module audit section fail-softly."""
+
+    try:
+        if not isinstance(audit, dict):
+            return audit
+
+        sections = audit.get("sections", {})
+        if not isinstance(sections, dict):
+            sections = {}
+
+        sec = sections.get(str(section), {})
+        if not isinstance(sec, dict):
+            sec = {}
+
+        sec[str(key)] = {
+            "value": _to_json_safe(value),
+            "evidence_level": str(evidence_level),
+        }
+        sections[str(section)] = sec
+        audit["sections"] = sections
+        return audit
+    except Exception:
+        return audit
+
+
+def finalize_module_audit(
+    audit: Dict[str, Any],
+    output_path: str | Path,
+    status: str = "completed",
+) -> bool:
+    """Finalize and write a module audit JSON in a fail-soft way."""
+
+    try:
+        if not isinstance(audit, dict):
+            return False
+        audit["status"] = str(status)
+        audit["finished_utc"] = datetime.now(timezone.utc).isoformat()
+        return write_json(audit, output_path)
+    except Exception:
+        return False
+
+
 def write_json_output_audit(
     audit_path: str | Path,
     module: str,
@@ -646,6 +760,7 @@ def write_json_output_audit(
         return False
 
 
+# Legacy fallback payload builder; runtime audit capture is preferred when available.
 def build_curate_audit_payload(
     source_csv: str | Path,
     destination_dir: str | Path,

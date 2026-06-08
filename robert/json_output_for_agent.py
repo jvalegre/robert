@@ -20,6 +20,10 @@ _SUMMARY_SCHEMA_VERSION = "0.1"
 _DEFAULT_MODULES = ["CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "AQME", "EVALUATE"]
 
 
+def _to_unavailable() -> str:
+    return "unavailable"
+
+
 def _iso_timestamp_from_epoch(epoch_seconds: float) -> str:
     return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).isoformat()
 
@@ -593,6 +597,7 @@ def write_json_output_audit(
     attempted_output_path: str | Path,
     attempted: bool,
     succeeded: bool,
+    artifact: str = "dataset_profile.json",
     error: Exception | None = None,
 ) -> bool:
     """Write a JSON-layer audit record without touching standard ROBERT output files."""
@@ -602,7 +607,7 @@ def write_json_output_audit(
         "module": str(module),
         "layer": "json-output-for-agent",
         "layer_note": "This audit belongs to the JSON-output-for-agent layer and does not modify standard ROBERT outputs.",
-        "artifact": "dataset_profile.json",
+        "artifact": str(artifact),
         "attempted": bool(attempted),
         "succeeded": bool(succeeded),
         "attempted_output_path": str(attempted_output_path),
@@ -639,3 +644,96 @@ def write_json_output_audit(
         return True
     except Exception:
         return False
+
+
+def build_curate_audit_payload(
+    source_csv: str | Path,
+    destination_dir: str | Path,
+    target_column: str,
+    names_column: str | None,
+    ignored_columns: List[str] | None,
+    discarded_columns_requested: List[str] | None,
+    rows_before_curate: int | None,
+    rows_after_curate: int | None,
+    columns_before_curate: int | None,
+    columns_after_curate: int | None,
+) -> Dict[str, Any]:
+    """Build CURATE module audit payload from directly observable values only."""
+
+    src = Path(source_csv)
+    dst = Path(destination_dir)
+    ignored_columns = ignored_columns or []
+    discarded_columns_requested = discarded_columns_requested or []
+
+    csv_stem = src.stem
+    files_written: List[Dict[str, Any]] = []
+
+    candidate_paths: List[Path] = [
+        dst / f"{csv_stem}_CURATE.csv",
+        dst / "CURATE_options.csv",
+        dst / "CURATE_data.dat",
+        dst / "Pearson_heatmap.png",
+    ]
+    candidate_paths.extend(sorted(dst.glob(f"{csv_stem}_CURATE_*.csv")))
+
+    seen: set[str] = set()
+    for file_path in candidate_paths:
+        key = str(file_path.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        files_written.append(
+            {
+                "path": str(file_path),
+                "artifact_type": _infer_artifact_type(file_path),
+                "exists": bool(file_path.exists()),
+            }
+        )
+
+    payload = {
+        "schema_version": "0.1",
+        "artifact_type": "curate_audit",
+        "module": "CURATE",
+        "status": "completed",
+        "captured_utc": datetime.now(timezone.utc).isoformat(),
+        "inputs": {
+            "source_csv": str(source_csv),
+            "target_column": str(target_column),
+            "names_column": str(names_column) if names_column else None,
+            "ignored_columns": [str(col) for col in ignored_columns],
+            "discarded_columns_requested": [str(col) for col in discarded_columns_requested],
+        },
+        "observed_counts": {
+            "rows_before_curate": rows_before_curate,
+            "rows_after_curate": rows_after_curate,
+            "columns_before_curate": columns_before_curate,
+            "columns_after_curate": columns_after_curate,
+            "descriptors_removed_duplicate_filter": _to_unavailable(),
+            "descriptors_removed_missingness": _to_unavailable(),
+            "descriptors_removed_categorical_transform": _to_unavailable(),
+            "descriptors_removed_correlation_filter": _to_unavailable(),
+            "descriptors_removed_other": _to_unavailable(),
+        },
+        "files_written": files_written,
+        "standard_output_paths": {
+            "curate_dat": str(dst / "CURATE_data.dat"),
+            "curate_options_csv": str(dst / "CURATE_options.csv"),
+            "curated_csvs": [
+                str(fp)
+                for fp in sorted(dst.glob(f"{csv_stem}_CURATE*.csv"))
+            ],
+        },
+        "unavailable_fields": [
+            "observed_counts.descriptors_removed_duplicate_filter",
+            "observed_counts.descriptors_removed_missingness",
+            "observed_counts.descriptors_removed_categorical_transform",
+            "observed_counts.descriptors_removed_correlation_filter",
+            "observed_counts.descriptors_removed_other",
+        ],
+        "notes": [
+            "Step-specific descriptor removal counts are marked unavailable until direct in-memory counters are exposed.",
+            "This artifact records observable CURATE evidence only and does not modify standard ROBERT outputs.",
+        ],
+    }
+
+    return _to_json_safe(payload)

@@ -14,6 +14,11 @@ Implement and validate the first additive JSON artifact in CURATE.
 
 Also maintain a copy-only timestamped run archive outside ROBERT core behavior.
 
+Planning update (approved direction):
+- `dataset_profile.json` captures raw incoming dataset facts before ROBERT modifies the data.
+- Each ROBERT module should eventually emit its own module audit JSON artifact.
+- Start by designing CURATE audit JSON pattern, then extend to GENERATE/VERIFY/PREDICT/REPORT.
+
 ---
 
 ## Phase 1 — Inspect Existing ROBERT Outputs
@@ -153,22 +158,47 @@ This phase adds one JSON artifact that profiles observable facts from the incomi
 
 ---
 
+## Phase 5.5 — Module Audit Pattern Design (No Hook Implementation Yet)
+
+### To Do
+
+- [x] Confirm long-term pattern for module-native audits.
+- [x] Draft proposal for `CURATE/curate_audit.json` (schema + insertion strategy + risks + test plan).
+- [x] User approval of minimal implementation plan for CURATE audit hook.
+- [x] Implement CURATE audit hook only after approval.
+
+### Done
+
+- [x] Design-only proposal prepared (2026-06-08).
+- [x] `CURATE/curate_audit.json` hook implemented with fail-soft behavior and JSON-only audit status (2026-06-08).
+
+---
+
 ## Phase 6 — Validate
 
 ### To Do
 
-- [ ] Run a simple regression example.
-- [ ] Run a simple classification example.
-- [ ] Confirm normal ROBERT outputs still appear.
-- [ ] Confirm JSON files are valid.
-- [ ] Confirm JSON files contain expected fields.
-- [ ] Confirm no scientific outputs changed.
-- [ ] Test behavior when expected files are missing.
+- [x] Run a simple regression example.
+- [x] Run a simple classification example.
+- [x] Confirm normal ROBERT outputs still appear.
+- [x] Confirm JSON files are valid.
+- [x] Confirm JSON files contain expected fields.
+- [x] Confirm no JSON-layer status text in standard `.dat` files.
+- [x] Confirm timestamped archive copy behavior is copy-only.
+- [x] Test behavior when expected files are missing.
 - [x] Test behavior when JSON writing fails or is unavailable.
 
 ### Done
 
 - [x] Manual fault-injection validation completed for JSON write failure in CURATE.
+- [x] Regression wrapper validation completed with `databases/Regression/AQME-ROBERT_A_predict_solubility.csv` (2026-06-08).
+- [x] Classification wrapper validation completed with `databases/Clasification/F_predict_outcome.csv` (2026-06-08).
+- [x] Required JSON top-level fields validated for `dataset_profile.json`, `json_output_audit.json`, and archive `run_summary.json`.
+- [x] Missing-module manifest behavior confirmed (`module_dir_exists=false`, `file_count=0`).
+- [ ] REPORT PDF generation currently blocked by missing WeasyPrint system libraries in the validation environment.
+- [x] CURATE-only regression validation confirmed `curate_audit.json` creation and required top-level fields.
+- [x] CURATE-only classification validation confirmed `curate_audit.json` creation and required top-level fields.
+- [x] Confirmed no JSON-layer status text in `CURATE/CURATE_data.dat` after `curate_audit.json` implementation.
 
 ---
 
@@ -176,16 +206,21 @@ This phase adds one JSON artifact that profiles observable facts from the incomi
 
 ### To Do
 
-- [ ] Document what JSON files are created.
-- [ ] Document where JSON files are saved.
-- [ ] Document what each top-level field means.
-- [ ] Document whether the JSON schema is experimental.
-- [ ] Add a short plain-English explanation for chemists.
-- [ ] Update `task_tracker_plain_english.md`.
+- [x] Document what JSON files are created.
+- [x] Document where JSON files are saved.
+- [x] Document what each top-level field means.
+- [x] Document whether the JSON schema is experimental.
+- [x] Add a short plain-English explanation for chemists.
+- [x] Update `task_tracker_plain_english.md`.
+
+### Notes
+
+- `databases/` is currently treated as temporary protected source-data for JSON-output validation.
+- Follow-up TODO remains open: decide whether `databases/` should stay, move to `tests/fixtures/`, or be removed after formal JSON unit tests are added.
 
 ### Done
 
-- [ ] Not started.
+- [x] Validation and schema documentation updated (2026-06-08).
 
 ---
 

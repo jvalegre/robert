@@ -121,6 +121,11 @@ venv.bak/
 /VERIFY/
 /PREDICT/
 /REPORT/
+/AQME/
+/EVALUATE/
+/ROBERT_report.pdf
+/report.css
+/report_debug.txt
 
 # Local project archive created by the timestamped wrapper
 /json-output-for-agent/runs/

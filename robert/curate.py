@@ -62,7 +62,12 @@ Parameters
 import time
 import os
 import pandas as pd
-from robert.json_output_for_agent import profile_input_dataset, write_json, write_json_output_audit
+from robert.json_output_for_agent import (
+    build_curate_audit_payload,
+    profile_input_dataset,
+    write_json,
+    write_json_output_audit,
+)
 from robert.utils import (load_variables, finish_print, load_database, pearson_map,
                           check_clas_problem, categorical_transform, correlation_filter)
 
@@ -87,6 +92,7 @@ class curate:
         # Save a raw-input dataset profile JSON for downstream UI/agent workflows.
         # This is additive and fail-soft: any JSON issue must not affect CURATE outputs.
         dataset_profile_path = self.args.destination.joinpath("dataset_profile.json")
+        curate_audit_path = self.args.destination.joinpath("curate_audit.json")
         json_audit_path = self.args.destination.joinpath("json_output_audit.json")
         try:
             dataset_profile = profile_input_dataset(self.args.csv_name, self.args.y, self.args.ignore)
@@ -98,6 +104,7 @@ class curate:
                     attempted_output_path=dataset_profile_path,
                     attempted=True,
                     succeeded=False,
+                    artifact="dataset_profile.json",
                     error=RuntimeError("dataset_profile_json_write_returned_false"),
                 )
             else:
@@ -107,6 +114,7 @@ class curate:
                     attempted_output_path=dataset_profile_path,
                     attempted=True,
                     succeeded=True,
+                    artifact="dataset_profile.json",
                     error=None,
                 )
         except Exception as json_error:
@@ -116,11 +124,14 @@ class curate:
                 attempted_output_path=dataset_profile_path,
                 attempted=True,
                 succeeded=False,
+                artifact="dataset_profile.json",
                 error=json_error,
             )
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df,_,_ = load_database(self,self.args.csv_name,"curate")
+        rows_before_curate = int(len(csv_df))
+        columns_before_curate = int(len(csv_df.columns))
 
         # adjust options of classification problems and detects whether the right type of problem was used
         self = check_clas_problem(self,csv_df)
@@ -152,6 +163,53 @@ class curate:
 
         # create Pearson heatmap (use the general filtered dataframe)
         _ = pearson_map(self,csv_df,'curate')
+
+        # Save a CURATE audit JSON with direct, observable evidence from this module.
+        # This is fail-soft and never writes JSON-layer status into standard ROBERT files.
+        try:
+            curate_audit = build_curate_audit_payload(
+                source_csv=self.args.csv_name,
+                destination_dir=self.args.destination,
+                target_column=self.args.y,
+                names_column=self.args.names,
+                ignored_columns=self.args.ignore,
+                discarded_columns_requested=self.args.discard,
+                rows_before_curate=rows_before_curate,
+                rows_after_curate=int(len(csv_df)),
+                columns_before_curate=columns_before_curate,
+                columns_after_curate=int(len(csv_df.columns)),
+            )
+            audit_write_ok = write_json(curate_audit, curate_audit_path)
+            if not audit_write_ok:
+                _ = write_json_output_audit(
+                    json_audit_path,
+                    module="CURATE",
+                    attempted_output_path=curate_audit_path,
+                    attempted=True,
+                    succeeded=False,
+                    artifact="curate_audit.json",
+                    error=RuntimeError("curate_audit_json_write_returned_false"),
+                )
+            else:
+                _ = write_json_output_audit(
+                    json_audit_path,
+                    module="CURATE",
+                    attempted_output_path=curate_audit_path,
+                    attempted=True,
+                    succeeded=True,
+                    artifact="curate_audit.json",
+                    error=None,
+                )
+        except Exception as json_error:
+            _ = write_json_output_audit(
+                json_audit_path,
+                module="CURATE",
+                attempted_output_path=curate_audit_path,
+                attempted=True,
+                succeeded=False,
+                artifact="curate_audit.json",
+                error=json_error,
+            )
 
         # finish the printing of the CURATE info file
         _ = finish_print(self,start_time,'CURATE')

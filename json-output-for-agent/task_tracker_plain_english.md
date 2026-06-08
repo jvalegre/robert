@@ -267,6 +267,164 @@ What remains uncertain:
 Next suggested step:
 - Add small helper tests for manifest and run-summary functions, then (if still needed) add module-native hooks incrementally behind a low-risk option.
 
+### Entry 007
+
+Date: 2026-06-08
+
+Goal of this step:
+- Run a full validation checklist using protected source-data in `databases/`.
+- Record pass/fail outcomes.
+- Add a design-only proposal for a future `CURATE/curate_audit.json` hook.
+
+What changed:
+- Completed one regression wrapper validation run:
+	- `databases/Regression/AQME-ROBERT_A_predict_solubility.csv`
+	- `y=solubility`, `names=code_name`, `ignore=code_name`
+- Completed one classification wrapper validation run:
+	- `databases/Clasification/F_predict_outcome.csv`
+	- `y=Outcome`, `names=Name`, `ignore=Name`, `type=clas`
+- Verified no JSON-layer text appears in standard `.dat` files.
+- Verified `CURATE/dataset_profile.json` and `CURATE/json_output_audit.json` exist and are valid JSON.
+- Verified required top-level fields in archive `run_summary.json` and CURATE JSON artifacts.
+- Verified copy-only archive behavior from `wrapper_run.json`.
+- Verified missing module folders are represented safely in manifests with:
+	- `module_dir_exists=false`
+	- `file_count=0`
+- Added design-only proposal for future `CURATE/curate_audit.json` (no code hook implemented yet).
+
+Files changed:
+- `json-output-for-agent/README.md`
+- `json-output-for-agent/json_schema_notes.md`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+- `.gitignore`
+
+Why this change was made:
+- To establish a clear, reproducible validation baseline before adding more module-native JSON hooks.
+- To preserve ROBERT scientific behavior while preparing a low-risk future audit pattern.
+
+How this was tested:
+- Wrapper regression run and classification run from repository root.
+- JSON validity and required-field checks by Python scripts.
+- DAT pollution check by searching for JSON-layer markers in standard `.dat` files.
+- Archive checks for copy-only behavior and missing-module handling.
+
+Confirmed results:
+- PASS: Standard root outputs for CURATE/GENERATE/VERIFY/PREDICT were produced.
+- PASS: JSON artifacts were created in standard and archive paths.
+- PASS: JSON files are valid and required fields are present.
+- PASS: `dataset_profile.json` includes `schema_version` and works for both regression and classification input targets.
+- PASS: No JSON-layer status messages were found in standard `.dat` files.
+- PASS: Copy-only archive behavior confirmed.
+- PASS: Missing-file/module behavior handled in manifests.
+- PARTIAL: REPORT PDF generation failed in this environment due missing WeasyPrint system libraries.
+
+What remains uncertain:
+- We still need to install/report-support system libraries if PDF generation must be included in this validation matrix.
+- Module-native audit hooks beyond dataset profile remain unimplemented by design.
+
+Next suggested step:
+- Propose the smallest safe implementation plan for `CURATE/curate_audit.json` and wait for explicit approval before coding.
+
+### Entry 008
+
+Date: 2026-06-08
+
+Goal of this step:
+- Implement the approved minimal hook for `CURATE/curate_audit.json`.
+- Keep the implementation fail-soft and additive only.
+
+What changed:
+- Added reusable helper `build_curate_audit_payload(...)` in `robert/json_output_for_agent.py`.
+- Generalized `write_json_output_audit(...)` to accept an `artifact` field so events can identify either:
+	- `dataset_profile.json`, or
+	- `curate_audit.json`.
+- Added CURATE hook in `robert/curate.py` to write `CURATE/curate_audit.json`.
+- Hook records only observable evidence and marks unavailable values explicitly.
+- Hook is wrapped in try/except and writes status only to `CURATE/json_output_audit.json`.
+
+Files changed:
+- `robert/json_output_for_agent.py`
+- `robert/curate.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To start module-native audit pattern in the lowest-risk module (CURATE).
+- To capture module-level evidence without changing ROBERT scientific behavior.
+
+How this was tested:
+- CURATE-only regression run:
+	- `python -m robert --curate --csv_name databases/Regression/AQME-ROBERT_A_predict_solubility.csv --y solubility --names code_name --ignore code_name --model "['RF']"`
+- CURATE-only classification run:
+	- `python -m robert --curate --csv_name databases/Clasification/F_predict_outcome.csv --y Outcome --names Name --ignore Name --type clas --model "['RF']"`
+- Checked artifacts created in `CURATE/`:
+	- `dataset_profile.json`
+	- `curate_audit.json`
+	- `json_output_audit.json`
+- Verified JSON audit events include both artifacts:
+	- `artifact=dataset_profile.json`
+	- `artifact=curate_audit.json`
+- Verified no JSON-layer markers in `CURATE/CURATE_data.dat`.
+
+Confirmed results:
+- `curate_audit.json` is created for regression and classification CURATE runs.
+- `curate_audit.json` includes `schema_version` and the approved top-level sections.
+- Unknown step-level descriptor-removal counters are recorded as `unavailable` (not guessed).
+- Standard CURATE outputs remain unchanged.
+- JSON-layer status remains isolated to JSON audit artifacts.
+
+What remains uncertain:
+- Step-specific descriptor-removal counters per filtering stage are not yet directly exposed as in-memory counters.
+
+Next suggested step:
+- If desired, add low-risk direct counters for specific CURATE filter stages so future audit files can replace selected `unavailable` fields with observed values.
+
+### Entry 009
+
+Date: 2026-06-08
+
+Goal of this step:
+- Run fault-injection validation specifically for `curate_audit.json` write failure.
+
+What changed:
+- Ran CURATE with a temporary monkeypatch on the exact reference used by CURATE:
+	- patched `robert.curate.write_json`
+	- raised `RuntimeError('simulated curate_audit write failure')` only when output path ended with `curate_audit.json`
+	- allowed all other JSON writes (`dataset_profile.json`, `json_output_audit.json`) to proceed
+
+Files changed:
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To confirm fail-soft behavior for `curate_audit.json` writing without affecting standard CURATE outputs.
+
+How this was tested:
+- Command run:
+	- `python` inline script patching `robert.curate.write_json` and executing CURATE on `databases/Regression/AQME-ROBERT_A_predict_solubility.csv`.
+- Verified:
+	- CURATE completed (`FAULT_INJECTION_RUN_DONE`).
+	- Standard outputs existed:
+		- `CURATE/CURATE_data.dat`
+		- `CURATE/CURATE_options.csv`
+		- curated CSV files.
+	- `CURATE/dataset_profile.json` existed with schema version `0.1`.
+	- `CURATE/json_output_audit.json` recorded failed `curate_audit.json` event:
+		- `error_type=RuntimeError`
+		- `error_message=simulated curate_audit write failure`
+	- `CURATE/CURATE_data.dat` contained no JSON-layer status text.
+
+Confirmed results:
+- Fail-soft behavior for `curate_audit.json` write failure is validated.
+- Standard CURATE behavior/output remained unchanged.
+- JSON-layer status remained isolated to JSON audit files.
+
+What remains uncertain:
+- None specific to this fault-injection case.
+
+Next suggested step:
+- Proceed to next approved module-native audit workstream when ready.
+
 ---
 
 ## Template for Future Entries

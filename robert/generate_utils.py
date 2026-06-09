@@ -166,6 +166,8 @@ def PFI_workflow(self, csv_df, ML_model, Xy_data):
                 "descriptors_retained_after_pfi": descriptors_PFI,
                 "descriptor_count_after_pfi": len(descriptors_PFI),
                 "desc_keep": int(desc_keep),
+                "desc_keep_label": "internal_pfi_keep_limit",
+                "desc_keep_note": "Internal ROBERT variable used during PFI descriptor selection. It is not necessarily the final number of descriptors retained. Use descriptor_count_after_pfi and descriptors_retained_after_pfi for the final PFI result.",
                 "fallback_reason": fallback_reason,
                 "combined_metric_after_pfi": PFI_dict.get(f"combined_{PFI_dict['error_type']}", None),
                 "pfi_parameter_csv_path": str(pfi_params_csv_path),

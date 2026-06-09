@@ -140,6 +140,19 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     path_n_suffix = f'{base_csv_path}'
     _ = df_results.to_csv(f'{base_csv_path}.csv', index = None, header=True)
+
+    save_metadata = {
+        'base_prediction_csv_path': f'{base_csv_path}.csv',
+        'base_prediction_csv_created': bool(os.path.exists(f'{base_csv_path}.csv')),
+        'base_row_count': int(len(df_results)),
+        'base_column_names': [str(col) for col in df_results.columns],
+        'external_csv_path': None,
+        'external_csv_created': False,
+        'external_row_count': None,
+        'external_column_names': None,
+        'external_state': 'not_applicable' if self.args.csv_test == '' else 'skipped',
+        'class_labels_reconverted': bool(reconvert_labels),
+    }
     
     # also save results for performance of individual folds (useful for t-tests and Wilcoxon tests between the folds)
     error1, error2, error3 = get_error_labels(model_data['type'])
@@ -192,6 +205,12 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
         _ = Xy_external.to_csv(name_external, index = None, header=True)
         print_preds += f'\n      -  External set with predicted results: PREDICT/csv_test/{csv_name_external}'
 
+        save_metadata['external_csv_path'] = str(name_external)
+        save_metadata['external_csv_created'] = bool(os.path.exists(name_external))
+        save_metadata['external_row_count'] = int(len(Xy_external))
+        save_metadata['external_column_names'] = [str(col) for col in Xy_external.columns]
+        save_metadata['external_state'] = 'created' if save_metadata['external_csv_created'] else 'skipped'
+
     self.args.log.write(print_preds)
 
     # store the names of the datapoints
@@ -205,7 +224,7 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
             name_points['train'] = df_results[model_data['names']][df_results.Set == 'CV']
             name_points['test'] = df_results[model_data['names']][df_results.Set == 'Test']
 
-    return path_n_suffix, name_points, Xy_data
+    return path_n_suffix, name_points, Xy_data, save_metadata
 
 
 def print_predict(self,Xy_data,model_data,suffix_title):
@@ -259,6 +278,8 @@ def print_predict(self,Xy_data,model_data,suffix_title):
             print_results += f"\n      -  External test : Accur. = {Xy_data['acc_external']:.2}, F1 score = {Xy_data['f1_external']:.2}, MCC = {Xy_data['mcc_external']:.2}"
 
     self.args.log.write(print_results)
+
+    return print_results
 
 
 def pearson_map_predict(self,Xy_data,params_dir):

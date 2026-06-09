@@ -10,6 +10,7 @@ standard output files, or normal run behavior.
 
 from __future__ import annotations
 
+import os
 import json
 import hashlib
 from pathlib import Path
@@ -875,6 +876,165 @@ def write_json_output_audit(
         with out.open("w", encoding="utf-8") as handle:
             json.dump(_to_json_safe(payload), handle, indent=2, sort_keys=False, ensure_ascii=False)
         return True
+    except Exception:
+        return False
+
+
+def init_report_figure_provenance() -> Dict[str, Any]:
+    """Create the initial payload for REPORT figure provenance capture."""
+
+    return {
+        "schema_version": "1.0",
+        "artifact_type": "figure_provenance",
+        "report_pdf_path": None,
+        "report_pdf_exists": False,
+        "figures": [],
+    }
+
+
+def _infer_report_source_module(path_text: str) -> str:
+    upper_path = path_text.upper().replace("\\", "/")
+    for module in ["CURATE", "GENERATE", "VERIFY", "PREDICT", "AQME"]:
+        if f"/{module}/" in f"/{upper_path}/":
+            return module
+    return "unknown"
+
+
+def _infer_report_branch_key(path_text: str) -> str:
+    upper_path = path_text.upper()
+    if "NO_PFI" in upper_path:
+        return "No_PFI"
+    if "PFI" in upper_path:
+        return "PFI"
+    if "CUSTOM" in upper_path:
+        return "custom"
+    return "unknown"
+
+
+def _infer_report_figure_role(path_text: str) -> str:
+    lower_path = path_text.lower()
+    file_name = Path(path_text).name.lower()
+
+    if "cv_variability" in file_name or "cv_variability" in lower_path:
+        return "cv_variability_plot"
+    if "results_" in file_name or "results_" in lower_path or "cv_variability" in lower_path:
+        return "prediction_plot"
+    if "shap_" in file_name or "/shap_" in lower_path:
+        return "shap_plot"
+    if "pfi_" in file_name or "/pfi_" in lower_path:
+        return "pfi_plot"
+    if "pearson" in file_name or "pearson" in lower_path:
+        return "pearson_map"
+    if "outlier" in file_name or "outlier" in lower_path:
+        return "outlier_plot"
+    if "distribution" in file_name or "distribution" in lower_path:
+        return "distribution_plot"
+    if "heatmap" in file_name or "heatmap" in lower_path:
+        return "model_screening_plot"
+    if "verify_tests" in file_name or "verify_tests" in lower_path:
+        return "verify_plot"
+    return "unknown"
+
+
+def _infer_supporting_json_path(source_module: str) -> str | None:
+    module_to_artifact = {
+        "CURATE": "curate_audit.json",
+        "GENERATE": "generate_audit.json",
+        "VERIFY": "verify_audit.json",
+        "PREDICT": "predict_audit.json",
+        "AQME": "aqme_audit.json",
+    }
+    artifact_name = module_to_artifact.get(source_module)
+    if artifact_name is None:
+        return None
+    return str(Path(os.getcwd()) / source_module / artifact_name)
+
+
+def _infer_supporting_csv_path(path_text: str, source_module: str, branch_key: str) -> str | None:
+    lower_path = path_text.lower().replace("\\", "/")
+    if source_module == "PREDICT" and "/predict/csv_test/" in f"/{lower_path}":
+        csv_test_dir = Path(os.getcwd()) / "PREDICT" / "csv_test"
+        if branch_key == "No_PFI":
+            matches = sorted(csv_test_dir.glob("*_No_PFI.csv"))
+            if len(matches) == 1:
+                return str(matches[0])
+            return None
+        if branch_key == "PFI":
+            matches = sorted(csv_test_dir.glob("*_PFI.csv"))
+            if len(matches) == 1:
+                return str(matches[0])
+            return None
+
+    if source_module == "PREDICT" and "results_" in lower_path:
+        stem = Path(path_text).stem
+        if stem.startswith("Results_"):
+            remaining_stem = stem[len("Results_") :]
+            if remaining_stem:
+                candidate_csv = Path(os.getcwd()) / "PREDICT" / f"{remaining_stem}.csv"
+                if candidate_csv.exists():
+                    return str(candidate_csv)
+
+    return None
+
+
+def infer_report_figure_provenance(figure_path: str | Path, report_section: str | None = None) -> Dict[str, Any]:
+    """Infer conservative provenance for one figure path from path and filename patterns only."""
+
+    path_obj = Path(figure_path)
+    path_text = str(path_obj)
+    source_module = _infer_report_source_module(path_text)
+    branch_key = _infer_report_branch_key(path_text)
+
+    return {
+        "figure_path": path_text,
+        "figure_filename": path_obj.name,
+        "exists": bool(path_obj.exists()),
+        "report_section": report_section,
+        "source_module": source_module,
+        "branch_key": branch_key,
+        "figure_role": _infer_report_figure_role(path_text),
+        "supporting_json_path": _infer_supporting_json_path(source_module),
+        "supporting_csv_path": _infer_supporting_csv_path(path_text, source_module, branch_key),
+    }
+
+
+def add_report_figure_record(
+    provenance_payload: Dict[str, Any],
+    figure_path: str | Path,
+    report_section: str | None = None,
+) -> Dict[str, Any]:
+    """Append one figure provenance record in fail-soft mode."""
+
+    try:
+        if not isinstance(provenance_payload, dict):
+            return provenance_payload
+
+        figures = provenance_payload.get("figures", [])
+        if not isinstance(figures, list):
+            figures = []
+
+        figures.append(infer_report_figure_provenance(figure_path, report_section=report_section))
+        provenance_payload["figures"] = figures
+        return provenance_payload
+    except Exception:
+        return provenance_payload
+
+
+def finalize_report_figure_provenance(
+    provenance_payload: Dict[str, Any],
+    output_path: str | Path,
+    report_pdf_path: str | Path,
+    report_pdf_exists: bool,
+) -> bool:
+    """Finalize and write REPORT figure provenance in fail-soft mode."""
+
+    try:
+        if not isinstance(provenance_payload, dict):
+            return False
+
+        provenance_payload["report_pdf_path"] = str(report_pdf_path)
+        provenance_payload["report_pdf_exists"] = bool(report_pdf_exists)
+        return write_json(provenance_payload, output_path)
     except Exception:
         return False
 

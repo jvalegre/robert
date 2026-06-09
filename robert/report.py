@@ -28,6 +28,11 @@ from pathlib import Path
 from robert.utils import (load_variables,
     pd_to_dict,
 )
+from robert.json_output_for_agent import (
+    init_report_figure_provenance,
+    add_report_figure_record,
+    finalize_report_figure_provenance,
+)
 from robert.report_utils import (
     get_csv_names,
     get_col_score,
@@ -92,6 +97,7 @@ class report:
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
+        self.figure_provenance = init_report_figure_provenance()
 
         eval_only = False
         # if EVALUATE is activated, no PFI models are generated
@@ -178,6 +184,17 @@ class report:
         else:
             _ = make_report(report_html,HTML)
 
+        report_pdf_path = f'{os.getcwd()}/ROBERT_report.pdf'
+        try:
+            _ = finalize_report_figure_provenance(
+                self.figure_provenance,
+                f'{os.getcwd()}/REPORT/figure_provenance.json',
+                report_pdf_path,
+                os.path.exists(report_pdf_path),
+            )
+        except Exception:
+            pass
+
         # Remove report.css file
         os.remove("report.css")
         
@@ -237,7 +254,7 @@ class report:
         height = 221
         if pred_type == 'clas':
             height += diff_height
-        score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,eval_only,diff_names=True)
+        score_dat += self.print_img('Results',-5,height,'PREDICT',pred_type,eval_only,diff_names=True,report_section='Section A. ROBERT Score')
 
         for suffix in ['No PFI','PFI']:
             spacing = get_spacing_col(suffix,spacing_PFI)
@@ -578,7 +595,7 @@ class report:
                 height = 223
                 if pred_type == 'clas':
                     height -= 15
-                adv_score_dat += self.print_img('VERIFY_tests',13,height,'VERIFY',pred_type,eval_only)
+                adv_score_dat += self.print_img('VERIFY_tests',13,height,'VERIFY',pred_type,eval_only,report_section='Section B. Advanced Score Analysis')
                 # page break to second page
                 adv_score_dat += '<hr style="height: 0.5px; margin-top: 30px; background-color:LightGray">'
 
@@ -586,7 +603,7 @@ class report:
                 adv_score_dat += section_separator
 
             elif section == 'adv_cv_sd' and pred_type == 'reg':
-                adv_score_dat += self.print_img('CV_variability',10,221,'PREDICT',pred_type,eval_only)
+                adv_score_dat += self.print_img('CV_variability',10,221,'PREDICT',pred_type,eval_only,report_section='Section B. Advanced Score Analysis')
 
             elif section == 'adv_cv_diff' and pred_type == 'clas':
                 adv_score_dat += section_separator
@@ -653,7 +670,7 @@ class report:
             
             # add corresponding images
             height = 217
-            outlier_dat += self.print_img('Outliers',-5,height,'PREDICT',pred_type,eval_only)
+            outlier_dat += self.print_img('Outliers',-5,height,'PREDICT',pred_type,eval_only,report_section='Section E. Outlier Analysis')
 
         # add separator line and page break
         outlier_dat += '<hr style="margin-top: 20px;">'
@@ -673,7 +690,7 @@ class report:
         
         # add corresponding images
         height = 220
-        distrib_dat += self.print_img('y_distribution',-5,height,'PREDICT',pred_type,eval_only)
+        distrib_dat += self.print_img('y_distribution',-5,height,'PREDICT',pred_type,eval_only,report_section='Section C. Distribution of y Values')
 
         columns_y_distrib = []
         # get two columns to combine and print
@@ -752,16 +769,20 @@ class report:
                 pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px">Pearson maps not created if >30 descriptors.'
                 pair_list += f'{("&nbsp;")*15}'
                 if len(image_pair) == 1:
+                    self.figure_provenance = add_report_figure_record(self.figure_provenance, image_pair[0], report_section='Section D. Feature Importances')
                     pair_list += f'<img src="file:///{image_pair[0]}" style="margin: 0; width: 100%;"/></p>'
                 elif len(image_pair) == 0:
                     pair_list += f'{("&nbsp;")*15}'
                     pair_list += f'Pearson maps not created if >30 descriptors.</p>'
             elif eval_only:
                 if len(image_pair) == 1:
+                    self.figure_provenance = add_report_figure_record(self.figure_provenance, image_pair[0], report_section='Section D. Feature Importances')
                     pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px"><img src="file:///{image_pair[0]}" style="margin: 0; width: 100%;"/></p>'
                 elif len(image_pair) == 0:
                     pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px;  margin-top: {margin_top}px">Pearson maps not created if >30 descriptors.</p>'
             else:
+                self.figure_provenance = add_report_figure_record(self.figure_provenance, image_pair[0], report_section='Section D. Feature Importances')
+                self.figure_provenance = add_report_figure_record(self.figure_provenance, image_pair[1], report_section='Section D. Feature Importances')
                 pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px"><img src="file:///{image_pair[0]}" style="margin: 0; width: 100%;"/>'
                 pair_list += f'{("&nbsp;")*22}'
                 pair_list += f'<img src="file:///{image_pair[1]}" style="margin: 0; width: 100%;"/></p>'
@@ -806,7 +827,7 @@ class report:
         # add corresponding images
         if not eval_only:
             height = 236
-            generate_dat += self.print_img('Heatmap',-5,height,'GENERATE',pred_type,eval_only)
+            generate_dat += self.print_img('Heatmap',-5,height,'GENERATE',pred_type,eval_only,report_section='Section F. Model Screening')
 
         generate_dat += '<p style="margin-bottom: 50px;"></p>'
 
@@ -1088,7 +1109,7 @@ class report:
                 prefix_img = 'Results'
                 height += 17
             if len(glob.glob(f'{os.getcwd()}/PREDICT/csv_test/{prefix_img}*.png')) > 0:
-                pred_dat += self.print_img(prefix_img,-5,height,'PREDICT/csv_test',pred_type,eval_only)
+                pred_dat += self.print_img(prefix_img,-5,height,'PREDICT/csv_test',pred_type,eval_only,report_section='Section J. New Predictions')
 
             # add separator line and page break
             pred_dat += '<hr style="margin-top: 20px;">'
@@ -1164,7 +1185,7 @@ class report:
         return title_line
 
 
-    def print_img(self,file_name,margin_top,height,module,pred_type,eval_only,test_set=False,diff_names=False):
+    def print_img(self,file_name,margin_top,height,module,pred_type,eval_only,test_set=False,diff_names=False,report_section=None):
         """
         Generates the string that includes couples of images to print
         """
@@ -1188,6 +1209,11 @@ class report:
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
         results_images = revert_list(results_images)            
+
+        if len(results_images) > 0:
+            self.figure_provenance = add_report_figure_record(self.figure_provenance, results_images[0], report_section=report_section)
+        if not eval_only and len(results_images) > 1:
+            self.figure_provenance = add_report_figure_record(self.figure_provenance, results_images[1], report_section=report_section)
         
         # add the graphs
         width = 100

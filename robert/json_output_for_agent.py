@@ -1,6 +1,11 @@
-"""Helpers for additive JSON artifacts used by the agent-facing UI layer.
+"""Shared helpers for writing ROBERT evidence into JSON files.
 
-These helpers are intentionally fail-soft and do not modify ROBERT calculations.
+These functions support ChatBob by turning ROBERT outputs, dataset facts,
+and run artifacts into structured files that a user interface or LLM can read.
+
+The helpers are intentionally additive and fail-soft:
+they should never change ROBERT calculations, scoring, model selection,
+standard output files, or normal run behavior.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ _DEFAULT_MODULES = ["CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "AQME",
 
 
 def _to_unavailable() -> str:
+    """Return the standard marker used when ROBERT evidence is not currently captured."""
     return "unavailable"
 
 
@@ -29,6 +35,7 @@ def _iso_timestamp_from_epoch(epoch_seconds: float) -> str:
 
 
 def _sha256_file(file_path: Path, chunk_size: int = 1024 * 1024) -> str | None:
+    """Create a file fingerprint so ChatBob can tell whether an output file changed."""
     hasher = hashlib.sha256()
     try:
         with file_path.open("rb") as handle:
@@ -43,7 +50,7 @@ def _sha256_file(file_path: Path, chunk_size: int = 1024 * 1024) -> str | None:
 
 
 def _extract_pdf_text_preview(file_path: Path, max_chars: int) -> str | None:
-    # Prefer simple best-effort extraction. Failures are acceptable and represented as None.
+    """Try to extract a short text preview from a PDF without interrupting ROBERT if it fails."""
     try:
         import fitz
 
@@ -68,6 +75,7 @@ def _extract_pdf_text_preview(file_path: Path, max_chars: int) -> str | None:
 
 
 def _extract_text_preview(file_path: Path, max_chars: int = 4000) -> str | None:
+    """Read a short preview from text-like ROBERT output files for later search or display."""
     suffix = file_path.suffix.lower()
     try:
         if suffix in {".dat", ".txt", ".log", ".csv", ".json", ".yaml", ".yml"}:
@@ -81,6 +89,7 @@ def _extract_text_preview(file_path: Path, max_chars: int = 4000) -> str | None:
 
 
 def _infer_artifact_type(file_path: Path) -> str:
+    """Label a ROBERT output file as CSV, DAT, image, PDF, text, or other."""
     suffix = file_path.suffix.lower()
     if suffix == ".csv":
         return "csv"
@@ -96,6 +105,7 @@ def _infer_artifact_type(file_path: Path) -> str:
 
 
 def _build_file_record(file_path: Path, run_dir: Path) -> Dict[str, Any]:
+    """Describe one output file using its path, type, size, timestamp, fingerprint, and preview."""
     stats = file_path.stat()
     rel = file_path.relative_to(run_dir)
     artifact_type = _infer_artifact_type(file_path)
@@ -113,7 +123,11 @@ def _build_file_record(file_path: Path, run_dir: Path) -> Dict[str, Any]:
 
 
 def collect_module_manifest(module_name: str, run_dir: str | Path, max_files: int = 1000) -> Dict[str, Any]:
-    """Collect an archive-only manifest for one module from an existing run directory."""
+    """Build a structured inventory of files produced by one ROBERT module.
+
+    This helps ChatBob answer questions such as which files were created,
+    where they are stored, and which outputs are available for inspection.
+    """
 
     run_root = Path(run_dir)
     module_dir = run_root / module_name
@@ -148,7 +162,7 @@ def collect_module_manifest(module_name: str, run_dir: str | Path, max_files: in
 
 
 def write_module_manifest(module_name: str, run_dir: str | Path) -> bool:
-    """Write one module manifest JSON into the archive run root."""
+    """Write the file inventory for one ROBERT module as a JSON manifest."""
 
     run_root = Path(run_dir)
     output_path = run_root / f"{module_name}_manifest.json"
@@ -157,7 +171,17 @@ def write_module_manifest(module_name: str, run_dir: str | Path) -> bool:
 
 
 def write_archive_manifests(run_dir: str | Path, modules: List[str] | None = None) -> Dict[str, Any]:
-    """Write manifests for archive module folders and return a write-status payload."""
+    """Create file inventories for the ROBERT modules in one completed run.
+
+    A ROBERT run can produce many outputs across folders such as CURATE,
+    GENERATE, VERIFY, PREDICT, REPORT, AQME, and EVALUATE. This helper
+    asks each module folder to write a manifest that lists its available
+    files.
+
+    The returned status tells ChatBob which module inventories were written
+    successfully, so the interface can know what evidence is available before
+    trying to explain the run.
+    """
 
     run_root = Path(run_dir)
     module_names = modules or list(_DEFAULT_MODULES)
@@ -190,7 +214,14 @@ def collect_run_summary(
     return_code: int | None = None,
     wrapper_metadata_path: str | Path | None = None,
 ) -> Dict[str, Any]:
-    """Collect a run-level summary that indexes module manifests and top-level outputs."""
+    """Create a high-level map of one completed ROBERT run.
+    A completed ROBERT run can contain many module folders, manifest files,
+    plots, CSV files, reports, and other outputs.
+    This helper gathers the top-level information needed to understand
+    what is available in the run. ChatBob can use this summary as a starting
+    point before it reads the more detailed CURATE, GENERATE,
+    VERIFY, PREDICT, or REPORT evidence.
+    """
 
     run_root = Path(run_dir)
     manifest_paths = sorted(run_root.glob("*_manifest.json"))
@@ -237,7 +268,11 @@ def write_run_summary(
     return_code: int | None = None,
     wrapper_metadata_path: str | Path | None = None,
 ) -> bool:
-    """Write run_summary.json at the run root."""
+    """Write the high-level run summary as run_summary.json at the run root.
+    This gives ChatBob a single file that points to the main outputs of a completed ROBERT run.
+    The summary does not replace the original ROBERT files;
+    it simply helps locate and organize them.
+    """
 
     run_root = Path(run_dir)
     output_path = run_root / "run_summary.json"
@@ -251,13 +286,23 @@ def write_run_summary(
 
 
 def _read_raw_csv(csv_path: str | Path) -> pd.DataFrame:
-    """Read the incoming CSV with separator autodetection to preserve raw intake facts."""
+    """Read the incoming CSV with separator autodetection to preserve raw intake facts.
+    This is done before ROBERT changes the dataset.
+    CURATE may later remove, reorder, transform, or filter parts of the data.
+    This helper preserves the starting point so ChatBob can explain what the user originally gave to ROBERT.
+    """
 
     return pd.read_csv(csv_path, sep=None, engine="python", encoding="utf-8")
 
 
 def _to_json_safe(obj: Any) -> Any:
-    """Convert pandas/numpy/path values into standard JSON-serializable Python types."""
+    """Convert scientific Python objects (pandas/numpy/path values) into values that can be written as JSON.
+    
+    ROBERT uses pandas, NumPy, file paths, timestamps, and missing values.
+    Many of these objects cannot be written directly into JSON.
+    This helper translates them into plain strings, numbers, lists,
+    dictionaries, or nulls that ChatBob can read reliably.
+    """
 
     if isinstance(obj, Path):
         return str(obj)
@@ -298,7 +343,13 @@ def _to_json_safe(obj: Any) -> Any:
 
 
 def _is_boolean_like(series: pd.Series) -> bool:
-    """Detect columns that behave like booleans even when encoded as strings or 0/1."""
+    """Detect columns that behave like booleans even when encoded as strings or 0/1.
+    
+    Detect whether a column behaves like yes/no or true/false data.
+    Some datasets store boolean information as 0/1, yes/no, true/false,
+    or similar text labels.
+    This helper identifies those simple two-state columns so the
+    dataset profile can describe them more clearly."""
 
     non_null = series.dropna()
     if non_null.empty:
@@ -311,7 +362,11 @@ def _is_boolean_like(series: pd.Series) -> bool:
 
 
 def _type_label(series: pd.Series) -> str:
-    """Return a simple, observable type label for a column."""
+    """Assign a simple observable type label to one dataset column.
+    This helper labels a column as numeric, categorical, text-like,
+    boolean-like, or unknown based only on what is visible in the data.
+    It does not make a scientific judgment; it creates a plain-language
+    description that ChatBob can use when explaining the dataset."""
 
     if pd.api.types.is_bool_dtype(series) or _is_boolean_like(series):
         return "boolean_like"
@@ -335,6 +390,13 @@ def _type_label(series: pd.Series) -> str:
 
 
 def measure_dataset_shape(raw_df: pd.DataFrame) -> Dict[str, Any]:
+    
+    """Record the basic size and layout of the original dataset.
+    This captures the number of rows, number of columns, column names, column order,
+    duplicate rows, and duplicate columns before CURATE changes anything.
+    It helps ChatBob answer the basic question: what did the user start with?
+    """
+    
     return {
         "number_of_rows": int(len(raw_df)),
         "number_of_columns": int(len(raw_df.columns)),
@@ -346,6 +408,11 @@ def measure_dataset_shape(raw_df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def measure_missingness(raw_df: pd.DataFrame) -> Dict[str, Any]:
+    """Measure missing values in the original dataset.
+    Missing values can affect how ROBERT curates and models a dataset.
+    This helper records how many values are missing, which columns are affected,
+    and whether missingness is small or substantial.
+    """
     total_cells = int(raw_df.shape[0] * raw_df.shape[1])
     missing_by_col = raw_df.isna().sum()
     total_missing = int(missing_by_col.sum())
@@ -369,6 +436,11 @@ def measure_missingness(raw_df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def measure_column_types(raw_df: pd.DataFrame) -> Dict[str, Any]:
+    """Group the original dataset columns into simple observable categories.
+    The helper identifies columns that appear numeric, categorical, text-like,
+    boolean-like, constant, mostly constant, or mixed in type.
+    This gives ChatBob a practical way to explain the character of the starting dataset.
+    """
     numeric_columns: List[str] = []
     categorical_columns: List[str] = []
     text_columns: List[str] = []
@@ -416,6 +488,11 @@ def measure_column_types(raw_df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def measure_per_column_stats(raw_df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+    """Create a compact summary for each column in the original dataset.
+    Each column summary includes its inferred type, number of non-missing values,
+    number of unique values, and a few example values.
+    This helps ChatBob explain individual columns without needing to display the full dataset.
+    """
     per_column: Dict[str, Dict[str, Any]] = {}
 
     for col in raw_df.columns:
@@ -434,6 +511,11 @@ def measure_per_column_stats(raw_df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
 
 
 def measure_target_profile(raw_df: pd.DataFrame, y: str) -> Dict[str, Any]:
+    """Describe the target column before ROBERT changes the dataset.
+    The target column is the property ROBERT is trying to model.
+    This helper records missing values, unique values, numeric range, average, spread,
+    likely problem type, and class counts when the target appears categorical.
+    """
     if y not in raw_df.columns:
         return {
             "target_name": y,
@@ -512,6 +594,12 @@ def measure_target_profile(raw_df: pd.DataFrame, y: str) -> Dict[str, Any]:
 
 
 def measure_descriptor_counts(raw_df: pd.DataFrame, y: str, ignore: List[str]) -> Dict[str, Any]:
+    """Count the starting descriptor columns before CURATE begins.
+    Descriptors are the input features available to build a model,
+    excluding the target column and ignored columns.
+    This helper records how many descriptors exist and how many appear numeric,
+    categorical, text-like, constant, near-constant, or high in missing values.
+    """
     ignore_set = set(ignore or [])
     descriptors = [c for c in raw_df.columns if c != y and c not in ignore_set]
     descriptor_df = raw_df[descriptors] if descriptors else pd.DataFrame(index=raw_df.index)
@@ -559,7 +647,13 @@ def measure_descriptor_counts(raw_df: pd.DataFrame, y: str, ignore: List[str]) -
 
 
 def profile_input_dataset(csv_path: str | Path, y: str, ignore: List[str] | None = None) -> Dict[str, Any]:
-    """Build a raw-input dataset profile JSON payload from the incoming CSV file."""
+    """Build the raw dataset profile used to explain the starting data.
+    This helper re-reads the original CSV before CURATE changes it
+    and gathers the dataset shape, missingness, column types, per-column summaries,
+    target profile, and descriptor counts into one JSON-ready record.
+    ChatBob can use this file to explain what the user gave ROBERT before
+    any curation or model-building decisions were made.
+    """
 
     raw_df = _read_raw_csv(csv_path)
     ignore = ignore or []
@@ -579,7 +673,10 @@ def profile_input_dataset(csv_path: str | Path, y: str, ignore: List[str] | None
 
 
 def write_json(data: Dict[str, Any], output_path: str | Path) -> bool:
-    """Write JSON to disk in a fail-safe way; returns False when writing fails."""
+    """Write a JSON file without risking the ROBERT run.
+    This helper writes structured evidence to disk and returns True if the write succeeds
+    or False if it fails. A JSON failure should not stop ROBERT or alter any standard ROBERT output.
+    """
 
     out = Path(output_path)
     try:
@@ -597,7 +694,11 @@ def init_module_audit(
     source_files: List[str] | None = None,
     command_line: str | None = None,
 ) -> Dict[str, Any]:
-    """Initialize a module audit payload in a fail-soft way."""
+    """Start a structured audit record for one ROBERT module.
+    CURATE, GENERATE, VERIFY, PREDICT, and REPORT each produce evidence
+    that ChatBob may need to explain later.
+    This helper creates a common starting structure so each module can record what happened in a consistent way.
+    """
 
     try:
         payload = {
@@ -631,7 +732,11 @@ def audit_event(
     evidence_level: str = "direct",
     dat_text: str | None = None,
 ) -> Dict[str, Any]:
-    """Append one structured runtime event without interrupting ROBERT flow."""
+    """Add one event to a module audit without interrupting ROBERT.
+    An event is something that happened during a module, such as a filtering step,
+    warning, file creation, model check, or result.
+    ChatBob can later use these events to explain the sequence of what ROBERT did.
+    """
 
     try:
         if not isinstance(audit, dict):
@@ -663,7 +768,12 @@ def audit_set(
     value: Any,
     evidence_level: str = "direct",
 ) -> Dict[str, Any]:
-    """Set one structured value in a module audit section fail-softly."""
+    """Store one named value inside a module audit section.
+    This helper lets the JSON audit record important values in organized sections
+    such as inputs, counts, warnings, model results, or files created.
+    The evidence level marks whether the value came directly from ROBERT
+    or was added as a simple helper summary for ChatBob.
+    """
 
     try:
         if not isinstance(audit, dict):
@@ -693,7 +803,11 @@ def finalize_module_audit(
     output_path: str | Path,
     status: str = "completed",
 ) -> bool:
-    """Finalize and write a module audit JSON in a fail-soft way."""
+    """Finish and write a module audit JSON file.
+    This helper marks the audit as completed, adds an ending timestamp,
+    and writes the JSON file using the fail-soft JSON writer.
+    It gives each module a consistent way to close its evidence record.
+    """
 
     try:
         if not isinstance(audit, dict):
@@ -714,7 +828,12 @@ def write_json_output_audit(
     artifact: str = "dataset_profile.json",
     error: Exception | None = None,
 ) -> bool:
-    """Write a JSON-layer audit record without touching standard ROBERT output files."""
+    """Record whether the extra JSON evidence layer succeeded or failed.
+    This audit is about the ChatBob-facing JSON files only.
+    It records which JSON artifact was attempted, whether it succeeded,
+    and what error occurred if it failed.
+    It must not write messages into standard ROBERT outputs such as DAT, CSV, image, model, or report files.
+    """
 
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -773,7 +892,14 @@ def build_curate_audit_payload(
     columns_before_curate: int | None,
     columns_after_curate: int | None,
 ) -> Dict[str, Any]:
-    """Build CURATE module audit payload from directly observable values only."""
+    """Build the CURATE audit JSON from values that are directly observable.
+    This helper records the input file, target column, ignored columns,
+    requested discarded columns, before-and-after dataset counts, expected CURATE output files,
+    and fields that are not yet available in structured form.
+    It is intentionally conservative.
+    If ROBERT has not exposed a value in a reliable structured way,
+    the audit marks that value as unavailable rather than guessing.
+    """
 
     src = Path(source_csv)
     dst = Path(destination_dir)

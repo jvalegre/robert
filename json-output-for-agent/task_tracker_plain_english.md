@@ -425,6 +425,61 @@ What remains uncertain:
 Next suggested step:
 - Proceed to next approved module-native audit workstream when ready.
 
+### Entry 010
+
+Date: 2026-06-09
+
+Goal of this step:
+
+* Record progress after implementing module-native runtime audits for CURATE, GENERATE, and VERIFY.
+* Reset the task list so the next workstream is clear before starting PREDICT.
+
+What changed:
+
+* `TASKS.md` was rewritten to reflect the current module-native audit workflow.
+* The task list now separates archive-side manifests from module-native runtime audit JSON files.
+* The task list now identifies PREDICT as the next module to implement.
+* CURATE, GENERATE, and VERIFY are marked as implemented and validated module-native audits.
+
+Files changed:
+
+* `json-output-for-agent/TASKS.md`
+* `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+
+* The previous task list still reflected the early CURATE-first phase of the project.
+* The project has now moved into a module-by-module runtime audit pattern.
+* Updating the tracker now prevents confusion before starting PREDICT.
+
+How this was tested:
+
+* Documentation update only.
+* No ROBERT source code was changed in this step.
+* No ROBERT run was required for this documentation checkpoint.
+
+Confirmed results:
+
+* CURATE runtime audit has been implemented and validated.
+* GENERATE runtime audit has been implemented and validated.
+* VERIFY runtime audit has been implemented and validated.
+* Standard `.dat` behavior was preserved during validation, with differences limited to timestamp/runtime or non-scientific formatting.
+* JSON-layer status remains isolated to `json_output_audit.json`.
+* No original ROBERT scientific variables, thresholds, descriptor logic, model logic, prediction logic, plotting logic, or CLI behavior were intentionally changed.
+
+What remains uncertain:
+
+* PREDICT module-native audit implementation has not started.
+* AQME and EVALUATE module-native audits have not started.
+* REPORT remains deferred and has a separate report-generation/parser issue to revisit later.
+* The long-term role of archive manifests versus module-native audits still needs to be decided.
+
+Next suggested step:
+
+* Commit the documentation checkpoint.
+* Begin PREDICT planning only, with no implementation until the plan is reviewed and approved.
+
+
 ---
 
 ## Template for Future Entries

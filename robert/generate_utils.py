@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import glob
 import json
+from robert.json_output_for_agent import audit_event, audit_set
 from robert.utils import (
     load_params,
     PFI_filter,
@@ -33,6 +34,8 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
                 'y': self.args.y,
                 'names': self.args.names,
                 'X_descriptors': Xy_data['X_descriptors']}
+
+    bo_ran = ML_model.upper() != 'MVL'
 
     if ML_model.upper() != 'MVL':
         bo_data['params'], bo_data[f"combined_{bo_data['error_type']}"] = BO_optimizer(self,bo_data,Xy_data)
@@ -70,6 +73,36 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     bo_data_df = pd.DataFrame([bo_data_to_save])
     _ = bo_data_df.to_csv(f'{params_name}.csv', index = None, header=True)
 
+    if hasattr(self.args, 'generate_audit'):
+        self.args.generate_audit = audit_event(
+            self.args.generate_audit,
+            event_type="bo_workflow",
+            payload={
+                "model": bo_data['model'],
+                "type": bo_data['type'],
+                "error_type": bo_data['error_type'],
+                "kfold": bo_data['kfold'],
+                "repeat_kfolds": bo_data['repeat_kfolds'],
+                "seed": bo_data['seed'],
+                "y": bo_data['y'],
+                "names": bo_data['names'],
+                "descriptor_count": len(bo_data['X_descriptors']),
+                "descriptor_list": bo_data['X_descriptors'],
+                "bo_was_run": bool(bo_ran),
+                "bo_skipped_reason": None if bo_ran else "model_is_mvl",
+                "optimized_parameters": bo_data.get('params', {}),
+                "combined_metric_value": bo_data.get(f"combined_{bo_data['error_type']}", None),
+                "no_pfi_parameter_csv_path": f'{params_name}.csv',
+                "no_pfi_database_csv_path": f'{db_name}.csv',
+                "class_label_mapping": {
+                    "class_0_label": getattr(self.args, 'class_0_label', None),
+                    "class_1_label": getattr(self.args, 'class_1_label', None),
+                },
+                "split_type": self.args.split,
+            },
+            evidence_level="direct",
+        )
+
     return bo_data
 
 
@@ -88,8 +121,10 @@ def PFI_workflow(self, csv_df, ML_model, Xy_data):
     desc_keep = calc_desc_keep(self,Xy_data,PFI_discard_cols)
 
     discard_idx, descriptors_PFI = [],[]
+    fallback_reason = None
     # if no descriptors pass the filter, just choose them based on importance until having the number of descps from desc_keep
     if len(PFI_discard_cols) == len(descp_cols_pfi):
+        fallback_reason = "all_descriptors_below_pfi_threshold_using_desc_keep_fallback"
         PFI_discard_cols = []
 
     for _,column in enumerate(descp_cols_pfi):
@@ -112,6 +147,32 @@ def PFI_workflow(self, csv_df, ML_model, Xy_data):
 
     # save CSV file
     _ = save_pfi_csv(self,csv_df,name_csv_hyperopt,PFI_dict,Xy_data_PFI,ML_model)
+
+    if hasattr(self.args, 'generate_audit'):
+        pfi_params_csv_path = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_PFI.csv")
+        pfi_db_csv_path = self.args.destination.joinpath(f"Raw_data/PFI/{ML_model}_PFI_db.csv")
+        self.args.generate_audit = audit_event(
+            self.args.generate_audit,
+            event_type="pfi_workflow",
+            payload={
+                "pfi_activated": True,
+                "model": str(ML_model),
+                "pfi_threshold": self.args.pfi_threshold,
+                "pfi_max": self.args.pfi_max,
+                "pfi_epochs": self.args.pfi_epochs,
+                "descriptor_count_before_pfi": len(descp_cols_pfi),
+                "descriptors_discarded_by_pfi": PFI_discard_cols,
+                "descriptor_count_discarded": len(PFI_discard_cols),
+                "descriptors_retained_after_pfi": descriptors_PFI,
+                "descriptor_count_after_pfi": len(descriptors_PFI),
+                "desc_keep": int(desc_keep),
+                "fallback_reason": fallback_reason,
+                "combined_metric_after_pfi": PFI_dict.get(f"combined_{PFI_dict['error_type']}", None),
+                "pfi_parameter_csv_path": str(pfi_params_csv_path),
+                "pfi_database_csv_path": str(pfi_db_csv_path),
+            },
+            evidence_level="direct",
+        )
 
 
 def calc_desc_keep(self,Xy_data,PFI_discard_cols):
@@ -193,12 +254,16 @@ def detect_best(folder):
 
     # detect files
     file_list = glob.glob(f'{folder}/*.csv')
+    candidate_param_csv_files = []
+    candidate_metric_values = {}
     errors = []
     for file in file_list:
         if '_db' not in file:
             results_model = pd.read_csv(f'{file}', encoding='utf-8')
             training_error = results_model[f"combined_{results_model['error_type'][0]}"][0]
             errors.append(training_error)
+            candidate_param_csv_files.append(file)
+            candidate_metric_values[file] = float(training_error)
         else:
             errors.append(np.nan)
     # detect best result and copy files to the Best_model folder
@@ -211,6 +276,20 @@ def detect_best(folder):
 
     shutil.copyfile(f'{best_name}', f'{best_name}'.replace('Raw_data','Best_model'))
     shutil.copyfile(f'{best_db}', f'{best_db}'.replace('Raw_data','Best_model'))
+
+    return {
+        "folder_scanned": str(folder),
+        "candidate_parameter_csv_files": candidate_param_csv_files,
+        "candidate_metric_values": candidate_metric_values,
+        "error_type": str(results_model['error_type'][0]),
+        "selection_rule": "minimum" if results_model['error_type'][0].lower() in ['mae', 'rmse'] else "maximum",
+        "best_parameter_csv_path": str(best_name),
+        "best_database_csv_path": str(best_db),
+        "copied_destination_parameter_path": str(best_name).replace('Raw_data', 'Best_model'),
+        "copied_destination_database_path": str(best_db).replace('Raw_data', 'Best_model'),
+        "best_metric_value": float(np.nanmin(errors)) if results_model['error_type'][0].lower() in ['mae', 'rmse'] else float(np.nanmax(errors)),
+        "pfi_status": "PFI" if '/PFI' in str(folder).replace('\\', '/') else "No_PFI",
+    }
 
 
 def heatmap_workflow(self,folder_hm):
@@ -243,4 +322,20 @@ def heatmap_workflow(self,folder_hm):
     elif folder_hm == "PFI":
         suffix = 'PFI'
     _ = create_heatmap(self,csv_df,suffix,path_raw)
+
+    title_fig = f'Heatmap ML models {suffix}'
+    name_fig = '_'.join(title_fig.split())
+    image_path = path_raw.joinpath(f'{name_fig}.png')
+
+    return {
+        "plot_type": "heatmap",
+        "pfi_status": "No_PFI" if folder_hm == "No_PFI" else "PFI",
+        "source_folder": str(path_raw.joinpath(folder_hm)),
+        "model_scores_included": {str(k): float(v) for k, v in csv_data.items()},
+        "heatmap_suffix": suffix,
+        "image_path": str(image_path),
+        "image_generated": bool(os.path.exists(image_path)),
+        "fail_soft_reason": None if os.path.exists(image_path) else "heatmap_output_not_detected_after_creation",
+        "short_interpretation": "model-screening heatmap comparing optimized models",
+    }
 

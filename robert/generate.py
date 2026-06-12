@@ -95,6 +95,7 @@ from robert.json_output_for_agent import (
     audit_set,
     audit_event,
     finalize_module_audit,
+    agent_json_path,
     write_json_output_audit,
 )
 from robert.utils import (
@@ -157,8 +158,8 @@ class generate:
         self.args.generate_audit = audit_set(self.args.generate_audit, "inputs", "split", self.args.split)
         self.args.generate_audit = audit_set(self.args.generate_audit, "inputs", "destination", str(self.args.destination))
 
-        generate_audit_path = self.args.destination.joinpath("generate_audit.json")
-        json_audit_path = self.args.destination.joinpath("json_output_audit.json")
+        generate_audit_path = agent_json_path("generate_audit.json")
+        json_audit_path = agent_json_path("generate_json_output_audit.json")
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df, _, _ = load_database(self,self.args.csv_name,"generate")

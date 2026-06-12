@@ -21,7 +21,7 @@ from typing import List, Optional
 
 
 PATH_OPTIONS = {"csv_name", "csv_test", "varfile", "params_dir"}
-COPY_DIRS = ["CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "AQME", "EVALUATE"]
+COPY_DIRS = ["CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "AQME", "EVALUATE", "JSON"]
 COPY_FILES = ["ROBERT_report.pdf", "report.css", "report_debug.txt"]
 
 
@@ -93,6 +93,22 @@ def _copy_outputs(repo_root: Path, run_dir: Path) -> None:
             shutil.copy2(src, run_dir / name)
 
 
+def _move_json_artifacts(source_dir: Path, json_dir: Path, filenames: List[str]) -> None:
+    for filename in filenames:
+        src = source_dir / filename
+        if not src.exists() or not src.is_file():
+            continue
+        dst = json_dir / filename
+        try:
+            if dst.exists():
+                if dst.is_dir():
+                    shutil.rmtree(dst)
+                else:
+                    dst.unlink()
+            shutil.move(str(src), str(dst))
+        except Exception:
+            pass
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -149,6 +165,8 @@ def main() -> int:
     cmd = [known.wrapper_python, "-m", "robert", *normalized_robert_args]
 
     run_dir = _make_run_dir(runs_root, _sanitize_name(label))
+    json_dir = run_dir / "JSON"
+    json_dir.mkdir(parents=True, exist_ok=True)
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
@@ -173,7 +191,7 @@ def main() -> int:
 
     if known.wrapper_dry_run:
         metadata["dry_run"] = True
-        (run_dir / "wrapper_run.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+        (json_dir / "wrapper_run.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         print(f"o Dry run created archive folder: {run_dir}")
         print(f"o Planned command: {' '.join(cmd)}")
         return 0
@@ -184,12 +202,25 @@ def main() -> int:
 
     _copy_outputs(repo_root, run_dir)
     metadata["return_code"] = completed.returncode
-    metadata_path = run_dir / "wrapper_run.json"
+    metadata_path = json_dir / "wrapper_run.json"
     metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
     if write_archive_manifests is not None and write_json is not None:
         manifest_status = write_archive_manifests(run_dir)
-        _ = write_json(manifest_status, run_dir / "json_output_audit.json")
+        _ = write_json(manifest_status, json_dir / "json_output_audit.json")
+        _move_json_artifacts(
+            run_dir,
+            json_dir,
+            [
+                "CURATE_manifest.json",
+                "GENERATE_manifest.json",
+                "VERIFY_manifest.json",
+                "PREDICT_manifest.json",
+                "REPORT_manifest.json",
+                "AQME_manifest.json",
+                "EVALUATE_manifest.json",
+            ],
+        )
 
     if write_run_summary is not None:
         _ = write_run_summary(
@@ -198,6 +229,7 @@ def main() -> int:
             return_code=completed.returncode,
             wrapper_metadata_path=metadata_path,
         )
+        _move_json_artifacts(run_dir, json_dir, ["run_summary.json"])
 
     print(f"o Copied generated outputs to: {run_dir}")
     return completed.returncode

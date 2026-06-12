@@ -29,6 +29,7 @@ from robert.utils import (load_variables,
     pd_to_dict,
 )
 from robert.json_output_for_agent import (
+    agent_json_path,
     init_report_figure_provenance,
     add_report_figure_record,
     finalize_report_figure_provenance,
@@ -188,7 +189,7 @@ class report:
         try:
             _ = finalize_report_figure_provenance(
                 self.figure_provenance,
-                f'{os.getcwd()}/REPORT/figure_provenance.json',
+                agent_json_path('report_figure_provenance.json'),
                 report_pdf_path,
                 os.path.exists(report_pdf_path),
             )

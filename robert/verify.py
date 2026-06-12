@@ -30,6 +30,7 @@ from robert.json_output_for_agent import (
     audit_set,
     audit_event,
     finalize_module_audit,
+    agent_json_path,
     write_json_output_audit,
 )
 from robert.utils import (load_variables,
@@ -73,8 +74,8 @@ class verify:
             source_files=[str(self.args.params_dir)],
             command_line=command_line_value,
         )
-        verify_audit_path = self.args.destination.joinpath("verify_audit.json")
-        json_audit_path = self.args.destination.joinpath("json_output_audit.json")
+        verify_audit_path = agent_json_path("verify_audit.json")
+        json_audit_path = agent_json_path("verify_json_output_audit.json")
 
         self.args.verify_audit = audit_set(self.args.verify_audit, "inputs", "params_dir", self.args.params_dir)
         self.args.verify_audit = audit_set(self.args.verify_audit, "inputs", "seed", self.args.seed)

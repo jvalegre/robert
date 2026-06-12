@@ -65,6 +65,7 @@ import pandas as pd
 from robert.json_output_for_agent import (
     audit_event,
     audit_set,
+    agent_json_path,
     finalize_module_audit,
     init_module_audit,
     profile_input_dataset,
@@ -108,9 +109,9 @@ class curate:
 
         # Save a raw-input dataset profile JSON for downstream UI/agent workflows.
         # This is additive and fail-soft: any JSON issue must not affect CURATE outputs.
-        dataset_profile_path = self.args.destination.joinpath("dataset_profile.json")
-        curate_audit_path = self.args.destination.joinpath("curate_audit.json")
-        json_audit_path = self.args.destination.joinpath("json_output_audit.json")
+        dataset_profile_path = agent_json_path("dataset_profile.json")
+        curate_audit_path = agent_json_path("curate_audit.json")
+        json_audit_path = agent_json_path("curate_json_output_audit.json")
         try:
             dataset_profile = profile_input_dataset(self.args.csv_name, self.args.y, self.args.ignore)
             json_write_ok = write_json(dataset_profile, dataset_profile_path)

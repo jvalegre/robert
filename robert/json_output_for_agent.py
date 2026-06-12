@@ -26,6 +26,17 @@ _SUMMARY_SCHEMA_VERSION = "0.1"
 _DEFAULT_MODULES = ["CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "AQME", "EVALUATE"]
 
 
+def agent_json_path(filename: str) -> Path:
+    """Return a top-level JSON/ path for an agent-facing artifact."""
+
+    output_dir = Path(os.getcwd()) / "JSON"
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return output_dir / filename
+
+
 def _to_unavailable() -> str:
     """Return the standard marker used when ROBERT evidence is not currently captured."""
     return "unavailable"

@@ -48,6 +48,7 @@ from robert.json_output_for_agent import (
     audit_set,
     audit_event,
     finalize_module_audit,
+    agent_json_path,
     write_json_output_audit,
 )
 from robert.utils import (load_variables,
@@ -88,8 +89,8 @@ class predict:
             source_files=source_files,
             command_line=getattr(self.args, "command_line", None),
         )
-        predict_audit_path = self.args.destination.joinpath("predict_audit.json")
-        json_audit_path = self.args.destination.joinpath("json_output_audit.json")
+        predict_audit_path = agent_json_path("predict_audit.json")
+        json_audit_path = agent_json_path("predict_json_output_audit.json")
 
         self.args.predict_audit = audit_set(self.args.predict_audit, "inputs", "params_dir", self.args.params_dir)
         self.args.predict_audit = audit_set(self.args.predict_audit, "inputs", "csv_test", self.args.csv_test)

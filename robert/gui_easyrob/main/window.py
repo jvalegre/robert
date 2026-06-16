@@ -196,6 +196,21 @@ class EasyROB(QMainWindow):
 
         QApplication.quit()
 
+    def _resolve_python_executable(self):
+        """Return the Python interpreter that should be reused for child workflows."""
+        python_pointer = sys.executable or "python"
+
+        if getattr(sys, "frozen", False):
+            embedded_env = Path.cwd() / "_internal" / "robert_env"
+            if sys.platform == "win32":
+                python_pointer = embedded_env / "python.exe"
+            elif sys.platform == "darwin":
+                python_pointer = embedded_env / "bin" / "python3"
+            else:
+                python_pointer = embedded_env / "bin" / "python"
+
+        return str(python_pointer)
+
     def move_to_selected(self):
         """Move selected items from available_list to selected_list."""
         selected_items = self.available_list.selectedItems()
@@ -1746,15 +1761,7 @@ class EasyROB(QMainWindow):
     def _build_test_aqme_command(self, original_command=None, qdescp_keywords=None):
         """Builds an AQME command for generating descriptors for the test CSV."""
 
-        python_pointer = "python"
-        if getattr(sys, "frozen", False):
-            env = Path.cwd() / "_internal" / "robert_env"
-            if sys.platform == "win32":
-                python_pointer = env / "python.exe"
-            elif sys.platform == "darwin":
-                python_pointer = env / "bin" / "python3"
-            else:
-                python_pointer = env / "bin" / "python"
+        python_pointer = self._resolve_python_executable()
 
         test_csv = os.path.basename(self.csv_test_path)
 
@@ -2466,19 +2473,7 @@ class EasyROB(QMainWindow):
 
     def build_robert_command(self, selected_file_path):
         """Builds the ROBERT command based on GUI selections."""
-        python_pointer = "python"
-
-        # --------------------------------------------------
-        # Detect embedded Python (frozen app)
-        # --------------------------------------------------
-        if getattr(sys, "frozen", False):
-            embedded_env = Path.cwd() / "_internal" / "robert_env"
-            if sys.platform == "win32":
-                python_pointer = embedded_env / "python.exe"
-            elif sys.platform == "darwin":
-                python_pointer = embedded_env / "bin" / "python3"
-            else:
-                python_pointer = embedded_env / "bin" / "python"
+        python_pointer = self._resolve_python_executable()
 
         wf = self.workflow_selector.currentText()
 
@@ -2919,16 +2914,7 @@ class EasyROB(QMainWindow):
     def build_aqme_command(self, selected_file_path, selected_atoms_override=None):
         """Builds the AQME command based on the GUI selections."""
 
-        python_pointer = "python"
-
-        if getattr(sys, "frozen", False):
-            embeded_env = Path.cwd() / "_internal" / "robert_env"
-            if sys.platform == "win32":
-                python_pointer = embeded_env / "python.exe"
-            elif sys.platform == "darwin":
-                python_pointer = embeded_env / "bin" / "python3"
-            else:
-                python_pointer = embeded_env / "bin" / "python"
+        python_pointer = self._resolve_python_executable()
 
         csv_name = os.path.basename(selected_file_path)
 

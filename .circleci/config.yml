@@ -183,11 +183,11 @@ jobs:
               --cov=robert \
               --cov-report=
 
-            # CORE_EXIT_CODE=$?
-            # if [ "$CORE_EXIT_CODE" -ne 0 ]; then
-            #   echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
-            #   exit "$CORE_EXIT_CODE"
-            # fi
+            CORE_EXIT_CODE=$?
+            if [ "$CORE_EXIT_CODE" -ne 0 ]; then
+              echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
+              exit "$CORE_EXIT_CODE"
+            fi
 
             # ------------------------------------------------------------------
             # Configure Qt/QtWebEngine for headless execution under Xvfb
@@ -207,10 +207,12 @@ jobs:
                 --cov=robert \
                 --cov-append \
                 --cov-report= \
-                tests/test_easyrob.py
-
-
+                --junitxml=gui-test-results.xml \
+                tests/test_easyrob.py \
+              > gui-pytest.log 2>&1
             GUI_EXIT_CODE=$?
+
+            cat gui-pytest.log
 
             # Re-enable 'exit on error' for any subsequent commands.
             set -e
@@ -219,9 +221,40 @@ jobs:
             # after all tests have passed. In that case we treat the run as successful but emit a warning.
             
             if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
+              if [ ! -f gui-test-results.xml ]; then
+                echo "[CI] GUI tests crashed with exit code $GUI_EXIT_CODE and did not generate gui-test-results.xml"
+                exit "$GUI_EXIT_CODE"
+              fi
+
+              python - <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+root = ET.parse("gui-test-results.xml").getroot()
+failures = int(root.attrib.get("failures", 0))
+errors = int(root.attrib.get("errors", 0))
+tests = int(root.attrib.get("tests", 0))
+
+if failures or errors or tests == 0:
+    print(
+        f"[CI] GUI tests exited with crash code after real pytest failures "
+        f"(tests={tests}, failures={failures}, errors={errors})."
+    )
+    sys.exit(1)
+
+print(
+    f"[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown "
+    f"(tests={tests}, exit code preserved outside pytest)."
+)
+PY
+              GUI_XML_EXIT_CODE=$?
+              if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
+                exit "$GUI_XML_EXIT_CODE"
+              fi
+
               echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
               echo "[CI WARNING] This is usually caused by threads or Qt resources not being fully cleaned up (e.g., QThread/QThreadPool/QProcess still running)."
-              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because all tests passed and coverage.xml was generated."
+              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because pytest itself reported no failures."
               GUI_EXIT_CODE=0
             fi
 

@@ -142,6 +142,7 @@ jobs:
               openbabel=3.1.1 \
               xtb=6.7.1 \
               libgfortran=14.2.0 \
+              libgcc-ng \
               glib \
               gtk3 \
               pango \
@@ -238,6 +239,7 @@ jobs:
             which python
             python -c "import sys; print(sys.executable)"
             which xtb
+            ls "$CONDA_PREFIX/lib" | grep gomp || true
             xtb --version
             python -c "import shutil, subprocess; print('xtb path:', shutil.which('xtb')); r=subprocess.run(['xtb','--version'], capture_output=True, text=True); print('rc=', r.returncode); print('stdout=', r.stdout); print('stderr=', r.stderr)"
 

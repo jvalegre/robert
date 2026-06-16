@@ -221,10 +221,8 @@ jobs:
                 --cov-report= \
                 --junitxml=gui-test-results.xml \
                 tests/test_easyrob.py \
-              > gui-pytest.log 2>&1
-            GUI_EXIT_CODE=$?
-
-            cat gui-pytest.log
+              2>&1 | tee gui-pytest.log
+            GUI_EXIT_CODE=${PIPESTATUS[0]}
 
             # Re-enable 'exit on error' for any subsequent commands.
             set -e
@@ -237,7 +235,7 @@ jobs:
                 exit "$GUI_EXIT_CODE"
               fi
 
-              python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('gui-test-results.xml').getroot(); failures = int(root.attrib.get('failures', 0)); errors = int(root.attrib.get('errors', 0)); tests = int(root.attrib.get('tests', 0)); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
+              python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('gui-test-results.xml').getroot(); suites = [root] if root.tag == 'testsuite' else root.findall('testsuite'); tests = sum(int(s.attrib.get('tests', 0)) for s in suites); failures = sum(int(s.attrib.get('failures', 0)) for s in suites); errors = sum(int(s.attrib.get('errors', 0)) for s in suites); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
               GUI_XML_EXIT_CODE=$?
               if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
                 exit "$GUI_XML_EXIT_CODE"

@@ -3189,8 +3189,13 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
                         annot_kws = {'size': size_font})
 
         plt.tick_params(labelsize=size_font)
-        #add the column names as labels
-        ax.set_yticklabels(corr_matrix.columns, rotation = 0)
+        # Explicitly align tick positions with the full correlation matrix.
+        # Newer matplotlib/seaborn combinations can auto-reduce the locator
+        # ticks, which then makes set_*ticklabels fail if all labels are passed.
+        tick_positions = np.arange(len(corr_matrix.columns)) + 0.5
+        ax.set_yticks(tick_positions)
+        ax.set_xticks(tick_positions)
+        ax.set_yticklabels(corr_matrix.index, rotation=0)
         ax.set_xticklabels(corr_matrix.columns)
 
         title_fig = 'Pearson\'s r heatmap'

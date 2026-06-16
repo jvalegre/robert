@@ -554,30 +554,16 @@ class AQMETab(QWidget):
             else:
                 highlight_atoms = set(self.selected_atoms)
 
-            highlight_colors = (
-                {idx: (0.698, 0.4, 1.0) for idx in highlight_atoms}
-                if highlight_atoms else {}
-            )
-
-            drawer = rdMolDraw2D.MolDraw2DCairo(
-                self.molecule_image_width,
-                self.molecule_image_height
-            )
-            drawer.drawOptions().bondLineWidth = 1.5
-            drawer.DrawMolecule(
+            png_bytes, atom_coords = self._draw_pattern_molecule(
                 self.mol,
-                highlightAtoms=list(highlight_atoms),
-                highlightAtomColors=highlight_colors
+                highlight_atoms=highlight_atoms,
+                selected_atoms=self.selected_atoms,
+                width=self.molecule_image_width,
+                height=self.molecule_image_height,
             )
-            drawer.FinishDrawing()
-
-            png_bytes = drawer.GetDrawingText()
             pixmap = QPixmap()
             pixmap.loadFromData(png_bytes)
-            self.atom_coords = [
-                drawer.GetDrawCoords(i)
-                for i in range(self.mol.GetNumAtoms())
-            ]
+            self.atom_coords = atom_coords
 
             if self.mol_viewer:
                 if pixmap.isNull():
@@ -617,6 +603,100 @@ class AQMETab(QWidget):
                 tooltip=str(e)
             )
             self.mol_info_label.setText("🔬 Info here")
+
+    def _prepare_pattern_molecule_for_drawing(self, pattern_mol, selected_atoms=None):
+        """Return a copy of the SMARTS pattern with visible atom-order labels."""
+
+        mol_for_draw = Chem.Mol(pattern_mol)
+        selected_atoms = list(selected_atoms or [])
+
+        for atom in mol_for_draw.GetAtoms():
+            if atom.HasProp("atomNote"):
+                atom.ClearProp("atomNote")
+
+        for order, atom_idx in enumerate(selected_atoms, start=1):
+            if 0 <= atom_idx < mol_for_draw.GetNumAtoms():
+                mol_for_draw.GetAtomWithIdx(atom_idx).SetProp(
+                    "atomNote",
+                    str(order)
+                )
+
+        return mol_for_draw
+
+    def _draw_pattern_molecule(
+        self,
+        pattern_mol,
+        highlight_atoms,
+        selected_atoms,
+        width,
+        height,
+    ):
+        """Draw the SMARTS pattern with highlight and click-order numbering."""
+
+        highlight_atoms = set(highlight_atoms or [])
+        highlight_colors = (
+            {idx: (0.698, 0.4, 1.0) for idx in highlight_atoms}
+            if highlight_atoms else {}
+        )
+
+        draw_mol = self._prepare_pattern_molecule_for_drawing(
+            pattern_mol,
+            selected_atoms=selected_atoms,
+        )
+
+        drawer = rdMolDraw2D.MolDraw2DCairo(
+            max(1, int(width)),
+            max(1, int(height))
+        )
+        options = drawer.drawOptions()
+        options.bondLineWidth = 1.5
+        options.annotationFontScale = 1.0
+        drawer.DrawMolecule(
+            draw_mol,
+            highlightAtoms=list(highlight_atoms),
+            highlightAtomColors=highlight_colors
+        )
+        drawer.FinishDrawing()
+
+        png_bytes = drawer.GetDrawingText()
+        atom_coords = [
+            drawer.GetDrawCoords(i)
+            for i in range(draw_mol.GetNumAtoms())
+        ]
+        return png_bytes, atom_coords
+
+    def save_atom_mapping_image(
+        self,
+        output_path,
+        smarts=None,
+        selected_atoms=None,
+        width=900,
+        height=700,
+    ):
+        """Save the numbered SMARTS render used for atom mapping as a PNG."""
+
+        smarts = smarts or (self.smarts_targets[0] if self.smarts_targets else None)
+        selected_atoms = list(self.selected_atoms if selected_atoms is None else selected_atoms)
+
+        if not smarts or not selected_atoms:
+            return None
+
+        pattern_mol = Chem.MolFromSmarts(smarts)
+        if pattern_mol is None:
+            raise ValueError("Invalid SMARTS pattern")
+
+        png_bytes, _ = self._draw_pattern_molecule(
+            pattern_mol,
+            highlight_atoms=set(selected_atoms),
+            selected_atoms=selected_atoms,
+            width=width,
+            height=height,
+        )
+
+        with open(output_path, "wb") as f:
+            f.write(png_bytes)
+
+        return output_path
 
     def handle_atom_selection(self, atom_idx):
         """Handle the selection of an atom in the pattern."""

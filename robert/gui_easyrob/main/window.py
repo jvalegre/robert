@@ -1461,16 +1461,20 @@ class EasyROB(QMainWindow):
         if not hasattr(self, "tab_widget_aqme"):
             return
 
-        if self.csv_test_path:
-            unified_smiles = self.tab_widget_aqme.build_unified_smiles_context(
-                self.file_path,
-                self.csv_test_path
-            )
-        else:
-            unified_smiles = self.tab_widget_aqme.build_unified_smiles_context(
-                self.file_path
-            )
-        
+        try:
+            if self.csv_test_path:
+                unified_smiles = self.tab_widget_aqme.build_unified_smiles_context(
+                    self.file_path,
+                    self.csv_test_path
+                )
+            else:
+                unified_smiles = self.tab_widget_aqme.build_unified_smiles_context(
+                    self.file_path
+                )
+        except ValueError:
+            # Missing SMILES is a valid non-AQME situation; keep the GUI quiet.
+            unified_smiles = []
+
         self.tab_widget_aqme.unified_smiles = unified_smiles
 
     def set_main_chemdraw_path(self, file_path):
@@ -1854,8 +1858,9 @@ class EasyROB(QMainWindow):
         if not smarts or not selected_atoms:
             return
 
-        os.makedirs(run_dir, exist_ok=True)
-        dat_path = os.path.join(run_dir, filename)
+        dat_dir = self._get_atom_mapping_dir(run_dir)
+        os.makedirs(dat_dir, exist_ok=True)
+        dat_path = os.path.join(dat_dir, filename)
 
         try:
             pattern_mol = Chem.MolFromSmarts(smarts)
@@ -1915,6 +1920,58 @@ class EasyROB(QMainWindow):
             self.console_output.append(
                 f"<span style='color:orange;'>WARNING: Failed to write atom mapping dat: {e}</span>"
             )
+
+    def _write_atom_mapping_image(
+        self,
+        smarts: str,
+        selected_atoms: list,
+        run_dir: str,
+        filename: str = "AtomMapping_preview.png"
+    ):
+        """Write a numbered PNG preview for the current atom-mapping contract."""
+
+        if not smarts or not selected_atoms:
+            return None
+
+        image_dir = self._get_atom_mapping_dir(run_dir)
+        os.makedirs(image_dir, exist_ok=True)
+        image_path = os.path.join(image_dir, filename)
+
+        try:
+            saved_path = self.tab_widget_aqme.save_atom_mapping_image(
+                image_path,
+                smarts=smarts,
+                selected_atoms=selected_atoms,
+            )
+            return saved_path
+        except Exception as e:
+            self.console_output.append(
+                f"<span style='color:orange;'>WARNING: Failed to write atom mapping image: {e}</span>"
+            )
+            return None
+
+    def _get_atom_mapping_dir(self, run_dir: str) -> str:
+        """Return the dedicated folder used for atom-mapping artifacts."""
+
+        return os.path.join(run_dir, "AtomMapping")
+
+    def _resolve_atom_mapping_dat_path(
+        self,
+        run_dir: str,
+        filename: str = "AtomMapping_data.dat"
+    ) -> str | None:
+        """Resolve the atom-mapping contract path, preferring the dedicated folder."""
+
+        candidate_paths = [
+            os.path.join(self._get_atom_mapping_dir(run_dir), filename),
+            os.path.join(run_dir, filename),
+        ]
+
+        for path in candidate_paths:
+            if os.path.isfile(path):
+                return path
+
+        return None
     def _check_generate_folder(self, run_dir):
         """Checks if a GENERATE folder exists in the run directory."""
         
@@ -2137,6 +2194,11 @@ class EasyROB(QMainWindow):
                 selected_atoms=selected_atoms_for_robert,
                 run_dir=run_dir
             )
+            self._write_atom_mapping_image(
+                smarts=smarts,
+                selected_atoms=selected_atoms_for_robert,
+                run_dir=run_dir
+            )
 
         # --------------------------------------------------
         # Decide REAL input CSVs for ROBERT
@@ -2182,9 +2244,9 @@ class EasyROB(QMainWindow):
             # -----------------------------------------------
             # Step 1: Detect atomic mapping contract (.dat)
             # -----------------------------------------------
-            dat_path = os.path.join(run_dir, "AtomMapping_data.dat")
+            dat_path = self._resolve_atom_mapping_dat_path(run_dir)
 
-            if os.path.isfile(dat_path):
+            if dat_path:
 
                 self.console_output.append(
                     f"[INFO] Atomic mapping contract detected: {dat_path}"
@@ -2997,6 +3059,11 @@ class EasyROB(QMainWindow):
             #  Save atomic mapping contract in .dat
             run_dir = os.path.dirname(self.file_path)
             self._write_atom_mapping_dat(
+                smarts=smarts,
+                selected_atoms=selected_atoms_for_aqme,
+                run_dir=run_dir
+            )
+            self._write_atom_mapping_image(
                 smarts=smarts,
                 selected_atoms=selected_atoms_for_aqme,
                 run_dir=run_dir

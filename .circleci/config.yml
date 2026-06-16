@@ -227,26 +227,26 @@ jobs:
               fi
 
               python - <<'PY'
-import sys
-import xml.etree.ElementTree as ET
+              import sys
+              import xml.etree.ElementTree as ET
 
-root = ET.parse("gui-test-results.xml").getroot()
-failures = int(root.attrib.get("failures", 0))
-errors = int(root.attrib.get("errors", 0))
-tests = int(root.attrib.get("tests", 0))
+              root = ET.parse("gui-test-results.xml").getroot()
+              failures = int(root.attrib.get("failures", 0))
+              errors = int(root.attrib.get("errors", 0))
+              tests = int(root.attrib.get("tests", 0))
 
-if failures or errors or tests == 0:
-    print(
-        f"[CI] GUI tests exited with crash code after real pytest failures "
-        f"(tests={tests}, failures={failures}, errors={errors})."
-    )
-    sys.exit(1)
+              if failures or errors or tests == 0:
+                  print(
+                      f"[CI] GUI tests exited with crash code after real pytest failures "
+                      f"(tests={tests}, failures={failures}, errors={errors})."
+                  )
+                  sys.exit(1)
 
-print(
-    f"[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown "
-    f"(tests={tests}, exit code preserved outside pytest)."
-)
-PY
+              print(
+                  f"[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown "
+                  f"(tests={tests}, exit code preserved outside pytest)."
+              )
+              PY
               GUI_XML_EXIT_CODE=$?
               if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
                 exit "$GUI_XML_EXIT_CODE"

@@ -101,6 +101,7 @@ jobs:
               libevent-2.1-7 \
               libasound2 \
               libasound2-data \
+              libgomp1 \
               libdrm2 \
               libxshmfence1 \
               libgl1-mesa-dri \

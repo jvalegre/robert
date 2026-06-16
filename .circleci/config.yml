@@ -171,90 +171,91 @@ jobs:
             pip install pytest pytest-cov pytest-qt
 
             # ------------------------------------------------------------------
-            # Previous full test flow kept here as commented reference
+            # Focused AQME-only diagnostic flow kept here as commented reference
             # ------------------------------------------------------------------
-            # set +e
-            #
             # python -m pytest \
-            #   -v \
-            #   --ignore=tests/test_easyrob.py \
+            #   -vv \
             #   --cov=robert \
-            #   --cov-report=
-            #
-            # CORE_EXIT_CODE=$?
-            # if [ "$CORE_EXIT_CODE" -ne 0 ]; then
-            #   echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
-            #   exit "$CORE_EXIT_CODE"
-            # fi
-            #
-            # export QT_QPA_PLATFORM=offscreen
-            # export QT_OPENGL=software
-            # export QT_RHI=software
-            # export QTWEBENGINE_DISABLE_SANDBOX=1
-            # export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
-            #
-            # xvfb-run -s "-screen 0 1920x1080x24" \
-            #   python -m pytest \
-            #     -vv \
-            #     --cov=robert \
-            #     --cov-append \
-            #     --cov-report= \
-            #     --junitxml=gui-test-results.xml \
-            #     tests/test_easyrob.py \
-            #   > gui-pytest.log 2>&1
-            # GUI_EXIT_CODE=$?
-            #
-            # cat gui-pytest.log
-            # set -e
-            #
-            # if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
-            #   if [ ! -f gui-test-results.xml ]; then
-            #     echo "[CI] GUI tests crashed with exit code $GUI_EXIT_CODE and did not generate gui-test-results.xml"
-            #     exit "$GUI_EXIT_CODE"
-            #   fi
-            #
-            #   python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('gui-test-results.xml').getroot(); failures = int(root.attrib.get('failures', 0)); errors = int(root.attrib.get('errors', 0)); tests = int(root.attrib.get('tests', 0)); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
-            #   GUI_XML_EXIT_CODE=$?
-            #   if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
-            #     exit "$GUI_XML_EXIT_CODE"
-            #   fi
-            #
-            #   echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
-            #   echo "[CI WARNING] This is usually caused by threads or Qt resources not being fully cleaned up (e.g., QThread/QThreadPool/QProcess still running)."
-            #   echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because pytest itself reported no failures."
-            #   GUI_EXIT_CODE=0
-            # fi
-            #
-            # if [ "$GUI_EXIT_CODE" -ne 0 ]; then
-            #   echo "[CI] GUI tests failed with exit code $GUI_EXIT_CODE"
-            #   exit "$GUI_EXIT_CODE"
-            # fi
+            #   --cov-report= \
+            #   "tests/test_5aqme_n_full.py::test_AQME[aqme]" \
+            #   "tests/test_5aqme_n_full.py::test_AQME[2smiles_columns]"
+
+            # IMPORTANT:
+            # CircleCI executes 'run' steps with 'set -e' (exit on first non-zero code).
+            # We temporarily disable it so we can inspect pytest/xvfb-run exit codes
+            # and treat the known Qt segfault (139/134) as a special case.
+            set +e
 
             # ------------------------------------------------------------------
-            # Preflight for AQME/xTB debugging in CI
-            # ------------------------------------------------------------------
-            export PATH="$CONDA_PREFIX/bin:$PATH"
-            hash -r
-
-            echo "CONDA_PREFIX=$CONDA_PREFIX"
-            which python
-            python -c "import sys; print(sys.executable)"
-            which xtb
-            ls "$CONDA_PREFIX/lib" | grep gomp || true
-            xtb --version
-            python -c "import shutil, subprocess; print('xtb path:', shutil.which('xtb')); r=subprocess.run(['xtb','--version'], capture_output=True, text=True); print('rc=', r.returncode); print('stdout=', r.stdout); print('stderr=', r.stderr)"
-
-            # ------------------------------------------------------------------
-            # Run only the two failing AQME core tests for diagnosis
+            # Run core (non-GUI) tests first
             # ------------------------------------------------------------------
             python -m pytest \
-              -vv \
+              -v \
+              --ignore=tests/test_easyrob.py \
               --cov=robert \
-              --cov-report= \
-              "tests/test_5aqme_n_full.py::test_AQME[aqme]" \
-              "tests/test_5aqme_n_full.py::test_AQME[2smiles_columns]"
+              --cov-report=
 
-            # Generate a coverage XML report for this focused run
+            CORE_EXIT_CODE=$?
+            if [ "$CORE_EXIT_CODE" -ne 0 ]; then
+              echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
+              exit "$CORE_EXIT_CODE"
+            fi
+
+            # ------------------------------------------------------------------
+            # Configure Qt/QtWebEngine for headless execution under Xvfb
+            # ------------------------------------------------------------------
+            export QT_QPA_PLATFORM=offscreen
+            export QT_OPENGL=software
+            export QT_RHI=software
+            export QTWEBENGINE_DISABLE_SANDBOX=1
+            export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+
+            # ------------------------------------------------------------------
+            # Run GUI tests under Xvfb, capturing the exit code
+            # ------------------------------------------------------------------
+            xvfb-run -s "-screen 0 1920x1080x24" \
+              python -m pytest \
+                -vv \
+                --cov=robert \
+                --cov-append \
+                --cov-report= \
+                --junitxml=gui-test-results.xml \
+                tests/test_easyrob.py \
+              > gui-pytest.log 2>&1
+            GUI_EXIT_CODE=$?
+
+            cat gui-pytest.log
+
+            # Re-enable 'exit on error' for any subsequent commands.
+            set -e
+
+            # PySide6/Qt sometimes causes a segmentation fault (exit code 139/134)
+            # on interpreter shutdown after all tests have passed.
+            if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
+              if [ ! -f gui-test-results.xml ]; then
+                echo "[CI] GUI tests crashed with exit code $GUI_EXIT_CODE and did not generate gui-test-results.xml"
+                exit "$GUI_EXIT_CODE"
+              fi
+
+              python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('gui-test-results.xml').getroot(); failures = int(root.attrib.get('failures', 0)); errors = int(root.attrib.get('errors', 0)); tests = int(root.attrib.get('tests', 0)); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
+              GUI_XML_EXIT_CODE=$?
+              if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
+                exit "$GUI_XML_EXIT_CODE"
+              fi
+
+              echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
+              echo "[CI WARNING] This is usually caused by threads or Qt resources not being fully cleaned up (e.g., QThread/QThreadPool/QProcess still running)."
+              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because pytest itself reported no failures."
+              GUI_EXIT_CODE=0
+            fi
+
+            # Any other non-zero exit code is treated as a real failure.
+            if [ "$GUI_EXIT_CODE" -ne 0 ]; then
+              echo "[CI] GUI tests failed with exit code $GUI_EXIT_CODE"
+              exit "$GUI_EXIT_CODE"
+            fi
+
+            # Generate a single combined XML report after both pytest runs
             coverage xml
 
             # ------------------------------------------------------------------

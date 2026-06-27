@@ -316,12 +316,14 @@ class AQMETab(QWidget):
 
     def _on_mcs_success(self, smarts):
         """Handle successful MCS detection."""
+        self.mcs_worker = None
         self.smarts_targets.append(smarts)
         self.mol_info_label.setText("🔬 Info here")
         self.display_molecule()
 
     def _on_mcs_error(self, message):
         """Handle MCS detection error."""
+        self.mcs_worker = None
         self.set_mol_viewer_message(
             message,
             tooltip="SMARTS pattern detection failed."
@@ -330,6 +332,7 @@ class AQMETab(QWidget):
 
     def _on_mcs_timeout(self):
         """Handle MCS detection timeout."""
+        self.mcs_worker = None
         self.set_mol_viewer_message(
             "⏱️ Timeout: MCS (Maximum Common Substructure) took too long and was aborted.",
             tooltip="SMARTS pattern detection failed."
@@ -463,6 +466,21 @@ class AQMETab(QWidget):
         # -------------------------------
         # Launch MCS worker
         # -------------------------------
+        existing_worker = getattr(self, "mcs_worker", None)
+        if existing_worker is not None:
+            try:
+                existing_worker.finished.disconnect(self._on_mcs_success)
+            except Exception:
+                pass
+            try:
+                existing_worker.error.disconnect(self._on_mcs_error)
+            except Exception:
+                pass
+            try:
+                existing_worker.timeout.disconnect(self._on_mcs_timeout)
+            except Exception:
+                pass
+
         self.mcs_worker = MCSProcessWorker(
             smiles_list,
             timeout_ms=60000

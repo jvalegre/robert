@@ -131,33 +131,103 @@ class MCSProcessWorker(QObject):
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self._on_timeout)
         self.timeout_ms = timeout_ms
+        self._poll_scheduled = False
+        self._finished = False
 
     def start(self):
         """Start the MCS process and the timeout timer."""
+        self._finished = False
         self.process = Process(target=mcs_process, args=(self.smiles_list, self.queue))
         self.process.start()
         self.timer.start(self.timeout_ms)
+        self._schedule_poll()
+
+    def _schedule_poll(self):
+        """Schedule the next result poll only once at a time."""
+        if self._finished or self._poll_scheduled:
+            return
+
+        self._poll_scheduled = True
         QTimer.singleShot(100, self.check_result)
+
+    def _finalize_process(self):
+        """Release process and queue resources exactly once."""
+        if self._finished:
+            return
+
+        self._finished = True
+        self._poll_scheduled = False
+        self.timer.stop()
+
+        process = self.process
+        self.process = None
+        if process is not None:
+            try:
+                if process.is_alive():
+                    process.join(timeout=1)
+            except Exception:
+                pass
+
+            try:
+                if process.is_alive():
+                    process.terminate()
+                    process.join(timeout=1)
+            except Exception:
+                pass
+
+            try:
+                process.close()
+            except Exception:
+                pass
+
+        queue = self.queue
+        self.queue = None
+        if queue is not None:
+            try:
+                while not queue.empty():
+                    queue.get_nowait()
+            except Exception:
+                pass
+
+            try:
+                queue.close()
+            except Exception:
+                pass
+
+            try:
+                queue.join_thread()
+            except Exception:
+                pass
 
     def check_result(self):
         """Check if the MCS process has produced a result or if it is still running."""
+        self._poll_scheduled = False
+
+        if self._finished or self.queue is None:
+            return
+
         if not self.queue.empty():
             status, msg = self.queue.get()
-            self.timer.stop()
-            self.process.join()
+            self._finalize_process()
             if status == "success":
                 self.finished.emit(msg)
             else:
                 self.error.emit(msg)
-        elif self.process.is_alive():
-            QTimer.singleShot(100, self.check_result)
+        elif self.process is not None and self.process.is_alive():
+            self._schedule_poll()
         else:
-            self.timer.stop()
-            self.process.join()
+            self._finalize_process()
 
     def _on_timeout(self):
         """Terminate the MCS process and emit a timeout signal."""
+        if self._finished:
+            return
+
         if self.process and self.process.is_alive():
-            self.process.terminate()
-            self.process.join()
-            self.timeout.emit()
+            try:
+                self.process.terminate()
+            except Exception:
+                pass
+
+        self._finalize_process()
+        self.timeout.emit()

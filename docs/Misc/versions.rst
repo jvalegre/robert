@@ -12,6 +12,10 @@ Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
    -  ``plot_verbosity`` and ``predict_diagnostics`` control diagnostic figure generation
    -  Matplotlib threading workaround consolidated in ``_mpl_plot_context``; figures closed after saving
    -  VERIFY metrics plot handles degenerate axis limits when all test scores are equal
+   -  Added xgboost 2.1.4 as an install-time dependency for opt-in ``XGB`` screening
+   -  PDF reproducibility section now records installed ML stack versions at run time
+   -  Test extras: pytest, pytest-cov, pytest-qt (``requirements-test.txt`` and ``setup.py`` extras)
+   -  Dependency stack aligned with v2.0.3/v2.1.0 pins: numpy 2.x, scikit-learn 1.7.2, hyperopt replaced by bayesian-optimization 3.1.0, rdkit 2025.9.1, Python minimum 3.11
 
 Version 2.1.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.1>`__]
    - Adding RMSE values for each fold to calculate t- and Wilconxon tests
@@ -32,6 +36,11 @@ Version 2.1.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.0>`__]
    -  Molssi databases link in easyROB GUI
    -  Default split is 'RND' for classification problems
    -  The sklearn-intelex accelerator was removed
+
+Version 2.0.3 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.3>`__]
+   -  Major dependency stack update in ``setup.py``: numpy 2.3.4, pandas 2.3.3, scikit-learn 1.7.2, numba 0.62.1, shap 0.49.1, rdkit 2025.9.1, PySide6 6.9.2, weasyprint 63.1
+   -  Replaced hyperopt with bayesian-optimization 3.1.0
+   -  Python minimum raised to 3.11
 
 Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
    -  Fixed bug in MAC and Linux OS from the GENERATE

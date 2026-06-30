@@ -49,11 +49,19 @@ Executing the job
 Execution time and versions
 +++++++++++++++++++++++++++
 
-Time: ~3.5 min
+Time: ~10 min
 
-System: 8 processors (11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz) using 16.0 GB RAM memory
+System: 8 processors (x86_64 Linux) using 16.0 GB RAM memory
 
-ROBERT version: 2.0.1
+ROBERT version: 2.2.0
+
+numpy version: 2.3.4
+
+scikit-learn version: 1.7.2
+
+xgboost version: 2.1.4
+
+bayesian-optimization version: 3.1.0
 
 scikit-learn-intelex version: 2025.2.0
 

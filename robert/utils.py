@@ -28,7 +28,6 @@ import matplotlib.colors as mcolor
 from matplotlib.legend_handler import HandlerPatch
 from matplotlib.ticker import FormatStrFormatter
 from scipy import stats
-from importlib.resources import files
 
 # sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
 # try:
@@ -537,7 +536,8 @@ def load_variables(kwargs, robert_module):
                 )
 
         elif robert_module.upper() == "REPORT":
-            self.path_icons = files("robert").joinpath("report")
+            # Filesystem path so WeasyPrint can resolve file:/// assets in CI/wheels.
+            self.path_icons = (Path(__file__).resolve().parent / "report").as_posix()
 
         # sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
         # using or not the intelex accelerator might affect the results
@@ -1978,7 +1978,7 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
     Returns:
         List of dictionaries with parameter values
     """
-    np.random.seed(random_state)
+    rng = np.random.default_rng(random_state)
 
     param_names = list(pbounds.keys())
     n_params = len(param_names)
@@ -1989,9 +1989,9 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
     for i in range(n_params):
         # Create intervals and sample within each
         intervals = np.linspace(0, 1, n_points + 1)
-        samples[:, i] = np.random.uniform(intervals[:-1], intervals[1:])
+        samples[:, i] = rng.uniform(intervals[:-1], intervals[1:])
         # Shuffle to break correlation between dimensions
-        np.random.shuffle(samples[:, i])
+        rng.shuffle(samples[:, i])
 
     # Scale samples to actual parameter bounds
     initial_points = []
@@ -3588,12 +3588,14 @@ def shap_analysis(self, Xy_data, model_data, path_n_suffix, fitted_model=None):
     height_shap = 1.2 + min(shap_show) / 4
 
     # explainer = shap.TreeExplainer(loaded_model) # in case the standard version doesn't work
+    plot_rng = np.random.default_rng(model_data["seed"])
     _ = shap.summary_plot(
         shap_values,
         Xy_data["X_train_scaled"],
         max_display=self.args.shap_show,
         show=False,
         plot_size=[7.45, height_shap],
+        rng=plot_rng,
     )
 
     # set title

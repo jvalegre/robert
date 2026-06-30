@@ -41,6 +41,7 @@ from robert.report_utils import (
     adv_sorted_cv,
     get_col_text,
     repro_info,
+    get_repro_ml_stack_versions,
     make_report,
     css_content,
     format_lines,
@@ -86,7 +87,7 @@ class report:
             print(
                 "\nx The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'"
             )
-            sys.exit()
+            sys.exit(1)
         finally:
             if platform.system() == "Windows":
                 os.dup2(old_stderr, 2)
@@ -174,22 +175,34 @@ class report:
 
         # Suppress fontconfig warnings from WeasyPrint on Windows
         # These warnings come from the C library level, so we need to redirect at OS level
-        if platform.system() == "Windows":
-            import tempfile
+        try:
+            if platform.system() == "Windows":
+                import tempfile
 
-            # Create a temporary file to redirect stderr
-            temp_stderr = tempfile.TemporaryFile(mode="w+")
-            old_stderr = os.dup(2)  # Duplicate stderr file descriptor
-            os.dup2(temp_stderr.fileno(), 2)  # Redirect stderr to temp file
+                # Create a temporary file to redirect stderr
+                temp_stderr = tempfile.TemporaryFile(mode="w+")
+                old_stderr = os.dup(2)  # Duplicate stderr file descriptor
+                os.dup2(temp_stderr.fileno(), 2)  # Redirect stderr to temp file
 
-            try:
+                try:
+                    _ = make_report(report_html, HTML)
+                finally:
+                    os.dup2(old_stderr, 2)  # Restore stderr
+                    os.close(old_stderr)
+                    temp_stderr.close()
+            else:
                 _ = make_report(report_html, HTML)
-            finally:
-                os.dup2(old_stderr, 2)  # Restore stderr
-                os.close(old_stderr)
-                temp_stderr.close()
-        else:
-            _ = make_report(report_html, HTML)
+        except Exception as exc:
+            print(f"\nx  ROBERT_report.pdf could not be created: {exc}")
+            sys.exit(1)
+
+        pdf_path = Path(os.getcwd()) / "ROBERT_report.pdf"
+        if not pdf_path.is_file():
+            print(
+                "\nx  ROBERT_report.pdf was not written to the working directory "
+                "(WeasyPrint may have failed silently)."
+            )
+            sys.exit(1)
 
         # Remove report.css file
         os.remove("report.css")
@@ -238,7 +251,8 @@ class report:
                 data_score = calc_score(dat_files, suffix, pred_type, data_score)
 
                 # initial two-column ROBERT score summary
-                score_info = f"""{spacing}<img src="file:///{self.args.path_icons}/score_{data_score[f"robert_score_{suffix}"]}.jpg" style="width: 330px; margin-top:7px; margin-bottom:-18px;"></p>"""
+                score_idx = max(0, min(int(data_score[f"robert_score_{suffix}"]), 10))
+                score_info = f"""{spacing}<img src="file:///{self.args.path_icons}/score_{score_idx}.jpg" style="width: 330px; margin-top:7px; margin-bottom:-18px;"></p>"""
                 columns_score.append(
                     get_col_score(score_info, data_score, suffix, spacing, eval_only)
                 )
@@ -1017,20 +1031,37 @@ class report:
             repro_dat += f"""{reduced_line}{space}- External test set ({self.args.csv_test})</p>"""
 
         if aqme_workflow:
-            try:
-                path_aqme = Path(f"{os.getcwd()}/AQME/CSEARCH_data.dat")
-                datfile = open(path_aqme, "r", errors="replace")
-                outlines = datfile.readlines()
-                aqme_version = outlines[0].split()[2]
-                datfile.close()
-                find_aqme = True
-            except Exception:
-                find_aqme = False
-                aqme_version = "0.0"  # dummy number
-            if (
-                int(aqme_version.split(".")[0]) in [0, 1]
-                and int(aqme_version.split(".")[1]) < 6
+            find_aqme = False
+            aqme_version = "0.0"  # dummy number
+            for path_aqme in (
+                Path(f"{os.getcwd()}/AQME/AQME_data.dat"),
+                Path(f"{os.getcwd()}/AQME/CSEARCH/CSEARCH_data.dat"),
+                Path(f"{os.getcwd()}/AQME/CSEARCH_data.dat"),
             ):
+                try:
+                    with open(
+                        path_aqme, "r", encoding="utf-8", errors="replace"
+                    ) as datfile:
+                        outlines = datfile.readlines()
+                    if not outlines:
+                        continue
+                    parts = outlines[0].split()
+                    if len(parts) >= 3 and parts[0].upper() == "AQME":
+                        aqme_version = parts[2]
+                    elif len(parts) >= 2:
+                        aqme_version = parts[1].lstrip("v")
+                    find_aqme = True
+                    break
+                except Exception:
+                    continue
+            try:
+                version_parts = aqme_version.split(".")
+                aqme_outdated = (
+                    int(version_parts[0]) in [0, 1] and int(version_parts[1]) < 6
+                )
+            except (ValueError, IndexError):
+                aqme_outdated = False
+            if aqme_outdated:
                 aqme_updated = False
                 repro_dat += f"""{reduced_line}{space}<i>Warning! This workflow might not be exactly reproducible, update to AQME v1.6.0+ (pip install aqme --upgrade)</i></p>"""
                 repro_dat += f"""{reduced_line}{space}To obtain the same results, download the descriptor database (AQME-ROBERT_{self.args.csv_name}) and run:</p>"""
@@ -1118,6 +1149,9 @@ class report:
             repro_dat += f"""{reduced_line}{space}- Install CREST: conda install -c conda-forge crest</p>"""
             if find_crest:
                 repro_dat += f"""{reduced_line}{space}- Adjust CREST version: conda install -c conda-forge crest={crest_version})</p>"""
+
+        for display_name, pkg_name, pkg_version in get_repro_ml_stack_versions():
+            repro_dat += f"""{reduced_line}{space}- {display_name}: pip install {pkg_name}=={pkg_version}</p>"""
 
         character_line = ""
         if self.args.csv_test != "":
@@ -1386,15 +1420,32 @@ class report:
 
         # keep the ordering (No_PFI in the left, PFI in the right of the PDF)
         results_images = revert_list(results_images)
+        results_images = [Path(p).resolve().as_posix() for p in results_images]
 
-        # add the graphs
         width = 100
+        img_style = (
+            "margin: 0; width: 270px; height: {height}px; "
+            "object-fit: cover; object-position: 0 100%;"
+        ).format(height=height)
+        base_style = f"width: {width}%; margin-bottom: -2px; margin-top: {margin_top}px"
 
-        pair_list = f'<p style="width: {width}%; margin-bottom: -2px;  margin-top: {margin_top}px"><img src="file:///{results_images[0]}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
-        if not eval_only:
-            pair_list += f"{('&nbsp;') * 22}"
-            pair_list += f'<img src="file:///{results_images[1]}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/></p>'
-
-        html_png = f"{pair_list}"
+        if not results_images:
+            html_png = (
+                f'<p style="{base_style}">Plot not available for {file_name}.</p>'
+            )
+        elif len(results_images) == 1 or eval_only:
+            html_png = (
+                f'<p style="{base_style}">'
+                f'<img src="file:///{results_images[0]}" style="{img_style}"/>'
+                f"</p>"
+            )
+        else:
+            html_png = (
+                f'<p style="{base_style}">'
+                f'<img src="file:///{results_images[0]}" style="{img_style}"/>'
+                f"{('&nbsp;') * 22}"
+                f'<img src="file:///{results_images[1]}" style="{img_style}"/>'
+                f"</p>"
+            )
 
         return html_png

@@ -112,15 +112,23 @@ Execution time and versions
 
 Time: ~1.5 min
 
-System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
+System: 8 processors (x86_64 Linux) using 16.0 GB RAM memory
 
-ROBERT version: 1.2.0
+ROBERT version: 2.2.0
 
-scikit-learn-intelex version: 2024.5.0
+numpy version: 2.3.4
 
-AQME version: 1.6.1
+scikit-learn version: 1.7.2
 
-xTB version: 6.6.1
+xgboost version: 2.1.4
+
+bayesian-optimization version: 3.1.0
+
+scikit-learn-intelex version: 2025.2.0
+
+AQME version: 2.0.0
+
+xTB version: 6.7.1
 
 Results
 +++++++

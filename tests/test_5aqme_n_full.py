@@ -11,6 +11,7 @@ import pytest
 import shutil
 import subprocess
 import pandas as pd
+from pathlib import Path
 
 # saves the working directory
 path_main = os.getcwd()
@@ -24,6 +25,59 @@ def _aqme_installed() -> bool:
         return True
     except ImportError:
         return False
+
+
+def _aqme_log_hints() -> str:
+    log_hints = []
+    for log_path in (
+        Path(path_main) / "AQME" / "AQME_data.dat",
+        Path(path_main) / "QDESCP" / "QDESCP_data.dat",
+        Path(path_main) / "CSEARCH" / "CSEARCH_data.dat",
+        Path(path_main) / "GENERATE" / "GENERATE_data.dat",
+        Path(path_main) / "CURATE" / "CURATE_data.dat",
+    ):
+        if log_path.is_file():
+            log_hints.append(
+                f"--- tail {log_path} ---\n"
+                + log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
+            )
+    return "\n".join(log_hints) if log_hints else "(no ROBERT .dat logs found)"
+
+
+def _aqme_runtime_context() -> str:
+    """Collect xTB/AQME artifact hints when a subprocess-based AQME test fails."""
+    lines = []
+    xtb_exe = shutil.which("xtb")
+    lines.append(f"xtb on PATH: {xtb_exe or '(not found)'}")
+    if xtb_exe:
+        try:
+            version = subprocess.run(
+                [xtb_exe, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            version_text = (version.stdout or version.stderr or "").strip()
+            if len(version_text) > 400:
+                version_text = version_text[:400] + "..."
+            lines.append(f"xtb --version: {version_text}")
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            lines.append(f"xtb --version check failed: {exc}")
+
+    for pattern in (
+        "AQME-ROBERT_*.csv",
+        "AQME_indiv*.csv",
+        "QDESCP/**/*.json",
+        "CSEARCH/*.sdf",
+    ):
+        matches = sorted(glob.glob(f"{path_main}/{pattern}", recursive=True))
+        if matches:
+            lines.append(f"{pattern}: {', '.join(matches[:8])}")
+            if len(matches) > 8:
+                lines.append(f"  ... and {len(matches) - 8} more")
+
+    return "\n".join(lines) if lines else "(no AQME runtime context)"
 
 
 # AQME and full workflow tests
@@ -51,6 +105,8 @@ def test_AQME(test_job):
         "PREDICT",
         "VERIFY",
         "AQME",
+        "CSEARCH",
+        "QDESCP",
     ]
     for folder in folders:
         if os.path.exists(f"{path_main}/{folder}"):
@@ -64,9 +120,12 @@ def test_AQME(test_job):
         "Robert_example.csv",
         "solubility.csv",
         "solubility_solvent.csv",
+        "AQME_indiv.csv",
     ]:
         if os.path.exists(f"{path_main}/{file}"):
             os.remove(f"{path_main}/{file}")
+    for file in glob.glob(f"{path_main}/AQME_indiv_*.csv"):
+        os.remove(file)
 
     # runs the program with the different tests
     if test_job in ["full_workflow", "full_workflow_test"]:
@@ -132,11 +191,14 @@ def test_AQME(test_job):
     if test_job in ["full_clas", "full_clas_test"]:
         cmd_robert = cmd_robert + ["--type", "clas"]
 
+    if test_job in ("aqme", "2smiles_columns"):
+        cmd_robert = cmd_robert + ["--nprocs", "1"]
+
     if test_job == "aqme":
         cmd_robert = cmd_robert + [
             "--aqme",
             "--qdescp_keywords",
-            "--qdescp_atoms ['C'] --qdescp_acc 5 --qdescp_opt normal",
+            '--qdescp_atoms ["C"] --qdescp_acc 5 --qdescp_opt normal',
             "--alpha",
             "0.5",
         ]
@@ -144,11 +206,53 @@ def test_AQME(test_job):
     if test_job == "2smiles_columns":
         cmd_robert = cmd_robert + ["--aqme", "--alpha", "0.5"]
 
-    subprocess.run(cmd_robert)
+    # Logger.print() writes to stdout; capturing it can fill the pipe buffer on
+    # long AQME workflows and block ROBERT before REPORT finishes on CI.
+    env = os.environ.copy()
+    py_bin = os.path.dirname(sys.executable)
+    path_entries = env.get("PATH", "").split(os.pathsep) if env.get("PATH") else []
+    if sys.platform == "win32":
+        for path_dir in (
+            py_bin,
+            os.path.join(sys.prefix, "Library", "bin"),
+            os.path.join(sys.prefix, "Scripts"),
+        ):
+            if os.path.isdir(path_dir) and path_dir not in path_entries:
+                path_entries.insert(0, path_dir)
+        env["PATH"] = os.pathsep.join(path_entries)
+    else:
+        lib = os.path.join(sys.prefix, "lib")
+        if os.path.isdir(lib):
+            prev = env.get("LD_LIBRARY_PATH", "")
+            if lib not in prev.split(os.pathsep):
+                env["LD_LIBRARY_PATH"] = lib + (os.pathsep + prev if prev else "")
+
+    completed = subprocess.run(
+        cmd_robert,
+        cwd=path_main,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    stderr_tail = (completed.stderr or "")[-8000:]
+    if completed.returncode != 0:
+        runtime_ctx = ""
+        if test_job in ("aqme", "2smiles_columns"):
+            runtime_ctx = f"\n{_aqme_runtime_context()}\n"
+        pytest.fail(
+            f"ROBERT subprocess failed (exit {completed.returncode}):\n"
+            f"stderr:\n{stderr_tail}{runtime_ctx}{_aqme_log_hints()}"
+        )
 
     # check that all the plots, CSV and DAT files are created
-    # find ROBERT_report.pdf
-    assert os.path.exists(f"{path_main}/ROBERT_report.pdf")
+    pdf_path = Path(path_main) / "ROBERT_report.pdf"
+    debug_path = Path(path_main) / "report_debug.txt"
+    assert pdf_path.is_file(), (
+        "ROBERT_report.pdf missing after ROBERT exited 0. "
+        f"report_debug.txt exists={debug_path.is_file()}. "
+        f"stderr tail:\n{stderr_tail[-4000:]}"
+    )
 
     # CURATE folder
     if (
@@ -360,7 +464,7 @@ def test_AQME(test_job):
         if test_job == "full_workflow":
             # model summary, robert score, predict graphs and model metrics
             assert robert_score[0] == "5"
-            assert robert_score[1] == "6"
+            assert robert_score[1] == "7"
             assert ml_model_count == 2
             assert partition_count == 2
             assert points_desc[0] == "30:5"
@@ -375,8 +479,8 @@ def test_AQME(test_job):
             # advanced analysis, predictive ability section 2
             assert "1 / 2" in pred_ability[0]
             assert "report/score_w_2_1.jpg" in pred_ability[0]
-            assert "1 / 2" in pred_ability[1]
-            assert "report/score_w_2_1.jpg" in pred_ability[1]
+            assert "2 / 2" in pred_ability[1]
+            assert "report/score_w_2_2.jpg" in pred_ability[1]
             # advanced analysis, predictive ability of external test set section 3a
             assert "2 / 2" in pred_test_ability[0]
             assert "report/score_w_2_2.jpg" in pred_test_ability[0]
@@ -408,11 +512,11 @@ def test_AQME(test_job):
 
         elif test_job == "full_clas":
             # model summary, robert score, predict graphs and model metrics
-            assert robert_score[0] == "4"
-            assert robert_score[1] == "6"
+            assert robert_score[0] == "6"
+            assert robert_score[1] == "3"
             assert ml_model_count == 2
             assert points_desc[0] == "29:6"
-            assert points_desc[1] == "29:4"
+            assert points_desc[1] == "29:2"
             # advanced analysis, flawed models section 1
             assert "-2 / 0" in flawed_models[0]
             assert "-2 / 0" in flawed_models[1]
@@ -420,21 +524,21 @@ def test_AQME(test_job):
             # advanced analysis, predictive ability section 2
             assert "2 / 3" in pred_ability[0]
             assert "report/score_w_3_2.jpg" in pred_ability[0]
-            assert "2 / 3" in pred_ability[1]
-            assert "report/score_w_3_2.jpg" in pred_ability[1]
+            assert "1 / 3" in pred_ability[1]
+            assert "report/score_w_3_1.jpg" in pred_ability[1]
             # advanced analysis, predictive ability of external test set section 3a
             assert "3 / 3" in pred_test_ability[0]
             assert "report/score_w_3_3.jpg" in pred_test_ability[0]
-            assert "3 / 3" in pred_test_ability[1]
-            assert "report/score_w_3_3.jpg" in pred_test_ability[1]
+            assert "1 / 3" in pred_test_ability[1]
+            assert "report/score_w_3_1.jpg" in pred_test_ability[1]
             # advanced analysis, predictive ability of CV vs test section 3b
             assert "1 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             assert "2 / 2" in cv_vs_test_models[1]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[1]
-            # advanced analysis, extrapolation section 3d
-            assert "0 / 2" in extrapol_ability_clas[0]
-            assert "report/score_w_2_0.jpg" in extrapol_ability_clas[0]
+            # advanced analysis, consistency (sorted CV) section 3c
+            assert "2 / 2" in extrapol_ability_clas[0]
+            assert "report/score_w_2_2.jpg" in extrapol_ability_clas[0]
             assert "1 / 2" in extrapol_ability_clas[1]
             assert "report/score_w_2_1.jpg" in extrapol_ability_clas[1]
             # y distribution and Pearson images

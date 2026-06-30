@@ -25,28 +25,28 @@ Notes:
 """
 
 # ------------------------------------------------------------
-# Import resolution (local vs installed package)
+# Qt imports
+# ------------------------------------------------------------
+from PySide6.QtCore import QSize, Qt, Signal, QThreadPool
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QSizePolicy,
+    QTabWidget,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
+
+# ------------------------------------------------------------
+# Import resolution (installed package vs local)
 # ------------------------------------------------------------
 try:
-    from utils.utils_gui import (
-        QFrame,
-        QHBoxLayout,
-        QHeaderView,
-        QLabel,
-        QMenu,
-        QMessageBox,
-        QSize,
-        QSizePolicy,
-        QTabWidget,
-        QTableView,
-        QThreadPool,
-        QVBoxLayout,
-        QWidget,
-        Qt,
-        Signal,
-    )
-
-    from utils.predictions_utils import (
+    from robert.gui_easyrob.utils.predictions_utils import (
         LoadCsvTask,
         NumericSortProxy,
         PandasTableModel,
@@ -60,27 +60,8 @@ try:
         find_prediction_csvs,
         get_robert_report_path,
     )
-
 except ImportError:
-    from robert.gui_easyrob.utils.utils_gui import (
-        QFrame,
-        QHBoxLayout,
-        QHeaderView,
-        QLabel,
-        QMenu,
-        QMessageBox,
-        QSize,
-        QSizePolicy,
-        QTabWidget,
-        QTableView,
-        QThreadPool,
-        QVBoxLayout,
-        QWidget,
-        Qt,
-        Signal,
-    )
-
-    from robert.gui_easyrob.utils.predictions_utils import (
+    from utils.predictions_utils import (
         LoadCsvTask,
         NumericSortProxy,
         PandasTableModel,

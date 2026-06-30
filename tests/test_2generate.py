@@ -9,14 +9,18 @@ import json
 import os
 import sys
 import glob
-import math
-import re
 import pytest
 import shutil
 import subprocess
 import pandas as pd
 from pathlib import Path
 from robert.generate import generate
+from tests.platform_goldens import (
+    GENERATE_STANDARD_RMSE,
+    assert_generate_standard_rmse_matches,
+    log_line_metric_close,
+    platform_key,
+)
 
 # saves the working directory (os.path.join keeps paths valid on Windows and Linux)
 path_main = os.getcwd()
@@ -35,6 +39,82 @@ def _read_best_model_pair(best_dir):
     )
 
 
+def _model_tag(test_job):
+    """ML model name for single-model GENERATE test jobs."""
+    return {
+        "reduced_gp": "GP",
+        "reduced_adab": "ADAB",
+        "reduced_xgb": "XGB",
+        "reduced_vr": "VR",
+        "reduced_vr_clas": "VR",
+        "reduced_clas": "RF",
+    }.get(test_job, "RF")
+
+
+def _read_model_pair(generate_dir, folder, model, *, pfi=False):
+    """Load params and *_db.csv for a specific model under Raw_data."""
+    suffix = f"{model}_PFI" if pfi else model
+    params_path = os.path.join(generate_dir, "Raw_data", folder, f"{suffix}.csv")
+    db_path = os.path.join(generate_dir, "Raw_data", folder, f"{suffix}_db.csv")
+    assert os.path.isfile(params_path), params_path
+    assert os.path.isfile(db_path), db_path
+    return pd.read_csv(params_path, encoding="utf-8"), pd.read_csv(
+        db_path, encoding="utf-8"
+    )
+
+
+# Expected descriptors per model for the standard multi-model job
+_STANDARD_MODEL_DESCS = {
+    "No_PFI": {
+        "RF": ["x10", "x2", "x5", "x7", "x9"],
+        "GB": [
+            "Csub-Csub",
+            "Csub-H",
+            "H-O",
+            "x10",
+            "x11",
+            "x2",
+            "x5",
+            "x7",
+            "x8",
+            "ynoise",
+        ],
+        "NN": [
+            "Csub-Csub",
+            "Csub-H",
+            "H-O",
+            "x10",
+            "x11",
+            "x2",
+            "x5",
+            "x7",
+            "x8",
+            "x9",
+            "ynoise",
+        ],
+        "MVL": [
+            "Csub-Csub",
+            "Csub-H",
+            "H-O",
+            "x10",
+            "x11",
+            "x2",
+            "x5",
+            "x7",
+            "x8",
+            "x9",
+            "ynoise",
+        ],
+    },
+    "PFI": {
+        "RF": ["x10", "x7"],
+        "GB": ["x10", "x7"],
+        "NN": ["x7", "x10", "x9", "x5", "x2", "x8"],
+        "MVL": ["x7", "Csub-Csub", "x9", "x10", "H-O", "Csub-H"],
+    },
+}
+
+
 def _parse_x_descriptors(raw):
     """Parse X_descriptors from GENERATE CSV (JSON or Python literal list)."""
     text = raw if isinstance(raw, str) else str(raw)
@@ -42,22 +122,6 @@ def _parse_x_descriptors(raw):
         return json.loads(text)
     except json.JSONDecodeError:
         return ast.literal_eval(text)
-
-
-def _log_line_metric_close(line, prefix, expected, *, rel_tol=0.05, abs_tol=0.02):
-    """
-    True if line contains prefix and the numeric token immediately after prefix
-    matches expected within tolerance (robust to OS/library float drift and :.2
-    log formatting).
-    """
-    idx = line.find(prefix)
-    if idx == -1:
-        return False
-    rest = line[idx + len(prefix) :].lstrip()
-    m = re.match(r"([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)", rest)
-    if not m:
-        return False
-    return math.isclose(float(m.group(1)), expected, rel_tol=rel_tol, abs_tol=abs_tol)
 
 
 # GENERATE tests
@@ -204,16 +268,20 @@ def test_GENERATE(test_job):
             ):
                 finding_line += 0.5  # it appears two times, in PFI and no PFI
                 # this elif adds 4 points to the standard test (0.5*2(PFI and no PFI)*4(models)
-            elif _log_line_metric_close(
+            elif log_line_metric_close(
                 line,
                 "o Best combined RMSE (target) found in BO for RF (no PFI filter):",
-                0.55,
+                0.45,
+                rel_tol=0.05,
+                abs_tol=0.02,
             ):
                 reproducibility += 1
-            elif _log_line_metric_close(
+            elif log_line_metric_close(
                 line,
                 "o Combined RMSE for RF (with PFI filter):",
-                0.57,
+                0.41,
+                rel_tol=0.05,
+                abs_tol=0.02,
             ):
                 reproducibility += 1
             # lines only for standard
@@ -225,55 +293,11 @@ def test_GENERATE(test_job):
                 finding_line += 1
             elif "- 4/4 - ML model: MVL" in line:
                 finding_line += 1
-            elif _log_line_metric_close(
-                line,
-                "o Best combined RMSE (target) found in BO for RF (no PFI filter):",
-                0.49,
+            elif any(
+                log_line_metric_close(line, prefix, expected)
+                for prefix, expected in GENERATE_STANDARD_RMSE[platform_key()].items()
             ):
                 reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for RF (with PFI filter):",
-                0.5,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Best combined RMSE (target) found in BO for GB (no PFI filter):",
-                0.41,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for GB (with PFI filter):",
-                0.38,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Best combined RMSE (target) found in BO for NN (no PFI filter):",
-                0.33,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for NN (with PFI filter):",
-                0.41,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for MVL (no BO needed) (no PFI filter):",
-                0.47,
-            ):
-                reproducibility += 1
-            elif _log_line_metric_close(
-                line,
-                "o Combined RMSE for MVL (with PFI filter):",
-                0.47,
-            ):
-                reproducibility += 1
-            # lines only for
             elif "1. 50% = RMSE from a 5x repeated 10-fold CV (interpoplation)" in line:
                 finding_changed_kfold += 1
 
@@ -288,7 +312,8 @@ def test_GENERATE(test_job):
                 assert reproducibility == 0
         if test_job == "standard":
             assert finding_line == 11
-            assert reproducibility == 8
+            assert_generate_standard_rmse_matches(outlines)
+            assert reproducibility == len(GENERATE_STANDARD_RMSE[platform_key()])
         if test_job == "reduced_kfold":
             assert finding_changed_kfold == 1
 
@@ -309,10 +334,11 @@ def test_GENERATE(test_job):
             )
             assert expected_amount == len(csv_amount)
 
-            params_best, db_best = _read_best_model_pair(
-                os.path.join(path_generate, "Best_model", folder)
-            )
-            if test_job in [
+            _read_best_model_pair(os.path.join(path_generate, "Best_model", folder))
+
+            if test_job == "standard":
+                model_descs = _STANDARD_MODEL_DESCS[folder]
+            elif test_job in [
                 "reduced",
                 "reduced_cmd",
                 "reduced_PFImax",
@@ -320,8 +346,8 @@ def test_GENERATE(test_job):
                 "reduced_adab",
                 "reduced_xgb",
                 "reduced_clas",
-                "standard",
             ]:
+                model = _model_tag(test_job)
                 if folder == "No_PFI":
                     if test_job in ["reduced", "reduced_cmd", "reduced_PFImax"]:
                         desc_list = ["x10", "x2", "x5", "x7", "x9"]
@@ -365,20 +391,6 @@ def test_GENERATE(test_job):
                             "x8",
                             "x9",
                         ]
-                    elif test_job == "standard":
-                        desc_list = [
-                            "Csub-Csub",
-                            "Csub-H",
-                            "H-O",
-                            "x10",
-                            "x11",
-                            "x2",
-                            "x5",
-                            "x7",
-                            "x8",
-                            "x9",
-                            "ynoise",
-                        ]
                 elif folder == "PFI":
                     if test_job in ["reduced", "reduced_cmd"]:
                         desc_list = ["x7", "x10"]
@@ -387,15 +399,21 @@ def test_GENERATE(test_job):
                     elif test_job == "reduced_gp":
                         desc_list = ["x5", "Csub-Csub", "x7", "x10", "x8", "Csub-H"]
                     elif test_job == "reduced_xgb":
-                        desc_list = ["x10", "x7"]
+                        desc_list = ["x10", "x5", "x7"]
                     elif test_job == "reduced_adab":
                         desc_list = ["x10", "x9"]
                     elif test_job == "reduced_clas":
                         desc_list = ["x6"]
-                    elif test_job == "standard":
-                        desc_list = ["x10", "x7"]
-                if test_job in ["reduced", "reduced_cmd"]:
-                    # check set splits
+                model_descs = {model: desc_list}
+            else:
+                model_descs = {}
+
+            for model, desc_list in model_descs.items():
+                params_best, db_best = _read_model_pair(
+                    path_generate, folder, model, pfi=(folder == "PFI")
+                )
+
+                if test_job in ["reduced", "reduced_cmd"] and model == "RF":
                     expected_sets = [
                         "Training",
                         "Training",
@@ -405,7 +423,6 @@ def test_GENERATE(test_job):
                     ]
                     for i, expected_set in enumerate(expected_sets):
                         assert db_best["Set"][i] == expected_set
-                    # check whether the values are sorted (for reproducibility)
                     expected_rows = [
                         0.308776518,
                         0.321084552,
@@ -416,7 +433,6 @@ def test_GENERATE(test_job):
                     assert list(
                         db_best["Target_values"][: len(expected_rows)]
                     ) == pytest.approx(expected_rows, rel=1e-5, abs=1e-8)
-                    # check whether the columns are sorted (for reproducibility)
                     expected_cols = ["x10", "x2", "x5", "x7", "x9"]
                     for i, expected_col in enumerate(expected_cols):
                         assert db_best.columns[i] == expected_col
@@ -449,7 +465,7 @@ def test_GENERATE(test_job):
 
                 if test_job == "reduced_clas":
                     assert params_best["split"][0].upper() == "RND"
-                else:
+                elif test_job != "standard":
                     assert params_best["split"][0].upper() == "EVEN"
 
         # check that the heatmap plots were generated

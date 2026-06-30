@@ -374,25 +374,30 @@ Requirements
 Python and Python libraries
 +++++++++++++++++++++++++++
 
-*These libraries are installed during the initial conda-forge installation.*  
+*These libraries are installed during the initial conda-forge or pip installation.*
 
-*  Python >= 3.6
-*  matplotlib-base
+*  Python >= 3.11 (3.11 or 3.12 recommended)
+*  matplotlib
 *  pandas
 *  numpy
 *  progress
-*  pyyaml
+*  PyYAML
 *  seaborn
 *  scipy
 *  scikit-learn
 *  xgboost (dependency for optional ``XGB`` model screening; not part of the default model list)
-*  hyperopt
+*  bayesian-optimization
 *  numba
 *  shap
-*  glib
+*  rdkit
 *  weasyprint
-*  gtk3
-*  pango
+*  psutil
+*  requests
+*  PySide6 (easyROB GUI)
+*  PyMuPDF, pdfplumber, openpyxl (report and GUI extras)
+*  glib, gtk3, pango (PDF report generation via conda-forge)
+
+Key pinned versions in ``setup.py`` (v2.2.0): numpy 2.3.4, pandas 2.3.3, scikit-learn 1.7.2, xgboost 2.1.4, bayesian-optimization 3.1.0, rdkit 2025.9.1.
 
 .. requirements-end
 

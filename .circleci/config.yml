@@ -8,27 +8,73 @@ orbs:
 
 commands:
   install-miniconda:
-    description: Install Miniconda on machine executors (macOS only; Windows images ship with Miniconda)
+    description: Ensure conda is on PATH (install if missing on Windows/macOS)
     steps:
       - run:
           name: Install Miniconda
           command: |
             set -euo pipefail
+
+            conda_present_at() {
+              local root="$1"
+              [ -n "${root}" ] && { [ -f "${root}/Scripts/conda.exe" ] || [ -f "${root}/bin/conda" ]; }
+            }
+
             if command -v conda >/dev/null 2>&1; then
               echo "Conda already available at $(command -v conda)"
+              conda config --set quiet true
               conda --version
               exit 0
             fi
-            MINICONDA_DIR="${HOME}/miniconda3"
-            if [ -x "${MINICONDA_DIR}/Scripts/conda.exe" ] || [ -x "${MINICONDA_DIR}/bin/conda" ]; then
-              echo "Miniconda already present at ${MINICONDA_DIR}"
-            else
-              case "$(uname -s)" in
-                MINGW*|MSYS*|CYGWIN*)
-                  echo "install-miniconda: unexpected Windows path without preinstalled conda"
-                  exit 1
-                  ;;
-                Darwin)
+
+            MINICONDA_DIR=""
+            case "$(uname -s)" in
+              MINGW*|MSYS*|CYGWIN*)
+                for candidate in \
+                  "${CONDA:-}" \
+                  "/c/Miniconda" \
+                  "/c/Miniconda3" \
+                  "/c/ProgramData/miniconda3" \
+                  "/c/ProgramData/Miniconda3" \
+                  "${HOME}/miniconda3" \
+                  "${HOME}/Miniconda3" \
+                  "${HOME}/appdata/Local/miniconda3" \
+                  "${HOME}/appdata/Local/Continuum/miniconda3"; do
+                  if conda_present_at "${candidate}"; then
+                    MINICONDA_DIR="${candidate}"
+                    break
+                  fi
+                done
+
+                if [ -z "${MINICONDA_DIR}" ]; then
+                  conda_exe="$(cmd.exe //c "where conda 2>nul" 2>/dev/null | head -n1 | tr -d '\r' || true)"
+                  if [ -n "${conda_exe}" ]; then
+                    if command -v cygpath >/dev/null 2>&1; then
+                      conda_exe="$(cygpath -u "${conda_exe}")"
+                    else
+                      conda_exe="$(echo "${conda_exe}" | sed 's|\\|/|g' | sed 's|^\([A-Za-z]\):|/\L\1|')"
+                    fi
+                    MINICONDA_DIR="$(cd "$(dirname "${conda_exe}")/.." && pwd)"
+                  fi
+                fi
+
+                if [ -z "${MINICONDA_DIR}" ]; then
+                  MINICONDA_DIR="${HOME}/miniconda3"
+                fi
+
+                if ! conda_present_at "${MINICONDA_DIR}"; then
+                  echo "Installing Miniconda to %USERPROFILE%\\miniconda3 via cmd.exe..."
+                  curl -fsSL -o miniconda-installer.exe \
+                    "https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
+                  # /D= must be last and must not be quoted (NSIS installer requirement).
+                  cmd.exe //c "miniconda-installer.exe /InstallationType=JustMe /RegisterPython=0 /S /D=%USERPROFILE%\\miniconda3"
+                  rm -f miniconda-installer.exe
+                  MINICONDA_DIR="${HOME}/miniconda3"
+                fi
+                ;;
+              Darwin)
+                MINICONDA_DIR="${HOME}/miniconda3"
+                if ! conda_present_at "${MINICONDA_DIR}"; then
                   ARCH="$(uname -m)"
                   if [ "${ARCH}" = "arm64" ]; then
                     INSTALLER_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh"
@@ -38,13 +84,20 @@ commands:
                   curl -fsSL -o miniconda-installer.sh "${INSTALLER_URL}"
                   bash miniconda-installer.sh -b -p "${MINICONDA_DIR}"
                   rm -f miniconda-installer.sh
-                  ;;
-                *)
-                  echo "install-miniconda: unsupported OS $(uname -s)"
-                  exit 1
-                  ;;
-              esac
+                fi
+                ;;
+              *)
+                echo "install-miniconda: unsupported OS $(uname -s)"
+                exit 1
+                ;;
+            esac
+
+            if ! conda_present_at "${MINICONDA_DIR}"; then
+              echo "install-miniconda: conda not found under ${MINICONDA_DIR}"
+              exit 1
             fi
+            echo "Using Miniconda at ${MINICONDA_DIR}"
+
             {
               echo "export MINICONDA_DIR=${MINICONDA_DIR}"
               case "$(uname -s)" in
@@ -58,6 +111,7 @@ commands:
             } >> "${BASH_ENV}"
             # shellcheck source=/dev/null
             source "${BASH_ENV}"
+            conda config --set quiet true
             conda --version
 
   run-conda-test-suite:
@@ -75,8 +129,9 @@ commands:
             [ -f "${BASH_ENV}" ] && source "${BASH_ENV}"
 
             eval "$(conda shell.bash hook)"
-            conda update -y conda
-            conda create -n cheminf python=3.12 -y
+            conda config --set quiet true
+            conda update -y -q conda
+            conda create -n cheminf python=3.11 -y -q
             conda activate cheminf
 
             python -m pip install --upgrade pip
@@ -93,6 +148,7 @@ commands:
               Linux)
                 CONDA_PKGS+=(
                   libgfortran=14.2.0
+                  libgomp
                   libxkbcommon
                   mscorefonts
                   fonts-conda-forge
@@ -101,8 +157,20 @@ commands:
               Darwin)
                 CONDA_PKGS+=(libgfortran=14.2.0)
                 ;;
+              MINGW*|MSYS*|CYGWIN*)
+                # xTB on win-64 is built with MinGW; match Linux/macOS Fortran/OpenMP runtimes.
+                CONDA_PKGS+=(
+                  libgfortran=14.2.0
+                  llvm-openmp
+                )
+                ;;
             esac
-            conda install -y -c conda-forge "${CONDA_PKGS[@]}"
+            if ! conda install -y -q -c conda-forge "${CONDA_PKGS[@]}" >conda-install.log 2>&1; then
+              echo "conda install failed; last 200 lines:"
+              tail -n 200 conda-install.log
+              exit 1
+            fi
+            echo "conda install finished ($(wc -c < conda-install.log) bytes of log)"
 
             case "$(uname -s)" in
               Linux)
@@ -119,6 +187,76 @@ commands:
             pip install aqme==2.0.0
             pip install .
             pip install pytest pytest-cov pytest-qt
+
+            # xtb needs OpenMP/Fortran runtimes from the conda env (verify before AQME tests).
+            case "$(uname -s)" in
+              Linux)
+                export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
+                ;;
+              Darwin)
+                export DYLD_FALLBACK_LIBRARY_PATH="$CONDA_PREFIX/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
+                ;;
+              MINGW*|MSYS*|CYGWIN*)
+                export PATH="$CONDA_PREFIX/Library/bin:$CONDA_PREFIX/Scripts:$PATH"
+                ;;
+            esac
+            command -v xtb
+            xtb --version
+            python -c "import importlib.metadata as m; import aqme; print('aqme', m.version('aqme'))"
+            # Windows-only preflight: Linux/macOS AQME tests already pass in CI.
+            case "$(uname -s)" in
+              MINGW*|MSYS*|CYGWIN*)
+                conda list | grep -E '^(xtb|aqme|libgfortran|libgomp|llvm-openmp)\s' || true
+                echo "=== Windows AQME/xTB preflight ==="
+                PREFLIGHT_DIR="$(mktemp -d)"
+                printf '%s\n' \
+                  '3' \
+                  'preflight' \
+                  'C   0.000000   0.000000   0.000000' \
+                  'H   1.089000   0.000000   0.000000' \
+                  'H  -0.363000   1.028000   0.000000' \
+                  > "${PREFLIGHT_DIR}/preflight.xyz"
+                set +e
+                xtb_out="$(xtb "${PREFLIGHT_DIR}/preflight.xyz" --gfn 2 --chrg 0 --uhf 0 2>&1)"
+                xtb_rc=$?
+                set -e
+                echo "${xtb_out}" | tail -n 40
+                if [ "${xtb_rc}" -ne 0 ]; then
+                  echo "xtb preflight failed (exit ${xtb_rc})"
+                  exit 1
+                fi
+                if ! echo "${xtb_out}" | grep -qiE 'total energy|:: total energy'; then
+                  echo "xtb preflight: no energy line in output"
+                  exit 1
+                fi
+
+                printf 'code_name,SMILES\npreflight,C\n' > "${PREFLIGHT_DIR}/AQME_indiv.csv"
+                (
+                  cd "${PREFLIGHT_DIR}"
+                  python -u -m aqme --qdescp \
+                    --input AQME_indiv.csv \
+                    --program xtb \
+                    --csv_name AQME_indiv.csv \
+                    --nprocs 1 \
+                    --sample 1 \
+                    --robert
+                )
+                if [ ! -f "${PREFLIGHT_DIR}/AQME-ROBERT_interpret_AQME_indiv.csv" ]; then
+                  echo "AQME preflight: expected CSV not created"
+                  ls -la "${PREFLIGHT_DIR}" || true
+                  for log in "${PREFLIGHT_DIR}/QDESCP/QDESCP_data.dat" \
+                             "${PREFLIGHT_DIR}/CSEARCH/CSEARCH_data.dat"; do
+                    if [ -f "${log}" ]; then
+                      echo "--- tail ${log} ---"
+                      tail -n 80 "${log}"
+                    fi
+                  done
+                  exit 1
+                fi
+                echo "Windows AQME/xTB preflight passed"
+                rm -rf "${PREFLIGHT_DIR}"
+                ;;
+            esac
 
             set +e
 
@@ -279,6 +417,7 @@ jobs:
     shell: bash.exe
     steps:
       - checkout
+      - install-miniconda
       - run-conda-test-suite:
           upload_coverage: false
 

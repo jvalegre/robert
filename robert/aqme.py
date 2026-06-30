@@ -27,6 +27,7 @@ import subprocess
 import time
 import shutil
 import sys
+import shlex
 from pathlib import Path
 import pandas as pd
 from robert.utils import load_variables, finish_print, load_database
@@ -43,6 +44,51 @@ aqme_args = [
     "constraints_dihedral",
     "sample",
 ]
+
+
+def _expected_robert_csv(descp_lvl, aqme_indv_name):
+    return f"AQME-ROBERT_{descp_lvl}_{aqme_indv_name}.csv"
+
+
+def _append_aqme_job_logs(log, tail=4000):
+    for log_path in (
+        Path("QDESCP/QDESCP_data.dat"),
+        Path("CSEARCH/CSEARCH_data.dat"),
+    ):
+        if log_path.is_file():
+            log.write(
+                f"\n--- tail {log_path} ---\n"
+                + log_path.read_text(encoding="utf-8", errors="replace")[-tail:]
+            )
+
+
+def _append_aqme_runtime_diagnostics(log):
+    """Log xTB/PATH context to simplify CI triage when AQME subprocess fails."""
+    import shutil
+
+    xtb_exe = shutil.which("xtb")
+    if xtb_exe:
+        try:
+            version = subprocess.run(
+                [xtb_exe, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            version_text = (version.stdout or version.stderr or "").strip()
+            if len(version_text) > 500:
+                version_text = version_text[:500] + "..."
+            log.write(f"   xtb executable: {xtb_exe}\n   xtb --version: {version_text}")
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            log.write(f"   xtb executable: {xtb_exe} (version check failed: {exc})")
+    else:
+        log.write("   xtb executable: not found on PATH")
+
+    path_preview = os.environ.get("PATH", "")
+    if len(path_preview) > 800:
+        path_preview = path_preview[:800] + "..."
+    log.write(f"   PATH: {path_preview}")
 
 
 class aqme:
@@ -112,7 +158,7 @@ class aqme:
                     f"\nx  WARNING! The names provided in the CSV contain * (i.e. {name_csv_indiv}). Please, remove all the * characters."
                 )
                 self.args.log.finalize()
-                sys.exit()
+                sys.exit(1)
 
         # find if there is more than one SMILES column in the CSV file
         for column in csv_df.columns:
@@ -142,7 +188,7 @@ class aqme:
 
                 # run AQME-QDESCP to generate descriptors
                 cmd_qdescp = [
-                    "python",
+                    sys.executable,
                     "-u",
                     "-m",
                     "aqme",
@@ -155,22 +201,25 @@ class aqme:
                     f"{aqme_indv_name}.csv",
                     "--nprocs",
                     f"{self.args.nprocs}",
+                    "--sample",
+                    "3",
                     "--robert",
                 ]
-                _ = self.run_aqme(cmd_qdescp, self.args.qdescp_keywords)
+                expected_csv = _expected_robert_csv(self.args.descp_lvl, aqme_indv_name)
+                aqme_success = self.run_aqme(
+                    cmd_qdescp,
+                    self.args.qdescp_keywords,
+                    expected_csv=expected_csv,
+                )
+                if not aqme_success:
+                    self._fail_aqme_job(
+                        "x  ROBERT stopped because AQME did not create descriptor "
+                        "CSV output. Please, check the previous AQME warnings."
+                    )
 
                 if smi_suffix is not None:
                     # Change column names by adding suffix
-                    try:
-                        df_temp = pd.read_csv(
-                            f"AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv",
-                            encoding="utf-8",
-                        )
-                    except FileNotFoundError:
-                        self.args.log.write(
-                            "x  WARNING! ROBERT stopped due to a problem with the AQME job. Please, check the previous AQME warnings."
-                        )
-                        sys.exit()
+                    df_temp = pd.read_csv(expected_csv, encoding="utf-8")
                     df_temp.columns = [
                         f"{col}_{smi_suffix}"
                         if col not in ["code_name", "SMILES"] and col not in aqme_args
@@ -252,7 +301,9 @@ class aqme:
             self.args.log.write(
                 "\nx  The initial AQME descriptor protocol did not create any CSV output!"
             )
-            sys.exit()
+            _append_aqme_job_logs(self.args.log)
+            self.args.log.finalize()
+            sys.exit(1)
 
         # remove atomic properties if no SMARTS patterns were selected in qdescp,
         # and drop AQME argument columns from CSV inputs (single read/write)
@@ -267,16 +318,84 @@ class aqme:
         # this returns stores options just in case csv_test is included
         return self
 
-    def run_aqme(self, command, extra_keywords):
+    def _fail_aqme_job(self, message):
+        self.args.log.write(f"\n{message}")
+        _append_aqme_job_logs(self.args.log)
+        self.args.log.finalize()
+        sys.exit(1)
+
+    def run_aqme(self, command, extra_keywords, *, expected_csv=None):
         """
         Function that runs the AQME jobs
         """
 
         if extra_keywords != "":
-            for keyword in extra_keywords.split():
-                command.append(keyword)
+            split_args = shlex.split(extra_keywords, posix=(os.name != "nt"))
+            command.extend(split_args)
 
-        subprocess.run(command)
+        env = os.environ.copy()
+        py_bin = os.path.dirname(sys.executable)
+        if os.name == "nt":
+            win_paths = [
+                py_bin,
+                os.path.join(sys.prefix, "Library", "bin"),
+                os.path.join(sys.prefix, "Scripts"),
+            ]
+        else:
+            win_paths = [py_bin]
+        current_path = env.get("PATH", "")
+        path_entries = current_path.split(os.pathsep) if current_path else []
+        for path_dir in win_paths:
+            if os.path.isdir(path_dir) and path_dir not in path_entries:
+                path_entries.insert(0, path_dir)
+        env["PATH"] = os.pathsep.join(path_entries)
+
+        lib = os.path.join(sys.prefix, "lib")
+        if os.path.isdir(lib):
+            if sys.platform == "darwin":
+                var_name = "DYLD_FALLBACK_LIBRARY_PATH"
+            else:
+                var_name = "LD_LIBRARY_PATH"
+            previous = env.get(var_name, "")
+            entries = previous.split(os.pathsep) if previous else []
+            if lib not in entries:
+                env[var_name] = lib + (os.pathsep + previous if previous else "")
+
+        # Avoid pipe deadlock: nested AQME/CSEARCH can be very verbose on stdout.
+        result = subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        stderr_tail = (result.stderr or "")[-4000:]
+        missing_csv = expected_csv is not None and not os.path.isfile(expected_csv)
+        if result.returncode != 0 or missing_csv:
+            if result.returncode != 0:
+                self.args.log.write(
+                    f"\nx  AQME subprocess failed with exit code {result.returncode}."
+                )
+            if missing_csv:
+                self.args.log.write(
+                    f"\nx  Expected AQME output not found: {expected_csv}"
+                )
+            self.args.log.write(f"   Command: {' '.join(command)}")
+            if stderr_tail:
+                self.args.log.write(f"   stderr (tail):\n{stderr_tail}")
+            if (
+                "full_level_boltz" in stderr_tail
+                and "TypeError" in stderr_tail
+                and "NoneType" in stderr_tail
+            ):
+                self.args.log.write(
+                    "   x AQME failed while computing Boltzmann properties (None energies). "
+                    "This usually indicates an AQME-side qdescp issue for one or more structures."
+                )
+            _append_aqme_runtime_diagnostics(self.args.log)
+            _append_aqme_job_logs(self.args.log)
+            return False
+        return True
 
     def init_aqme(self):
         """
@@ -289,7 +408,8 @@ class aqme:
             self.args.log.write(
                 "x  AQME is not installed (required for the --aqme option)! The program is typically installed within 2-5 minutes (https://aqme.readthedocs.io, see the Installation section)"
             )
-            sys.exit()
+            self.args.log.finalize()
+            sys.exit(1)
 
 
 def filter_atom_prop_and_aqme_args(aqme_db, csv_df, *, strip_atom_lists):
@@ -346,3 +466,6 @@ def move_aqme():
                 else:
                     os.remove(f"AQME/{file}")
             shutil.move(file, f"AQME/{file}")
+    for dat_file in ["AQME/CSEARCH_data.dat", "AQME/QDESCP_data.dat"]:
+        if not os.path.exists(dat_file):
+            Path(dat_file).write_text("", encoding="utf-8")

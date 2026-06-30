@@ -5,7 +5,6 @@
 import os
 import shutil
 import pandas as pd
-import numpy as np
 import glob
 import json
 from robert.utils import (
@@ -210,24 +209,27 @@ def detect_best(folder):
     """
 
     # detect files
-    file_list = glob.glob(f"{folder}/*.csv")
-    errors = []
+    file_list = sorted(glob.glob(f"{folder}/*.csv"))
+    candidates = []
     for file in file_list:
-        if "_db" not in file:
-            results_model = pd.read_csv(f"{file}", encoding="utf-8")
-            training_error = results_model[
-                f"combined_{results_model['error_type'][0]}"
-            ][0]
-            errors.append(training_error)
-        else:
-            errors.append(np.nan)
+        if file.endswith("_db.csv"):
+            continue
+        results_model = pd.read_csv(file, encoding="utf-8")
+        training_error = float(
+            results_model[f"combined_{results_model['error_type'][0]}"][0]
+        )
+        candidates.append((training_error, os.path.basename(file), file))
+    if len(candidates) == 0:
+        raise UnboundLocalError
     # detect best result and copy files to the Best_model folder
     if results_model["error_type"][0].lower() in ["mae", "rmse"]:
-        min_idx = errors.index(np.nanmin(errors))
+        _, _, best_name = min(candidates, key=lambda item: (item[0], item[1]))
     else:
-        min_idx = errors.index(np.nanmax(errors))
-    best_name = file_list[min_idx]
-    best_db = f"{os.path.dirname(file_list[min_idx])}/{os.path.basename(file_list[min_idx]).split('.csv')[0]}_db.csv"
+        _, _, best_name = max(candidates, key=lambda item: (item[0], item[1]))
+    best_db = (
+        f"{os.path.dirname(best_name)}/"
+        f"{os.path.basename(best_name).split('.csv')[0]}_db.csv"
+    )
 
     shutil.copyfile(f"{best_name}", f"{best_name}".replace("Raw_data", "Best_model"))
     shutil.copyfile(f"{best_db}", f"{best_db}".replace("Raw_data", "Best_model"))

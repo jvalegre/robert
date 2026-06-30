@@ -35,6 +35,10 @@ import shlex
 import subprocess
 import sys
 import threading
+import glob
+import re
+import shutil
+from io import BytesIO
 from pathlib import Path
 from importlib.resources import as_file, files
 
@@ -43,6 +47,12 @@ from importlib.resources import as_file, files
 # ------------------------------------------------------------
 import pandas as pd
 import psutil
+import fitz
+import rdkit
+from rdkit import Chem
+from rdkit.Chem import Draw, MolsFromCDXMLFile, rdDepictor
+from rdkit.Chem.Draw import rdMolDraw2D
+from rdkit.Chem.rdmolops import GetMolFrags
 
 
 from ansi2html import Ansi2HTMLConverter
@@ -51,24 +61,66 @@ from ansi2html import Ansi2HTMLConverter
 # Qt (PySide6)
 # ------------------------------------------------------------
 from PySide6.QtCore import (
+    QObject,
+    QRunnable,
     QThread,
+    QThreadPool,
+    QTimer,
+    QUrl,
+    QEventLoop,
+    QSize,
     Qt,
     Signal,
+    Slot,
 )
 
 from PySide6.QtGui import (
+    QDesktopServices,
+    QIcon,
+    QImage,
+    QMouseEvent,
+    QPixmap,
     QWheelEvent,
 )
 
 
 from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
+    QFormLayout,
     QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QLineEdit,
+    QListWidget,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QProgressBar,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSlider,
+    QStackedWidget,
+    QStatusBar,
+    QStyle,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QTableView,
+    QTextEdit,
+    QToolButton,
     QVBoxLayout,
+    QWidget,
 )
+from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
+from PySide6.QtWebEngineWidgets import QWebEngineView
 
 
 class DropLabel(QFrame):
@@ -246,7 +298,9 @@ class RobertWorker(QThread):
             reset_html = self.ansi_converter.convert("\033[0m", full=False)
             self.output_received.emit(reset_html)
 
-            self.process = None
+            if self.process is not None:
+                self._close_process_streams(self.process)
+                self.process = None
             self.process_finished.emit(-1 if self._stop_requested else exit_code)
         except Exception as exc:
             import traceback
@@ -257,6 +311,17 @@ class RobertWorker(QThread):
     def stop(self):
         """Stop the subprocess and emit a stop signal."""
         self.request_stop.emit()
+
+    @staticmethod
+    def _close_process_streams(process):
+        """Close subprocess pipes to avoid ResourceWarning on GC."""
+        for stream in (process.stdout, process.stderr):
+            if stream is None:
+                continue
+            try:
+                stream.close()
+            except Exception:
+                pass
 
     def _handle_stop(self):
         """Handle the stop signal and terminate the subprocess."""

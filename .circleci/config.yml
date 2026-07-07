@@ -3,7 +3,7 @@
 version: 2.1
 
 # Orbs are reusable packages of CircleCI configuration that you may share across projects, enabling you to create encapsulated, parameterized commands, jobs, and executors that can be used across multiple projects.
-# See: https://circleci.com/docs/2.0/orb-intro/
+# See: https://circleci.com/docs/2.0/orb-intro/ 
 orbs:
   # The python orb contains a set of prepackaged CircleCI configuration you can use repeatedly in your configuration files
   # Orb commands and jobs help you with common scripting around a language/tool
@@ -101,6 +101,7 @@ jobs:
               libevent-2.1-7 \
               libasound2 \
               libasound2-data \
+              libgomp1 \
               libdrm2 \
               libxshmfence1 \
               libgl1-mesa-dri \
@@ -142,6 +143,7 @@ jobs:
               openbabel=3.1.1 \
               xtb=6.7.1 \
               libgfortran=14.2.0 \
+              libgcc-ng \
               glib \
               gtk3 \
               pango \
@@ -168,10 +170,20 @@ jobs:
             # ------------------------------------------------------------------
             pip install pytest pytest-cov pytest-qt
 
+            # ------------------------------------------------------------------
+            # Focused AQME-only diagnostic flow kept here as commented reference
+            # ------------------------------------------------------------------
+            # python -m pytest \
+            #   -vv \
+            #   --cov=robert \
+            #   --cov-report= \
+            #   "tests/test_5aqme_n_full.py::test_AQME[aqme]" \
+            #   "tests/test_5aqme_n_full.py::test_AQME[2smiles_columns]"
+
             # IMPORTANT:
             # CircleCI executes 'run' steps with 'set -e' (exit on first non-zero code).
             # We temporarily disable it so we can inspect pytest/xvfb-run exit codes
-            # and treat the known Qt segfault (139) as a special case.
+            # and treat the known Qt segfault (139/134) as a special case.
             set +e
 
             # ------------------------------------------------------------------
@@ -183,11 +195,11 @@ jobs:
               --cov=robert \
               --cov-report=
 
-            # CORE_EXIT_CODE=$?
-            # if [ "$CORE_EXIT_CODE" -ne 0 ]; then
-            #   echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
-            #   exit "$CORE_EXIT_CODE"
-            # fi
+            CORE_EXIT_CODE=$?
+            if [ "$CORE_EXIT_CODE" -ne 0 ]; then
+              echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
+              exit "$CORE_EXIT_CODE"
+            fi
 
             # ------------------------------------------------------------------
             # Configure Qt/QtWebEngine for headless execution under Xvfb
@@ -207,21 +219,31 @@ jobs:
                 --cov=robert \
                 --cov-append \
                 --cov-report= \
-                tests/test_easyrob.py
-
-
-            GUI_EXIT_CODE=$?
+                --junitxml=gui-test-results.xml \
+                tests/test_easyrob.py \
+              2>&1 | tee gui-pytest.log
+            GUI_EXIT_CODE=${PIPESTATUS[0]}
 
             # Re-enable 'exit on error' for any subsequent commands.
             set -e
 
-            # PySide6/Qt sometimes causes a segmentation fault (exit code 139) on interpreter shutdown
-            # after all tests have passed. In that case we treat the run as successful but emit a warning.
-            
+            # PySide6/Qt sometimes causes a segmentation fault (exit code 139/134)
+            # on interpreter shutdown after all tests have passed.
             if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
+              if [ ! -f gui-test-results.xml ]; then
+                echo "[CI] GUI tests crashed with exit code $GUI_EXIT_CODE and did not generate gui-test-results.xml"
+                exit "$GUI_EXIT_CODE"
+              fi
+
+              python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('gui-test-results.xml').getroot(); suites = [root] if root.tag == 'testsuite' else root.findall('testsuite'); tests = sum(int(s.attrib.get('tests', 0)) for s in suites); failures = sum(int(s.attrib.get('failures', 0)) for s in suites); errors = sum(int(s.attrib.get('errors', 0)) for s in suites); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
+              GUI_XML_EXIT_CODE=$?
+              if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
+                exit "$GUI_XML_EXIT_CODE"
+              fi
+
               echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
               echo "[CI WARNING] This is usually caused by threads or Qt resources not being fully cleaned up (e.g., QThread/QThreadPool/QProcess still running)."
-              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because all tests passed and coverage.xml was generated."
+              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because pytest itself reported no failures."
               GUI_EXIT_CODE=0
             fi
 

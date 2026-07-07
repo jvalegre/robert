@@ -3,8 +3,9 @@ Python API (sklearn-style)
 
 :class:`~robert.api.RobertModel` runs the full ROBERT workflow (CURATE, GENERATE,
 VERIFY, PREDICT) and exposes ``fit`` / ``predict`` / ``score`` on
-:class:`pandas.DataFrame` or :class:`numpy.ndarray` inputs. PREDICT writes CSV
-columns aligned with the pipeline:
+:class:`pandas.DataFrame` or :class:`numpy.ndarray` inputs. When
+``RobertModel.predict`` calls PREDICT internally, the API prediction CSV uses
+columns aligned with the API facade:
 
 - ``{y}_pred``: point prediction from the **selected estimator refit on all training
   data** (deployment-style mean).
@@ -20,6 +21,9 @@ columns aligned with the pipeline:
   ``conformal_calib_frac``, and ``conformal_coverage`` in :class:`~robert.api.RobertModel`
   kwargs. For **classification**, this column is present but filled with NaN;
   ``{y}_pred_sd`` reflects **vote spread** across CV refits, not class probabilities.
+
+The standard ROBERT ``PREDICT`` workflow keeps its original repeated-CV point
+predictions and CSV schema unless it is invoked through ``RobertModel``.
 
 ``predict`` returns ``{y}_pred`` values aligned to input rows. Uncertainty:
 

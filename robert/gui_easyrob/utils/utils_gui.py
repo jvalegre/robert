@@ -31,6 +31,7 @@ Notes:
 # ------------------------------------------------------------
 import csv
 import glob
+import html
 import os
 import platform
 import re
@@ -234,9 +235,20 @@ class RobertWorker(QThread):
         self.working_dir = working_dir
         self.process = None
         self._stop_requested = False
-        self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)
         self.is_windows = platform.system() == "Windows"
         self.request_stop.connect(self._handle_stop)
+
+    @staticmethod
+    def _strip_ansi(text: str) -> str:
+        """Remove ANSI escape sequences from process output."""
+
+        return re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]", "", text)
+
+    def _format_console_line(self, text: str, color: str = "white") -> str:
+        """Format one console line with an explicit color and escaped content."""
+
+        clean_text = self._strip_ansi(text.rstrip("\r\n"))
+        return f'<span style="color:{color};">{html.escape(clean_text)}</span>'
 
     def run(self):
         """Run the subprocess and stream output in real-time."""
@@ -270,7 +282,7 @@ class RobertWorker(QThread):
                     for line in self.process.stdout:
                         if self._stop_requested:
                             break
-                        formatted_line = self.ansi_converter.convert(line.strip(), full=False)
+                        formatted_line = self._format_console_line(line, color="white")
                         self.output_received.emit(formatted_line)
                 except Exception as exc:
                     self.error_received.emit(f"Error reading stdout: {exc}")
@@ -281,11 +293,8 @@ class RobertWorker(QThread):
                     for line in self.process.stderr:
                         if self._stop_requested:
                             break
-                        formatted_line = f'<span style="color:red;">{line.strip()}</span>'
+                        formatted_line = self._format_console_line(line, color="red")
                         self.error_received.emit(formatted_line)
-
-                    reset_line = self.ansi_converter.convert("\033[0m", full=False)
-                    self.output_received.emit(reset_line)
                 except Exception as exc:
                     self.error_received.emit(f"Error reading stderr: {exc}")
 
@@ -297,9 +306,6 @@ class RobertWorker(QThread):
             exit_code = self.process.wait() if self.process else -1
             stdout_thread.join()
             stderr_thread.join()
-
-            reset_html = self.ansi_converter.convert("\033[0m", full=False)
-            self.output_received.emit(reset_html)
 
             self.process = None
             self.process_finished.emit(-1 if self._stop_requested else exit_code)

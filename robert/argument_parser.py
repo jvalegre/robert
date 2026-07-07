@@ -61,7 +61,8 @@ var_dict = {
     "descp_lvl": "interpret",
     "report_modules" : ['AQME','CURATE','GENERATE','VERIFY','PREDICT'],
     "debug_report": False,
-    # Split conformal (regression): symmetric interval half-width.
+    # Internal API/BO uncertainty options. Normal ROBERT workflows leave them unused.
+    "_api_predict": False,
     "conformal_enable": True,
     "conformal_calib_frac": 0.15,
     "conformal_coverage": 0.9,

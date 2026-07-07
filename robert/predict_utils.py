@@ -4,6 +4,8 @@
 
 import os
 import sys
+import ast
+import json
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -15,6 +17,23 @@ from robert.utils import (
     graph_clas,
     get_error_labels,
     )
+
+
+def _get_class_mapping_reverse(model_data):
+    mapping = model_data.get('class_mapping_reverse')
+    if isinstance(mapping, str):
+        try:
+            mapping = json.loads(mapping)
+        except (json.JSONDecodeError, TypeError):
+            mapping = ast.literal_eval(mapping)
+    if isinstance(mapping, dict):
+        return {int(key): value for key, value in mapping.items()}
+    if 'class_0_label' in model_data and 'class_1_label' in model_data:
+        return {
+            0: model_data['class_0_label'],
+            1: model_data['class_1_label']
+        }
+    return None
 
 
 def test_csv(self,Xy_test_df,descs_model,params_df):
@@ -82,14 +101,8 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     '''
 
     # Check if we need to reconvert class labels (for classification with string labels)
-    reconvert_labels = False
-    class_mapping_reverse = None
-    if 'class_0_label' in model_data and 'class_1_label' in model_data:
-        reconvert_labels = True
-        class_mapping_reverse = {
-            0: model_data['class_0_label'],
-            1: model_data['class_1_label']
-        }
+    class_mapping_reverse = _get_class_mapping_reverse(model_data)
+    reconvert_labels = class_mapping_reverse is not None
 
     # save CV and test results as a single df
     Xy_train, Xy_test = pd.DataFrame(Xy_data['names_train']), pd.DataFrame(Xy_data['names_test'])
@@ -110,10 +123,12 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     Xy_train[y_col] = y_train_values
     Xy_train[f"{y_col}_pred"] = y_pred_train_values
     Xy_train[f"{y_col}_pred_sd"] = Xy_data['y_pred_train_sd']
-    hw_scalar = float(Xy_data.get("conformal_half_width", float("nan")))
-    if model_data["type"].lower() != "reg":
-        hw_scalar = float("nan")
-    Xy_train[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_train)
+    include_conformal = bool(getattr(self.args, "_api_predict", False))
+    if include_conformal:
+        hw_scalar = float(Xy_data.get("conformal_half_width", float("nan")))
+        if model_data["type"].lower() != "reg":
+            hw_scalar = float("nan")
+        Xy_train[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_train)
 
     # For test set
     y_test_values = Xy_data['y_test'].tolist()
@@ -125,7 +140,8 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
     Xy_test[y_col] = y_test_values
     Xy_test[f"{y_col}_pred"] = y_pred_test_values
     Xy_test[f"{y_col}_pred_sd"] = Xy_data['y_pred_test_sd']
-    Xy_test[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_test)
+    if include_conformal:
+        Xy_test[f"{y_col}_pred_conformal_hw"] = [hw_scalar] * len(Xy_test)
 
     df_results = pd.concat([Xy_train, Xy_test], axis=0)
 
@@ -182,7 +198,8 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
         
         Xy_external[f"{model_data['y']}_pred"] = y_pred_external_values
         Xy_external[f"{model_data['y']}_pred_sd"] = Xy_data['y_pred_external_sd']
-        Xy_external[f"{model_data['y']}_pred_conformal_hw"] = [hw_scalar] * len(Xy_external)
+        if include_conformal:
+            Xy_external[f"{model_data['y']}_pred_conformal_hw"] = [hw_scalar] * len(Xy_external)
 
         path_external = Path(os.getcwd()).joinpath('PREDICT/csv_test/')
         Path(path_external).mkdir(exist_ok=True, parents=True)
@@ -213,33 +230,24 @@ def print_predict(self,Xy_data,model_data,suffix_title):
     Prints results of the predictions for all the sets
     '''
 
-    print_results = (
-        "\n   o  Summary of results "
-        f"{model_data['model']}_{suffix_title}:"
-    )
+    print_results = f"\n   o  Summary of results {model_data['model']}_{suffix_title}:"
+    set_print = 'CV (train+valid.):Test'
 
     # get number of points and proportions
     n_train = len(Xy_data['y_train'])
     n_test = len(Xy_data['y_test'])
-    print_results += (
-        "\n      -  Point counts: CV (train+valid.) = "
-        f"{n_train}, held-out test = {n_test}"
-    )
+    n_points = f'{n_train}:{n_test}'
+    print_results += f"\n      -  Points {set_print} = {n_points}"
 
     total_points = n_train + n_test
-    prop_train = round(n_train * 100 / total_points)
-    prop_test = round(n_test * 100 / total_points)
-    print_results += (
-        f"\n      -  Proportion CV (train+valid.):test = "
-        f"{prop_train}:{prop_test}"
-    )
+    prop_train = round(n_train*100/total_points)
+    prop_test = round(n_test*100/total_points)
+    prop_print = f'{prop_train}:{prop_test}'
+    print_results += f"\n      -  Proportion {set_print} = {prop_print}"
 
     n_descps = len(Xy_data['X_train'].keys())
     print_results += f"\n      -  Number of descriptors = {n_descps}"
-    print_results += (
-        "\n      -  Proportion (train+valid.) points:descriptors = "
-        f"{n_train}:{n_descps}"
-    )
+    print_results += f"\n      -  Proportion (train+valid.) points:descriptors = {n_train}:{n_descps}"
 
     # print results and save dat file
     CV_type = f"{model_data['repeat_kfolds']}x {model_data['kfold']}-fold CV"

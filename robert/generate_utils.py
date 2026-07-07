@@ -60,6 +60,8 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
         bo_data_to_save['X_descriptors'] = json.dumps(bo_data_to_save['X_descriptors'])
     
     # Save class label mapping if it exists (for classification with string labels)
+    if hasattr(self.args, 'class_mapping_reverse'):
+        bo_data_to_save['class_mapping_reverse'] = json.dumps(self.args.class_mapping_reverse)
     if hasattr(self.args, 'class_0_label'):
         bo_data_to_save['class_0_label'] = self.args.class_0_label
         bo_data_to_save['class_1_label'] = self.args.class_1_label
@@ -152,6 +154,8 @@ def save_pfi_csv(self,csv_df,name_csv_hyperopt,PFI_dict,Xy_data_PFI,ML_model):
     path_csv_PFI = self.args.destination.joinpath(f'{name_csv_hyperopt_PFI}_PFI')
     
     # Save class label mapping if it exists (for classification with string labels)
+    if hasattr(self.args, 'class_mapping_reverse'):
+        PFI_dict['class_mapping_reverse'] = json.dumps(self.args.class_mapping_reverse)
     if hasattr(self.args, 'class_0_label'):
         PFI_dict['class_0_label'] = self.args.class_0_label
         PFI_dict['class_1_label'] = self.args.class_1_label

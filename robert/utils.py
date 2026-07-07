@@ -8,6 +8,7 @@ import sys
 import time
 import getopt
 import glob
+import json
 import yaml
 import ast
 import shutil
@@ -66,6 +67,50 @@ warnings.filterwarnings("ignore")
 robert_version = "2.1.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
+
+
+def _parse_class_mapping_reverse(mapping):
+    """
+    Return a class-code -> original-label mapping with integer keys.
+    """
+
+    if mapping is None or (isinstance(mapping, float) and pd.isna(mapping)):
+        return None
+    if isinstance(mapping, str):
+        try:
+            mapping = json.loads(mapping)
+        except (json.JSONDecodeError, TypeError):
+            mapping = ast.literal_eval(mapping)
+    if not isinstance(mapping, dict):
+        return None
+    return {int(key): value for key, value in mapping.items()}
+
+
+def _sorted_class_values(values):
+    """
+    Sort class labels deterministically, including mixed string/numeric labels.
+    """
+
+    return sorted(pd.unique(values), key=lambda value: (str(type(value)), str(value)))
+
+
+def _integer_like_class_values(values):
+    try:
+        numeric_values = pd.to_numeric(pd.Series(values), errors="raise")
+    except (TypeError, ValueError):
+        return False
+    return np.all(np.isfinite(numeric_values)) and np.all(
+        np.equal(np.mod(numeric_values, 1), 0)
+    )
+
+
+def _classification_vote(values):
+    """
+    Combine repeated classification predictions with majority voting.
+    """
+
+    class_values, counts = np.unique(np.asarray(values), return_counts=True)
+    return int(class_values[np.argmax(counts)])
 
 
 # load paramters from yaml file
@@ -483,6 +528,8 @@ def load_variables(kwargs, robert_module):
                             self.csv_name = curate_df['csv_name'][0]
                 
                 # Load class labels if they exist (for classification with string labels)
+                if 'class_mapping_reverse' in curate_df.columns:
+                    self.class_mapping_reverse = _parse_class_mapping_reverse(curate_df['class_mapping_reverse'][0])
                 if 'class_0_label' in curate_df.columns and 'class_1_label' in curate_df.columns:
                     self.class_0_label = curate_df['class_0_label'][0]
                     self.class_1_label = curate_df['class_1_label'][0]
@@ -904,6 +951,14 @@ def mcc_scorer_clf(y_true,y_pred):
     
     return matthews_corrcoef(y_true, y_pred)
 
+def f1_scorer_clf(y_true,y_pred):
+    """Use binary F1 when possible and micro F1 for multiclass."""
+    y_pred = np.round(y_pred).astype(int)
+    try:
+        return f1_score(y_true, y_pred)
+    except ValueError:
+        return f1_score(y_true, y_pred, average='micro')
+
 def get_scoring_key(problem_type,error_type):
     '''
     Load scoring function for evaluating models
@@ -920,9 +975,10 @@ def get_scoring_key(problem_type,error_type):
         if error_type == 'mcc':
             # Use the custom MCC scorer that ensures integer predictions
             scoring = make_scorer(mcc_scorer_clf)
+        elif error_type == 'f1':
+            scoring = make_scorer(f1_scorer_clf)
         else:
             scoring = {
-                'f1': 'f1',
                 'acc': 'accuracy'
             }.get(error_type)
    
@@ -1104,7 +1160,7 @@ def locate_csv(self,csv_input,curate_valid):
 def check_clas_problem(self,csv_df):
     '''
     Changes type to classification if there are only two different y values.
-    Automatically converts any pair of values (strings or numbers) to 0 and 1.
+    Automatically converts non-integer class labels to integer codes.
     Stores the original labels for later reconversion in outputs.
     '''
 
@@ -1123,29 +1179,31 @@ def check_clas_problem(self,csv_df):
             self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
 
     if self.args.type.lower() == 'clas':
-        if len(set(csv_df[self.args.y])) == 2:
-            unique_values = sorted(list(set(csv_df[self.args.y])))  # Sort alphabetically for consistency
-            
-            # Check if values are already 0 and 1
-            if set([str(v) for v in unique_values]) == {'0', '1'}:
-                # Already in correct format, just ensure they're integers
-                csv_df[self.args.y] = csv_df[self.args.y].astype(int)
-            else:
-                # Convert any pair of values to 0 and 1
-                # Store original labels for reconversion in outputs
+        unique_values = _sorted_class_values(csv_df[self.args.y])
+        if _integer_like_class_values(unique_values):
+            csv_df[self.args.y] = pd.to_numeric(csv_df[self.args.y]).astype(int)
+        else:
+            self.args.class_mapping = {
+                original_label: class_code
+                for class_code, original_label in enumerate(unique_values)
+            }
+            self.args.class_mapping_reverse = {
+                class_code: original_label
+                for original_label, class_code in self.args.class_mapping.items()
+            }
+            if len(unique_values) >= 2:
                 self.args.class_0_label = str(unique_values[0])
                 self.args.class_1_label = str(unique_values[1])
-                
-                # Create mapping dictionaries
-                self.args.class_mapping = {unique_values[0]: 0, unique_values[1]: 1}
-                self.args.class_mapping_reverse = {0: unique_values[0], 1: unique_values[1]}
-                
-                # Convert values in dataframe
-                csv_df[self.args.y] = csv_df[self.args.y].map(self.args.class_mapping)
-                
-                self.args.log.write(f'\no  Classification labels converted: {self.args.class_0_label} → 0, {self.args.class_1_label} → 1')
-                self.args.log.write(f'   Original labels will be restored in output files')
-        
+
+            csv_df[self.args.y] = csv_df[self.args.y].map(self.args.class_mapping).astype(int)
+
+            mapping_txt = ', '.join(
+                f'{original_label} -> {class_code}'
+                for original_label, class_code in self.args.class_mapping.items()
+            )
+            self.args.log.write(f'\no  Classification labels converted: {mapping_txt}')
+            self.args.log.write(f'   Original labels will be restored in output files')
+
         # Check that each class has at least 5 points
         class_counts = csv_df[self.args.y].value_counts()
         min_class_count = class_counts.min()
@@ -1158,8 +1216,13 @@ def check_clas_problem(self,csv_df):
             else:
                 original_label = min_class_label
             
-            # Convert class_counts to dict with regular Python ints
-            class_dist = {int(k): int(v) for k, v in class_counts.items()}
+            class_dist = {}
+            for class_label, count in class_counts.items():
+                if hasattr(self.args, 'class_mapping_reverse') and class_label in self.args.class_mapping_reverse:
+                    original_count_label = self.args.class_mapping_reverse[class_label]
+                else:
+                    original_count_label = class_label
+                class_dist[str(original_count_label)] = int(count)
             
             self.args.log.write(f'\nx  Insufficient data for classification! One of the classes has only {min_class_count} datapoints (class "{original_label}")')
             self.args.log.write(f'   Each class must have at least 5 datapoints to ensure robust train/validation/test splits')
@@ -1238,7 +1301,12 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
 
     if print_info:
         sanity_checks(self.args,'csv_db',module,csv_df.columns)
-        csv_df = csv_df.drop(self.args.discard, axis=1)
+
+    discard_cols = [col for col in self.args.discard if col in csv_df.columns]
+    if discard_cols:
+        csv_df = csv_df.drop(discard_cols, axis=1)
+
+    if print_info:
         total_amount = len(csv_df.columns)
         ignored_descs = len(self.args.ignore)
         accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
@@ -1811,43 +1879,55 @@ def _conformal_abs_residual_quantile(abs_residuals, coverage):
     return float(np.quantile(abs_r, level, method="higher"))
 
 
-def _apply_full_refit_split_conformal(self, model_data, Xy_data, loaded_model, y_cv_mean_train):
+def _apply_full_refit_split_conformal(
+        self,
+        model_data,
+        Xy_data,
+        loaded_model,
+        y_cv_mean_train=None,
+        overwrite_predictions=False,
+        output_prefix="full_refit"):
     """
-    Point predictions from a single estimator refit on all training data.
-    For regression, ``conformal_half_width`` uses a held-out calibration split when
-    large enough; otherwise absolute residuals vs CV OOF means on the training set.
+    Optional full-refit uncertainty path for API/BO experiments.
+
+    The normal ROBERT workflow uses repeated-CV predictions from
+    ``repeated_kfold_cv``. This helper only overwrites ``y_pred_*`` when an
+    explicit caller requests it; otherwise results are stored under
+    ``{output_prefix}_*`` keys so the standard outputs remain untouched.
     """
     reg = model_data["type"].lower() == "reg"
     m_full = clone(loaded_model)
     X_tr = Xy_data["X_train_scaled"]
     y_tr = Xy_data["y_train"]
 
+    def select_rows(data, idx):
+        if hasattr(data, "iloc"):
+            return data.iloc[idx]
+        return np.asarray(data)[idx]
+
+    def format_predictions(pred):
+        pred_arr = np.asarray(pred).ravel()
+        if reg:
+            return np.asarray(pred_arr, dtype=float).tolist()
+        return [int(round(float(v))) for v in pred_arr]
+
+    def pred_key(set_name):
+        if overwrite_predictions:
+            return f"y_pred_{set_name}"
+        return f"{output_prefix}_y_pred_{set_name}"
+
     m_full.fit(X_tr, y_tr)
-    tr_pred = m_full.predict(X_tr)
-    if reg:
-        Xy_data["y_pred_train"] = np.asarray(tr_pred, dtype=float).tolist()
-    else:
-        Xy_data["y_pred_train"] = [
-            int(round(float(v))) for v in np.asarray(tr_pred).ravel()
-        ]
+    Xy_data[pred_key("train")] = format_predictions(m_full.predict(X_tr))
 
     if "X_test_scaled" in Xy_data:
-        te_pred = m_full.predict(Xy_data["X_test_scaled"])
-        if reg:
-            Xy_data["y_pred_test"] = np.asarray(te_pred, dtype=float).tolist()
-        else:
-            Xy_data["y_pred_test"] = [
-                int(round(float(v))) for v in np.asarray(te_pred).ravel()
-            ]
+        Xy_data[pred_key("test")] = format_predictions(
+            m_full.predict(Xy_data["X_test_scaled"])
+        )
 
     if "X_external_scaled" in Xy_data:
-        ex_pred = m_full.predict(Xy_data["X_external_scaled"])
-        if reg:
-            Xy_data["y_pred_external"] = np.asarray(ex_pred, dtype=float).tolist()
-        else:
-            Xy_data["y_pred_external"] = [
-                int(round(float(v))) for v in np.asarray(ex_pred).ravel()
-            ]
+        Xy_data[pred_key("external")] = format_predictions(
+            m_full.predict(Xy_data["X_external_scaled"])
+        )
 
     hw = float("nan")
     if reg and bool(getattr(self.args, "conformal_enable", True)):
@@ -1868,28 +1948,23 @@ def _apply_full_refit_split_conformal(self, model_data, Xy_data, loaded_model, y
                 shuffle=True,
             )
             est_cal = clone(loaded_model)
-            if hasattr(X_tr, "iloc"):
-                X_fit_df = X_tr.iloc[fit_ix]
-                X_cal_df = X_tr.iloc[cal_ix]
-            else:
-                X_fit_df = X_tr[fit_ix]
-                X_cal_df = X_tr[cal_ix]
-            if hasattr(y_tr, "iloc"):
-                y_fit_s = y_tr.iloc[fit_ix]
-                y_cal_arr = np.asarray(y_tr.iloc[cal_ix], dtype=float).ravel()
-            else:
-                y_fit_s = y_tr[fit_ix]
-                y_cal_arr = np.asarray(y_tr[cal_ix], dtype=float).ravel()
-            est_cal.fit(X_fit_df, y_fit_s)
-            pred_cal = np.asarray(est_cal.predict(X_cal_df), dtype=float).ravel()
+            X_fit = select_rows(X_tr, fit_ix)
+            X_cal = select_rows(X_tr, cal_ix)
+            y_fit = select_rows(y_tr, fit_ix)
+            y_cal_arr = np.asarray(select_rows(y_tr, cal_ix), dtype=float).ravel()
+            est_cal.fit(X_fit, y_fit)
+            pred_cal = np.asarray(est_cal.predict(X_cal), dtype=float).ravel()
             abs_res = np.abs(y_cal_arr - pred_cal)
             hw = _conformal_abs_residual_quantile(abs_res, cov)
-        else:
+        elif y_cv_mean_train is not None:
             y_cv = np.asarray(y_cv_mean_train, dtype=float).ravel()
-            abs_res = np.abs(y_flat - y_cv)
-            hw = _conformal_abs_residual_quantile(abs_res, cov)
+            if y_cv.size == y_flat.size:
+                finite_mask = np.isfinite(y_flat) & np.isfinite(y_cv)
+                abs_res = np.abs(y_flat[finite_mask] - y_cv[finite_mask])
+                hw = _conformal_abs_residual_quantile(abs_res, cov)
 
-    Xy_data["conformal_half_width"] = hw
+    hw_key = "conformal_half_width" if overwrite_predictions else f"{output_prefix}_conformal_half_width"
+    Xy_data[hw_key] = hw
     return Xy_data
 
 
@@ -1903,12 +1978,6 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
 
     # calculate predicted y values using repeated k-fold CV
     Xy_data = repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt)
-
-    y_cv_mean_train = np.asarray(Xy_data["y_pred_train"], dtype=float)
-    if not BO_opt:
-        Xy_data = _apply_full_refit_split_conformal(
-            self, model_data, Xy_data, loaded_model, y_cv_mean_train
-        )
 
     # combine all the predictions from the repeated CV (metrics of the train set)
     y_all_list,y_pred_all_list = [],[]
@@ -1984,8 +2053,8 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
         if model_data['type'].lower() == 'reg':
             y_train_pred.append(np.mean(y_val))
         elif model_data['type'].lower() == 'clas':
-            y_train_pred.append(int(round(np.mean(y_val))))
-        y_train_std.append(float(np.std(y_val)))
+            y_train_pred.append(_classification_vote(y_val))
+        y_train_std.append(round(np.std(y_val),2))
 
     Xy_data['y_pred_train_all'] = y_pred_global
     Xy_data['y_pred_train'] = y_train_pred
@@ -1997,8 +2066,8 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
             if model_data['type'].lower() == 'reg':
                 y_test_pred.append(np.mean(y_val_test))
             elif model_data['type'].lower() == 'clas':
-                y_test_pred.append(int(round(np.mean(y_val_test))))
-            y_test_std.append(float(np.std(y_val_test)))
+                y_test_pred.append(_classification_vote(y_val_test))
+            y_test_std.append(round(np.std(y_val_test),2))
 
         Xy_data['y_pred_test_all'] = y_pred_global_test
         Xy_data['y_pred_test'] = y_test_pred
@@ -2010,8 +2079,8 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                 if model_data['type'].lower() == 'reg':
                     y_external_pred.append(np.mean(y_val_external))
                 elif model_data['type'].lower() == 'clas':
-                    y_external_pred.append(int(round(np.mean(y_val_external))))
-                y_external_std.append(float(np.std(y_val_external)))
+                    y_external_pred.append(_classification_vote(y_val_external))
+                y_external_std.append(round(np.std(y_val_external),2))
 
             Xy_data['y_pred_external_all'] = y_pred_global_external
             Xy_data['y_pred_external'] = y_external_pred
@@ -2462,24 +2531,38 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
 
     importlib.reload(plt) # needed to avoid threading issues
 
-    # Check if we need to use original class labels for display
-    display_labels = None
-    if 'class_0_label' in params_dict and 'class_1_label' in params_dict:
-        display_labels = [params_dict['class_0_label'], params_dict['class_1_label']]
-
     # get confusion matrix
     if 'CV' in set_type: # CV graphs
         y_train_binary = np.round(Xy_data[f'y_train']).astype(int)
         y_pred_train_binary = np.round(Xy_data[f'y_pred_train']).astype(int)
-        matrix = ConfusionMatrixDisplay.from_predictions(y_train_binary, y_pred_train_binary, 
-                                                          normalize=None, cmap='Blues', 
-                                                          display_labels=display_labels)
+        class_labels = sorted(np.unique(np.concatenate([y_train_binary, y_pred_train_binary])))
+        y_actual = y_train_binary
+        y_pred = y_pred_train_binary
     else: # other graphs
         y_binary = np.round(Xy_data[f'y_{set_type}']).astype(int)
         y_pred_binary = np.round(Xy_data[f'y_pred_{set_type}']).astype(int)
-        matrix = ConfusionMatrixDisplay.from_predictions(y_binary, y_pred_binary, 
-                                                          normalize=None, cmap='Blues',
-                                                          display_labels=display_labels) 
+        class_labels = sorted(np.unique(np.concatenate([y_binary, y_pred_binary])))
+        y_actual = y_binary
+        y_pred = y_pred_binary
+
+    display_labels = None
+    class_mapping_reverse = params_dict.get('class_mapping_reverse')
+    if class_mapping_reverse:
+        class_mapping_reverse = _parse_class_mapping_reverse(class_mapping_reverse)
+        class_labels = sorted(class_mapping_reverse)
+        display_labels = [class_mapping_reverse[label] for label in class_labels]
+    elif 'class_0_label' in params_dict and 'class_1_label' in params_dict:
+        class_labels = [0, 1]
+        display_labels = [params_dict['class_0_label'], params_dict['class_1_label']]
+
+    matrix = ConfusionMatrixDisplay.from_predictions(
+        y_actual,
+        y_pred,
+        labels=class_labels,
+        normalize=None,
+        cmap='Blues',
+        display_labels=display_labels,
+    )
 
     # transfer it to the same format and size used in reg graphs
     _, ax = plt.subplots(figsize=(7.45,6))
@@ -2797,7 +2880,10 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
     
     # plot a bar plot with the count of each y type
     elif params_dict['type'].lower() == 'clas':
-        y_dist_dict,ax = plot_y_count(y_combined,ax)
+        class_mapping_reverse = params_dict.get('class_mapping_reverse')
+        if class_mapping_reverse:
+            class_mapping_reverse = _parse_class_mapping_reverse(class_mapping_reverse)
+        y_dist_dict,ax = plot_y_count(y_combined,ax,class_mapping_reverse)
 
     # set styling preferences and graph limits
     plt.xlabel(f'{params_dict["y"]} values',fontsize=14)
@@ -2835,9 +2921,15 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
             print_distrib += f"\n      o  Your data seems quite uniform"
 
     elif params_dict['type'].lower() == 'clas':
-        print_distrib += f"\n      Ideally, the number of datapoints in each prediction class should be uniform (50% population per class) to have similar reliability in the predictions across classes"
-        distrib_counts = [y_dist_dict['count_labels'][0],y_dist_dict['count_labels'][1]]
-        print_distrib += f"\n      - The number of points in each class is {y_dist_dict['type_labels'][0]}: {y_dist_dict['count_labels'][0]}, {y_dist_dict['type_labels'][1]}: {y_dist_dict['count_labels'][1]}"
+        n_classes = len(y_dist_dict['count_labels'])
+        ideal_population = round(100 / n_classes, 1) if n_classes else 0
+        print_distrib += f"\n      Ideally, the number of datapoints in each prediction class should be uniform ({ideal_population}% population per class) to have similar reliability in the predictions across classes"
+        distrib_counts = list(y_dist_dict['count_labels'])
+        class_counts_txt = ', '.join(
+            f"{label}: {count}"
+            for label, count in zip(y_dist_dict['type_labels'], y_dist_dict['count_labels'])
+        )
+        print_distrib += f"\n      - The number of points in each class is {class_counts_txt}"
         class_min_idx = distrib_counts.index(min(distrib_counts))
         class_max_idx = distrib_counts.index(max(distrib_counts))
         if 3*min(distrib_counts) < max(distrib_counts):
@@ -2897,19 +2989,23 @@ def plot_quartiles(y_combined,ax):
     return quart_dict,ax
 
 
-def plot_y_count(y_combined,ax):
+def plot_y_count(y_combined,ax,class_mapping_reverse=None):
     '''
     Plot a bar plot with the count of each y type.
     '''
 
     # get the number of times that each y type is included
-    labels_used = set(y_combined)
+    labels_used = sorted(pd.unique(y_combined))
     type_labels,count_labels = [],[]
     for label in labels_used:
-        type_labels.append(label)
+        if class_mapping_reverse:
+            type_labels.append(class_mapping_reverse.get(int(label), label))
+        else:
+            type_labels.append(label)
         count_labels.append(len(y_combined[y_combined == label]))
 
-    _ = ax.bar(type_labels, count_labels, tick_label=type_labels,
+    x_labels = list(range(len(type_labels)))
+    _ = ax.bar(x_labels, count_labels, tick_label=type_labels,
                 color='#1f77b4', edgecolor='k', linewidth=1, alpha=1,
                 width=0.4)
 
@@ -2994,6 +3090,17 @@ def load_db_n_params(self,params_dir,suffix,suffix_title,module,print_load):
     csv_external_df, csv_X_external,csv_y_external = None,None,None
     if self.args.csv_test != '':
         csv_external_df,csv_X_external,csv_y_external = load_database(self,self.args.csv_test,'predict',external_test=True)
+        if (
+            model_data['type'].lower() == 'clas'
+            and csv_y_external is not None
+            and 'class_mapping_reverse' in model_data
+        ):
+            class_mapping_reverse = _parse_class_mapping_reverse(model_data['class_mapping_reverse'])
+            if class_mapping_reverse:
+                class_mapping = {str(label): code for code, label in class_mapping_reverse.items()}
+                csv_y_external = csv_y_external.map(
+                    lambda value: class_mapping.get(str(value), value)
+                ).astype(int)
         try:
             csv_X_external = csv_X_external[model_data['X_descriptors']]
         except KeyError:
@@ -3360,5 +3467,10 @@ def dict_formating(dict_csv):
             dict_csv['params'] = json.loads(dict_csv['params'])
         except (json.JSONDecodeError, TypeError):
             dict_csv['params'] = ast.literal_eval(dict_csv['params'])
+
+    if 'class_mapping_reverse' in dict_csv:
+        dict_csv['class_mapping_reverse'] = _parse_class_mapping_reverse(
+            dict_csv['class_mapping_reverse']
+        )
 
     return dict_csv

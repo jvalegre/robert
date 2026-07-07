@@ -124,8 +124,8 @@ class generate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df, _, _ = load_database(self,self.args.csv_name,"generate")
 
-        # changes type to classification if there are only two different y values
-        if self.args.type.lower() == 'reg' and self.args.auto_type:
+        # adjust classification labels and auto-detect binary classification
+        if self.args.type.lower() == 'clas' or (self.args.type.lower() == 'reg' and self.args.auto_type):
             self = check_clas_problem(self,csv_df)
         
         # scan different ML models
@@ -171,7 +171,9 @@ class generate:
             
             # load database, discard user-defined descriptors and perform data checks
             csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
-            
+            if self.args.type.lower() == 'clas':
+                self = check_clas_problem(self,csv_df)
+                csv_y = csv_df[self.args.y]
 
             # standardizes and separates an external test set
             Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)
@@ -183,6 +185,9 @@ class generate:
             if self.args.pfi_filter:
                 # load database, discard user-defined descriptors and perform data checks
                 csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
+                if self.args.type.lower() == 'clas':
+                    self = check_clas_problem(self,csv_df)
+                    csv_y = csv_df[self.args.y]
 
                 # standardizes and separates an external test set
                 Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)

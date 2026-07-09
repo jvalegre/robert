@@ -1622,9 +1622,13 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
     for sample in samples:
         point = {}
         for i, param_name in enumerate(param_names):
-            lower, upper = pbounds[param_name]
+            bounds = pbounds[param_name]
+            lower, upper = bounds[:2]
             # Scale from [0, 1] to [lower, upper]
-            point[param_name] = lower + sample[i] * (upper - lower)
+            value = lower + sample[i] * (upper - lower)
+            if len(bounds) == 3 and bounds[-1] is int:
+                value = int(round(value))
+            point[param_name] = value
         initial_points.append(point)
     
     return initial_points
@@ -1684,21 +1688,21 @@ def BO_hyperparams(model_name):
 
     model_BO_params = {
         'RF' : {
-        'n_estimators': (10, 100),
-        'max_depth': (5, 20),
-        'min_samples_split': (2, 10),
-        'min_samples_leaf': (2, 5),
+        'n_estimators': (10, 100, int),
+        'max_depth': (5, 20, int),
+        'min_samples_split': (2, 10, int),
+        'min_samples_leaf': (2, 5, int),
         'min_weight_fraction_leaf': (0, 0.05),
         'max_features': (0.25, 1.0),
         'ccp_alpha': (0, 0.01),
         'max_samples': (0.25, 1.0)
         },
         'GB': {
-        'n_estimators': (10, 100),
+        'n_estimators': (10, 100, int),
         'learning_rate': (0.01, 0.3),
-        'max_depth': (5, 20),
-        'min_samples_split': (2, 10),
-        'min_samples_leaf': (2, 5),
+        'max_depth': (5, 20, int),
+        'min_samples_split': (2, 10, int),
+        'min_samples_leaf': (2, 5, int),
         'subsample': (0.7, 1.0),
         'max_features': (0.25, 1.0),
         'validation_fraction': (0.1, 0.3),
@@ -1706,18 +1710,18 @@ def BO_hyperparams(model_name):
         'ccp_alpha': (0, 0.01)
         },
         'NN': {
-        'hidden_layer_1': (1, 10),
-        'hidden_layer_2': (0, 10),
-        'max_iter': (200, 500),
+        'hidden_layer_1': (1, 10, int),
+        'hidden_layer_2': (0, 10, int),
+        'max_iter': (200, 500, int),
         'alpha': (0.01, 0.1),
         'tol': (0.00001, 0.0001)
         },
         'ADAB': {
         'learning_rate': (0.1, 5),
-        'n_estimators': (10, 100)
+        'n_estimators': (10, 100, int)
         },
         'GP': {
-        'n_restarts_optimizer': (0, 100),
+        'n_restarts_optimizer': (0, 100, int),
         }
     }
 

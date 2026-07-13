@@ -61,6 +61,7 @@ Parameters
 
 import time
 import os
+import json
 import pandas as pd
 from robert.json_output_for_agent import (
     audit_event,
@@ -350,6 +351,8 @@ class curate:
         options_df['csv_name'] = [csv_curate_name_general]
         
         # Save class label mapping if it exists (for classification with string labels)
+        if hasattr(self.args, 'class_mapping_reverse'):
+            options_df['class_mapping_reverse'] = [json.dumps(self.args.class_mapping_reverse)]
         if hasattr(self.args, 'class_0_label'):
             options_df['class_0_label'] = [self.args.class_0_label]
             options_df['class_1_label'] = [self.args.class_1_label]

@@ -10,13 +10,16 @@ import subprocess
 import sys
 import warnings
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.linear_model import LinearRegression
 
 from robert import RobertModel
 from robert.api import _resolve_prediction_id_column
+from robert.utils import _apply_full_refit_split_conformal
 
 _REPO = Path(__file__).resolve().parent.parent
 _REG_CSV = _REPO / "tests" / "Robert_example.csv"
@@ -31,6 +34,68 @@ _FAST = {
     "pfi_epochs": 1,
     "seed": 42,
 }
+
+
+def _full_refit_fixture():
+    args = SimpleNamespace(
+        conformal_enable=True,
+        conformal_calib_frac=0.25,
+        conformal_coverage=0.8,
+        seed=42,
+    )
+    runner = SimpleNamespace(args=args)
+    model_data = {"type": "reg"}
+    Xy_data = {
+        "X_train_scaled": pd.DataFrame({"x": np.arange(8, dtype=float)}),
+        "y_train": pd.Series(np.arange(8, dtype=float) * 2.0 + 1.0),
+        "X_test_scaled": pd.DataFrame({"x": [8.0, 9.0]}),
+        "X_external_scaled": pd.DataFrame({"x": [10.0]}),
+        "y_pred_train": [100.0] * 8,
+        "y_pred_test": [200.0, 201.0],
+        "y_pred_external": [300.0],
+    }
+    return runner, model_data, Xy_data
+
+
+def test_full_refit_conformal_defaults_to_separate_prediction_keys():
+    runner, model_data, Xy_data = _full_refit_fixture()
+    original_predictions = {
+        key: list(Xy_data[key])
+        for key in ("y_pred_train", "y_pred_test", "y_pred_external")
+    }
+
+    result = _apply_full_refit_split_conformal(
+        runner,
+        model_data,
+        Xy_data,
+        LinearRegression(),
+        y_cv_mean_train=Xy_data["y_pred_train"],
+    )
+
+    assert {
+        key: list(result[key])
+        for key in ("y_pred_train", "y_pred_test", "y_pred_external")
+    } == original_predictions
+    assert result["full_refit_y_pred_test"] == pytest.approx([17.0, 19.0])
+    assert result["full_refit_y_pred_external"] == pytest.approx([21.0])
+    assert np.isfinite(result["full_refit_conformal_half_width"])
+
+
+def test_full_refit_conformal_can_overwrite_for_api_path():
+    runner, model_data, Xy_data = _full_refit_fixture()
+
+    result = _apply_full_refit_split_conformal(
+        runner,
+        model_data,
+        Xy_data,
+        LinearRegression(),
+        y_cv_mean_train=Xy_data["y_pred_train"],
+        overwrite_predictions=True,
+    )
+
+    assert result["y_pred_test"] == pytest.approx([17.0, 19.0])
+    assert result["y_pred_external"] == pytest.approx([21.0])
+    assert np.isfinite(result["conformal_half_width"])
 
 
 def _holdout_for_predict(X: pd.DataFrame, n_fit: int) -> pd.DataFrame:

@@ -514,6 +514,11 @@ class RobertModel(BaseEstimator):
             umode = "cv_sd"
         else:
             umode = False
+        if umode in ("conformal", "both") and self.problem_type != "reg":
+            raise ValueError(
+                "return_uncertainty='conformal' or 'both' is only supported "
+                "for problem_type='reg'."
+            )
 
         descriptors = list(self.model_data_["X_descriptors"])
         y_target = str(self.model_data_["y"])
@@ -559,6 +564,7 @@ class RobertModel(BaseEstimator):
         base["csv_test"] = pred_name
         base["params_dir"] = "GENERATE/Best_model"
         base["names"] = self.names_col_
+        base["_api_predict"] = True
 
         with _noninteractive_mpl(), _chdir(workdir):
             predict_module(**base)
@@ -608,11 +614,6 @@ class RobertModel(BaseEstimator):
                 raise RuntimeError(f"Column {sd_col!r} missing in {csv_path}")
             y_sd = ordered[sd_col].to_numpy(dtype=float)
         if umode in ("conformal", "both"):
-            if self.problem_type != "reg":
-                raise ValueError(
-                    "return_uncertainty='conformal' or 'both' is only supported "
-                    "for problem_type='reg'."
-                )
             if hw_col not in result_df.columns:
                 raise RuntimeError(f"Column {hw_col!r} missing in {csv_path}")
             y_hw = ordered[hw_col].to_numpy(dtype=float)
@@ -637,9 +638,10 @@ class RobertModel(BaseEstimator):
         y_hat = np.asarray(self.predict(X, return_std=False)).ravel()
         if self.problem_type == "reg":
             return float(r2_score(y_true, y_hat))
-        return float(
-            accuracy_score(
-                np.round(y_true).astype(int),
-                np.round(y_hat).astype(int),
-            )
-        )
+        try:
+            y_true_score = np.round(y_true).astype(int)
+            y_hat_score = np.round(y_hat).astype(int)
+        except (TypeError, ValueError):
+            y_true_score = y_true.astype(str)
+            y_hat_score = y_hat.astype(str)
+        return float(accuracy_score(y_true_score, y_hat_score))

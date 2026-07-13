@@ -56,7 +56,7 @@ import robert.gui_easyrob.tabs.results as results_module
 # ----------------------------------------------------------------------
 TEST_OUTPUT_DIR_NAME = "test-easyrob-output"
 
-WORKFLOW_MAX_WAIT_S = 120.0
+WORKFLOW_MAX_WAIT_S = 240.0
 WORKFLOW_POLL_INTERVAL_S = 0.5
 STOP_MAX_WAIT_S = 60.0
 

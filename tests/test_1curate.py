@@ -7,6 +7,7 @@
 import os
 import sys
 import glob
+import json
 import pytest
 import shutil
 import subprocess
@@ -36,6 +37,7 @@ path_curate = os.path.join(os.getcwd(), "CURATE")
             "missing_input"
         ),  # test that if the --names, --y or --csv_name options are empty, a prompt pops up and asks for them
         ("rfecv"),  # test for the RFECV feature, default
+        ("clas_multiclass"),  # test classification with more than two classes
         ("standard"),  # standard test
         ("standard_cmd"),  # standard test through command line
     ],
@@ -56,6 +58,8 @@ def test_CURATE(test_job):
     if test_job != "missing_input":
         if test_job == "rfecv":
             csv_name = "A_randos.csv"
+        elif test_job == "clas_multiclass":
+            csv_name = "Robert_example_clas_multiclass.csv"
         else:
             csv_name = "Robert_example.csv"
 
@@ -67,7 +71,24 @@ def test_CURATE(test_job):
             }
         )
 
-    if test_job in ["standard", "standard_cmd"]:
+    if test_job == "clas_multiclass":
+        curate_kwargs.update(
+            {
+                "csv_name": f"tests/{csv_name}",
+                "type": "clas",
+            }
+        )
+
+        _ = curate(**curate_kwargs)
+
+        db_final = pd.read_csv(f"{path_curate}/Robert_example_clas_multiclass_CURATE.csv")
+        assert sorted(db_final["Target_values"].unique().tolist()) == [0, 1, 2]
+
+        options_df = pd.read_csv(f"{path_curate}/CURATE_options.csv")
+        class_mapping_reverse = json.loads(options_df["class_mapping_reverse"][0])
+        assert set(class_mapping_reverse.values()) == {"high", "low", "mid"}
+
+    elif test_job in ["standard", "standard_cmd"]:
 
         def _check_standard():
             # check that the DAT file is created inside the CURATE folder

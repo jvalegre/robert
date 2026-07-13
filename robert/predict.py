@@ -54,6 +54,8 @@ from robert.json_output_for_agent import (
 from robert.utils import (load_variables,
     load_db_n_params,
     load_n_predict,
+    load_model,
+    _apply_full_refit_split_conformal,
     finish_print,
     print_pfi,
     PFI_plot,
@@ -192,6 +194,16 @@ class predict:
                 
                 # get results from training, test and external test (if any)
                 Xy_data = load_n_predict(self, model_data, Xy_data, BO_opt=False)
+                if getattr(self.args, "_api_predict", False):
+                    loaded_model = load_model(self, model_data['model'], **model_data['params'])
+                    Xy_data = _apply_full_refit_split_conformal(
+                        self,
+                        model_data,
+                        Xy_data,
+                        loaded_model,
+                        y_cv_mean_train=Xy_data["y_pred_train"],
+                        overwrite_predictions=True,
+                    )
 
                 def _mean_safe(values):
                     if values is None:

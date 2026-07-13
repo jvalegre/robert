@@ -316,12 +316,14 @@ class AQMETab(QWidget):
 
     def _on_mcs_success(self, smarts):
         """Handle successful MCS detection."""
+        self.mcs_worker = None
         self.smarts_targets.append(smarts)
         self.mol_info_label.setText("🔬 Info here")
         self.display_molecule()
 
     def _on_mcs_error(self, message):
         """Handle MCS detection error."""
+        self.mcs_worker = None
         self.set_mol_viewer_message(
             message,
             tooltip="SMARTS pattern detection failed."
@@ -330,6 +332,7 @@ class AQMETab(QWidget):
 
     def _on_mcs_timeout(self):
         """Handle MCS detection timeout."""
+        self.mcs_worker = None
         self.set_mol_viewer_message(
             "⏱️ Timeout: MCS (Maximum Common Substructure) took too long and was aborted.",
             tooltip="SMARTS pattern detection failed."
@@ -463,6 +466,21 @@ class AQMETab(QWidget):
         # -------------------------------
         # Launch MCS worker
         # -------------------------------
+        existing_worker = getattr(self, "mcs_worker", None)
+        if existing_worker is not None:
+            try:
+                existing_worker.finished.disconnect(self._on_mcs_success)
+            except Exception:
+                pass
+            try:
+                existing_worker.error.disconnect(self._on_mcs_error)
+            except Exception:
+                pass
+            try:
+                existing_worker.timeout.disconnect(self._on_mcs_timeout)
+            except Exception:
+                pass
+
         self.mcs_worker = MCSProcessWorker(
             smiles_list,
             timeout_ms=60000
@@ -554,30 +572,16 @@ class AQMETab(QWidget):
             else:
                 highlight_atoms = set(self.selected_atoms)
 
-            highlight_colors = (
-                {idx: (0.698, 0.4, 1.0) for idx in highlight_atoms}
-                if highlight_atoms else {}
-            )
-
-            drawer = rdMolDraw2D.MolDraw2DCairo(
-                self.molecule_image_width,
-                self.molecule_image_height
-            )
-            drawer.drawOptions().bondLineWidth = 1.5
-            drawer.DrawMolecule(
+            png_bytes, atom_coords = self._draw_pattern_molecule(
                 self.mol,
-                highlightAtoms=list(highlight_atoms),
-                highlightAtomColors=highlight_colors
+                highlight_atoms=highlight_atoms,
+                selected_atoms=self.selected_atoms,
+                width=self.molecule_image_width,
+                height=self.molecule_image_height,
             )
-            drawer.FinishDrawing()
-
-            png_bytes = drawer.GetDrawingText()
             pixmap = QPixmap()
             pixmap.loadFromData(png_bytes)
-            self.atom_coords = [
-                drawer.GetDrawCoords(i)
-                for i in range(self.mol.GetNumAtoms())
-            ]
+            self.atom_coords = atom_coords
 
             if self.mol_viewer:
                 if pixmap.isNull():
@@ -617,6 +621,100 @@ class AQMETab(QWidget):
                 tooltip=str(e)
             )
             self.mol_info_label.setText("🔬 Info here")
+
+    def _prepare_pattern_molecule_for_drawing(self, pattern_mol, selected_atoms=None):
+        """Return a copy of the SMARTS pattern with visible atom-order labels."""
+
+        mol_for_draw = Chem.Mol(pattern_mol)
+        selected_atoms = list(selected_atoms or [])
+
+        for atom in mol_for_draw.GetAtoms():
+            if atom.HasProp("atomNote"):
+                atom.ClearProp("atomNote")
+
+        for order, atom_idx in enumerate(selected_atoms, start=1):
+            if 0 <= atom_idx < mol_for_draw.GetNumAtoms():
+                mol_for_draw.GetAtomWithIdx(atom_idx).SetProp(
+                    "atomNote",
+                    str(order)
+                )
+
+        return mol_for_draw
+
+    def _draw_pattern_molecule(
+        self,
+        pattern_mol,
+        highlight_atoms,
+        selected_atoms,
+        width,
+        height,
+    ):
+        """Draw the SMARTS pattern with highlight and click-order numbering."""
+
+        highlight_atoms = set(highlight_atoms or [])
+        highlight_colors = (
+            {idx: (0.698, 0.4, 1.0) for idx in highlight_atoms}
+            if highlight_atoms else {}
+        )
+
+        draw_mol = self._prepare_pattern_molecule_for_drawing(
+            pattern_mol,
+            selected_atoms=selected_atoms,
+        )
+
+        drawer = rdMolDraw2D.MolDraw2DCairo(
+            max(1, int(width)),
+            max(1, int(height))
+        )
+        options = drawer.drawOptions()
+        options.bondLineWidth = 1.5
+        options.annotationFontScale = 1.0
+        drawer.DrawMolecule(
+            draw_mol,
+            highlightAtoms=list(highlight_atoms),
+            highlightAtomColors=highlight_colors
+        )
+        drawer.FinishDrawing()
+
+        png_bytes = drawer.GetDrawingText()
+        atom_coords = [
+            drawer.GetDrawCoords(i)
+            for i in range(draw_mol.GetNumAtoms())
+        ]
+        return png_bytes, atom_coords
+
+    def save_atom_mapping_image(
+        self,
+        output_path,
+        smarts=None,
+        selected_atoms=None,
+        width=900,
+        height=700,
+    ):
+        """Save the numbered SMARTS render used for atom mapping as a PNG."""
+
+        smarts = smarts or (self.smarts_targets[0] if self.smarts_targets else None)
+        selected_atoms = list(self.selected_atoms if selected_atoms is None else selected_atoms)
+
+        if not smarts or not selected_atoms:
+            return None
+
+        pattern_mol = Chem.MolFromSmarts(smarts)
+        if pattern_mol is None:
+            raise ValueError("Invalid SMARTS pattern")
+
+        png_bytes, _ = self._draw_pattern_molecule(
+            pattern_mol,
+            highlight_atoms=set(selected_atoms),
+            selected_atoms=selected_atoms,
+            width=width,
+            height=height,
+        )
+
+        with open(output_path, "wb") as f:
+            f.write(png_bytes)
+
+        return output_path
 
     def handle_atom_selection(self, atom_idx):
         """Handle the selection of an atom in the pattern."""

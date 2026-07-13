@@ -147,4 +147,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-CHATBOB_JSON/
+
+# Local ROBERT comparison data
+comparison/original_robert/
+comparison/chatbob_robert/
+
+# Locally generated JSON outputs
+JSON/

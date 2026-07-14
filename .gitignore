@@ -153,4 +153,7 @@ comparison/original_robert/
 comparison/chatbob_robert/
 
 # Locally generated JSON outputs
-JSON/
+/JSON/
+
+# Databases provided by Juanvi for testing
+/databases/

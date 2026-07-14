@@ -105,31 +105,39 @@ The JSON files should be:
 
 ## Confirmed Baseline (2026-06-08)
 
-- `dataset_profile.json` is the raw-intake artifact and is captured before ROBERT modifies the incoming dataset.
+- `JSON/dataset_profile.json` is the raw-intake artifact and is captured before ROBERT modifies the incoming dataset.
 - Archive manifests and run summary JSONs are copy-only mirrors of generated outputs.
 - JSON schema is still experimental (`schema_version: 0.1`).
+
+## Confirmed Artifact Location Policy (2026-07-13)
+
+- all ChatBob runtime JSON artifacts are written to the top-level `JSON/` folder;
+- module-native runtime audit files in `JSON/` are distinct from wrapper-generated archive manifests;
+- standard ROBERT scientific outputs remain in module folders (`CURATE/`, `GENERATE/`, `VERIFY/`, `PREDICT/`, `AQME/`, `EVALUATE/`, `REPORT/`).
 
 ---
 
 ## Long-Term Module Audit Pattern (Design Direction)
 
 Planned pattern:
-- Keep `dataset_profile.json` as raw incoming data evidence.
+- Keep `JSON/dataset_profile.json` as raw incoming data evidence.
 - Add one module-specific audit JSON per ROBERT module over time.
 - Keep writes additive and fail-soft.
 - Keep JSON-layer status only in JSON audit files.
 - Never write JSON-layer status to standard `.dat`, `.csv`, image, or PDF outputs.
 
 Proposed future module audit files:
-- `CURATE/curate_audit.json`
-- `GENERATE/generate_audit.json`
-- `VERIFY/verify_audit.json`
-- `PREDICT/predict_audit.json`
-- `REPORT/report_audit.json`
+- `JSON/curate_audit.json`
+- `JSON/generate_audit.json`
+- `JSON/verify_audit.json`
+- `JSON/predict_audit.json`
+- `JSON/aqme_audit.json`
+- `JSON/evaluate_audit.json`
+- `JSON/report_audit.json`
 
 ---
 
-## Proposed CURATE Audit Schema (Design Only, Not Implemented)
+## CURATE Audit Schema: Original Design and Current Implementation
 
 Purpose:
 - Capture observable CURATE evidence without changing ROBERT behavior.
@@ -188,7 +196,76 @@ Design constraints:
 - If a reason/count is not observable from existing ROBERT state, mark as unavailable.
 - Audit status belongs only in JSON audit artifacts.
 
-Implementation status (2026-06-08):
-- `CURATE/curate_audit.json` is now implemented.
+Implementation status (2026-07-13):
+- `JSON/curate_audit.json`, `JSON/generate_audit.json`, `JSON/verify_audit.json`, and `JSON/predict_audit.json` are implemented.
+- `JSON/aqme_audit.json` and `JSON/evaluate_audit.json` are not implemented.
+- REPORT has figure provenance capture in `JSON/report_figure_provenance.json`; a full `JSON/report_audit.json` is not implemented.
 - Current implementation records direct observable fields and marks step-specific descriptor-removal counters as `unavailable`.
-- JSON-layer write status for this artifact is recorded in `CURATE/json_output_audit.json` with `artifact="curate_audit.json"`.
+- JSON-layer write status for this artifact is recorded in `JSON/curate_json_output_audit.json` with `artifact="curate_audit.json"`.
+
+---
+
+## Standard Output Preservation Validation
+
+A controlled regression comparison was completed on 2026-07-13 using:
+
+- unmodified ROBERT 2.1.2, and
+- ChatBob-modified ROBERT 2.1.2.
+
+Results:
+
+- all four primary `.dat` files were identical after normalizing only timestamps, paths, execution times, and trailing whitespace;
+- all scientific values in 28 matching CSV files were identical;
+- the only CSV text difference was the expected input path stored in `CURATE_options.csv`.
+
+This confirms that the JSON-output implementation is additive for the tested regression case.
+
+This result does not by itself prove that every JSON value is correct. JSON evidence must still be validated against the relevant ROBERT DAT, CSV, and in-memory source values.
+
+---
+
+## Question-Driven Schema Review
+
+The next schema step should begin with a small set of user questions rather than a large universal schema.
+
+Initial candidate questions:
+
+1. What model was selected?
+2. Which descriptors were used?
+3. How well did the model perform?
+4. Did the model pass the verification tests?
+5. Which points were identified as outliers?
+
+For each question, document:
+
+- the required JSON artifact,
+- the event type or section,
+- the required fields,
+- whether each field is direct, derived, or unavailable,
+- the original ROBERT DAT or CSV source,
+- the expected answer structure.
+
+Only make schema changes that are needed to answer these initial questions reliably.
+
+## Minimal Common Audit Envelope
+
+A possible common structure for module-native audit files is:
+
+```json
+{
+  "schema_version": "0.1",
+  "module": "GENERATE",
+  "artifact_type": "generate_audit",
+  "status": "completed",
+  "source_files": [],
+  "events": [
+    {
+      "event_type": "prepare_sets",
+      "evidence_level": "direct_or_derived",
+      "source_reference": null,
+      "payload": {}
+    }
+  ],
+  "runtime": {},
+  "unavailable_fields": []
+}

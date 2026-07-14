@@ -18,37 +18,25 @@ Core principle:
 
 ## Current Priority
 
-Continue module-native runtime audit implementation one module at a time.
+Prepare the additive JSON-output implementation for upstream review while keeping the schema experimental.
 
-Completed module-native audit artifacts:
+Immediate priorities:
 
-* `CURATE/curate_audit.json`
-* `GENERATE/generate_audit.json`
-* `VERIFY/verify_audit.json`
-
-Current next module:
-
-* `PREDICT/predict_audit.json`
-
-Later modules:
-
-* `AQME/aqme_audit.json`
-* `EVALUATE/evaluate_audit.json`
-
-Deferred:
-
-* `REPORT/report_audit.json` or a run-level report audit.
-* REPORT should be revisited after the upstream evidence-producing modules are stable.
+1. Open a pull request before additional upstream conflicts accumulate.
+2. Document the controlled ROBERT 2.1.2 run comparison.
+3. Complete documentation reconciliation with source-verified module status.
+4. Review the current JSON structures against a small set of ChatBob user questions.
+5. Agree with Juanvi on output location, branch integration, and the scope of the first schema.
 
 ---
 
 ## Validation Standard for Each Module
 
-For each module-native audit artifact, confirm:
+For each module-native audit artifact in `JSON/`, confirm:
 
 * [ ] Standard `.dat` output is unchanged except timestamp/runtime.
 * [ ] Audit JSON opens as valid JSON.
-* [ ] Module `json_output_audit.json` records successful write.
+* [ ] Module `*_json_output_audit.json` records successful write.
 * [ ] JSON-layer text does not appear in standard `.dat` output.
 * [ ] Git diff shows additive audit capture only.
 * [ ] No ROBERT thresholds changed.
@@ -63,22 +51,23 @@ For each module-native audit artifact, confirm:
 
 ## Module-Native Audit Status
 
-This section tracks JSON files written during the ROBERT module run, not archive-side manifests created after copying outputs.
+This section tracks JSON files written during the ROBERT module run in `JSON/`, not archive-side manifests created after copying outputs.
 
 | Module   | Audit artifact                                       | Status          | Validation status | Notes                                                                                                                                   |
 | -------- | ---------------------------------------------------- | --------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| CURATE   | `CURATE/curate_audit.json`                           | Implemented     | Validated         | Captures CURATE runtime evidence and curated-output metadata.                                                                           |
-| GENERATE | `GENERATE/generate_audit.json`                       | Implemented     | Validated         | Captures model generation, BO, PFI, best-model selection, outputs, and heatmap artifacts.                                               |
-| VERIFY   | `VERIFY/verify_audit.json`                           | Implemented     | Validated         | Captures VERIFY branch context, model context, y-mean, y-shuffle, one-hot tests, thresholds, pass/fail status, plots, and summary text. |
-| PREDICT  | `PREDICT/predict_audit.json`                         | Not implemented | Not validated     | Next module.                                                                                                                            |
-| AQME     | `AQME/aqme_audit.json`                               | Not implemented | Not validated     | Later module.                                                                                                                           |
-| EVALUATE | `EVALUATE/evaluate_audit.json`                       | Not implemented | Not validated     | Later module.                                                                                                                           |
-| REPORT   | `REPORT/report_audit.json` or run-level report audit | Deferred        | Not validated     | Revisit after upstream module audits are stable.                                                                                        |
+| CURATE   | `JSON/curate_audit.json`                             | Implemented     | Validated         | Captures CURATE runtime evidence and curated-output metadata.                                                                           |
+| GENERATE | `JSON/generate_audit.json`                           | Implemented     | Validated         | Captures model generation, BO, PFI, best-model selection, outputs, and heatmap artifacts.                                               |
+| VERIFY   | `JSON/verify_audit.json`                             | Implemented     | Validated         | Captures VERIFY branch context, model context, y-mean, y-shuffle, one-hot tests, thresholds, pass/fail status, plots, and summary text. |
+| PREDICT  | `JSON/predict_audit.json`                            | Implemented     | Validated (manual) | Source implementation confirmed; manual artifact review and DAT parity verification completed in-repo.                                   |
+| AQME     | `JSON/aqme_audit.json`                               | Not implemented | Not validated     | Later module.                                                                                                                           |
+| EVALUATE | `JSON/evaluate_audit.json`                           | Not implemented | Not validated     | Later module.                                                                                                                           |
+| REPORT   | `JSON/report_figure_provenance.json`                 | Partial         | Not validated     | Figure provenance is implemented; full module-native report audit is not implemented.                                                   |
 
 Notes:
 
 * Archive manifests and `run_summary.json` are copy-side artifacts.
 * Module-native audits are runtime evidence artifacts.
+* Module-native audits and JSON write-status files are written to the top-level `JSON/` folder.
 * Both are useful, but they answer different questions.
 * Archive manifests tell us what files were produced and copied.
 * Module-native audits tell us what ROBERT knew while it was running.
@@ -122,26 +111,26 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 * [x] Confirm insertion point in `curate.__init__`.
 * [x] Confirm helper file location: `robert/json_output_for_agent.py`.
-* [x] Confirm JSON output location: `CURATE/dataset_profile.json`.
+* [x] Confirm JSON output location: `JSON/dataset_profile.json`.
 * [x] Enforce standard ROBERT output protection rule for JSON layer.
 * [x] Implement `profile_input_dataset` helper function.
 * [x] Implement dataset profile measurement helper functions.
 * [x] Implement safe JSON writing helper function.
 * [x] Implement JSON output audit helper function.
 * [x] Add single JSON helper call in `curate.__init__`.
-* [x] Confirm `CURATE/dataset_profile.json` is created.
+* [x] Confirm `JSON/dataset_profile.json` is created.
 * [x] Confirm CURATE still completes when JSON write fails.
-* [x] Confirm JSON status is written only to `CURATE/json_output_audit.json`.
+* [x] Confirm JSON status is written only to `JSON/curate_json_output_audit.json`.
 * [x] Confirm `CURATE/CURATE_data.dat` contains no JSON-layer status messages.
 
 ### Done
 
 * [x] Implemented `robert/json_output_for_agent.py`.
 * [x] Added fail-soft hook in `robert/curate.py`.
-* [x] Validated baseline run creates `CURATE/dataset_profile.json`.
+* [x] Validated baseline run creates `JSON/dataset_profile.json`.
 * [x] Injected simulated JSON failure and confirmed standard CURATE outputs still complete.
 * [x] Removed JSON-layer writes to standard CURATE logger output.
-* [x] Added `CURATE/json_output_audit.json` as the only JSON-layer status channel.
+* [x] Added `JSON/curate_json_output_audit.json` as the only JSON-layer status channel.
 
 ---
 
@@ -209,7 +198,7 @@ This phase added one JSON artifact that profiles observable facts from the incom
 * [x] Choose CURATE as first module-native audit target.
 * [x] Propose exact files and functions to change.
 * [x] Wait for user approval.
-* [x] Implement `CURATE/curate_audit.json`.
+* [x] Implement `JSON/curate_audit.json`.
 * [x] Confirm existing ROBERT CURATE output is unchanged.
 * [x] Confirm audit JSON output is created.
 * [x] Confirm JSON output audit is created.
@@ -217,9 +206,9 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 ### Done
 
-* [x] `CURATE/curate_audit.json` implemented.
+* [x] `JSON/curate_audit.json` implemented.
 * [x] CURATE runtime evidence captured.
-* [x] CURATE JSON write status isolated to `CURATE/json_output_audit.json`.
+* [x] CURATE JSON write status isolated to `JSON/curate_json_output_audit.json`.
 * [x] CURATE validation completed.
 * [x] CURATE fault-injection validation completed for audit write failure.
 
@@ -231,7 +220,7 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 * [x] Propose implementation plan for GENERATE audit.
 * [x] Wait for user approval.
-* [x] Implement `GENERATE/generate_audit.json`.
+* [x] Implement `JSON/generate_audit.json`.
 * [x] Capture inputs and model-scan context.
 * [x] Capture BO workflow evidence.
 * [x] Capture PFI workflow evidence.
@@ -246,8 +235,8 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 ### Done
 
-* [x] `GENERATE/generate_audit.json` implemented.
-* [x] `GENERATE/json_output_audit.json` implemented for audit-write status.
+* [x] `JSON/generate_audit.json` implemented.
+* [x] `JSON/generate_json_output_audit.json` implemented for audit-write status.
 * [x] Standard GENERATE behavior validated against accepted baseline.
 * [x] GENERATE audit captures:
 
@@ -270,7 +259,7 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 * [x] Propose implementation plan for VERIFY audit.
 * [x] Wait for user approval.
-* [x] Implement `VERIFY/verify_audit.json`.
+* [x] Implement `JSON/verify_audit.json`.
 * [x] Capture inputs and threshold constants.
 * [x] Capture No_PFI and PFI branch context.
 * [x] Capture model context.
@@ -288,8 +277,8 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 ### Done
 
-* [x] `VERIFY/verify_audit.json` implemented.
-* [x] `VERIFY/json_output_audit.json` implemented for audit-write status.
+* [x] `JSON/verify_audit.json` implemented.
+* [x] `JSON/verify_json_output_audit.json` implemented for audit-write status.
 * [x] Standard VERIFY behavior validated against accepted baseline.
 * [x] VERIFY audit captures:
 
@@ -313,22 +302,22 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 ### To Do
 
-* [ ] Inspect current `predict.py` and `predict_utils.py` insertion points.
-* [ ] Propose implementation plan before coding.
-* [ ] Wait for user approval.
-* [ ] Implement `PREDICT/predict_audit.json`.
-* [ ] Capture input settings and model/source context.
-* [ ] Capture prediction CSV output metadata.
-* [ ] Capture prediction summary metrics.
-* [ ] Capture train/validation/test/external prediction evidence when available.
-* [ ] Capture uncertainty or variability evidence when available.
-* [ ] Capture SHAP artifact metadata when available.
-* [ ] Capture PFI artifact metadata when available.
-* [ ] Capture outlier evidence when available.
-* [ ] Capture y-distribution artifact metadata when available.
-* [ ] Capture Pearson heatmap metadata when available.
-* [ ] Capture generated plot/image paths.
-* [ ] Capture final `.dat` summary preview if useful.
+* [x] Inspect current `predict.py` and `predict_utils.py` insertion points.
+* [x] Propose implementation plan before coding.
+* [x] Wait for user approval.
+* [x] Implement `JSON/predict_audit.json`.
+* [x] Capture input settings and model/source context.
+* [x] Capture prediction CSV output metadata.
+* [x] Capture prediction summary metrics.
+* [x] Capture train/validation/test/external prediction evidence when available.
+* [x] Capture uncertainty or variability evidence when available.
+* [x] Capture SHAP artifact metadata when available.
+* [x] Capture PFI artifact metadata when available.
+* [x] Capture outlier evidence when available.
+* [x] Capture y-distribution artifact metadata when available.
+* [x] Capture Pearson heatmap metadata when available.
+* [x] Capture generated plot/image paths.
+* [x] Capture final `.dat` summary preview if useful.
 * [ ] Confirm existing `PREDICT_data.dat` is unchanged except timestamp/runtime.
 * [ ] Confirm prediction CSV outputs are unchanged.
 * [ ] Confirm image outputs are unchanged or only differ by normal timestamp/rendering metadata.
@@ -338,7 +327,11 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 ### Done
 
-* [ ] Not started.
+* [x] `JSON/predict_audit.json` implemented.
+* [x] `JSON/predict_json_output_audit.json` implemented for audit-write status.
+* [x] Manual review confirmed structured JSON generation for PREDICT in the current repo.
+* [x] Manual in-repo comparison against original ROBERT DAT files found no DAT differences.
+* [ ] Add formal automated validation tests for PREDICT audit content.
 
 ---
 
@@ -349,7 +342,7 @@ This phase added one JSON artifact that profiles observable facts from the incom
 * [ ] Inspect current `aqme.py` insertion points.
 * [ ] Propose implementation plan before coding.
 * [ ] Wait for user approval.
-* [ ] Implement `AQME/aqme_audit.json`.
+* [ ] Implement `JSON/aqme_audit.json`.
 * [ ] Capture input settings.
 * [ ] Capture descriptor-generation provenance where available.
 * [ ] Capture output file metadata.
@@ -372,7 +365,7 @@ This phase added one JSON artifact that profiles observable facts from the incom
 * [ ] Inspect current `evaluate.py` insertion points.
 * [ ] Propose implementation plan before coding.
 * [ ] Wait for user approval.
-* [ ] Implement `EVALUATE/evaluate_audit.json`.
+* [ ] Implement `JSON/evaluate_audit.json`.
 * [ ] Capture input settings.
 * [ ] Capture model evaluation context.
 * [ ] Capture model parameter/output metadata.
@@ -393,7 +386,8 @@ This phase added one JSON artifact that profiles observable facts from the incom
 ### To Do
 
 * [ ] Revisit REPORT only after upstream module-native audits are stable.
-* [ ] Decide whether REPORT needs its own `REPORT/report_audit.json`.
+* [ ] Decide whether REPORT needs its own `JSON/report_audit.json`.
+* [ ] Document the currently implemented report artifact `JSON/report_figure_provenance.json`.
 * [ ] Decide whether a run-level context JSON can replace some fragile report parsing.
 * [ ] Investigate current REPORT PDF/report parser failure separately.
 * [ ] Confirm required WeasyPrint/system-library environment for PDF generation if PDF validation is needed.
@@ -402,7 +396,8 @@ This phase added one JSON artifact that profiles observable facts from the incom
 ### Done
 
 * [ ] REPORT module-native audit not started.
-* [ ] Current REPORT issue identified as separate from CURATE, GENERATE, and VERIFY audit validation.
+* [x] `JSON/report_figure_provenance.json` is implemented as report-figure provenance capture.
+* [ ] Current REPORT issue identified as separate from CURATE, GENERATE, VERIFY, and PREDICT audit validation.
 
 ---
 
@@ -456,6 +451,51 @@ Goal:
 * [x] `TASKS.md` rewritten to reflect current module-native audit workflow.
 
 ---
+
+## Phase 13 — Controlled ROBERT Run Equivalence Validation
+
+### To Do
+
+* [x] Confirm both comparison runs use the same ROBERT version.
+* [x] Synchronize the ChatBob branch with upstream ROBERT 2.1.2.
+* [x] Run the same regression dataset through original and ChatBob ROBERT.
+* [x] Compare the four primary `.dat` files exactly.
+* [x] Normalize only timestamps, paths, runtime, and trailing whitespace.
+* [x] Confirm normalized `.dat` files are identical.
+* [x] Compare matching CSV files by shape, columns, text, and numeric values.
+* [x] Confirm best-model CSV files are identical.
+* [x] Confirm prediction CSV values are identical.
+* [x] Record the expected `csv_name` path difference in `CURATE_options.csv`.
+* [ ] Repeat the controlled comparison for one classification example.
+* [ ] Convert the comparison notebook checks into formal automated tests if appropriate.
+
+### Done
+
+* [x] Regression comparison completed using ROBERT 2.1.2 for both runs.
+* [x] Four normalized `.dat` files were identical.
+* [x] Scientific values in 28 matching CSV files were identical.
+* [x] ChatBob JSON-output additions did not change standard ROBERT scientific outputs for this test case.
+* [x] Additional manual in-repo verification (2026-07-14) reported no DAT differences versus original ROBERT.
+
+---
+
+## Phase 14 — Upstream Integration and Schema Review
+
+### To Do
+
+* [ ] Open a pull request from `json-output-for-agent`.
+* [ ] Share the run-comparison evidence with Juanvi.
+* [ ] Agree on whether the feature should merge into `master`, a development branch, or remain behind a feature branch temporarily.
+* [ ] Agree on the official JSON output location.
+* [ ] Inventory current JSON filenames, top-level keys, event types, and payload structures.
+* [ ] Define five initial user questions ChatBob should answer.
+* [ ] Map each question to its JSON evidence and original ROBERT source.
+* [ ] Identify the minimum schema changes required.
+* [ ] Avoid freezing a large schema before the question-to-evidence map is reviewed.
+* [ ] Build deterministic evidence-selection functions before adding LLM answer generation.
+
+---
+
 
 ## Validation Source-Data Policy
 

@@ -23,15 +23,23 @@ The project does not change ROBERT's scientific behavior.
 - `json_schema_notes.md`  
   Working notes about possible JSON structures.
 
-## Current Priority
+### Current Priority
 
-Preserve normal ROBERT output behavior while adding project-side JSON/export support.
+The immediate priority is to prepare the JSON-output work for upstream review.
 
-Current wrapper policy:
-- ROBERT still writes normal outputs in default root folders.
-- A timestamped archive wrapper duplicates generated outputs into:
-  - `json-output-for-agent/runs/<timestamp>_<input_csv_stem>/`
-- The archive is copy-only and does not replace ROBERT output paths.
+Current source-verified module-native runtime audit status:
+
+- Implemented: CURATE, GENERATE, VERIFY, PREDICT
+- Not implemented: AQME, EVALUATE
+- REPORT: figure provenance only (`JSON/report_figure_provenance.json`), no full report audit yet
+
+Next steps:
+
+1. Open a pull request from `json-output-for-agent`.
+2. Agree with Juanvi on the integration branch and JSON output location.
+3. Reconcile the documented implementation status of all module audit files.
+4. Review the current JSON structures against a small set of likely ChatBob questions.
+5. Build deterministic question-to-evidence retrieval before adding an LLM answer layer.
 
 ## Validation Source-Data Policy (Temporary)
 
@@ -45,6 +53,37 @@ Rules:
 
 Generated outputs must remain in normal root output folders and optional copy-only archives.
 
+
+## 2026-07-13 Controlled Run Comparison
+
+The ChatBob JSON-output branch was synchronized with upstream ROBERT 2.1.2 and compared against an unmodified ROBERT 2.1.2 run.
+
+Validation result:
+
+- all four primary ROBERT `.dat` files were identical after normalizing only timestamps, file paths, execution times, and trailing whitespace;
+- all scientific values in 28 matching CSV files were identical;
+- the only expected CSV difference was the recorded input file path in `CURATE/CURATE_options.csv`.
+
+For the tested regression case, the JSON-output implementation did not alter standard ROBERT scientific outputs.
+
+## 2026-07-14 In-Repo Verification Update
+
+Additional manual verification was completed in this repository after the 2026-07-13 comparison milestone.
+
+Confirmed:
+
+- structured JSON files were generated and reviewed for CURATE, GENERATE, VERIFY, PREDICT, and REPORT stages;
+- when the updated ROBERT version in this repo was run and compared against DAT files from original ROBERT, no DAT differences were observed.
+
+This confirmation supports the additive-behavior claim for the verified workflow scope.
+
+
+## Comparison Notebook
+
+`comparison/compare_robert_outputs.ipynb` compares two completed ROBERT runs.
+
+The copied ROBERT output folders are local validation data and are not committed.
+
 ## 2026-06-08 Validation Snapshot
 
 Validated with timestamped wrapper:
@@ -53,9 +92,9 @@ Validated with timestamped wrapper:
 
 Pass/fail summary:
 - PASS: Standard root outputs are still produced for CURATE/GENERATE/VERIFY/PREDICT.
-- PASS: JSON artifacts are produced (`CURATE/dataset_profile.json`, `CURATE/curate_audit.json`, `CURATE/json_output_audit.json`, archive manifests, `run_summary.json`).
+- PASS: JSON artifacts are produced (`JSON/dataset_profile.json`, `JSON/curate_audit.json`, `JSON/curate_json_output_audit.json`, archive manifests, `run_summary.json`).
 - PASS: JSON files open and required top-level fields are present.
-- PASS: `dataset_profile.json` includes `schema_version` and works for both regression and classification targets.
+- PASS: `JSON/dataset_profile.json` includes `schema_version` and works for both regression and classification targets.
 - PASS: No JSON-layer status text detected in standard `.dat` files.
 - PASS: Copy-only archive behavior confirmed via `wrapper_run.json` copy-mode statement.
 - PASS: Missing module folders are represented in manifests with `module_dir_exists=false` and `file_count=0`.

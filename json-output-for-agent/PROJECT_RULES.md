@@ -146,6 +146,46 @@ If a test is not run, say so clearly and explain why.
 
 ---
 
+## Controlled Scientific Comparison Rule
+
+A claim that JSON-output changes preserve ROBERT behavior must be based on a controlled comparison.
+
+Before comparing outputs, confirm:
+
+- both runs use the same ROBERT version or commit,
+- both input CSV files have identical contents,
+- both runs use the same command-line options,
+- model seeds and relevant settings match,
+- and dependency environments are sufficiently comparable.
+
+Compare:
+
+- the four primary `.dat` files,
+- curated CSV files,
+- model parameter and model database CSV files,
+- selected best-model files,
+- prediction CSV files.
+
+Raw `.dat` files may differ in timestamps, paths, execution times, and trailing whitespace. These values may be normalized for comparison, but scientific values must not be removed or normalized.
+
+Any difference in descriptors, data splits, selected models, metrics, verification outcomes, predictions, uncertainty values, or outlier identification must be investigated before declaring the implementation behavior-preserving.
+
+---
+
+## Pull Request Review Checkpoint
+
+When a feature branch has produced a validated, behavior-preserving milestone:
+
+- update the project documentation,
+- synchronize with the latest upstream branch,
+- rerun controlled comparisons,
+- open a pull request before substantial additional work accumulates,
+- and use the pull request to agree on integration, naming, output location, and schema direction.
+
+A pull request may remain open for design review before final merge approval.
+
+---
+
 ## Plain-English Update Rule
 
 After meaningful progress, update:

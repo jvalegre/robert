@@ -96,7 +96,7 @@ The purpose of the JSON artifacts is not to replace ROBERT outputs. The purpose 
 The first proof of concept is:
 
 ```text
-CURATE/curate_audit.json
+JSON/curate_audit.json
 ```
 
 This file must capture the important evidence currently written to `CURATE_data.dat`, including:
@@ -115,7 +115,12 @@ This file must capture the important evidence currently written to `CURATE_data.
 - Pearson heatmap generated/skipped status,
 - runtime status.
 
-Only after CURATE works should this pattern be scaled to GENERATE, VERIFY, PREDICT, and AQME.
+This pattern has now been scaled through PREDICT.
+Current source-verified status:
+
+- implemented: CURATE, GENERATE, VERIFY, PREDICT,
+- not implemented: AQME, EVALUATE,
+- REPORT currently captures figure provenance only.
 
 ---
 
@@ -126,20 +131,26 @@ Module-level JSON files should be named as audit files, not generic summaries, b
 Preferred module-level files:
 
 ```text
-CURATE/curate_audit.json
-GENERATE/generate_audit.json
-VERIFY/verify_audit.json
-PREDICT/predict_audit.json
-AQME/aqme_audit.json
-REPORT/report_audit.json
+JSON/curate_audit.json
+JSON/generate_audit.json
+JSON/verify_audit.json
+JSON/predict_audit.json
+JSON/aqme_audit.json
+JSON/evaluate_audit.json
+JSON/report_audit.json
 ```
 
-Use `REPORT/report_audit.json` only if report-specific provenance is needed.
+Use `JSON/report_audit.json` only if report-specific provenance is needed.
+The currently implemented REPORT artifact is:
+
+```text
+JSON/report_figure_provenance.json
+```
 
 Supporting JSON artifacts may also exist, but they have different purposes:
 
 ```text
-dataset_profile.json
+JSON/dataset_profile.json
 ```
 
 Profiles the raw incoming dataset before ROBERT changes it. This is not a CURATE decision audit.
@@ -151,7 +162,7 @@ Profiles the raw incoming dataset before ROBERT changes it. This is not a CURATE
 Inventories generated files, paths, sizes, timestamps, and artifact types. This is not scientific decision evidence.
 
 ```text
-json_output_audit.json
+JSON/*_json_output_audit.json
 ```
 
 Records whether JSON artifacts were attempted and whether writing succeeded or failed. This is not ROBERT scientific evidence.
@@ -164,6 +175,12 @@ run_summary.json
 ```
 
 The exact names should be confirmed after inspecting existing ROBERT conventions.
+
+Architecture decision:
+
+- all ChatBob runtime JSON artifacts are written to the top-level `JSON/` folder,
+- module folders (`CURATE/`, `GENERATE/`, `VERIFY/`, `PREDICT/`, `AQME/`, `EVALUATE/`, `REPORT/`) remain standard ROBERT outputs,
+- wrapper archive manifests are generated in timestamped run archives and are not module-native runtime audits.
 
 ---
 
@@ -363,35 +380,6 @@ Example:
   "notes": []
 }
 ```
-
----
-
-## Likely JSON Artifacts
-
-Possible module-level files:
-
-```text
-CURATE/curate_summary.json
-GENERATE/generate_summary.json
-VERIFY/verify_summary.json
-PREDICT/predict_summary.json
-REPORT/report_summary.json
-```
-
-Possible run-level file:
-
-```text
-run_context.json
-```
-
-Possible file inventory:
-
-```text
-robert_file_manifest.json
-```
-
-The exact names should be confirmed after inspecting existing ROBERT conventions.
-
 ---
 
 ## File Timestamp Rule
@@ -499,6 +487,50 @@ For each new JSON output, test that:
 - existing behavior is unchanged.
 
 If full tests are too slow, run the smallest meaningful test and explain what was not tested.
+
+---
+
+## Controlled Run Comparison Rule
+
+When validating that JSON-output changes do not alter ROBERT behavior, compare the modified branch against an unmodified ROBERT baseline.
+
+The comparison is valid only when both runs use:
+
+- the same ROBERT version or commit,
+- identical input CSV contents,
+- the same command-line options,
+- the same model settings and random seed,
+- and, where practical, the same Python dependency environment.
+
+The preferred comparison checks are:
+
+1. Compare standard file inventories.
+2. Compare primary `.dat` files exactly.
+3. Normalize only expected run-specific metadata:
+   - timestamps,
+   - absolute paths,
+   - execution times,
+   - trailing whitespace.
+4. Compare CSV files by:
+   - row and column structure,
+   - exact text values,
+   - numeric values within a strict tolerance.
+5. Treat changes to descriptors, models, data splits, metrics, predictions, uncertainty values, verification outcomes, or outliers as scientific differences requiring investigation.
+
+Do not claim that ChatBob changes preserve ROBERT behavior when the baseline and modified runs use different ROBERT versions.
+
+---
+
+## Upstream Integration Rule
+
+Before a long-lived feature branch diverges substantially from upstream:
+
+- fetch the latest upstream branch,
+- inspect new upstream changes,
+- merge or rebase only after protecting local work,
+- resolve conflicts by preserving current upstream ROBERT behavior plus additive JSON capture,
+- rerun controlled output comparisons,
+- and open a pull request for review before additional dependent work accumulates.
 
 ---
 

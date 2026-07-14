@@ -126,6 +126,14 @@ Why these are safest:
 - If JSON writes are added directly into critical loops, accidental performance impact is possible.
 - If JSON serialization is attempted on raw numpy/pandas objects without conversion, write failures can occur.
 
+## Current Runtime Audit Status (2026-07-13)
+
+- Canonical ChatBob runtime JSON location is the top-level `JSON/` folder.
+- Implemented module-native runtime audits: `JSON/curate_audit.json`, `JSON/generate_audit.json`, `JSON/verify_audit.json`, `JSON/predict_audit.json`.
+- Not implemented: `JSON/aqme_audit.json`, `JSON/evaluate_audit.json`.
+- REPORT currently provides `JSON/report_figure_provenance.json` only (no full report audit).
+- Wrapper-generated `*_manifest.json` and `run_summary.json` in timestamped archives are copy-side metadata, not module-native runtime audits.
+
 ## Proposed First Implementation Step
 
 Implement one read-only helper module first (no hooks yet), for example robert/json_output_for_agent.py, with:
@@ -140,7 +148,7 @@ Then add only one hook in CURATE save_curate after CURATE_options.csv write, bec
 What was added:
 - New helper module: robert/json_output_for_agent.py
 - New CURATE hook: robert/curate.py in `curate.__init__`, immediately after `load_variables(...)` and before `load_database(...)`
-- New output file in normal runs: CURATE/dataset_profile.json
+- New output file in normal runs: JSON/dataset_profile.json
 
 Why this insertion point was selected:
 - It is the earliest practical place with access to `csv_name`, `y`, and `ignore`.
@@ -149,29 +157,60 @@ Why this insertion point was selected:
 
 Standard ROBERT output protection rule (implemented):
 - The JSON layer does not write status messages to standard ROBERT outputs.
-- JSON-layer success/failure is written only to `CURATE/json_output_audit.json`.
+- JSON-layer success/failure is written only to `JSON/curate_json_output_audit.json`.
 - Standard outputs such as `CURATE/CURATE_data.dat`, curated CSVs, options CSV, and images remain untouched by JSON-layer status.
 
 Failure-tolerance validation completed:
-- Baseline run created normal CURATE outputs plus `dataset_profile.json`.
+- Baseline run created normal CURATE outputs plus `JSON/dataset_profile.json`.
 - A simulated JSON write failure was injected by monkeypatching `write_json` to raise.
 - CURATE still completed and produced standard outputs:
   - CURATE_data.dat
   - CURATE_options.csv
   - Pearson_heatmap.png
   - model-specific curated CSVs and general curated CSV
-- JSON-layer status was recorded in `CURATE/json_output_audit.json`:
+- JSON-layer status was recorded in `JSON/curate_json_output_audit.json`:
   - success events for normal runs
   - failure events with error type/message for simulated failures
 
 ## Open Questions
 
 - Should JSON export be always on, or behind an option flag?
-- Should JSON files live inside each module folder (CURATE, GENERATE, etc.) or in one central folder?
+- JSON file location has been decided: use the top-level `JSON/` folder.
 - Should each module write one summary JSON or multiple artifact JSON files?
 - Do we need a run-level manifest file that indexes every generated artifact path?
 - For REPORT, should we store only final data_score or also parsed intermediate values from get_predict_scores/get_verify_scores?
 - Should JSON writes fail-soft (warn and continue) to guarantee no behavior change in scientific outputs?
+
+
+## Controlled Output Comparison Update (2026-07-13)
+
+A completed unmodified ROBERT 2.1.2 run was compared with a completed ChatBob-modified ROBERT 2.1.2 run.
+
+Primary DAT comparison:
+
+- `CURATE/CURATE_data.dat`: identical after expected metadata normalization
+- `GENERATE/GENERATE_data.dat`: identical after expected metadata normalization
+- `VERIFY/VERIFY_data.dat`: identical after expected metadata normalization
+- `PREDICT/PREDICT_data.dat`: identical after expected metadata normalization
+
+Expected normalized differences:
+
+- run timestamps,
+- absolute input and output paths,
+- module execution times,
+- trailing whitespace.
+
+CSV comparison:
+
+- 28 matching CSV files were compared.
+- All scientific numeric and text values matched.
+- The only expected text difference was `csv_name` in `CURATE/CURATE_options.csv`.
+- Best-model and prediction CSV files were identical.
+
+Conclusion:
+
+For this regression test case, the additive JSON-output hooks did not change ROBERT's standard scientific outputs.
+
 
 ## Implementation Update (2026-05-28)
 
@@ -186,6 +225,6 @@ What this means for capture timing:
 - Current implementation captures after ROBERT run completion and after copy into timestamped archive.
 - This keeps normal ROBERT outputs untouched and ensures JSON reflects final saved artifacts.
 
-What is not implemented yet:
+What is not implemented yet as of 2026-05-28:
 - Module-native simultaneous JSON writes during `.dat`/CSV/image write points inside CURATE/GENERATE/VERIFY/PREDICT/REPORT.
 - That path is still optional for later if real-time event streaming is required.

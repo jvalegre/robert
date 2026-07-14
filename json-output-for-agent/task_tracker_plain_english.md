@@ -480,6 +480,179 @@ Next suggested step:
 * Begin PREDICT planning only, with no implementation until the plan is reviewed and approved.
 
 
+### Entry 011
+
+Date: 2026-07-13
+
+Goal of this step:
+- Synchronize the ChatBob JSON-output branch with the current upstream ROBERT version.
+- Compare an unmodified ROBERT run with a ChatBob-modified ROBERT run.
+- Confirm whether the JSON-output additions change standard ROBERT scientific outputs.
+
+What changed:
+- Fetched the current upstream ROBERT repository.
+- Confirmed that upstream `master` contains ROBERT version 2.1.2.
+- Merged `upstream/master` into the `json-output-for-agent` branch.
+- Resolved one merge conflict in `robert/generate.py`.
+- Preserved both:
+  - the upstream classification handling added in ROBERT 2.1.2, and
+  - the additive ChatBob GENERATE audit capture.
+- Added a Jupyter notebook for comparing completed ROBERT output folders.
+- Compared an unmodified ROBERT 2.1.2 run with the ChatBob-modified ROBERT 2.1.2 run.
+
+Files changed:
+- ROBERT files brought in through the merge from `upstream/master`.
+- `robert/generate.py`, where the merge conflict was resolved.
+- `comparison/compare_robert_outputs.ipynb`.
+- Project documentation files associated with this update.
+
+Why this change was made:
+- An initial comparison mistakenly compared ROBERT 2.1.2 against the ChatBob branch while it was still based on ROBERT 2.1.0.
+- That version mismatch produced differences in prediction values and outlier reporting.
+- Synchronizing both runs to ROBERT 2.1.2 was necessary to isolate the effect of the ChatBob JSON additions.
+
+How this was tested:
+- Ran the same regression dataset through:
+  - unmodified ROBERT 2.1.2, and
+  - ChatBob-modified ROBERT 2.1.2.
+- Compared the four primary `.dat` files:
+  - `CURATE/CURATE_data.dat`
+  - `GENERATE/GENERATE_data.dat`
+  - `VERIFY/VERIFY_data.dat`
+  - `PREDICT/PREDICT_data.dat`
+- Normalized only expected run-specific values:
+  - timestamps,
+  - input paths,
+  - output paths,
+  - execution times,
+  - trailing whitespace.
+- Compared 28 matching CSV files.
+- Numeric CSV values were compared within a strict floating-point tolerance.
+- Text values were compared exactly.
+
+Confirmed results:
+- PASS: All four normalized `.dat` files were identical.
+- PASS: All scientific CSV files were identical within numerical tolerance.
+- PASS: CURATE outputs were unchanged.
+- PASS: GENERATE model files and selected best-model files were unchanged.
+- PASS: VERIFY outputs were unchanged.
+- PASS: PREDICT values and uncertainty values were unchanged.
+- EXPECTED DIFFERENCE: `CURATE/CURATE_options.csv` recorded a different input file path.
+- EXPECTED DIFFERENCE: Raw `.dat` files contained different timestamps, paths, and execution times.
+- The earlier PREDICT differences were caused by comparing ROBERT 2.1.0 with ROBERT 2.1.2, not by the ChatBob JSON additions.
+
+What this establishes:
+- For this regression test case, the ChatBob JSON-output implementation is additive.
+- It does not change the standard ROBERT scientific `.dat` or CSV outputs.
+
+What remains uncertain:
+- The same controlled comparison has not yet been documented for classification.
+- The current JSON structure still needs to be reviewed against the questions ChatBob should answer.
+- The long-term location and integration of the JSON outputs should be agreed with Juanvi.
+- A pull request should be reviewed before the branch diverges further from upstream.
+
+Next suggested step:
+- Open a pull request from `json-output-for-agent` for review.
+- Share the validation result with Juanvi.
+- Agree on the JSON output location and integration strategy.
+- Inspect the current JSON structures and map a small set of likely user questions to the evidence required to answer them.
+
+
+### Entry 012
+
+Date: 2026-07-13
+
+Goal of this step:
+- Reconcile documentation with current source implementation status after post-session coding.
+- Apply the confirmed architecture decision for artifact location.
+
+What changed:
+- Confirmed from source that module-native runtime audits are implemented for:
+	- CURATE,
+	- GENERATE,
+	- VERIFY,
+	- PREDICT.
+- Confirmed from source that module-native runtime audits are not implemented for:
+	- AQME,
+	- EVALUATE.
+- Confirmed REPORT currently writes figure provenance only (no full report audit).
+- Confirmed ChatBob runtime JSON artifacts are written to the top-level `JSON/` folder.
+- Updated project docs to remove stale status/path ambiguity and preserve the distinction between:
+	- module-native runtime audits,
+	- JSON write-status audits,
+	- wrapper-generated archive manifests,
+	- standard ROBERT outputs.
+
+Files changed:
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/AGENTS.md`
+- `json-output-for-agent/json_schema_notes.md`
+- `json-output-for-agent/output_map.md`
+- `json-output-for-agent/README.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- Earlier task/status documents were stale after implementation continued outside the previous agent session.
+- Documentation now reflects source-verified implementation status and canonical JSON artifact location.
+
+How this was tested:
+- Source inspection only (no ROBERT run, no tests).
+
+Confirmed results:
+- Runtime audit paths are documented using `JSON/` examples.
+- PREDICT is documented as implemented with validation still incomplete.
+- AQME and EVALUATE remain documented as not implemented.
+- REPORT is documented as figure-provenance-only at this stage.
+
+What remains uncertain:
+- Full audit-content validation for PREDICT remains pending.
+- AQME and EVALUATE audit validation remains pending because implementation is not present.
+
+Next suggested step:
+- Prepare a draft pull request with explicit validation boundaries and open design decisions.
+
+
+### Entry 013
+
+Date: 2026-07-14
+
+Goal of this step:
+- Record newly completed manual verification performed outside the agent session.
+
+What changed:
+- Confirmed manual review that structured JSON files were generated for:
+	- CURATE,
+	- GENERATE,
+	- VERIFY,
+	- PREDICT,
+	- REPORT.
+- Confirmed manual in-repo run comparison against original ROBERT DAT files showed no DAT differences.
+- Updated status docs so this verification is explicitly documented.
+
+Files changed:
+- `json-output-for-agent/README.md`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- The verification was completed outside the agent and needed to be captured as project evidence.
+
+How this was tested:
+- Documentation update only in this step.
+- Verification evidence source: user-confirmed manual run and DAT comparison in this repository.
+
+Confirmed results:
+- Structured JSON generation was reviewed for major workflow stages.
+- DAT comparison against original ROBERT reported no differences.
+
+What remains uncertain:
+- Automated tests for module-audit content are still pending.
+- AQME and EVALUATE module-native audits remain not implemented.
+
+Next suggested step:
+- Prepare draft pull request text that includes both the 2026-07-13 controlled comparison and 2026-07-14 in-repo manual verification.
+
+
 ---
 
 ## Template for Future Entries

@@ -1370,13 +1370,14 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     if discard_cols:
         csv_df = csv_df.drop(discard_cols, axis=1)
 
+    total_amount = len(csv_df.columns)
+    ignored_descs = len(self.args.ignore)
+    accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
+    if 'Set' in csv_df.columns: # removes the column that tracks sets
+        accepted_descs -= 1
+        ignored_descs += 1
+
     if print_info:
-        total_amount = len(csv_df.columns)
-        ignored_descs = len(self.args.ignore)
-        accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
-        if 'Set' in csv_df.columns: # removes the column that tracks sets
-            accepted_descs -= 1
-            ignored_descs += 1
         if module.lower() not in ['aqme','aqme_test']:
             csv_name = os.path.basename(csv_load)
             if module.lower() not in ['predict']:
@@ -1400,8 +1401,8 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
 
     if module.lower() == 'curate' and hasattr(self.args, 'curate_audit'):
         self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "datapoints_loaded", int(len(csv_df)))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "accepted_descriptors_loaded", int(len([c for c in csv_df.columns if c not in self.args.ignore and c != self.args.y])))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "ignored_descriptors_loaded", int(len([c for c in csv_df.columns if c in self.args.ignore])))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "accepted_descriptors_loaded", int(accepted_descs))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "ignored_descriptors_loaded", int(ignored_descs))
         self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "discarded_descriptors_loaded", int(len(self.args.discard)))
         self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "columns_removed_lt90pct_data", list(cols_to_drop))
         self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "rows_removed_gt50pct_missing", int(n_removed_rows))
@@ -1412,7 +1413,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
             event_type="load_database",
             payload={
                 "datapoints_loaded": int(len(csv_df)),
-                "accepted_descriptors_loaded": int(len([c for c in csv_df.columns if c not in self.args.ignore and c != self.args.y])),
+                "accepted_descriptors_loaded": int(accepted_descs),
                 "columns_removed_lt90pct_data": len(cols_to_drop),
                 "rows_removed_gt50pct_missing": int(n_removed_rows),
                 "knn_imputer_applied": bool(knn_applied),

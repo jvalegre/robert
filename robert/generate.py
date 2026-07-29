@@ -163,12 +163,7 @@ class generate:
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df, _, _ = load_database(self,self.args.csv_name,"generate")
-        initial_desc_count = len([col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y])
-        ignored_desc_count = len([col for col in csv_df.columns if col in self.args.ignore])
-        self.args.generate_audit = audit_set(self.args.generate_audit, "load_database", "datapoints_loaded", int(len(csv_df)))
-        self.args.generate_audit = audit_set(self.args.generate_audit, "load_database", "descriptors_loaded", int(initial_desc_count))
-        self.args.generate_audit = audit_set(self.args.generate_audit, "load_database", "ignored_descriptors_loaded", int(ignored_desc_count))
-        self.args.generate_audit = audit_set(self.args.generate_audit, "load_database", "discarded_descriptors_loaded", int(len(getattr(self.args, "discard", []))))
+        # load_database() already records canonical load counts in generate_audit.
         self.args.generate_audit = audit_set(self.args.generate_audit, "load_database", "source_csv_used", self.args.csv_name)
         self.args.generate_audit = audit_set(self.args.generate_audit, "load_database", "source_csv_role", "initial_source_csv")
 

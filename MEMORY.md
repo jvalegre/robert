@@ -151,20 +151,16 @@ Avoid updating many docs for small routine checks.
 Next task:
 
 ```text
-Run fault-injection validation specifically for curate_audit.json.
+Expand standalone DAT↔JSON parity tests while keeping legacy pytest files untouched.
 ```
 
 Goal:
 
-Confirm that if writing `curate_audit.json` fails:
-
-1. CURATE still completes normally.
-2. Standard CURATE outputs are still produced.
-3. `CURATE_data.dat` contains no JSON-layer messages.
-4. `json_output_audit.json` records the `curate_audit.json` failure.
-5. `dataset_profile.json` behavior is unaffected.
-
-Do not implement new hooks during this task.
+1. Keep parity checks isolated in new test files under `tests/`.
+2. Reuse shared parity helpers for consistent event-first assertions.
+3. Extend parity coverage from GENERATE to PREDICT and VERIFY.
+4. Keep runtime behavior unchanged and avoid edits to existing pytest scripts unless explicitly approved.
+5. Keep push scope clean by excluding local environment backups and generated folders.
 
 ## Future Module-Native Hook Direction
 
@@ -186,6 +182,11 @@ PREDICT/predict_audit.json
 REPORT/report_audit.json
 run_context.json
 ```
+
+Current parity-testing note:
+
+* A standalone parity harness has been added in new test files to compare DAT text and JSON audit evidence without modifying existing pytest modules.
+* Event-level audit payloads are preferred for stable assertions when sections are mutable across repeated calls.
 
 Each future hook must:
 

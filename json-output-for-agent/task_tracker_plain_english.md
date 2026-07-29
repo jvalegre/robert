@@ -258,6 +258,103 @@ Confirmed results:
 - Standard ROBERT execution and outputs remain unchanged.
 - JSON mirrors are generated in timestamped archive only.
 - Manifest records include hashes and file-level metadata suitable for exact comparisons.
+
+### Entry 018
+
+Date: 2026-07-28
+
+Goal of this step:
+- Complete parity sweep checkpoint for CURATE `load_database` using an anti-GIGO third-oracle strategy.
+
+What changed:
+- Added an independent recomputation helper in `tests/json_parity_helpers.py`:
+	- `recompute_load_database_oracle(...)`
+- Added a new isolated parity test in `tests/test_json_parity.py`:
+	- `test_curate_load_database_third_oracle_parity_via_new_file_only`
+- The new test now checks three-way agreement for CURATE load counts:
+	1) DAT text parsing,
+	2) JSON audit event/section values,
+	3) independent recomputation from input CSV and options.
+
+Why this change was made:
+- To reduce garbage-in-garbage-out risk by validating DAT and JSON against an independent oracle rather than only against each other.
+
+How this was tested:
+- Ran focused parity suite:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py -q`
+- Result: `4 passed`.
+
+Confirmed results:
+- CURATE load-database parity checkpoint is complete and passing with third-oracle validation.
+
+Next suggested step:
+- Implement the next one-by-one checkpoint: CURATE `correlation_filter` DAT↔JSON parity.
+
+### Entry 020
+
+Date: 2026-07-29
+
+Goal of this step:
+- Complete parity sweep checkpoint for CURATE `correlation_filter` using isolated parity files only.
+
+What changed:
+- Added a new DAT parser helper in `tests/json_parity_helpers.py`:
+	- `parse_curate_correlation_filter_summary_from_dat(...)`
+- Added a new isolated parity test in `tests/test_json_parity.py`:
+	- `test_curate_correlation_filter_dat_json_parity_via_new_file_only`
+- The new test compares DAT summary values to JSON audit evidence for:
+	1) `correlation_filter` event payload keys (`constant_removed`, `low_y_corr_removed`, `high_intercorr_removed`, `rfecv_applied`)
+	2) `correlation_filter` section fallback keys for count-level parity.
+
+Why this change was made:
+- To close the next one-by-one DAT↔JSON trust checkpoint while keeping parity logic isolated from legacy test files.
+
+How this was tested:
+- Ran focused new checkpoint test:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py::test_curate_correlation_filter_dat_json_parity_via_new_file_only -q`
+- Ran full isolated parity suite:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- New `correlation_filter` parity checkpoint passed.
+- Full isolated parity suite passed (`5 passed`).
+- Scope rule preserved: parity changes remain only in `tests/json_parity_helpers.py` and `tests/test_json_parity.py`.
+
+Next suggested step:
+- Implement the next checkpoint: CURATE `categorical_transform` DAT↔JSON parity.
+
+### Entry 021
+
+Date: 2026-07-29
+
+Goal of this step:
+- Complete parity sweep checkpoint for CURATE `categorical_transform` using isolated parity files only.
+
+What changed:
+- Added a DAT parser helper in `tests/json_parity_helpers.py`:
+	- `parse_curate_categorical_transform_summary_from_dat(...)`
+- Added a new isolated parity test in `tests/test_json_parity.py`:
+	- `test_curate_categorical_transform_dat_json_parity_via_new_file_only`
+- The new test compares DAT summary values to JSON audit evidence for:
+	1) `categorical_transform` event payload keys (`categorical_variables_count`, `generated_descriptors_count`, `mode`)
+	2) `categorical_transform` section fallback checks (`descriptors_removed_categorical_transform`, `categorical_variables_found`, generated descriptor count).
+
+Why this change was made:
+- To close the next one-by-one DAT↔JSON trust checkpoint while keeping parity logic isolated from legacy test files.
+
+How this was tested:
+- Ran focused new checkpoint test:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py::test_curate_categorical_transform_dat_json_parity_via_new_file_only -q`
+- Ran full isolated parity suite:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- New `categorical_transform` parity checkpoint passed.
+- Full isolated parity suite passed (`6 passed`).
+- Scope rule preserved: parity changes remain only in `tests/json_parity_helpers.py` and `tests/test_json_parity.py`.
+
+Next suggested step:
+- Implement the next checkpoint: GENERATE model-scan summary parity.
 - Missing module folders produce valid manifests with `module_dir_exists=false` and `file_count=0`.
 
 What remains uncertain:
@@ -266,6 +363,35 @@ What remains uncertain:
 
 Next suggested step:
 - Add small helper tests for manifest and run-summary functions, then (if still needed) add module-native hooks incrementally behind a low-risk option.
+
+### Entry 022
+
+Date: 2026-07-29
+
+Goal of this step:
+- Record the DAT-to-event payload audit and the approved follow-up sequence before any source code changes.
+
+What changed:
+- Completed a read-only inventory of DAT values that are not yet retained in matching JSON event payloads.
+- Grouped the gaps by CURATE, GENERATE, VERIFY, and PREDICT.
+- Marked the next approved implementation step as the narrow CURATE slice only.
+- Left GENERATE, VERIFY, and PREDICT as later reviewable increments.
+
+Why this change was made:
+- To make the implementation order explicit before any source code changes.
+- To keep the project focused on documentation first.
+
+How this was tested:
+- Documentation-only audit.
+- No ROBERT source code was changed during this step.
+
+Confirmed results:
+- The audit found structured-event coverage gaps across CURATE, GENERATE, VERIFY, and PREDICT.
+- The next approved implementation work is limited to CURATE load_database, categorical_transform, correlation_filter, and the associated focused parity, third-oracle, and mutation tests.
+- No scientific calculations, thresholds, DAT output, CSV output, model behavior, or CLI behavior were changed.
+
+Next suggested step:
+- Implement only the approved CURATE slice in reviewable increments.
 
 ### Entry 007
 
@@ -651,6 +777,224 @@ What remains uncertain:
 
 Next suggested step:
 - Prepare draft pull request text that includes both the 2026-07-13 controlled comparison and 2026-07-14 in-repo manual verification.
+
+
+### Entry 014
+
+Date: 2026-07-28
+
+Goal of this step:
+- Add an isolated DAT↔JSON parity test harness without changing legacy pytest scripts.
+
+What changed:
+- Added shared helper file for DAT parsing and JSON audit/event extraction.
+- Added a new standalone pytest module that runs CURATE→GENERATE and checks DAT↔JSON parity.
+- Implemented event-first parity checks for load counts where section values may be overwritten by repeated calls.
+- Kept ignored/discarded checks section-based where event payload fields are not currently emitted.
+
+Files changed:
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+
+Why this change was made:
+- The project needed parity validation between human-readable DAT outputs and machine-readable JSON audits.
+- The user requested these checks to live in new test files only, with no edits to existing pytest modules in this step.
+
+How this was tested:
+- Executed focused test run:
+	- `python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- PASS: `1 passed` for the new standalone parity test module.
+- PASS: Parity checks are isolated to new files under `tests/`.
+- PASS: Existing pytest scripts were not modified as part of this isolated parity step.
+
+What remains uncertain:
+- PREDICT and VERIFY parity coverage has not yet been added to the standalone harness.
+- Some descriptor-related parity fields are still section-only because matching event payload keys are not currently emitted.
+
+Next suggested step:
+- Expand the standalone parity harness to include PREDICT and VERIFY with the same event-first assertion strategy.
+
+
+### Entry 015
+
+Date: 2026-07-28
+
+Goal of this step:
+- Start a tracked one-by-one sweep of all DAT↔JSON parallel evidence points across the project.
+
+What changed:
+- Mapped initial DAT↔JSON parity targets from source for CURATE, GENERATE, VERIFY, and PREDICT.
+- Added a dedicated task phase for parity-sweep tracking in `TASKS.md` with explicit per-checkpoint checklist items.
+- Upgraded parity helper utilities to support reusable labeled DAT-block parsing and generic event payload parity assertions.
+- Refactored the standalone parity test to use the generalized helper pathway.
+
+Files changed:
+- `json-output-for-agent/TASKS.md`
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- The project needs to identify every DAT-facing calculation that should align with JSON audit evidence.
+- The user requested that parity work be tracked and completed one target at a time.
+- A shared helper-first pattern reduces duplicated test code and makes new parity targets faster to add.
+
+How this was tested:
+- Focused pytest run of the standalone parity module (after helper refactor).
+
+Confirmed results:
+- The parity harness now supports generalized DAT label parsing and generic event payload matching.
+- The first checked target (GENERATE load-database parity) remains covered through the generalized helper path.
+
+What remains uncertain:
+- VERIFY and PREDICT parity targets still need dedicated standalone tests.
+- Some checks remain section-based where event payload keys are not yet present.
+
+Next suggested step:
+- Implement the next standalone parity target: VERIFY load-database and summary parity.
+
+
+### Entry 016
+
+Date: 2026-07-28
+
+Goal of this step:
+- Complete the next one-by-one parity target by validating VERIFY DAT↔JSON alignment.
+
+What changed:
+- Extended parity helpers to parse VERIFY summary metrics directly from DAT text.
+- Added a rounded numeric event matcher for robust DAT↔JSON comparisons when DAT text is rounded for display.
+- Added a new standalone VERIFY parity test (in existing new parity test module) that:
+	- runs CURATE→GENERATE→VERIFY,
+	- validates VERIFY `load_database` DAT counts against `verify_audit` `load_database` events,
+	- validates VERIFY summary metrics in DAT against `verify_audit` `print_verify_summary` events.
+- Updated task checklist status to mark VERIFY load and summary parity checkpoints complete.
+
+Files changed:
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- The project needs tracked closure of DAT↔JSON parity targets one at a time.
+- VERIFY was selected as the next checkpoint after GENERATE.
+
+How this was tested:
+- Executed focused parity suite:
+	- `python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- PASS: parity suite now reports `2 passed`.
+- PASS: VERIFY load-database parity is validated through standalone tests.
+- PASS: VERIFY summary-metric parity is validated through standalone tests.
+
+What remains uncertain:
+- PREDICT parity targets are still pending.
+- CURATE correlation-filter and categorical-transform parity targets are still pending.
+
+Next suggested step:
+- Implement PREDICT load-database and summary parity in the same helper-driven standalone framework.
+
+
+### Entry 017
+
+Date: 2026-07-28
+
+Goal of this step:
+- Complete the next one-by-one parity target by validating PREDICT DAT↔JSON alignment.
+
+What changed:
+- Extended parity helpers with PREDICT-specific DAT parsers for:
+	- external-set load count lines,
+	- summary metric lines in the PREDICT DAT report.
+- Added helper logic to compare parsed PREDICT DAT summary metrics against `print_predict_summary` audit events.
+- Added a standalone PREDICT parity test that runs CURATE→GENERATE→PREDICT (`csv_test` path) and asserts:
+	- external-set `load_database` datapoint parity,
+	- PREDICT summary metric parity.
+- Updated the phase checklist to mark PREDICT load and summary parity checkpoints complete.
+
+Files changed:
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- The parity sweep requires explicit closure of DAT↔JSON targets one by one.
+- PREDICT was the next tracked target after VERIFY.
+
+How this was tested:
+- Executed focused parity suite:
+	- `python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- PASS: parity suite now reports `3 passed`.
+- PASS: PREDICT external-set load-database parity is validated.
+- PASS: PREDICT summary-metric parity is validated.
+
+What remains uncertain:
+- CURATE `correlation_filter` and `categorical_transform` parity targets are still pending.
+- GENERATE model-scan summary parity target is still pending.
+
+Next suggested step:
+- Implement CURATE `correlation_filter` and `categorical_transform` DAT↔JSON parity checks in the standalone framework.
+
+
+### Entry 019
+
+Date: 2026-07-28
+
+Goal of this step:
+- Re-establish trust by stating in plain English what parity checks do, what they do not do, and what confidence level is justified right now.
+
+What changed:
+- Added this trust-summary entry to make project status understandable without reading test code.
+- Clarified the exact basis of current parity checks:
+	1) Parse values from DAT text,
+	2) read corresponding JSON audit values,
+	3) compare those values for agreement.
+- Clarified that one critical checkpoint now uses a third independent oracle:
+	- CURATE `load_database` values are recomputed independently from input CSV and options,
+	- then compared against both DAT and JSON.
+
+Files changed:
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- The user requested a plain-English trust reset and clear explanation of what parity means.
+- Without this, progress can look like "tests passing" without clear meaning.
+
+How this was tested:
+- Documentation update only for this entry.
+- Technical basis referenced from passing parity suite:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py -q`
+	- current result: `4 passed`.
+
+Confirmed results:
+- What we can trust now:
+	- JSON artifacts are being produced for implemented modules.
+	- For covered checkpoints, DAT and JSON currently agree on the tested fields.
+	- CURATE `load_database` now has stronger anti-GIGO validation because both DAT and JSON are checked against an independent recomputation.
+- What we cannot claim yet:
+	- Parity is not full scientific correctness proof.
+	- Remaining unchecked checkpoints can still hide mismatches.
+	- Shared upstream logic could still produce matching but wrong values in places where third-oracle checks are not yet added.
+
+What remains uncertain:
+- CURATE `correlation_filter` parity still pending.
+- CURATE `categorical_transform` parity still pending.
+- GENERATE model-scan summary parity still pending.
+- Third-oracle coverage is currently strong for CURATE `load_database`, but not yet expanded across all parity targets.
+
+Next suggested step:
+- Continue one-by-one with the next highest-value trust checkpoint:
+	- CURATE `correlation_filter` parity,
+	- then CURATE `categorical_transform`,
+	- then GENERATE model-scan summary,
+- while adding independent-oracle checks where feasible.
 
 
 ---

@@ -496,6 +496,136 @@ Goal:
 
 ---
 
+## Phase 15 — Isolated DAT↔JSON Parity Test Harness
+
+### To Do
+
+* [x] Keep all new parity checks in newly created files under `tests/`.
+* [x] Avoid edits to existing pytest scripts for this parity step.
+* [x] Add reusable helper utilities for DAT parsing and JSON event extraction.
+* [x] Add a standalone parity test that executes CURATE→GENERATE and validates DAT↔JSON agreement.
+* [x] Prefer event-based assertions for repeated operations and use section checks only where event payload fields are not yet emitted.
+* [x] Validate the new parity test with focused pytest execution.
+* [x] Extend standalone parity coverage to PREDICT and VERIFY.
+* [ ] Decide whether selected parity checks should eventually merge into legacy test suites after stabilization.
+
+### Done
+
+* [x] Added `tests/json_parity_helpers.py` for shared DAT parsing, JSON loading, and parity assertions.
+* [x] Added `tests/test_json_parity.py` with isolated parity flow and local cleanup helpers.
+* [x] Confirmed focused test success with `python -m pytest tests/test_json_parity.py -q` (`1 passed`).
+* [x] Preserved non-invasive scope: no edits required to existing pytest scripts for this step.
+
+---
+
+## Phase 16 — DAT↔JSON Parity Sweep (Tracked One-by-One)
+
+Goal:
+
+* Inventory every location where ROBERT writes user-facing DAT evidence in parallel with JSON audit evidence.
+* Track each parity checkpoint explicitly and close them one-by-one.
+* Maximize reuse by expanding common parity helpers instead of adding bespoke test logic per checkpoint.
+
+### To Do
+
+* [x] Create an initial parity target inventory from source inspection.
+* [x] Promote reusable DAT parsing helpers to support labeled block parsing.
+* [x] Promote reusable JSON-event helpers for generic event payload parity assertions.
+* [x] Track and validate `load_database` parity for CURATE.
+* [x] Track and validate `load_database` parity for GENERATE.
+* [x] Track and validate `load_database` parity for VERIFY.
+* [x] Track and validate `load_database` parity for PREDICT.
+* [x] Track and validate `correlation_filter` parity (CURATE).
+* [x] Track and validate `categorical_transform` parity (CURATE).
+* [ ] Track and validate model-scan summary parity in GENERATE (`model_scan` / BO summary evidence).
+* [x] Track and validate summary-metrics parity in VERIFY.
+* [x] Track and validate summary-metrics parity in PREDICT.
+* [ ] Decide whether missing event payload keys should be added where section-only checks are still required.
+* [ ] Keep parity checks isolated to new test files until stabilization is complete.
+
+### Initial Inventory (Source-Mapped Targets)
+
+* `robert/utils.py::load_database` (DAT load counts + JSON `load_database` section/event)
+* `robert/utils.py::correlation_filter` (DAT filter summary + JSON `correlation_filter` section/event)
+* `robert/utils.py::categorical_transform` (DAT categorical summary + JSON `categorical_transform` section/event)
+* `robert/generate.py` and `robert/generate_utils.py` (DAT model-scan progress/summary + JSON `generate_audit` events/sections)
+* `robert/verify.py` (DAT verify-branch/test-result reporting + JSON `verify_audit` events/sections)
+* `robert/predict.py` and `robert/predict_utils.py` (DAT prediction/result reporting + JSON `predict_audit` events/sections)
+
+### Done
+
+* [x] Added target-driven helper capabilities in `tests/json_parity_helpers.py` for reusable parity expansion.
+* [x] Updated `tests/test_json_parity.py` to use generalized labeled DAT parsing and generic event payload checks.
+* [x] Added standalone VERIFY parity checks in `tests/test_json_parity.py` for:
+
+  * `load_database` DAT↔JSON count parity,
+  * `print_verify_summary` DAT↔JSON summary metric parity.
+* [x] Added standalone PREDICT parity checks in `tests/test_json_parity.py` for:
+
+  * external-set `load_database` DAT↔JSON count parity (`csv_test` path),
+  * `print_predict_summary` DAT↔JSON metric parity.
+* [x] Added standalone CURATE third-oracle load-database parity checks in `tests/test_json_parity.py` that validate DAT and JSON against independent recomputation logic in `tests/json_parity_helpers.py`.
+
+---
+
+## Phase 17 — DAT-to-Event Payload Coverage Hardening
+
+Status:
+
+* DAT-to-event gap inventory identified.
+* No runtime code implementation approved yet beyond the narrow CURATE slice below.
+* Remaining module gaps are tracked as future reviewable increments.
+
+Goal:
+
+* Capture every meaningful DAT value that is not yet retained in the corresponding JSON event payload.
+* Keep the review sequence narrow, explicit, and scientific-output safe.
+
+### Identified Gaps
+
+* CURATE
+  * `load_database` event fields
+  * `categorical_transform` event fields
+  * `correlation_filter` event fields
+* GENERATE
+  * model-scan summary parity tied to `model_run_start`, `bo_workflow`, and `pfi_workflow` event payloads
+  * model-cycle metadata shown in DAT but not yet fully retained in event payloads
+* VERIFY
+  * remaining DAT summary text fields not yet mirrored in the corresponding event payloads
+* PREDICT
+  * remaining DAT summary text fields not yet mirrored in the corresponding event payloads
+
+### Currently Approved Implementation Work Only
+
+* [ ] CURATE `load_database` event fields
+* [ ] CURATE `categorical_transform` event fields
+* [ ] CURATE `correlation_filter` event fields
+* [ ] Focused parity tests for the CURATE slice above
+* [ ] Third-oracle tests for the CURATE slice above
+* [ ] Mutation tests for the CURATE slice above
+
+### Future Reviewable Increments
+
+* [ ] GENERATE gap closure after CURATE slice is complete and reviewed
+* [ ] VERIFY gap closure after CURATE slice is complete and reviewed
+* [ ] PREDICT gap closure after CURATE slice is complete and reviewed
+
+### Guardrails
+
+* No scientific calculations may change.
+* No thresholds may change.
+* No DAT output may change.
+* No CSV output may change.
+* No model behavior may change.
+* No CLI behavior may change.
+
+### Done
+
+* [x] Read-only DAT-to-event inventory completed.
+* [x] Module-level gap groups recorded for CURATE, GENERATE, VERIFY, and PREDICT.
+* [x] Approved implementation sequence narrowed to the CURATE slice only.
+
+---
 
 ## Validation Source-Data Policy
 

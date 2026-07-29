@@ -1399,17 +1399,22 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                 self.args.log.write(f"\nx  The aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
                 sys.exit()
 
-    if module.lower() == 'curate' and hasattr(self.args, 'curate_audit'):
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "datapoints_loaded", int(len(csv_df)))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "accepted_descriptors_loaded", int(accepted_descs))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "ignored_descriptors_loaded", int(ignored_descs))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "discarded_descriptors_loaded", int(len(self.args.discard)))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "columns_removed_lt90pct_data", list(cols_to_drop))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "rows_removed_gt50pct_missing", int(n_removed_rows))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "columns_removed_any_missing", list(cols_with_missing))
-        self.args.curate_audit = audit_set(self.args.curate_audit, "load_database", "knn_imputer_applied", bool(knn_applied))
-        self.args.curate_audit = audit_event(
-            self.args.curate_audit,
+    audit_module = module.lower()
+    if audit_module == 'aqme_test':
+        audit_module = 'aqme'
+    audit_attr = f"{audit_module}_audit"
+    if hasattr(self.args, audit_attr):
+        module_audit = getattr(self.args, audit_attr)
+        module_audit = audit_set(module_audit, "load_database", "datapoints_loaded", int(len(csv_df)))
+        module_audit = audit_set(module_audit, "load_database", "accepted_descriptors_loaded", int(accepted_descs))
+        module_audit = audit_set(module_audit, "load_database", "ignored_descriptors_loaded", int(ignored_descs))
+        module_audit = audit_set(module_audit, "load_database", "discarded_descriptors_loaded", int(len(self.args.discard)))
+        module_audit = audit_set(module_audit, "load_database", "columns_removed_lt90pct_data", list(cols_to_drop))
+        module_audit = audit_set(module_audit, "load_database", "rows_removed_gt50pct_missing", int(n_removed_rows))
+        module_audit = audit_set(module_audit, "load_database", "columns_removed_any_missing", list(cols_with_missing))
+        module_audit = audit_set(module_audit, "load_database", "knn_imputer_applied", bool(knn_applied))
+        module_audit = audit_event(
+            module_audit,
             event_type="load_database",
             payload={
                 "datapoints_loaded": int(len(csv_df)),
@@ -1421,6 +1426,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
             evidence_level="direct",
             dat_text=txt_load,
         )
+        setattr(self.args, audit_attr, module_audit)
 
     # Sort columns alphabetically for reproducibility across ALL modules
     if module.lower() not in ['aqme', 'aqme_test']:

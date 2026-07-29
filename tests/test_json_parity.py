@@ -1,0 +1,427 @@
+import glob
+import os
+import shutil
+
+from robert.curate import curate
+from robert.generate import generate
+from robert.predict import predict
+from robert.verify import verify
+
+from tests.json_parity_helpers import (
+    assert_predict_summary_event_parity,
+    assert_event_payload_parity_rounded,
+    assert_event_payload_parity,
+    assert_section_keys_present,
+    load_json,
+    parse_generate_model_scan_summary_from_dat,
+    parse_curate_categorical_transform_summary_from_dat,
+    parse_curate_correlation_filter_summary_from_dat,
+    parse_labeled_counts_from_dat,
+    parse_predict_external_load_count_from_dat,
+    parse_predict_summary_metrics_from_dat,
+    recompute_load_database_oracle,
+    parse_verify_summary_metrics_from_dat,
+)
+
+
+path_main = os.getcwd()
+path_curate = os.path.join(path_main, "CURATE")
+path_generate = os.path.join(path_main, "GENERATE")
+path_predict = os.path.join(path_main, "PREDICT")
+path_verify = os.path.join(path_main, "VERIFY")
+
+
+def _clean_module_outputs() -> None:
+    for folder in [path_curate, path_generate, path_predict, path_verify]:
+        if os.path.exists(folder):
+            shutil.rmtree(folder)
+    for dat_file in glob.glob("*.dat"):
+        if "CURATE" in dat_file or "GENERATE" in dat_file or "PREDICT" in dat_file or "VERIFY" in dat_file:
+            os.remove(dat_file)
+
+
+def test_generate_dat_json_parity_via_new_file_only():
+    _clean_module_outputs()
+
+    curate(
+        csv_name=os.path.join("tests", "Robert_example.csv"),
+        y="Target_values",
+        names="Name",
+        discard=["xtest"],
+    )
+
+    generate(
+        generate=True,
+        csv_name=os.path.join("CURATE", "Robert_example_CURATE.csv"),
+        y="Target_values",
+        model=["RF"],
+        init_points=1,
+        n_iter=1,
+    )
+
+    dat_path = os.path.join(path_generate, "GENERATE_data.dat")
+    assert os.path.exists(dat_path)
+    with open(dat_path, "r", encoding="utf-8") as handle:
+        dat_lines = handle.readlines()
+
+    expected = parse_labeled_counts_from_dat(
+        dat_lines,
+        "loaded successfully, including:",
+        {
+            "datapoints": "datapoints_loaded",
+            "accepted descriptors": "accepted_descriptors_loaded",
+            "ignored descriptors": "ignored_descriptors_loaded",
+            "discarded descriptors": "discarded_descriptors_loaded",
+        },
+    )
+
+    audit_path = os.path.join(path_main, "JSON", "generate_audit.json")
+    audit = load_json(audit_path)
+
+    assert_section_keys_present(
+        audit,
+        [
+            "datapoints_loaded",
+            "accepted_descriptors_loaded",
+            "ignored_descriptors_loaded",
+            "discarded_descriptors_loaded",
+        ],
+    )
+
+    assert_event_payload_parity(
+        audit,
+        "load_database",
+        expected,
+        ["datapoints_loaded", "accepted_descriptors_loaded"],
+    )
+
+    section = audit["sections"]["load_database"]
+    assert section["ignored_descriptors_loaded"]["value"] == expected["ignored_descriptors_loaded"]
+    assert section["discarded_descriptors_loaded"]["value"] == expected["discarded_descriptors_loaded"]
+
+
+def test_generate_model_scan_summary_dat_json_parity_via_new_file_only():
+    _clean_module_outputs()
+
+    curate(
+        csv_name=os.path.join("tests", "Robert_example.csv"),
+        y="Target_values",
+        names="Name",
+        discard=["xtest"],
+    )
+
+    generate(
+        generate=True,
+        csv_name=os.path.join("CURATE", "Robert_example_CURATE.csv"),
+        y="Target_values",
+        model=["RF"],
+        init_points=1,
+        n_iter=1,
+    )
+
+    dat_path = os.path.join(path_generate, "GENERATE_data.dat")
+    assert os.path.exists(dat_path)
+    with open(dat_path, "r", encoding="utf-8") as handle:
+        dat_lines = handle.readlines()
+
+    expected = parse_generate_model_scan_summary_from_dat(dat_lines)
+
+    audit_path = os.path.join(path_main, "JSON", "generate_audit.json")
+    audit = load_json(audit_path)
+
+    model_start_events = [e for e in audit.get("events", []) if e.get("event_type") == "model_run_start"]
+    assert model_start_events, "No model_run_start event found"
+    assert any(
+        e.get("payload", {}).get("cycle_number") == expected["cycle_number"]
+        and e.get("payload", {}).get("model_name") == expected["model_name"]
+        for e in model_start_events
+    ), "No model_run_start event matched DAT model cycle summary"
+
+    bo_events = [e for e in audit.get("events", []) if e.get("event_type") == "bo_workflow"]
+    assert bo_events, "No bo_workflow event found"
+    assert any(
+        e.get("payload", {}).get("model") == expected["no_pfi_model_name"]
+        and str(e.get("payload", {}).get("error_type", "")).lower() == expected["no_pfi_metric_label"]
+        and round(float(e.get("payload", {}).get("combined_metric_value")), 2)
+        == round(float(expected["no_pfi_combined_metric"]), 2)
+        for e in bo_events
+    ), "No bo_workflow event matched DAT no-PFI combined metric summary"
+
+    pfi_events = [e for e in audit.get("events", []) if e.get("event_type") == "pfi_workflow"]
+    assert pfi_events, "No pfi_workflow event found"
+    assert any(
+        e.get("payload", {}).get("model") == expected["pfi_model_name"]
+        and round(float(e.get("payload", {}).get("combined_metric_after_pfi")), 2)
+        == round(float(expected["pfi_combined_metric"]), 2)
+        for e in pfi_events
+    ), "No pfi_workflow event matched DAT PFI combined metric summary"
+
+
+def test_curate_load_database_third_oracle_parity_via_new_file_only():
+    _clean_module_outputs()
+
+    csv_input = os.path.join("tests", "Robert_example.csv")
+    y_col = "Target_values"
+    names_col = "Name"
+    discard_cols = ["xtest"]
+
+    curate(
+        csv_name=csv_input,
+        y=y_col,
+        names=names_col,
+        discard=discard_cols,
+    )
+
+    dat_path = os.path.join(path_curate, "CURATE_data.dat")
+    assert os.path.exists(dat_path)
+    with open(dat_path, "r", encoding="utf-8") as handle:
+        dat_lines = handle.readlines()
+
+    dat_counts = parse_labeled_counts_from_dat(
+        dat_lines,
+        "loaded successfully, including:",
+        {
+            "datapoints": "datapoints_loaded",
+            "accepted descriptors": "accepted_descriptors_loaded",
+            "ignored descriptors": "ignored_descriptors_loaded",
+            "discarded descriptors": "discarded_descriptors_loaded",
+        },
+    )
+
+    oracle = recompute_load_database_oracle(
+        csv_load=csv_input,
+        y_col=y_col,
+        ignore=[names_col],
+        discard=discard_cols,
+        auto_fill=False,
+    )
+
+    assert dat_counts["datapoints_loaded"] == oracle["datapoints_loaded"]
+    assert dat_counts["accepted_descriptors_loaded"] == oracle["accepted_descriptors_loaded"]
+    assert dat_counts["ignored_descriptors_loaded"] == oracle["ignored_descriptors_loaded"]
+    assert dat_counts["discarded_descriptors_loaded"] == oracle["discarded_descriptors_loaded"]
+
+    audit_path = os.path.join(path_main, "JSON", "curate_audit.json")
+    audit = load_json(audit_path)
+
+    assert_section_keys_present(
+        audit,
+        [
+            "datapoints_loaded",
+            "accepted_descriptors_loaded",
+            "ignored_descriptors_loaded",
+            "discarded_descriptors_loaded",
+            "columns_removed_lt90pct_data",
+            "rows_removed_gt50pct_missing",
+            "knn_imputer_applied",
+        ],
+    )
+
+    assert_event_payload_parity(
+        audit,
+        "load_database",
+        {
+            "datapoints_loaded": oracle["datapoints_loaded"],
+            "accepted_descriptors_loaded": oracle["accepted_descriptors_loaded"],
+            "columns_removed_lt90pct_data": oracle["columns_removed_lt90pct_data"],
+            "rows_removed_gt50pct_missing": oracle["rows_removed_gt50pct_missing"],
+            "knn_imputer_applied": oracle["knn_imputer_applied"],
+        },
+        [
+            "datapoints_loaded",
+            "accepted_descriptors_loaded",
+            "columns_removed_lt90pct_data",
+            "rows_removed_gt50pct_missing",
+            "knn_imputer_applied",
+        ],
+    )
+
+    section = audit["sections"]["load_database"]
+    assert section["ignored_descriptors_loaded"]["value"] == oracle["ignored_descriptors_loaded"]
+    assert section["discarded_descriptors_loaded"]["value"] == oracle["discarded_descriptors_loaded"]
+
+
+def test_curate_correlation_filter_dat_json_parity_via_new_file_only():
+    _clean_module_outputs()
+
+    curate(
+        csv_name=os.path.join("tests", "Robert_example.csv"),
+        y="Target_values",
+        names="Name",
+        discard=["xtest"],
+    )
+
+    dat_path = os.path.join(path_curate, "CURATE_data.dat")
+    assert os.path.exists(dat_path)
+    with open(dat_path, "r", encoding="utf-8") as handle:
+        dat_lines = handle.readlines()
+
+    expected = parse_curate_correlation_filter_summary_from_dat(dat_lines)
+
+    audit_path = os.path.join(path_main, "JSON", "curate_audit.json")
+    audit = load_json(audit_path)
+
+    assert_event_payload_parity(
+        audit,
+        "correlation_filter",
+        expected,
+        ["constant_removed", "low_y_corr_removed", "high_intercorr_removed", "rfecv_applied"],
+    )
+
+    corr_section = audit["sections"]["correlation_filter"]
+    assert corr_section["constant_descriptor_count_removed"]["value"] == expected["constant_removed"]
+    assert corr_section["low_y_correlation_descriptor_count_removed"]["value"] == expected["low_y_corr_removed"]
+    assert corr_section["high_intercorrelation_descriptor_count_removed"]["value"] == expected["high_intercorr_removed"]
+    assert corr_section["descriptors_removed_correlation_filter"]["value"] == expected["high_intercorr_removed"]
+    assert corr_section["rfecv_applied"]["value"] == expected["rfecv_applied"]
+
+
+def test_curate_categorical_transform_dat_json_parity_via_new_file_only():
+    _clean_module_outputs()
+
+    curate(
+        csv_name=os.path.join("tests", "Robert_example.csv"),
+        y="Target_values",
+        names="Name",
+        discard=["xtest"],
+    )
+
+    dat_path = os.path.join(path_curate, "CURATE_data.dat")
+    assert os.path.exists(dat_path)
+    with open(dat_path, "r", encoding="utf-8") as handle:
+        dat_lines = handle.readlines()
+
+    expected = parse_curate_categorical_transform_summary_from_dat(dat_lines)
+
+    audit_path = os.path.join(path_main, "JSON", "curate_audit.json")
+    audit = load_json(audit_path)
+
+    event_expected = {
+        "categorical_variables_count": expected["categorical_variables_count"],
+        "generated_descriptors_count": expected["generated_descriptors_count"],
+        "mode": expected["mode"],
+    }
+    assert_event_payload_parity(
+        audit,
+        "categorical_transform",
+        event_expected,
+        ["categorical_variables_count", "generated_descriptors_count", "mode"],
+    )
+
+    cat_section = audit["sections"]["categorical_transform"]
+    assert cat_section["descriptors_removed_categorical_transform"]["value"] == expected["categorical_variables_count"]
+    assert cat_section["categorical_variables_found"]["value"] == (expected["categorical_variables_count"] > 0)
+    assert len(cat_section["generated_descriptors"]["value"]) == expected["generated_descriptors_count"]
+    if expected["mode"] is not None:
+        assert cat_section["mode"]["value"] == expected["mode"]
+
+
+def test_verify_dat_json_parity_via_new_file_only():
+    _clean_module_outputs()
+
+    curate(
+        csv_name=os.path.join("tests", "Robert_example.csv"),
+        y="Target_values",
+        names="Name",
+        discard=["xtest"],
+    )
+
+    generate(
+        generate=True,
+        csv_name=os.path.join("CURATE", "Robert_example_CURATE.csv"),
+        y="Target_values",
+        model=["RF"],
+        init_points=1,
+        n_iter=1,
+    )
+
+    verify()
+
+    dat_path = os.path.join(path_verify, "VERIFY_data.dat")
+    assert os.path.exists(dat_path)
+    with open(dat_path, "r", encoding="utf-8") as handle:
+        dat_lines = handle.readlines()
+
+    expected_load = parse_labeled_counts_from_dat(
+        dat_lines,
+        "loaded successfully, including:",
+        {
+            "datapoints": "datapoints_loaded",
+            "accepted descriptors": "accepted_descriptors_loaded",
+            "ignored descriptors": "ignored_descriptors_loaded",
+            "discarded descriptors": "discarded_descriptors_loaded",
+        },
+    )
+    expected_summary = parse_verify_summary_metrics_from_dat(dat_lines)
+
+    audit_path = os.path.join(path_main, "JSON", "verify_audit.json")
+    audit = load_json(audit_path)
+
+    assert_section_keys_present(
+        audit,
+        [
+            "datapoints_loaded",
+            "accepted_descriptors_loaded",
+            "ignored_descriptors_loaded",
+            "discarded_descriptors_loaded",
+        ],
+    )
+
+    assert_event_payload_parity(
+        audit,
+        "load_database",
+        expected_load,
+        ["datapoints_loaded", "accepted_descriptors_loaded"],
+    )
+
+    assert_event_payload_parity_rounded(
+        audit,
+        "print_verify_summary",
+        expected_summary,
+        ["original_cv_metric", "y_mean_result", "y_shuffle_result", "onehot_result"],
+        ndigits=2,
+    )
+
+
+def test_predict_dat_json_parity_via_new_file_only():
+    _clean_module_outputs()
+
+    curate(
+        csv_name=os.path.join("tests", "Robert_example.csv"),
+        y="Target_values",
+        names="Name",
+        discard=["xtest"],
+    )
+
+    generate(
+        generate=True,
+        csv_name=os.path.join("CURATE", "Robert_example_CURATE.csv"),
+        y="Target_values",
+        model=["RF"],
+        init_points=1,
+        n_iter=1,
+    )
+
+    predict(csv_test=os.path.join("tests", "Robert_example_test.csv"))
+
+    dat_path = os.path.join(path_predict, "PREDICT_data.dat")
+    assert os.path.exists(dat_path)
+    with open(dat_path, "r", encoding="utf-8") as handle:
+        dat_lines = handle.readlines()
+
+    expected_external_load = parse_predict_external_load_count_from_dat(dat_lines)
+    expected_summary = parse_predict_summary_metrics_from_dat(dat_lines)
+
+    audit_path = os.path.join(path_main, "JSON", "predict_audit.json")
+    audit = load_json(audit_path)
+
+    assert_section_keys_present(audit, ["datapoints_loaded"])
+
+    assert_event_payload_parity(
+        audit,
+        "load_database",
+        expected_external_load,
+        ["datapoints_loaded"],
+    )
+
+    assert_predict_summary_event_parity(audit, expected_summary, ndigits=2)

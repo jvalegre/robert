@@ -1,0 +1,2 @@
+model,type,kfold,repeat_kfolds,seed,error_type,y,names,X_descriptors,params,combined_mcc,split
+RF,clas,5,10,0,mcc,Target_values,Name,['x6'],"{'n_estimators': 49, 'max_depth': 12, 'min_samples_split': 9, 'min_samples_leaf': 5, 'min_weight_fraction_leaf': 0.01888759799326406, 'max_features': 0.8606740893125618, 'ccp_alpha': 0.002807886990777726, 'max_samples': 0.6180243369079007, 'random_state': 0}",0.6451073798478546,rnd

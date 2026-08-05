@@ -107,12 +107,28 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Root-level ROBERT generated run outputs
+/CURATE/
+/GENERATE/
+/VERIFY/
+/PREDICT/
+/REPORT/
+/AQME/
+/EVALUATE/
+/ROBERT_report.pdf
+/report.css
+/report_debug.txt
+
+# Local project archive created by the timestamped wrapper
+/json-output-for-agent/runs/
 
 # Spyder project settings
 .spyderproject
@@ -131,3 +147,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Local ROBERT comparison data
+comparison/original_robert/
+comparison/chatbob_robert/
+
+# Locally generated JSON outputs
+/JSON/
+
+# Databases provided by Juanvi for testing
+/databases/

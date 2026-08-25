@@ -241,6 +241,20 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, obj
     }
 
 
+def parse_verify_branch_titles_from_dat(dat_lines: List[str]) -> List[str]:
+    """Parse the VERIFY branch markers written before each model analysis block."""
+
+    branch_titles = []
+    for line in dat_lines:
+        if "Starting model with all variables (No PFI)" in line:
+            branch_titles.append("No_PFI")
+        elif "Starting model with PFI filter" in line:
+            branch_titles.append("PFI")
+    if not branch_titles:
+        raise AssertionError("Could not find VERIFY branch markers in DAT output")
+    return branch_titles
+
+
 def assert_event_payload_parity_rounded(
     audit: dict,
     event_type: str,

@@ -598,6 +598,41 @@ What remains uncertain:
 Next suggested step:
 - Run the focused VERIFY parity test and then the full isolated parity suite.
 
+### Entry 030
+
+Date: 2026-08-25
+
+Goal of this step:
+- Verify that the JSON audit preserves the VERIFY branch markers written to DAT.
+
+What changed:
+- Added a DAT parser for the No_PFI and PFI branch markers.
+- Required the isolated VERIFY parity test to compare the ordered DAT branch markers with `verify_branch` JSON events.
+- No ROBERT runtime code changed because the JSON branch fields already existed.
+
+Files changed:
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To confirm that JSON identifies the same VERIFY analysis branches as the standard DAT output.
+
+How this was tested:
+- Focused VERIFY parity test: `1 passed`.
+- Full isolated JSON parity suite: `7 passed`.
+
+Confirmed results:
+- Branch-marker parity assertion added.
+- The focused and full isolated parity tests passed.
+
+What remains uncertain:
+- Other VERIFY DAT summary fields may still need event-level coverage.
+
+Next suggested step:
+- Run the focused VERIFY parity test and then the full isolated parity suite.
+
 ### Entry 028
 
 Date: 2026-08-25

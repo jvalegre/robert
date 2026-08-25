@@ -19,6 +19,7 @@ from tests.json_parity_helpers import (
     parse_labeled_counts_from_dat,
     parse_predict_external_load_count_from_dat,
     parse_predict_summary_metrics_from_dat,
+    parse_verify_branch_titles_from_dat,
     recompute_load_database_oracle,
     parse_verify_summary_metrics_from_dat,
 )
@@ -385,6 +386,7 @@ def test_verify_dat_json_parity_via_new_file_only():
         },
     )
     expected_summary = parse_verify_summary_metrics_from_dat(dat_lines)
+    expected_branches = parse_verify_branch_titles_from_dat(dat_lines)
 
     audit_path = os.path.join(path_main, "JSON", "verify_audit.json")
     audit = load_json(audit_path)
@@ -454,6 +456,10 @@ def test_verify_dat_json_parity_via_new_file_only():
         )
         for event in analyze_events
     ), "No analyze_tests event matched DAT test statuses and metrics"
+
+    verify_branch_events = [event for event in audit.get("events", []) if event.get("event_type") == "verify_branch"]
+    actual_branches = [event.get("payload", {}).get("suffix_title") for event in verify_branch_events]
+    assert actual_branches == expected_branches, "VERIFY branch events did not match DAT branch markers"
 
 
 def test_predict_dat_json_parity_via_new_file_only():

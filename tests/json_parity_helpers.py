@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import re
@@ -172,7 +173,7 @@ def assert_event_payload_parity(
         )
 
 
-def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, float]:
+def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, object]:
     """
     Parse the first VERIFY summary block metrics from DAT text.
     """
@@ -184,6 +185,7 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, flo
     y_mean_line = dat_lines[start + 2]
     y_shuffle_line = dat_lines[start + 3]
     onehot_line = dat_lines[start + 4]
+    sorted_line = dat_lines[start + 5]
 
     original_match = re.search(
         r"Original\s+(\w+)\s+\(([^)]+)\)\s+(-?\d+(?:\.\d+)?)\s+([+-])\s+(\d+)%\s+&\s+(\d+)%\s+threshold\s+=\s+(-?\d+(?:\.\d+)?)\s+&\s+(-?\d+(?:\.\d+)?)",
@@ -198,6 +200,20 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, flo
             raise AssertionError(f"Could not parse VERIFY test metric from line: {line!r}")
         return float(match.group(1))
 
+    sorted_metrics: Dict[str, List[float]]
+    if "R2 =" in sorted_line:
+        sorted_metrics = {
+            "r2": ast.literal_eval(sorted_line.split("R2 = ", 1)[1].split(", MAE = ", 1)[0]),
+            "mae": ast.literal_eval(sorted_line.split("MAE = ", 1)[1].split(", RMSE = ", 1)[0]),
+            "rmse": ast.literal_eval(sorted_line.split("RMSE = ", 1)[1]),
+        }
+    else:
+        sorted_metrics = {
+            "acc": ast.literal_eval(sorted_line.split("Accuracy = ", 1)[1].split(", F1 score = ", 1)[0]),
+            "f1": ast.literal_eval(sorted_line.split("F1 score = ", 1)[1].split(", MCC = ", 1)[0]),
+            "mcc": ast.literal_eval(sorted_line.split("MCC = ", 1)[1]),
+        }
+
     return {
         "error_type": original_match.group(1).lower(),
         "cv_type": original_match.group(2),
@@ -210,6 +226,7 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, flo
         "y_mean_result": _parse_test_metric(y_mean_line),
         "y_shuffle_result": _parse_test_metric(y_shuffle_line),
         "onehot_result": _parse_test_metric(onehot_line),
+        "sorted_metrics": sorted_metrics,
     }
 
 

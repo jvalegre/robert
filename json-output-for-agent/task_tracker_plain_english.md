@@ -563,6 +563,41 @@ What remains uncertain:
 Next suggested step:
 - Review and approve the next VERIFY parity gap before making another implementation change.
 
+### Entry 028
+
+Date: 2026-08-25
+
+Goal of this step:
+- Close the next VERIFY DAT-to-JSON parity checkpoint for sorted cross-validation metrics.
+
+What changed:
+- Extended the isolated DAT parser to read the sorted regression or classification metrics from `VERIFY_data.dat`.
+- Required the existing `print_verify_summary` JSON event to match those metrics.
+- No VERIFY calculation or runtime event generation logic needed to change because the values were already present in the event payload.
+
+Files changed:
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To verify that the sorted-CV values written by ROBERT to DAT remain synchronized with the corresponding JSON audit evidence.
+
+How this was tested:
+- Focused VERIFY sorted-CV parity test: `1 passed`.
+- Full isolated JSON parity suite: `7 passed`.
+
+Confirmed results:
+- Sorted-CV regression metrics matched between DAT and JSON.
+- Existing CURATE, GENERATE, VERIFY, and PREDICT parity checks remain passing.
+
+What remains uncertain:
+- Other VERIFY DAT summary fields may still need event-level coverage.
+
+Next suggested step:
+- Review and approve the next VERIFY parity gap before making another implementation change.
+
 ### Entry 007
 
 Date: 2026-06-08

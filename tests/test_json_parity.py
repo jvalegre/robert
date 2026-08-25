@@ -434,6 +434,12 @@ def test_verify_dat_json_parity_via_new_file_only():
         for event in verify_summary_events
     ), "No print_verify_summary event matched DAT threshold metadata"
 
+    assert any(
+        event.get("payload", {}).get("sorted_cv_metrics", {}).get("regression")
+        == expected_summary["sorted_metrics"]
+        for event in verify_summary_events
+    ), "No print_verify_summary event matched DAT sorted-CV metrics"
+
 
 def test_predict_dat_json_parity_via_new_file_only():
     _clean_module_outputs()

@@ -563,6 +563,41 @@ What remains uncertain:
 Next suggested step:
 - Review and approve the next VERIFY parity gap before making another implementation change.
 
+### Entry 029
+
+Date: 2026-08-25
+
+Goal of this step:
+- Close the next VERIFY DAT-to-JSON parity checkpoint for flawed-model test statuses.
+
+What changed:
+- Extended the isolated DAT parser to read the `PASSED`, `UNCLEAR`, or `FAILED` labels for the y-mean, y-shuffle, and one-hot tests.
+- Required an existing `analyze_tests` JSON event to match those statuses and their DAT metrics.
+- No VERIFY runtime code changed because these values were already present in the JSON audit event.
+
+Files changed:
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To verify that the qualitative VERIFY test outcomes written to DAT remain synchronized with structured JSON evidence.
+
+How this was tested:
+- Focused VERIFY parity test: `1 passed`.
+- Full isolated JSON parity suite: `7 passed`.
+
+Confirmed results:
+- The parity assertion now covers both status labels and numeric test metrics.
+- The focused and full isolated parity tests passed.
+
+What remains uncertain:
+- Other VERIFY DAT summary fields may still need event-level coverage.
+
+Next suggested step:
+- Run the focused VERIFY parity test and then the full isolated parity suite.
+
 ### Entry 028
 
 Date: 2026-08-25

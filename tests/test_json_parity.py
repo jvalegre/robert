@@ -440,6 +440,21 @@ def test_verify_dat_json_parity_via_new_file_only():
         for event in verify_summary_events
     ), "No print_verify_summary event matched DAT sorted-CV metrics"
 
+    analyze_events = [event for event in audit.get("events", []) if event.get("event_type") == "analyze_tests"]
+    assert any(
+        event.get("payload", {}).get("per_test_status") == expected_summary["test_status"]
+        and all(
+            round(float(event.get("payload", {}).get("per_test_metric", {}).get(test_name)), 2)
+            == round(float(expected_summary[result_key]), 2)
+            for test_name, result_key in {
+                "y_mean": "y_mean_result",
+                "y_shuffle": "y_shuffle_result",
+                "onehot": "onehot_result",
+            }.items()
+        )
+        for event in analyze_events
+    ), "No analyze_tests event matched DAT test statuses and metrics"
+
 
 def test_predict_dat_json_parity_via_new_file_only():
     _clean_module_outputs()

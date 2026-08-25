@@ -568,6 +568,7 @@ Goal:
 * [x] Added GENERATE model-scan parity coverage for model-cycle totals and PFI metric labels.
 * [x] Added VERIFY summary-header parity coverage for error type, CV configuration, threshold direction, percentages, and values.
 * [x] Added VERIFY sorted cross-validation metric parity coverage.
+* [x] Added VERIFY flawed-test status and metric parity coverage.
 
 ---
 
@@ -612,6 +613,7 @@ Goal:
 * [x] GENERATE model-scan gap closure completed for the approved cycle and metric-label fields
 * [x] VERIFY summary-header gap closure completed for the approved metadata fields
 * [x] VERIFY sorted cross-validation metric parity coverage completed
+* [x] VERIFY flawed-test status and metric parity coverage completed
 * [ ] VERIFY gap closure after CURATE slice is complete and reviewed
 * [ ] PREDICT gap closure after CURATE slice is complete and reviewed
 

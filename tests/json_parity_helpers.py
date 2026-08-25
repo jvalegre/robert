@@ -200,6 +200,12 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, obj
             raise AssertionError(f"Could not parse VERIFY test metric from line: {line!r}")
         return float(match.group(1))
 
+    def _parse_test_status(line: str) -> str:
+        match = re.search(r"\b(PASSED|UNCLEAR|FAILED)\b", line)
+        if not match:
+            raise AssertionError(f"Could not parse VERIFY test status from line: {line!r}")
+        return match.group(1)
+
     sorted_metrics: Dict[str, List[float]]
     if "R2 =" in sorted_line:
         sorted_metrics = {
@@ -226,6 +232,11 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, obj
         "y_mean_result": _parse_test_metric(y_mean_line),
         "y_shuffle_result": _parse_test_metric(y_shuffle_line),
         "onehot_result": _parse_test_metric(onehot_line),
+        "test_status": {
+            "y_mean": _parse_test_status(y_mean_line),
+            "y_shuffle": _parse_test_status(y_shuffle_line),
+            "onehot": _parse_test_status(onehot_line),
+        },
         "sorted_metrics": sorted_metrics,
     }
 

@@ -597,9 +597,9 @@ Goal:
 
 ### Currently Approved Implementation Work Only
 
-* [ ] CURATE `load_database` event fields
-* [ ] CURATE `categorical_transform` event fields
-* [ ] CURATE `correlation_filter` event fields
+* [x] CURATE `load_database` event fields
+* [x] CURATE `categorical_transform` event fields
+* [x] CURATE `correlation_filter` event fields
 * [ ] Focused parity tests for the CURATE slice above
 * [ ] Third-oracle tests for the CURATE slice above
 * [ ] Mutation tests for the CURATE slice above

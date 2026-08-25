@@ -306,6 +306,9 @@ def parse_curate_categorical_transform_summary_from_dat(dat_lines: List[str]) ->
             return {
                 "categorical_variables_count": 0,
                 "generated_descriptors_count": 0,
+                "categorical_variables": [],
+                "generated_descriptors": [],
+                "categorical_variables_found": False,
                 "mode": None,
             }
         raise AssertionError("Could not parse categorical-transform summary line from CURATE DAT output")
@@ -318,22 +321,47 @@ def parse_curate_categorical_transform_summary_from_dat(dat_lines: List[str]) ->
     categorical_variables_count = int(count_match.group(1))
     mode = mode_match.group(1)
 
-    generated_descriptors_count = 0
-    for i, line in enumerate(dat_lines):
-        if "Generated descriptors:" in line:
-            for desc_line in dat_lines[i + 1 :]:
-                stripped = desc_line.strip()
-                if not stripped:
-                    break
-                if stripped.startswith("o"):
-                    break
-                if stripped.startswith("-"):
-                    generated_descriptors_count += 1
+    categorical_variables: List[str] = []
+    generated_descriptors: List[str] = []
+
+    count_index = dat_lines.index(count_line)
+    section = None
+    for line in dat_lines[count_index + 1 :]:
+        stripped = line.strip()
+        if not stripped:
+            if mode.lower() == "numbers" and section == "categorical":
+                break
+            continue
+
+        if stripped.startswith("o"):
             break
+
+        if "Initial descriptors:" in line:
+            section = "categorical"
+            continue
+
+        if "Generated descriptors:" in line:
+            section = "generated"
+            continue
+
+        if stripped.startswith("-"):
+            descriptor_name = stripped.lstrip("-").strip()
+            if mode.lower() == "numbers" and section is None:
+                categorical_variables.append(descriptor_name)
+                continue
+            if section == "categorical":
+                categorical_variables.append(descriptor_name)
+            elif section == "generated":
+                generated_descriptors.append(descriptor_name)
+
+    generated_descriptors_count = len(generated_descriptors)
 
     return {
         "categorical_variables_count": categorical_variables_count,
         "generated_descriptors_count": int(generated_descriptors_count),
+        "categorical_variables": categorical_variables,
+        "generated_descriptors": generated_descriptors,
+        "categorical_variables_found": categorical_variables_count > 0,
         "mode": mode,
     }
 

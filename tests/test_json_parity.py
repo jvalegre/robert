@@ -223,6 +223,8 @@ def test_curate_load_database_third_oracle_parity_via_new_file_only():
         {
             "datapoints_loaded": oracle["datapoints_loaded"],
             "accepted_descriptors_loaded": oracle["accepted_descriptors_loaded"],
+            "ignored_descriptors_loaded": oracle["ignored_descriptors_loaded"],
+            "discarded_descriptors_loaded": oracle["discarded_descriptors_loaded"],
             "columns_removed_lt90pct_data": oracle["columns_removed_lt90pct_data"],
             "rows_removed_gt50pct_missing": oracle["rows_removed_gt50pct_missing"],
             "knn_imputer_applied": oracle["knn_imputer_applied"],
@@ -230,6 +232,8 @@ def test_curate_load_database_third_oracle_parity_via_new_file_only():
         [
             "datapoints_loaded",
             "accepted_descriptors_loaded",
+            "ignored_descriptors_loaded",
+            "discarded_descriptors_loaded",
             "columns_removed_lt90pct_data",
             "rows_removed_gt50pct_missing",
             "knn_imputer_applied",
@@ -269,6 +273,20 @@ def test_curate_correlation_filter_dat_json_parity_via_new_file_only():
     )
 
     corr_section = audit["sections"]["correlation_filter"]
+    corr_events = [e for e in audit.get("events", []) if e.get("event_type") == "correlation_filter"]
+    assert corr_events, "No correlation_filter event found"
+
+    assert any(
+        payload.get("constant_descriptors_removed") == corr_section["constant_descriptors_removed"]["value"]
+        and payload.get("low_y_correlation_descriptors_removed") == corr_section["low_y_correlation_descriptors_removed"]["value"]
+        and payload.get("high_intercorrelation_removals") == corr_section["high_intercorrelation_removals"]["value"]
+        and payload.get("descriptors_removed_correlation_filter") == corr_section["descriptors_removed_correlation_filter"]["value"]
+        and payload.get("rfecv_selection_method_by_model") == corr_section["rfecv_selection_method_by_model"]["value"]
+        and payload.get("rfecv_descriptors_selected_by_model") == corr_section["rfecv_descriptors_selected_by_model"]["value"]
+        and payload.get("rfecv_skip_reason") == corr_section["rfecv_skip_reason"]["value"]
+        for payload in (e.get("payload", {}) for e in corr_events)
+    ), "No correlation_filter event retained the expected detailed payload fields"
+
     assert corr_section["constant_descriptor_count_removed"]["value"] == expected["constant_removed"]
     assert corr_section["low_y_correlation_descriptor_count_removed"]["value"] == expected["low_y_corr_removed"]
     assert corr_section["high_intercorrelation_descriptor_count_removed"]["value"] == expected["high_intercorr_removed"]
@@ -298,14 +316,26 @@ def test_curate_categorical_transform_dat_json_parity_via_new_file_only():
 
     event_expected = {
         "categorical_variables_count": expected["categorical_variables_count"],
+        "categorical_variables": expected["categorical_variables"],
+        "categorical_variables_found": expected["categorical_variables_found"],
         "generated_descriptors_count": expected["generated_descriptors_count"],
+        "generated_descriptors": expected["generated_descriptors"],
         "mode": expected["mode"],
+        "descriptors_removed_categorical_transform": expected["categorical_variables_count"],
     }
     assert_event_payload_parity(
         audit,
         "categorical_transform",
         event_expected,
-        ["categorical_variables_count", "generated_descriptors_count", "mode"],
+        [
+            "categorical_variables_count",
+            "categorical_variables",
+            "categorical_variables_found",
+            "generated_descriptors_count",
+            "generated_descriptors",
+            "mode",
+            "descriptors_removed_categorical_transform",
+        ],
     )
 
     cat_section = audit["sections"]["categorical_transform"]

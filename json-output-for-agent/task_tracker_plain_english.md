@@ -393,6 +393,103 @@ Confirmed results:
 Next suggested step:
 - Implement only the approved CURATE slice in reviewable increments.
 
+### Entry 023
+
+Date: 2026-07-29
+
+Goal of this step:
+- Close the first approved CURATE event-field gap for `load_database`.
+
+What changed:
+- Added `ignored_descriptors_loaded` and `discarded_descriptors_loaded` to the existing `load_database` event payload using runtime values already calculated in `load_database()`.
+- Extended the CURATE third-oracle parity test so the new event payload fields are required in the JSON audit check.
+
+Why this change was made:
+- To align the CURATE `load_database` event payload with the values already printed in the DAT summary.
+- To keep the change narrow and limited to the first approved CURATE gap only.
+
+How this was tested:
+- Ran the focused CURATE parity test:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest 'tests/test_json_parity.py::test_curate_load_database_third_oracle_parity_via_new_file_only' -q`
+- Ran the full isolated parity suite:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- The focused CURATE load_database parity test passed.
+- The full isolated parity suite passed.
+- Only the approved CURATE load_database event fields were added.
+
+Next suggested step:
+- Stop here until the next CURATE slice is explicitly approved.
+
+### Entry 024
+
+Date: 2026-07-31
+
+Goal of this step:
+- Close the approved CURATE `categorical_transform` event-field gap.
+
+What changed:
+- Expanded the CURATE `categorical_transform` event payload to retain fields already available at runtime:
+	- `categorical_variables`
+	- `categorical_variables_found`
+	- `generated_descriptors`
+	- `descriptors_removed_categorical_transform`
+- Updated the isolated CURATE categorical parity test to require these event payload fields.
+- Updated the DAT parser helper for categorical-transform parity so descriptor-name lists are parsed and compared at event level.
+
+Why this change was made:
+- To align CURATE DAT evidence and structured event payload coverage without changing scientific behavior.
+
+How this was tested:
+- Focused test:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest 'tests/test_json_parity.py::test_curate_categorical_transform_dat_json_parity_via_new_file_only' -q`
+- Full isolated suite:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- Focused CURATE categorical-transform parity test passed.
+- Full isolated parity suite passed (`7 passed`).
+- Scope remained narrow to the approved CURATE slice.
+
+Next suggested step:
+- Stop here until the next CURATE slice is explicitly approved.
+
+### Entry 025
+
+Date: 2026-07-31
+
+Goal of this step:
+- Close the approved CURATE `correlation_filter` event-field gap.
+
+What changed:
+- Expanded the CURATE `correlation_filter` event payload to retain runtime values already available during filtering:
+	- `constant_descriptors_removed`
+	- `low_y_correlation_descriptors_removed`
+	- `high_intercorrelation_removals`
+	- `descriptors_removed_correlation_filter`
+	- `rfecv_selection_method_by_model`
+	- `rfecv_descriptors_selected_by_model`
+	- `rfecv_skip_reason`
+- Updated the isolated CURATE correlation parity test to require these detailed event payload fields.
+
+Why this change was made:
+- To complete the remaining approved CURATE event-field gap while preserving scientific behavior.
+
+How this was tested:
+- Focused test:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest 'tests/test_json_parity.py::test_curate_correlation_filter_dat_json_parity_via_new_file_only' -q`
+- Full isolated suite:
+	- `/Users/cjcscha/mambaforge/envs/cheminf/bin/python -m pytest tests/test_json_parity.py -q`
+
+Confirmed results:
+- Focused CURATE correlation-filter parity test passed.
+- Full isolated parity suite passed (`7 passed`).
+- Scope remained narrow to the approved CURATE slice.
+
+Next suggested step:
+- Stop here until the next scope is explicitly approved.
+
 ### Entry 007
 
 Date: 2026-06-08

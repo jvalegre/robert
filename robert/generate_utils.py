@@ -162,6 +162,7 @@ def PFI_workflow(self, csv_df, ML_model, Xy_data):
                 "pfi_threshold": self.args.pfi_threshold,
                 "pfi_max": self.args.pfi_max,
                 "pfi_epochs": self.args.pfi_epochs,
+                "error_type": PFI_dict["error_type"],
                 "descriptor_count_before_pfi": len(descp_cols_pfi),
                 "descriptors_discarded_by_pfi": PFI_discard_cols,
                 "descriptor_count_discarded": len(PFI_discard_cols),

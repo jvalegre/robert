@@ -490,6 +490,43 @@ Confirmed results:
 Next suggested step:
 - Stop here until the next scope is explicitly approved.
 
+### Entry 026
+
+Date: 2026-08-25
+
+Goal of this step:
+- Close the approved GENERATE model-scan DAT-to-JSON parity checkpoint.
+
+What changed:
+- Added the total model-cycle count to each GENERATE `model_run_start` event.
+- Added the PFI error/metric type to each GENERATE `pfi_workflow` event.
+- Strengthened the isolated model-scan parity test so these fields must match the corresponding DAT values.
+
+Files changed:
+- `robert/generate.py`
+- `robert/generate_utils.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To retain model-scan values ROBERT already writes to `GENERATE_data.dat` without changing model calculations or output behavior.
+
+How this was tested:
+- Focused GENERATE model-scan parity test: `1 passed`.
+- Full isolated JSON parity suite: `7 passed`.
+
+Confirmed results:
+- GENERATE model-cycle total and PFI metric label now have direct JSON event coverage.
+- DAT-to-JSON parity passed for the focused checkpoint and the complete isolated suite.
+- Existing warnings were limited to dependency deprecations and known plotting/runtime warnings.
+
+What remains uncertain:
+- Other GENERATE DAT-to-event fields remain outside this checkpoint.
+
+Next suggested step:
+- Review and approve the next GENERATE parity gap before making another implementation change.
+
 ### Entry 007
 
 Date: 2026-06-08

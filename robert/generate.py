@@ -225,6 +225,7 @@ class generate:
                 event_type="model_run_start",
                 payload={
                     "cycle_number": int(cycle),
+                    "cycle_total": int(len(self.args.model)),
                     "model_name": str(ML_model),
                     "model_specific_curate_csv_found": bool(model_specific_found),
                     "model_specific_csv_path_checked": str(csv_model_specific),

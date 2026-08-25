@@ -537,7 +537,7 @@ Goal:
 * [x] Track and validate `load_database` parity for PREDICT.
 * [x] Track and validate `correlation_filter` parity (CURATE).
 * [x] Track and validate `categorical_transform` parity (CURATE).
-* [ ] Track and validate model-scan summary parity in GENERATE (`model_scan` / BO summary evidence).
+* [x] Track and validate model-scan summary parity in GENERATE (`model_scan` / BO summary evidence).
 * [x] Track and validate summary-metrics parity in VERIFY.
 * [x] Track and validate summary-metrics parity in PREDICT.
 * [ ] Decide whether missing event payload keys should be added where section-only checks are still required.
@@ -565,6 +565,7 @@ Goal:
   * external-set `load_database` DAT↔JSON count parity (`csv_test` path),
   * `print_predict_summary` DAT↔JSON metric parity.
 * [x] Added standalone CURATE third-oracle load-database parity checks in `tests/test_json_parity.py` that validate DAT and JSON against independent recomputation logic in `tests/json_parity_helpers.py`.
+* [x] Added GENERATE model-scan parity coverage for model-cycle totals and PFI metric labels.
 
 ---
 
@@ -606,7 +607,7 @@ Goal:
 
 ### Future Reviewable Increments
 
-* [ ] GENERATE gap closure after CURATE slice is complete and reviewed
+* [x] GENERATE model-scan gap closure completed for the approved cycle and metric-label fields
 * [ ] VERIFY gap closure after CURATE slice is complete and reviewed
 * [ ] PREDICT gap closure after CURATE slice is complete and reviewed
 

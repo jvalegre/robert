@@ -133,6 +133,7 @@ def test_generate_model_scan_summary_dat_json_parity_via_new_file_only():
     assert model_start_events, "No model_run_start event found"
     assert any(
         e.get("payload", {}).get("cycle_number") == expected["cycle_number"]
+        and e.get("payload", {}).get("cycle_total") == expected["cycle_total"]
         and e.get("payload", {}).get("model_name") == expected["model_name"]
         for e in model_start_events
     ), "No model_run_start event matched DAT model cycle summary"
@@ -151,6 +152,7 @@ def test_generate_model_scan_summary_dat_json_parity_via_new_file_only():
     assert pfi_events, "No pfi_workflow event found"
     assert any(
         e.get("payload", {}).get("model") == expected["pfi_model_name"]
+        and str(e.get("payload", {}).get("error_type", "")).lower() == expected["pfi_metric_label"]
         and round(float(e.get("payload", {}).get("combined_metric_after_pfi")), 2)
         == round(float(expected["pfi_combined_metric"]), 2)
         for e in pfi_events

@@ -185,7 +185,10 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, flo
     y_shuffle_line = dat_lines[start + 3]
     onehot_line = dat_lines[start + 4]
 
-    original_match = re.search(r"\)\s+(-?\d+(?:\.\d+)?)", original_line)
+    original_match = re.search(
+        r"Original\s+(\w+)\s+\(([^)]+)\)\s+(-?\d+(?:\.\d+)?)\s+([+-])\s+(\d+)%\s+&\s+(\d+)%\s+threshold\s+=\s+(-?\d+(?:\.\d+)?)\s+&\s+(-?\d+(?:\.\d+)?)",
+        original_line,
+    )
     if not original_match:
         raise AssertionError(f"Could not parse original CV metric from line: {original_line!r}")
 
@@ -196,7 +199,14 @@ def parse_verify_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, flo
         return float(match.group(1))
 
     return {
-        "original_cv_metric": float(original_match.group(1)),
+        "error_type": original_match.group(1).lower(),
+        "cv_type": original_match.group(2),
+        "original_cv_metric": float(original_match.group(3)),
+        "threshold_direction": "higher" if original_match.group(4) == "+" else "lower",
+        "unclear_threshold_percent": int(original_match.group(5)),
+        "pass_threshold_percent": int(original_match.group(6)),
+        "unclear_threshold": float(original_match.group(7)),
+        "pass_threshold": float(original_match.group(8)),
         "y_mean_result": _parse_test_metric(y_mean_line),
         "y_shuffle_result": _parse_test_metric(y_shuffle_line),
         "onehot_result": _parse_test_metric(onehot_line),

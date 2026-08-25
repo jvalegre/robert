@@ -410,9 +410,29 @@ def test_verify_dat_json_parity_via_new_file_only():
         audit,
         "print_verify_summary",
         expected_summary,
-        ["original_cv_metric", "y_mean_result", "y_shuffle_result", "onehot_result"],
+        [
+            "original_cv_metric",
+            "unclear_threshold",
+            "pass_threshold",
+            "y_mean_result",
+            "y_shuffle_result",
+            "onehot_result",
+        ],
         ndigits=2,
     )
+
+    verify_summary_events = [
+        event for event in audit.get("events", []) if event.get("event_type") == "print_verify_summary"
+    ]
+    assert any(
+        event.get("payload", {}).get("error_type") == expected_summary["error_type"]
+        and event.get("payload", {}).get("cv_type") == expected_summary["cv_type"]
+        and event.get("payload", {}).get("threshold_direction") == expected_summary["threshold_direction"]
+        and event.get("payload", {}).get("unclear_threshold_percent")
+        == expected_summary["unclear_threshold_percent"]
+        and event.get("payload", {}).get("pass_threshold_percent") == expected_summary["pass_threshold_percent"]
+        for event in verify_summary_events
+    ), "No print_verify_summary event matched DAT threshold metadata"
 
 
 def test_predict_dat_json_parity_via_new_file_only():

@@ -566,6 +566,7 @@ Goal:
   * `print_predict_summary` DAT↔JSON metric parity.
 * [x] Added standalone CURATE third-oracle load-database parity checks in `tests/test_json_parity.py` that validate DAT and JSON against independent recomputation logic in `tests/json_parity_helpers.py`.
 * [x] Added GENERATE model-scan parity coverage for model-cycle totals and PFI metric labels.
+* [x] Added VERIFY summary-header parity coverage for error type, CV configuration, threshold direction, percentages, and values.
 
 ---
 
@@ -608,6 +609,7 @@ Goal:
 ### Future Reviewable Increments
 
 * [x] GENERATE model-scan gap closure completed for the approved cycle and metric-label fields
+* [x] VERIFY summary-header gap closure completed for the approved metadata fields
 * [ ] VERIFY gap closure after CURATE slice is complete and reviewed
 * [ ] PREDICT gap closure after CURATE slice is complete and reviewed
 

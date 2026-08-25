@@ -527,6 +527,42 @@ What remains uncertain:
 Next suggested step:
 - Review and approve the next GENERATE parity gap before making another implementation change.
 
+### Entry 027
+
+Date: 2026-08-25
+
+Goal of this step:
+- Close the first VERIFY DAT-to-JSON parity increment after the GENERATE checkpoint.
+
+What changed:
+- Added VERIFY summary-event fields for the error type, CV configuration, threshold direction, threshold percentages, and threshold values already written to `VERIFY_data.dat`.
+- Extended the isolated VERIFY parity test and DAT parser to require those fields.
+
+Files changed:
+- `robert/verify.py`
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To retain existing VERIFY summary evidence in structured JSON without changing calculations, thresholds, or standard DAT output.
+
+How this was tested:
+- Focused VERIFY parity test: `1 passed`.
+- Full isolated JSON parity suite: `7 passed`.
+
+Confirmed results:
+- The new VERIFY summary metadata matches the corresponding DAT values.
+- Existing parity coverage remains passing.
+- Existing dependency and plotting warnings remain non-failing.
+
+What remains uncertain:
+- Other VERIFY DAT summary fields may still need event-level coverage.
+
+Next suggested step:
+- Review and approve the next VERIFY parity gap before making another implementation change.
+
 ### Entry 007
 
 Date: 2026-06-08

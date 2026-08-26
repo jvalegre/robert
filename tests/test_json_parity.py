@@ -22,6 +22,8 @@ from tests.json_parity_helpers import (
     parse_verify_branch_titles_from_dat,
     parse_verify_model_context_from_dat,
     recompute_load_database_oracle,
+    recompute_categorical_transform_oracle,
+    recompute_correlation_filter_oracle,
     parse_verify_summary_metrics_from_dat,
 )
 
@@ -265,6 +267,16 @@ def test_curate_correlation_filter_dat_json_parity_via_new_file_only():
         dat_lines = handle.readlines()
 
     expected = parse_curate_correlation_filter_summary_from_dat(dat_lines)
+    oracle = recompute_correlation_filter_oracle(
+        csv_load=os.path.join("tests", "Robert_example.csv"),
+        y_col="Target_values",
+        ignore=["Name"],
+        discard=["xtest"],
+    )
+    assert expected["constant_removed"] == len(oracle["constant_removed"])
+    assert expected["low_y_corr_removed"] == len(oracle["low_y_corr_removed"])
+    assert expected["high_intercorr_removed"] == len(oracle["high_intercorr_removed"])
+    assert expected["rfecv_applied"] == oracle["rfecv_applied"]
 
     audit_path = os.path.join(path_main, "JSON", "curate_audit.json")
     audit = load_json(audit_path)
@@ -314,6 +326,13 @@ def test_curate_categorical_transform_dat_json_parity_via_new_file_only():
         dat_lines = handle.readlines()
 
     expected = parse_curate_categorical_transform_summary_from_dat(dat_lines)
+    oracle = recompute_categorical_transform_oracle(
+        csv_load=os.path.join("tests", "Robert_example.csv"),
+        y_col="Target_values",
+        ignore=["Name"],
+        discard=["xtest"],
+    )
+    assert expected == oracle
 
     audit_path = os.path.join(path_main, "JSON", "curate_audit.json")
     audit = load_json(audit_path)

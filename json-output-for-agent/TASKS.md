@@ -608,8 +608,8 @@ Goal:
 * [x] CURATE `load_database` event fields
 * [x] CURATE `categorical_transform` event fields
 * [x] CURATE `correlation_filter` event fields
-* [ ] Focused parity tests for the CURATE slice above
-* [ ] Third-oracle tests for the CURATE slice above
+* [x] Focused parity tests for the CURATE slice above
+* [x] Third-oracle tests for the CURATE slice above
 * [ ] Mutation tests for the CURATE slice above
 
 ### Future Reviewable Increments

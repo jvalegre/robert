@@ -1304,6 +1304,41 @@ What remains uncertain:
 Next suggested step:
 -
 
+### Entry 032
+
+Date: 2026-08-26
+
+Goal of this step:
+- Add independent third-oracle validation for the remaining CURATE event-field checkpoints.
+
+What changed:
+- Added an independent categorical-transform oracle based on the input CSV, ignored columns, discarded columns, and categorical mode.
+- Added an independent correlation-filter oracle for constant descriptors, low target correlation, high descriptor intercorrelation, and RFECV applicability.
+- Extended the isolated CURATE parity tests to compare DAT summaries against these independent oracle results as well as JSON audit evidence.
+
+Files changed:
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To reduce the risk that DAT and JSON could agree only because they shared the same implementation error.
+
+How this was tested:
+- Focused CURATE third-oracle tests: `2 passed`.
+- Full isolated JSON parity suite: `7 passed`.
+
+Confirmed results:
+- Independent categorical and correlation-filter results matched the corresponding DAT summaries.
+- The complete isolated parity suite remains green.
+
+What remains uncertain:
+- Mutation tests for the CURATE slice are still pending.
+
+Next suggested step:
+- Add focused mutation tests for the CURATE parity assertions, then rerun the full isolated suite.
+
 ### Entry 031
 
 Date: 2026-08-25

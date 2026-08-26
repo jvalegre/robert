@@ -6,6 +6,8 @@ from io import StringIO
 from typing import Dict, List
 
 import pandas as pd
+import numpy as np
+from scipy import stats
 from sklearn.impute import KNNImputer
 
 
@@ -455,6 +457,113 @@ def parse_curate_categorical_transform_summary_from_dat(dat_lines: List[str]) ->
         "generated_descriptors": generated_descriptors,
         "categorical_variables_found": categorical_variables_count > 0,
         "mode": mode,
+    }
+
+
+def recompute_categorical_transform_oracle(
+    csv_load: str,
+    y_col: str,
+    ignore: List[str],
+    discard: List[str],
+    categorical_mode: str = "onehot",
+) -> Dict[str, object]:
+    """Recompute CURATE categorical names and generated descriptors from CSV input."""
+
+    csv_df = pd.read_csv(csv_load, encoding="utf-8")
+    csv_df = csv_df.drop(columns=[column for column in discard if column in csv_df.columns])
+    categorical_variables = []
+    generated_descriptors = []
+    for column in csv_df.columns:
+        if column in ignore or column == y_col or csv_df[column].dtype != "object":
+            continue
+        categorical_variables.append(column)
+        if categorical_mode.lower() == "numbers":
+            continue
+        generated_descriptors.extend(pd.get_dummies(csv_df[column]).columns.tolist())
+
+    return {
+        "categorical_variables": categorical_variables,
+        "categorical_variables_count": len(categorical_variables),
+        "generated_descriptors": generated_descriptors,
+        "generated_descriptors_count": len(generated_descriptors),
+        "categorical_variables_found": bool(categorical_variables),
+        "mode": categorical_mode,
+    }
+
+
+def recompute_correlation_filter_oracle(
+    csv_load: str,
+    y_col: str,
+    ignore: List[str],
+    discard: List[str],
+    thres_x: float = 0.8,
+    thres_y: float = 0.0,
+    categorical_mode: str = "onehot",
+) -> Dict[str, object]:
+    """Recompute CURATE correlation-filter counts without reading ROBERT audit output."""
+
+    csv_df = pd.read_csv(csv_load, encoding="utf-8")
+    csv_df = csv_df.drop(columns=[column for column in discard if column in csv_df.columns])
+    for column in list(csv_df.columns):
+        if column not in ignore and column != y_col and csv_df[column].dtype == "object":
+            if categorical_mode.lower() == "numbers":
+                csv_df[column] = csv_df[column].astype("category").cat.codes
+            else:
+                encoded = pd.get_dummies(csv_df[column])
+                csv_df = pd.concat([csv_df.drop(columns=[column]), encoded], axis=1)
+
+    descriptor_columns = sorted(column for column in csv_df.columns if column not in ignore and column != y_col)
+    csv_df = csv_df[descriptor_columns + [column for column in csv_df.columns if column in ignore or column == y_col]]
+    csv_df = csv_df.sort_values(by=y_col, kind="stable").reset_index(drop=True)
+
+    constant_removed = []
+    low_y_removed = []
+    descriptors_drop = []
+    for column in descriptor_columns:
+        if len(set(csv_df[column])) == 1:
+            descriptors_drop.append(column)
+            constant_removed.append(column)
+            continue
+        if thres_y:
+            r_squared = stats.linregress(csv_df[column], csv_df[y_col]).rvalue ** 2
+            if r_squared < thres_y:
+                descriptors_drop.append(column)
+                low_y_removed.append(column)
+
+    filtered = csv_df.drop(columns=descriptors_drop)
+    filtered_descriptors = [column for column in descriptor_columns if column not in descriptors_drop]
+    high_removed = []
+    if len(filtered_descriptors) > 1:
+        upper = filtered[filtered_descriptors].corr().abs().pow(2)
+        upper = upper.where(np.triu(np.ones(upper.shape), k=1).astype(bool))
+        r2_with_y = {
+            column: stats.linregress(filtered[column], filtered[y_col]).rvalue ** 2
+            for column in filtered_descriptors
+        }
+        while True:
+            max_r2 = upper.max().max()
+            if max_r2 <= thres_x or str(max_r2).lower() == "nan":
+                break
+            rounded = upper.round(10)
+            max_rounded = rounded.max().max()
+            rows, columns = np.where(rounded == max_rounded)
+            pairs = sorted((upper.index[row], upper.columns[column]) for row, column in zip(rows, columns))
+            first, second = pairs[0]
+            first_r2 = round(r2_with_y[first], 10)
+            second_r2 = round(r2_with_y[second], 10)
+            if first_r2 == second_r2:
+                removed = max(first, second)
+            else:
+                removed = first if first_r2 < second_r2 else second
+            high_removed.append(removed)
+            upper = upper.drop(index=removed, columns=removed)
+            del r2_with_y[removed]
+
+    return {
+        "constant_removed": constant_removed,
+        "low_y_corr_removed": low_y_removed,
+        "high_intercorr_removed": high_removed,
+        "rfecv_applied": len(descriptor_columns) > round(len(csv_df[y_col]) / 3),
     }
 
 

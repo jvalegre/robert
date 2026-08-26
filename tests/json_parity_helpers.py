@@ -255,6 +255,46 @@ def parse_verify_branch_titles_from_dat(dat_lines: List[str]) -> List[str]:
     return branch_titles
 
 
+def parse_verify_model_context_from_dat(dat_lines: List[str]) -> List[Dict[str, object]]:
+    """Parse model and dataset context blocks written by VERIFY load_print."""
+
+    contexts = []
+    for index, line in enumerate(dat_lines):
+        match = re.search(r"ML model\s+([^\s]+)\s+(.+) and Xy database were loaded", line)
+        if not match:
+            continue
+        context = {
+            "model_name": match.group(1),
+            "suffix": match.group(2),
+        }
+        for context_line in dat_lines[index + 1 : index + 9]:
+            label, separator, value = context_line.partition(":")
+            if not separator:
+                continue
+            key = label.strip().lstrip("-").strip()
+            value = value.strip()
+            if key == "Target value":
+                context["y_column"] = value
+            elif key == "Names":
+                context["names_column"] = value
+            elif key == "Model":
+                context["model_name"] = value
+            elif key == "k-fold CV":
+                context["kfold"] = int(value)
+            elif key == "Repetitions CV":
+                context["repeat_kfolds"] = int(value)
+            elif key == "Descriptors":
+                context["descriptor_list"] = ast.literal_eval(value)
+            elif key == "Training points":
+                context["train_datapoints"] = int(value)
+            elif key == "Test points":
+                context["test_datapoints"] = int(value)
+        contexts.append(context)
+    if not contexts:
+        raise AssertionError("Could not find VERIFY model-context blocks in DAT output")
+    return contexts
+
+
 def assert_event_payload_parity_rounded(
     audit: dict,
     event_type: str,
@@ -524,6 +564,20 @@ def parse_predict_summary_metrics_from_dat(dat_lines: List[str]) -> Dict[str, fl
 
     metrics: Dict[str, float] = {}
     for line in dat_lines[anchor + 1 : anchor + 12]:
+        if "Points CV (train+valid.):Test =" in line:
+            points = re.search(r"=\s*(\d+):(\d+)", line)
+            if points:
+                metrics["train_points"] = int(points.group(1))
+                metrics["test_points"] = int(points.group(2))
+        elif "Proportion CV (train+valid.):Test =" in line:
+            proportions = re.search(r"=\s*(\d+):(\d+)", line)
+            if proportions:
+                metrics["train_proportion_percent"] = int(proportions.group(1))
+                metrics["test_proportion_percent"] = int(proportions.group(2))
+        elif "Number of descriptors =" in line:
+            descriptor_count = re.search(r"=\s*(\d+)", line)
+            if descriptor_count:
+                metrics["descriptor_count"] = int(descriptor_count.group(1))
         if "R2 =" in line and "CV" in line:
             cv_match = re.search(r"R2\s*=\s*(-?\d+(?:\.\d+)?)\s*,\s*MAE\s*=\s*(-?\d+(?:\.\d+)?)\s*,\s*RMSE\s*=\s*(-?\d+(?:\.\d+)?)", line)
             if cv_match:
@@ -568,10 +622,22 @@ def assert_predict_summary_event_parity(audit: dict, expected_summary: Dict[str,
         payload = event.get("payload", {})
         cv_metrics = payload.get("cv_metrics", {})
         test_metrics = payload.get("test_metrics", {})
+        point_counts = payload.get("point_counts", {})
+        proportions = payload.get("train_test_proportion_percent", {})
 
         matches = True
         for key, expected_value in expected_summary.items():
-            if key.startswith("cv_"):
+            if key == "train_points":
+                current = point_counts.get("train")
+            elif key == "test_points":
+                current = point_counts.get("test")
+            elif key == "train_proportion_percent":
+                current = proportions.get("train")
+            elif key == "test_proportion_percent":
+                current = proportions.get("test")
+            elif key == "descriptor_count":
+                current = payload.get("descriptor_count")
+            elif key.startswith("cv_"):
                 metric_key = key.replace("cv_", "", 1)
                 current = cv_metrics.get(metric_key)
             elif key.startswith("test_"):

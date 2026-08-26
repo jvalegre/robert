@@ -374,6 +374,15 @@ class predict:
                     payload={
                         "branch_key": str(branch_key),
                         "model_type": str(model_data['type']),
+                        "point_counts": {
+                            "train": int(len(Xy_data['y_train'])),
+                            "test": int(len(Xy_data['y_test'])),
+                        },
+                        "train_test_proportion_percent": {
+                            "train": int(round(len(Xy_data['y_train']) * 100 / (len(Xy_data['y_train']) + len(Xy_data['y_test'])))),
+                            "test": int(round(len(Xy_data['y_test']) * 100 / (len(Xy_data['y_train']) + len(Xy_data['y_test'])))),
+                        },
+                        "descriptor_count": int(len(Xy_data['X_train'].keys())),
                         "cv_metrics": {
                             "r2": Xy_data.get('r2_train', None),
                             "mae": Xy_data.get('mae_train', None),

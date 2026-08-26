@@ -570,6 +570,9 @@ Goal:
 * [x] Added VERIFY sorted cross-validation metric parity coverage.
 * [x] Added VERIFY flawed-test status and metric parity coverage.
 * [x] Added VERIFY branch-marker parity coverage.
+* [x] Added VERIFY model-context parity coverage.
+* [x] Added VERIFY direct-test event parity coverage.
+* [x] Added PREDICT summary-count and proportion parity coverage.
 
 ---
 
@@ -616,6 +619,9 @@ Goal:
 * [x] VERIFY sorted cross-validation metric parity coverage completed
 * [x] VERIFY flawed-test status and metric parity coverage completed
 * [x] VERIFY branch-marker parity coverage completed
+* [x] VERIFY model-context parity coverage completed
+* [x] VERIFY direct-test event parity coverage completed
+* [x] PREDICT summary-count and proportion parity coverage completed
 * [ ] VERIFY gap closure after CURATE slice is complete and reviewed
 * [ ] PREDICT gap closure after CURATE slice is complete and reviewed
 

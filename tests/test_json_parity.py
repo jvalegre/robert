@@ -20,6 +20,7 @@ from tests.json_parity_helpers import (
     parse_predict_external_load_count_from_dat,
     parse_predict_summary_metrics_from_dat,
     parse_verify_branch_titles_from_dat,
+    parse_verify_model_context_from_dat,
     recompute_load_database_oracle,
     parse_verify_summary_metrics_from_dat,
 )
@@ -387,6 +388,7 @@ def test_verify_dat_json_parity_via_new_file_only():
     )
     expected_summary = parse_verify_summary_metrics_from_dat(dat_lines)
     expected_branches = parse_verify_branch_titles_from_dat(dat_lines)
+    expected_contexts = parse_verify_model_context_from_dat(dat_lines)
 
     audit_path = os.path.join(path_main, "JSON", "verify_audit.json")
     audit = load_json(audit_path)
@@ -457,9 +459,37 @@ def test_verify_dat_json_parity_via_new_file_only():
         for event in analyze_events
     ), "No analyze_tests event matched DAT test statuses and metrics"
 
+    verify_test_events = [event for event in audit.get("events", []) if event.get("event_type") == "verify_test"]
+    for test_name, result_key in {
+        "y_mean": "y_mean_result",
+        "y_shuffle": "y_shuffle_result",
+        "onehot": "onehot_result",
+    }.items():
+        assert any(
+            event.get("payload", {}).get("test_name") == test_name
+            and round(float(event.get("payload", {}).get("resulting_metric")), 2)
+            == round(float(expected_summary[result_key]), 2)
+            for event in verify_test_events
+        ), f"No verify_test event matched DAT result for {test_name}"
+
     verify_branch_events = [event for event in audit.get("events", []) if event.get("event_type") == "verify_branch"]
     actual_branches = [event.get("payload", {}).get("suffix_title") for event in verify_branch_events]
     assert actual_branches == expected_branches, "VERIFY branch events did not match DAT branch markers"
+
+    model_context_events = [event for event in audit.get("events", []) if event.get("event_type") == "model_context"]
+    assert len(model_context_events) == len(expected_contexts), "VERIFY model-context event count did not match DAT blocks"
+    for event, expected_context in zip(model_context_events, expected_contexts):
+        payload = event.get("payload", {})
+        assert payload.get("model_name") == expected_context["model_name"]
+        assert payload.get("y_column") == expected_context["y_column"]
+        assert payload.get("names_column") == expected_context["names_column"]
+        assert payload.get("kfold") == expected_context["kfold"]
+        assert payload.get("repeat_kfolds") == expected_context["repeat_kfolds"]
+        assert payload.get("descriptor_list") == expected_context["descriptor_list"]
+        assert payload.get("train_datapoints") == expected_context["train_datapoints"]
+        assert payload.get("total_datapoints_loaded") == (
+            expected_context["train_datapoints"] + expected_context["test_datapoints"]
+        )
 
 
 def test_predict_dat_json_parity_via_new_file_only():

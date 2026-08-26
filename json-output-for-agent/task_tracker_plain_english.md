@@ -1303,3 +1303,39 @@ What remains uncertain:
 
 Next suggested step:
 -
+
+### Entry 031
+
+Date: 2026-08-25
+
+Goal of this step:
+- Complete three focused DAT-to-JSON parity checkpoints sequentially.
+
+What changed:
+- VERIFY model-context parity now checks model, target, names, CV settings, descriptors, and datapoint counts. The audit also records total datapoints from the loaded training and test arrays.
+- VERIFY direct-test parity now checks y-mean, y-shuffle, and one-hot metrics against their `verify_test` events.
+- PREDICT summary parity now checks train/test point counts, train/test proportions, and descriptor count against the existing summary event.
+
+Files changed:
+- `robert/verify.py`
+- `robert/predict.py`
+- `tests/json_parity_helpers.py`
+- `tests/test_json_parity.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+How this was tested:
+- Focused VERIFY model-context parity test: `1 passed`.
+- Focused VERIFY direct-test parity test: `1 passed`.
+- Focused PREDICT summary parity test: `1 passed`.
+- Full isolated JSON parity suite: `7 passed`.
+
+Confirmed results:
+- All three focused checkpoints passed sequentially.
+- The complete isolated parity suite remains green.
+
+What remains uncertain:
+- Broader VERIFY and PREDICT DAT-to-event coverage still needs review.
+
+Next suggested step:
+- Commit the three focused parity checkpoints after reviewing the changed files.

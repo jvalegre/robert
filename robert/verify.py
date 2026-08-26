@@ -137,6 +137,8 @@ class verify:
                         total_datapoints_loaded = int(Xy_data['X'].shape[0])
                     elif 'y' in Xy_data and hasattr(Xy_data['y'], '__len__'):
                         total_datapoints_loaded = int(len(Xy_data['y']))
+                    elif 'y_test' in Xy_data and hasattr(Xy_data['y_test'], '__len__'):
+                        total_datapoints_loaded = int(train_datapoints + len(Xy_data['y_test']))
 
                 if isinstance(model_data, dict):
                     if 'X_descriptors' in model_data and model_data['X_descriptors'] is not None:

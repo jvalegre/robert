@@ -1339,6 +1339,39 @@ What remains uncertain:
 Next suggested step:
 - Add focused mutation tests for the CURATE parity assertions, then rerun the full isolated suite.
 
+### Entry 034
+
+Date: 2026-08-26
+
+Goal of this step:
+- Confirm that the CURATE parity tests detect deliberately incorrect expected values.
+
+What changed:
+- Added three isolated mutation tests covering CURATE database loading, categorical transformation, and correlation filtering.
+- Each test changes one expected value and confirms that the parity assertion raises an error.
+
+Files changed:
+- `tests/test_json_parity_mutations.py`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- Passing parity tests are only useful if they fail when DAT and JSON disagree. These tests check that behavior directly without changing ROBERT code.
+
+How this was tested:
+- Mutation tests: `3 passed`.
+- Combined parity and mutation suite: `10 passed`.
+
+Confirmed results:
+- The CURATE parity assertion rejects altered database counts, categorical descriptor names, and correlation-filter status.
+- Existing DAT-to-JSON parity tests remain passing.
+
+What remains uncertain:
+- These mutation tests exercise the generic parity assertion with representative audit data; they do not mutate a live ROBERT run.
+
+Next suggested step:
+- Review the completed CURATE validation work and decide whether to continue with broader VERIFY/PREDICT coverage or prepare the project for upstream review.
+
 ### Entry 031
 
 Date: 2026-08-25

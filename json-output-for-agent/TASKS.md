@@ -616,7 +616,7 @@ Goal:
 * [x] CURATE `correlation_filter` event fields
 * [x] Focused parity tests for the CURATE slice above
 * [x] Third-oracle tests for the CURATE slice above
-* [ ] Mutation tests for the CURATE slice above
+* [x] Mutation tests for the CURATE slice above
 
 ### Future Reviewable Increments
 

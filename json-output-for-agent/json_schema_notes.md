@@ -115,6 +115,15 @@ The JSON files should be:
 - module-native runtime audit files in `JSON/` are distinct from wrapper-generated archive manifests;
 - standard ROBERT scientific outputs remain in module folders (`CURATE/`, `GENERATE/`, `VERIFY/`, `PREDICT/`, `AQME/`, `EVALUATE/`, `REPORT/`).
 
+## Current Implementation Status (2026-08-26)
+
+- Module-native audit JSON is implemented for CURATE, GENERATE, VERIFY, and PREDICT.
+- Isolated DAT-to-JSON parity coverage is implemented for the current CURATE, GENERATE, VERIFY, and PREDICT checkpoints.
+- CURATE has additional independent third-oracle and mutation-test coverage.
+- AQME and EVALUATE audit JSON are not implemented.
+- REPORT currently has figure provenance only in `JSON/report_figure_provenance.json`.
+- AQME provenance capture remains optional future work and should be based on user value, not on inventing a DAT mirror.
+
 ---
 
 ## Long-Term Module Audit Pattern (Design Direction)

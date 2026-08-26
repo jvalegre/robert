@@ -1430,3 +1430,40 @@ What remains uncertain:
 
 Next suggested step:
 - Commit the three focused parity checkpoints after reviewing the changed files.
+
+### Entry 035
+
+Date: 2026-08-26
+
+Goal of this step:
+- Reconcile project documentation with the source-verified implementation and test status.
+
+What changed:
+- Updated README, schema notes, and output map with the current audit and parity status.
+- Marked the corresponding documentation tasks complete.
+- Recorded AQME as optional future provenance work rather than a required DAT-to-JSON task.
+
+Files changed:
+- `json-output-for-agent/README.md`
+- `json-output-for-agent/json_schema_notes.md`
+- `json-output-for-agent/output_map.md`
+- `json-output-for-agent/TASKS.md`
+- `json-output-for-agent/task_tracker_plain_english.md`
+
+Why this change was made:
+- To keep the project summary accurate after the completed CURATE, GENERATE, VERIFY, and PREDICT parity work.
+
+How this was tested:
+- Documentation consistency review.
+- `git diff --check`.
+
+Confirmed results:
+- Current documentation identifies CURATE, GENERATE, VERIFY, and PREDICT audits as implemented.
+- CURATE third-oracle and mutation coverage is recorded.
+- AQME is clearly marked as optional future work.
+
+What remains uncertain:
+- The long-term JSON schema and upstream integration decisions remain open.
+
+Next suggested step:
+- Commit the documentation reconciliation, then prepare the project for upstream review or select the next approved parity increment.

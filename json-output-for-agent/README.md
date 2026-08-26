@@ -33,11 +33,18 @@ Current source-verified module-native runtime audit status:
 - Not implemented: AQME, EVALUATE
 - REPORT: figure provenance only (`JSON/report_figure_provenance.json`), no full report audit yet
 
+Current validation status (2026-08-26):
+
+- CURATE, GENERATE, VERIFY, and PREDICT DAT-to-JSON parity checks are implemented in the isolated test files.
+- CURATE also has independent third-oracle checks and mutation tests.
+- The isolated parity suite passes with `7 passed`; the combined parity and CURATE mutation suite passes with `10 passed`.
+- AQME provenance JSON is a possible future enhancement, not a current requirement.
+
 Next steps:
 
 1. Open a pull request from `json-output-for-agent`.
 2. Agree with Juanvi on the integration branch and JSON output location.
-3. Reconcile the documented implementation status of all module audit files.
+3. Keep the documented implementation status of all module audit files synchronized with source and tests.
 4. Review the current JSON structures against a small set of likely ChatBob questions.
 5. Build deterministic question-to-evidence retrieval before adding an LLM answer layer.
 

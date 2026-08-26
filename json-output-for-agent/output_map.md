@@ -126,13 +126,20 @@ Why these are safest:
 - If JSON writes are added directly into critical loops, accidental performance impact is possible.
 - If JSON serialization is attempted on raw numpy/pandas objects without conversion, write failures can occur.
 
-## Current Runtime Audit Status (2026-07-13)
+## Current Runtime Audit Status (2026-08-26)
 
 - Canonical ChatBob runtime JSON location is the top-level `JSON/` folder.
 - Implemented module-native runtime audits: `JSON/curate_audit.json`, `JSON/generate_audit.json`, `JSON/verify_audit.json`, `JSON/predict_audit.json`.
 - Not implemented: `JSON/aqme_audit.json`, `JSON/evaluate_audit.json`.
 - REPORT currently provides `JSON/report_figure_provenance.json` only (no full report audit).
 - Wrapper-generated `*_manifest.json` and `run_summary.json` in timestamped archives are copy-side metadata, not module-native runtime audits.
+
+## Current Validation Status
+
+- CURATE, GENERATE, VERIFY, and PREDICT have isolated DAT-to-JSON parity coverage for the currently selected checkpoints.
+- CURATE additionally has independent third-oracle checks and mutation tests.
+- No AQME DAT-to-JSON parity target is currently defined because AQME does not produce a standard ROBERT DAT summary in the observed workflow.
+- Future AQME work, if approved, should validate provenance, operation status, and generated artifacts instead of creating a synthetic DAT comparison.
 
 ## Proposed First Implementation Step
 

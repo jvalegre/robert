@@ -446,9 +446,9 @@ Goal:
 * [x] Add a short plain-English explanation for chemists.
 * [x] Update `task_tracker_plain_english.md`.
 * [x] Update `TASKS.md`.
-* [ ] Update `json_schema_notes.md` to reflect CURATE, GENERATE, and VERIFY implementation status.
-* [ ] Update `output_map.md` to mark implemented module-native hooks.
-* [ ] Update `README.md` to reflect current module-native audit status.
+* [x] Update `json_schema_notes.md` to reflect current module-native audit status.
+* [x] Update `output_map.md` to mark implemented module-native hooks.
+* [x] Update `README.md` to reflect current module-native audit status.
 * [ ] Update `PROJECT_RULES.md` only if process rules change.
 
 ### Done

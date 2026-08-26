@@ -356,6 +356,12 @@ This phase added one JSON artifact that profiles observable facts from the incom
 
 * [ ] Not started.
 
+### Scope decision
+
+* [ ] Revisit AQME provenance JSON only if ChatBob needs to explain or locate AQME-generated structures or descriptors.
+* [x] Record that AQME DAT-to-JSON parity is not currently required because AQME does not produce a standard ROBERT DAT summary in the observed workflow.
+* [ ] If AQME work is approved later, prefer provenance and artifact validation over inventing a DAT mirror.
+
 ---
 
 ## Phase 9 — EVALUATE Module-Native Audit

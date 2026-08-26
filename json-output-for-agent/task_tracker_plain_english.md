@@ -1369,6 +1369,29 @@ Confirmed results:
 - All three focused checkpoints passed sequentially.
 - The complete isolated parity suite remains green.
 
+### Entry 033
+
+Date: 2026-08-26
+
+Goal of this step:
+- Record whether AQME DAT-to-JSON extraction is currently necessary.
+
+What we confirmed:
+- No AQME audit JSON has been implemented.
+- No AQME DAT-to-JSON parity tests have been implemented.
+- The observed AQME workflow produces structures, logs, CSV files, and internal AQME JSON files, but no standard ROBERT AQME DAT summary.
+
+Decision:
+- AQME provenance JSON may add value later if ChatBob needs to explain or locate AQME-generated structures or descriptors.
+- It is not necessary for the current DAT-to-JSON parity work.
+- If approved later, the first AQME tests should validate inputs, operation status, output-file metadata, JSON validity, and preservation of normal AQME outputs rather than inventing a DAT mirror.
+
+What remains uncertain:
+- The exact AQME evidence most useful to ChatBob has not yet been agreed.
+
+Next suggested step:
+- Continue the current parity work; revisit AQME only after its user-facing value and required evidence are defined.
+
 What remains uncertain:
 - Broader VERIFY and PREDICT DAT-to-event coverage still needs review.
 

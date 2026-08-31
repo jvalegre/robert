@@ -58,6 +58,7 @@ from sklearn.cluster import KMeans
 from sklearn.inspection import permutation_importance
 from sklearn.exceptions import ConvergenceWarning
 from robert.argument_parser import set_options, var_dict
+from robert.json_output_for_agent import audit_event, audit_set
 from bayes_opt import BayesianOptimization
 from bayes_opt import acquisition
 import warnings # this avoids warnings from sklearn
@@ -664,6 +665,12 @@ def correlation_filter(self, csv_df):
     """
 
     txt_corr = ''
+    constant_descs_removed = []
+    low_y_corr_descs_removed = []
+    high_intercorr_events = []
+    rfecv_selection_method = {}
+    rfecv_descriptors_selected = {}
+    rfecv_applied = False
     
     # Sort columns alphabetically and rows by y value for reproducibility
     descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore and col != self.args.y]
@@ -687,6 +694,7 @@ def correlation_filter(self, csv_df):
             # Remove descriptors where all values are the same
             if len(set(csv_df[column])) == 1:
                 descriptors_drop.append(column)
+                constant_descs_removed.append(column)
                 txt_corr += f'\n   - {column}: all the values are the same'
 
             # Remove descriptors with low correlation to the response values
@@ -697,6 +705,7 @@ def correlation_filter(self, csv_df):
                     rsquared_y = res_y.rvalue**2
                 if rsquared_y < self.args.thres_y:
                     descriptors_drop.append(column)
+                    low_y_corr_descs_removed.append(column)
                     txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
 
     self.args.log.write(txt_corr)
@@ -750,6 +759,16 @@ def correlation_filter(self, csv_df):
                 keep_col = col_name_1
             
             descriptors_drop.append(drop_col)
+            high_intercorr_events.append(
+                {
+                    "removed": drop_col,
+                    "kept": keep_col,
+                    "r2_between_descriptors": float(max_r2),
+                    "removed_r2_to_target": float(r2_with_y[drop_col]),
+                    "kept_r2_to_target": float(r2_with_y[keep_col]),
+                    "reason": "lower_r2_to_target_or_alphabetical_tie_break",
+                }
+            )
             txt_corr += f'\n   - {drop_col} removed (R2 = {max_r2:.2f} with {keep_col}), kept more predictive descriptor'
             
             upper = upper.drop(index=drop_col, columns=drop_col)
@@ -776,6 +795,7 @@ def correlation_filter(self, csv_df):
 
     num_descriptors = round(len(csv_df[self.args.y]) / 3)
     if n_descps > num_descriptors:
+        rfecv_applied = True
         cv_type = f'{self.args.repeat_kfolds}x {self.args.kfold}_fold_cv'
         txt_corr += f'\no  There are more descriptors than one-third of the data points. A Recursive Feature Elimination with Cross-Validation (RFECV) or permutation feature importance (PFI) using {cv_type} will be performed to select the most relevant descriptors for each model'
         self.args.log.write(txt_corr)
@@ -833,6 +853,8 @@ def correlation_filter(self, csv_df):
                 
                 # Sort final list alphabetically for consistent ordering in output
                 descriptors_used[model] = sorted(descriptors_used[model])
+                rfecv_selection_method[str(model)] = "PFI"
+                rfecv_descriptors_selected[str(model)] = list(descriptors_used[model])
                 
                 txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using PFI)'
             
@@ -869,6 +891,8 @@ def correlation_filter(self, csv_df):
                 
                 # Sort final list alphabetically for consistent ordering in output
                 descriptors_used[model] = sorted(descriptors_used[model])
+                rfecv_selection_method[str(model)] = "RFECV"
+                rfecv_descriptors_selected[str(model)] = list(descriptors_used[model])
                 
                 txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using RFECV)'
             
@@ -891,6 +915,48 @@ def correlation_filter(self, csv_df):
             csv_df_per_model[model] = csv_df_filtered
 
     self.args.log.write(txt_corr)
+
+    if hasattr(self.args, 'curate_audit'):
+        if rfecv_applied:
+            rfecv_skip_reason = None
+        else:
+            current_desc = int(len(csv_df_filtered.columns) - len(self.args.ignore) - 1)
+            rfecv_skip_reason = f"descriptor_count_not_above_threshold ({current_desc} <= {num_descriptors})"
+
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "activated", True)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "thres_x", self.args.thres_x)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "thres_y", self.args.thres_y if self.args.corr_filter_y else None)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "descriptor_count_before_filter", n_descps)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "constant_descriptors_removed", constant_descs_removed)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "constant_descriptor_count_removed", len(constant_descs_removed))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "low_y_correlation_descriptors_removed", low_y_corr_descs_removed)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "low_y_correlation_descriptor_count_removed", len(low_y_corr_descs_removed))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "high_intercorrelation_removals", high_intercorr_events)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "high_intercorrelation_descriptor_count_removed", len(high_intercorr_events))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "descriptors_removed_correlation_filter", len(high_intercorr_events))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "rfecv_applied", rfecv_applied)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "rfecv_selection_method_by_model", rfecv_selection_method)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "rfecv_descriptors_selected_by_model", rfecv_descriptors_selected)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "correlation_filter", "rfecv_skip_reason", rfecv_skip_reason)
+        self.args.curate_audit = audit_event(
+            self.args.curate_audit,
+            event_type="correlation_filter",
+            payload={
+                "constant_removed": len(constant_descs_removed),
+                "constant_descriptors_removed": constant_descs_removed,
+                "low_y_corr_removed": len(low_y_corr_descs_removed),
+                "low_y_correlation_descriptors_removed": low_y_corr_descs_removed,
+                "high_intercorr_removed": len(high_intercorr_events),
+                "high_intercorrelation_removals": high_intercorr_events,
+                "descriptors_removed_correlation_filter": len(high_intercorr_events),
+                "rfecv_applied": rfecv_applied,
+                "rfecv_selection_method_by_model": rfecv_selection_method,
+                "rfecv_descriptors_selected_by_model": rfecv_descriptors_selected,
+                "rfecv_skip_reason": rfecv_skip_reason,
+            },
+            evidence_level="direct",
+            dat_text=txt_corr,
+        )
 
     # Return both the general filtered dataframe and model-specific dataframes
     return csv_df_filtered, csv_df_per_model
@@ -1262,6 +1328,10 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
 
     # Missing data handling: robust strategy for columns and rows (optional KNN imputer)
+    cols_to_drop = []
+    n_removed_rows = 0
+    cols_with_missing = []
+    knn_applied = False
     target_col = self.args.y
     descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
     min_count = int(0.9 * len(csv_df))
@@ -1289,6 +1359,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         if csv_df[numeric_columns].isna().any().any():
             imputer = KNNImputer(n_neighbors=5)
             csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns, index=csv_df.index)
+            knn_applied = True
             if module.lower() == 'curate':
                 txt_load += f"\n   - Applied KNN imputer to columns with missing values\n"
     else:
@@ -1306,13 +1377,14 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     if discard_cols:
         csv_df = csv_df.drop(discard_cols, axis=1)
 
+    total_amount = len(csv_df.columns)
+    ignored_descs = len(self.args.ignore)
+    accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
+    if 'Set' in csv_df.columns: # removes the column that tracks sets
+        accepted_descs -= 1
+        ignored_descs += 1
+
     if print_info:
-        total_amount = len(csv_df.columns)
-        ignored_descs = len(self.args.ignore)
-        accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
-        if 'Set' in csv_df.columns: # removes the column that tracks sets
-            accepted_descs -= 1
-            ignored_descs += 1
         if module.lower() not in ['aqme','aqme_test']:
             csv_name = os.path.basename(csv_load)
             if module.lower() not in ['predict']:
@@ -1333,6 +1405,37 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
             if accepted_descs == 0:
                 self.args.log.write(f"\nx  The aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
                 sys.exit()
+
+    audit_module = module.lower()
+    if audit_module == 'aqme_test':
+        audit_module = 'aqme'
+    audit_attr = f"{audit_module}_audit"
+    if hasattr(self.args, audit_attr):
+        module_audit = getattr(self.args, audit_attr)
+        module_audit = audit_set(module_audit, "load_database", "datapoints_loaded", int(len(csv_df)))
+        module_audit = audit_set(module_audit, "load_database", "accepted_descriptors_loaded", int(accepted_descs))
+        module_audit = audit_set(module_audit, "load_database", "ignored_descriptors_loaded", int(ignored_descs))
+        module_audit = audit_set(module_audit, "load_database", "discarded_descriptors_loaded", int(len(self.args.discard)))
+        module_audit = audit_set(module_audit, "load_database", "columns_removed_lt90pct_data", list(cols_to_drop))
+        module_audit = audit_set(module_audit, "load_database", "rows_removed_gt50pct_missing", int(n_removed_rows))
+        module_audit = audit_set(module_audit, "load_database", "columns_removed_any_missing", list(cols_with_missing))
+        module_audit = audit_set(module_audit, "load_database", "knn_imputer_applied", bool(knn_applied))
+        module_audit = audit_event(
+            module_audit,
+            event_type="load_database",
+            payload={
+                "datapoints_loaded": int(len(csv_df)),
+                "accepted_descriptors_loaded": int(accepted_descs),
+                "ignored_descriptors_loaded": int(ignored_descs),
+                "discarded_descriptors_loaded": int(len(self.args.discard)),
+                "columns_removed_lt90pct_data": len(cols_to_drop),
+                "rows_removed_gt50pct_missing": int(n_removed_rows),
+                "knn_imputer_applied": bool(knn_applied),
+            },
+            evidence_level="direct",
+            dat_text=txt_load,
+        )
+        setattr(self.args, audit_attr, module_audit)
 
     # Sort columns alphabetically for reproducibility across ALL modules
     if module.lower() not in ['aqme', 'aqme_test']:
@@ -1415,6 +1518,29 @@ def categorical_transform(self,csv_df,module):
 
         self.args.log.write(f'{txt_categor}')
 
+    if module.lower() == 'curate' and hasattr(self.args, 'curate_audit'):
+        self.args.curate_audit = audit_set(self.args.curate_audit, "categorical_transform", "activated", True)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "categorical_transform", "categorical_variables", list(categorical_vars))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "categorical_transform", "categorical_variables_found", len(categorical_vars) > 0)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "categorical_transform", "generated_descriptors", list(new_categor_desc))
+        self.args.curate_audit = audit_set(self.args.curate_audit, "categorical_transform", "mode", self.args.categorical)
+        self.args.curate_audit = audit_set(self.args.curate_audit, "categorical_transform", "descriptors_removed_categorical_transform", len(descriptors_to_drop))
+        self.args.curate_audit = audit_event(
+            self.args.curate_audit,
+            event_type="categorical_transform",
+            payload={
+                "categorical_variables_count": len(categorical_vars),
+                "categorical_variables": list(categorical_vars),
+                "categorical_variables_found": len(categorical_vars) > 0,
+                "generated_descriptors_count": len(new_categor_desc),
+                "generated_descriptors": list(new_categor_desc),
+                "mode": self.args.categorical,
+                "descriptors_removed_categorical_transform": len(descriptors_to_drop),
+            },
+            evidence_level="direct",
+            dat_text=txt_categor if module.lower() == 'curate' else None,
+        )
+
     return csv_df
 
 
@@ -1427,6 +1553,8 @@ def create_folders(folder_names):
 
 def finish_print(self,start_time,module):
     elapsed_time = round(time.time() - start_time, 2)
+    if module.upper() == 'CURATE' and hasattr(self.args, 'curate_audit'):
+        self.args.curate_audit = audit_set(self.args.curate_audit, "runtime", "module_runtime_seconds", float(elapsed_time))
     self.args.log.write(f"\nTime {module.upper()}: {elapsed_time} seconds\n")
     self.args.log.finalize()
 
@@ -3278,6 +3406,20 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
             self.args.log.write(f'\nx  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
         if module.lower() == 'predict':
             self.args.log.write(f'\n   x  The Pearson heatmap was not generated because the number of features and the y value ({len(csv_df_pearson.columns)}) is higher than 30.')
+        if module.lower() == 'curate' and hasattr(self.args, 'curate_audit'):
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "generated", False)
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "descriptor_count_for_map", int(len(csv_df_pearson.columns)))
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "output_path", None)
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "skip_reason", f"descriptor_count_exceeds_limit ({len(csv_df_pearson.columns)} > 30)")
+            self.args.curate_audit = audit_event(
+                self.args.curate_audit,
+                event_type="pearson_map",
+                payload={
+                    "generated": False,
+                    "descriptor_count_for_map": int(len(csv_df_pearson.columns)),
+                },
+                evidence_level="direct",
+            )
 
     else:
         sb.set(font_scale=1.2, style='ticks')
@@ -3329,6 +3471,22 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
             self.args.log.write(f'\no  The Pearson heatmap was stored in {path_reduced}.')
         elif module.lower() == 'predict':
             self.args.log.write(f'\n   o  The Pearson heatmap was stored in {path_reduced}.')
+
+        if module.lower() == 'curate' and hasattr(self.args, 'curate_audit'):
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "generated", True)
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "descriptor_count_for_map", int(len(csv_df_pearson.columns)))
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "output_path", str(heatmap_path))
+            self.args.curate_audit = audit_set(self.args.curate_audit, "pearson_map", "skip_reason", None)
+            self.args.curate_audit = audit_event(
+                self.args.curate_audit,
+                event_type="pearson_map",
+                payload={
+                    "generated": True,
+                    "descriptor_count_for_map": int(len(csv_df_pearson.columns)),
+                    "output_path": str(heatmap_path),
+                },
+                evidence_level="direct",
+            )
 
     return corr_matrix
 

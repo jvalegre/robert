@@ -127,6 +127,22 @@ venv.bak/
 /report.css
 /report_debug.txt
 
+# Additional local ROBERT validation outputs
+/GENERATE_clas/
+/old_robert_outputs/
+
+# Additional saved comparison runs
+comparison/chatbob_robert_from_june/
+
+# Local environment snapshots
+/cheminf_environment_backup.yml
+/cheminf_explicit_backup.txt
+/cheminf_package_list.txt
+
+# macOS metadata
+.DS_Store
+
+
 # Local project archive created by the timestamped wrapper
 /json-output-for-agent/runs/
 
@@ -157,3 +173,4 @@ comparison/chatbob_robert/
 
 # Databases provided by Juanvi for testing
 /databases/
+/H_predict_ln-k.csv

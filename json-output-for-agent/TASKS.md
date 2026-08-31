@@ -477,11 +477,32 @@ Goal:
 
 ### Done
 
+### Done
+
 * [x] Regression comparison completed using ROBERT 2.1.2 for both runs.
 * [x] Four normalized `.dat` files were identical.
 * [x] Scientific values in 28 matching CSV files were identical.
 * [x] ChatBob JSON-output additions did not change standard ROBERT scientific outputs for this test case.
 * [x] Additional manual in-repo verification (2026-07-14) reported no DAT differences versus original ROBERT.
+
+### 2026-08-31: Controlled regression equivalence revalidated
+
+A fresh controlled comparison was completed between pristine ROBERT 2.1.2 and the current ChatBob-modified ROBERT using `H_predict_ln-k.csv`.
+
+The modified ROBERT run used the same scientific options as the original baseline run:
+
+`python -m robert --csv_name "H_predict_ln-k.csv" --y "ln(k)_rate" --names "Coupling" --ignore "Coupling"`
+
+Results from `comparison/compare_robert_outputs.ipynb`:
+
+- Normalized DAT comparison: PASS
+- Scientific CSV comparison: PASS
+- The only expected CSV metadata difference was `CURATE/CURATE_options.csv`, which records a different input CSV path.
+- Non-scientific `.DS_Store` file differences were ignored.
+
+Conclusion: for this controlled regression case, the ChatBob-modified ROBERT 2.1.2 preserves the standard scientific outputs of pristine ROBERT 2.1.2.
+
+This closes the current regression equivalence validation milestone. Broader multi-dataset parity validation remains optional future hardening and is not a prerequisite for the initial pull request or question-driven ChatBob prototype.
 
 ---
 
@@ -587,8 +608,9 @@ Goal:
 Status:
 
 * DAT-to-event gap inventory identified.
-* No runtime code implementation approved yet beyond the narrow CURATE slice below.
-* Remaining module gaps are tracked as future reviewable increments.
+* CURATE event-field coverage is complete for the approved load, categorical-transform, and correlation-filter scope.
+* Selected GENERATE, VERIFY, and PREDICT parity increments are complete.
+* Remaining module gaps and full cross-dataset validation remain future work.
 
 Goal:
 
@@ -598,16 +620,16 @@ Goal:
 ### Identified Gaps
 
 * CURATE
-  * `load_database` event fields
-  * `categorical_transform` event fields
-  * `correlation_filter` event fields
+  * Approved `load_database`, `categorical_transform`, and `correlation_filter` event-field gaps: completed.
 * GENERATE
-  * model-scan summary parity tied to `model_run_start`, `bo_workflow`, and `pfi_workflow` event payloads
-  * model-cycle metadata shown in DAT but not yet fully retained in event payloads
+  * Selected model-scan parity fields tied to `model_run_start`, `bo_workflow`, and `pfi_workflow`: completed.
+  * Other DAT-to-event fields: require a separate reviewable inventory before implementation.
 * VERIFY
-  * remaining DAT summary text fields not yet mirrored in the corresponding event payloads
+  * Selected summary, sorted-CV, flawed-test, branch, model-context, and direct-test fields: completed.
+  * Other DAT-to-event fields: require a separate reviewable inventory before implementation.
 * PREDICT
-  * remaining DAT summary text fields not yet mirrored in the corresponding event payloads
+  * Selected summary-count and proportion fields: completed.
+  * Other DAT-to-event fields: require a separate reviewable inventory before implementation.
 
 ### Currently Approved Implementation Work Only
 
@@ -628,8 +650,9 @@ Goal:
 * [x] VERIFY model-context parity coverage completed
 * [x] VERIFY direct-test event parity coverage completed
 * [x] PREDICT summary-count and proportion parity coverage completed
-* [ ] VERIFY gap closure after CURATE slice is complete and reviewed
-* [ ] PREDICT gap closure after CURATE slice is complete and reviewed
+* [ ] Inventory and approve any remaining GENERATE DAT-to-event gaps
+* [ ] Inventory and approve any remaining VERIFY DAT-to-event gaps
+* [ ] Inventory and approve any remaining PREDICT DAT-to-event gaps
 
 ### Guardrails
 
@@ -645,6 +668,33 @@ Goal:
 * [x] Read-only DAT-to-event inventory completed.
 * [x] Module-level gap groups recorded for CURATE, GENERATE, VERIFY, and PREDICT.
 * [x] Approved implementation sequence narrowed to the CURATE slice only.
+
+---
+
+## Phase 18 — Final Multi-Dataset DAT-to-JSON Parity Validation
+
+Status: Planned only. Do not implement until all intended single-dataset coverage is reviewed.
+
+Goal:
+
+* Run the same isolated DAT-to-JSON parity checks across a deterministic, representative dataset matrix.
+* Demonstrate that parity checks are general rather than tailored to one example dataset.
+
+### Required Matrix Properties
+
+* Deterministic inputs, fixed seeds, and documented expected workflow options.
+* Representative coverage of regression and classification workflows.
+* Representative coverage of categorical transformation, descriptor filtering, model selection, VERIFY, and PREDICT paths where supported.
+* No dataset-specific hard-coding in parsers, helpers, assertions, runtime code, or expected values.
+
+### To Do
+
+* [ ] Define and document the representative dataset matrix.
+* [ ] Ensure parity helpers derive expectations from each run's DAT and JSON artifacts rather than dataset names or fixed values.
+* [ ] Run the full isolated parity suite for every matrix entry.
+* [ ] Require all applicable DAT-to-JSON checks to pass for every entry.
+* [ ] Record each matrix result, skipped path, and rationale.
+* [ ] Confirm no scientific calculations, thresholds, DAT output, CSV output, model behavior, or CLI behavior changed.
 
 ---
 

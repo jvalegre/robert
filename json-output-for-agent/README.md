@@ -25,28 +25,40 @@ The project does not change ROBERT's scientific behavior.
 
 ### Current Priority
 
-The immediate priority is to prepare the JSON-output work for upstream review.
+The current JSON-output milestone is ready for upstream review.
 
-Current source-verified module-native runtime audit status:
+Implemented module-native runtime audits:
 
-- Implemented: CURATE, GENERATE, VERIFY, PREDICT
-- Not implemented: AQME, EVALUATE
-- REPORT: figure provenance only (`JSON/report_figure_provenance.json`), no full report audit yet
+- CURATE
+- GENERATE
+- VERIFY
+- PREDICT
 
-Current validation status (2026-08-26):
+Not currently required for this milestone:
 
-- CURATE, GENERATE, VERIFY, and PREDICT DAT-to-JSON parity checks are implemented in the isolated test files.
-- CURATE also has independent third-oracle checks and mutation tests.
-- The isolated parity suite passes with `7 passed`; the combined parity and CURATE mutation suite passes with `10 passed`.
-- AQME provenance JSON is a possible future enhancement, not a current requirement.
+- AQME audit JSON
+- EVALUATE audit JSON
+- full REPORT audit JSON
+
+REPORT currently provides figure provenance through `JSON/report_figure_provenance.json`.
+
+Validation completed for the current milestone:
+
+- isolated DAT-to-JSON parity checks across CURATE, GENERATE, VERIFY, and PREDICT;
+- independent third-oracle and mutation-test coverage for selected CURATE evidence;
+- controlled comparison between pristine ROBERT 2.1.2 and the current ChatBob-modified ROBERT 2.1.2 using a regression dataset;
+- normalized DAT comparison: PASS;
+- scientific CSV comparison: PASS.
 
 Next steps:
 
-1. Open a pull request from `json-output-for-agent`.
-2. Agree with Juanvi on the integration branch and JSON output location.
-3. Keep the documented implementation status of all module audit files synchronized with source and tests.
-4. Review the current JSON structures against a small set of likely ChatBob questions.
-5. Build deterministic question-to-evidence retrieval before adding an LLM answer layer.
+1. Open a pull request for upstream review.
+2. Share the validation evidence with Juanvi.
+3. Confirm the intended integration branch and long-term JSON output location.
+4. Move into question-driven ChatBob design.
+5. Add further JSON fields or parity coverage only where a real ChatBob user question exposes a need.
+
+Broader multi-dataset parity validation remains future hardening rather than a blocker for the initial pull request or first ChatBob prototype.
 
 ## Validation Source-Data Policy (Temporary)
 
@@ -60,18 +72,57 @@ Rules:
 
 Generated outputs must remain in normal root output folders and optional copy-only archives.
 
+## Controlled Original-vs-Modified ROBERT Validation
 
-## 2026-07-13 Controlled Run Comparison
+The purpose of this comparison is to confirm that the JSON-output additions do not change ROBERT's existing scientific results.
 
-The ChatBob JSON-output branch was synchronized with upstream ROBERT 2.1.2 and compared against an unmodified ROBERT 2.1.2 run.
+The validation workflow is:
 
-Validation result:
+1. Run the same dataset through pristine ROBERT 2.1.2.
+2. Run the same dataset through the ChatBob-modified ROBERT 2.1.2 using the same scientific command-line options.
+3. Preserve the completed output folders from both runs.
+4. Compare them using `comparison/compare_robert_outputs.ipynb`.
 
-- all four primary ROBERT `.dat` files were identical after normalizing only timestamps, file paths, execution times, and trailing whitespace;
-- all scientific values in 28 matching CSV files were identical;
-- the only expected CSV difference was the recorded input file path in `CURATE/CURATE_options.csv`.
+The comparison notebook checks:
 
-For the tested regression case, the JSON-output implementation did not alter standard ROBERT scientific outputs.
+- the four primary ROBERT DAT files:
+  - `CURATE/CURATE_data.dat`
+  - `GENERATE/GENERATE_data.dat`
+  - `VERIFY/VERIFY_data.dat`
+  - `PREDICT/PREDICT_data.dat`
+- matching scientific CSV files;
+- model-selection outputs;
+- prediction outputs.
+
+For DAT comparison, only expected run-specific metadata is normalized:
+
+- timestamps,
+- absolute file paths,
+- execution times,
+- trailing whitespace.
+
+Scientific values are not normalized away.
+
+### Regression validation
+
+A controlled regression comparison was revalidated on 2026-08-31 using `H_predict_ln-k.csv`.
+
+The modified ROBERT run used:
+
+`python -m robert --csv_name "H_predict_ln-k.csv" --y "ln(k)_rate" --names "Coupling" --ignore "Coupling"`
+
+Results:
+
+- Normalized DAT comparison: PASS
+- Scientific CSV comparison: PASS
+- The only expected CSV metadata difference was the recorded input CSV path in `CURATE/CURATE_options.csv`.
+- macOS `.DS_Store` differences were non-scientific and ignored.
+
+Conclusion:
+
+For this controlled regression example, the ChatBob-modified ROBERT 2.1.2 preserves the standard scientific outputs of pristine ROBERT 2.1.2.
+
+The regression dataset was supplied for development/testing and is not currently committed to the public branch pending confirmation that redistribution is appropriate.
 
 ## 2026-07-14 In-Repo Verification Update
 
@@ -107,15 +158,18 @@ Pass/fail summary:
 - PASS: Missing module folders are represented in manifests with `module_dir_exists=false` and `file_count=0`.
 - PARTIAL: REPORT PDF was not generated because required WeasyPrint system libraries are missing in this environment.
 
-## Git Ignore Guidance
+## Validation Source-Data Policy
 
-Guidance for validation workflow:
-- Do not ignore `databases/`.
-- Ignore generated ROBERT run outputs in root folders and timestamped archives.
+Some validation datasets were provided by Juanvi for development and testing.
 
-## Open TODO
+Until redistribution is explicitly confirmed:
 
-Decide whether `databases/` should:
-- remain in the repository,
-- move to `tests/fixtures/`, or
-- be removed after formal JSON unit tests are created.
+- treat these datasets as protected local source data;
+- do not commit them to the public repository;
+- do not modify or overwrite them during validation;
+- document which dataset was used for a comparison when relevant;
+- keep generated ROBERT outputs separate from the source datasets.
+
+Generated ROBERT run outputs in root folders and timestamped archives should also remain excluded from Git.
+
+If a dataset is later approved for public redistribution, it may be added as a documented validation fixture, for example under `tests/fixtures/` or another agreed location.

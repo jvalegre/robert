@@ -633,6 +633,34 @@ What remains uncertain:
 Next suggested step:
 - Run the focused VERIFY parity test and then the full isolated parity suite.
 
+### Entry 031
+
+Date: 2026-08-31
+
+Goal of this step:
+- Reconcile the task records with parity work already completed and define the final cross-dataset validation gate as planned work only.
+
+What changed:
+- Updated `TASKS.md` to distinguish completed CURATE, GENERATE, VERIFY, and PREDICT parity increments from unresolved gaps.
+- Added a planned final multi-dataset DAT-to-JSON parity validation phase.
+- Required that the final validation use a deterministic, representative dataset matrix and prohibit dataset-specific hard-coding.
+
+Why this change was made:
+- The task list contained stale wording that described already completed coverage as future work.
+- A final matrix validation is needed to establish that the parity harness generalizes beyond one example dataset.
+
+How this was tested:
+- Documentation reconciliation only.
+- No ROBERT source code, parity helper, test, notebook, or runtime output was changed.
+
+Confirmed results:
+- The project record now shows CURATE event-field coverage complete for the approved slice.
+- Selected GENERATE, VERIFY, and PREDICT parity increments are recorded as complete.
+- The multi-dataset parity gate is documented as planned only and is not implemented.
+
+Next suggested step:
+- Review the remaining module gaps, choose one small approved increment, and defer multi-dataset implementation until the intended single-dataset coverage is settled.
+
 ### Entry 028
 
 Date: 2026-08-25
@@ -1467,3 +1495,33 @@ What remains uncertain:
 
 Next suggested step:
 - Commit the documentation reconciliation, then prepare the project for upstream review or select the next approved parity increment.
+
+### Entry 036
+
+Date: 2026-08-31
+
+Goal of this step:
+- Revalidate that the current ChatBob-modified ROBERT preserves the scientific outputs of pristine ROBERT for the controlled regression example.
+
+What was done:
+- Reran `H_predict_ln-k.csv` with the current ChatBob-modified ROBERT.
+- Used the same scientific options as the previously saved pristine ROBERT 2.1.2 baseline:
+  - target: `ln(k)_rate`
+  - names column: `Coupling`
+  - ignored column: `Coupling`
+- Compared the new modified run against the saved pristine run using `comparison/compare_robert_outputs.ipynb`.
+
+Confirmed results:
+- Normalized ROBERT DAT files: PASS.
+- Scientific CSV outputs: PASS.
+- The only expected CSV metadata difference was the recorded input-file path in `CURATE/CURATE_options.csv`.
+- Irrelevant macOS `.DS_Store` file differences were also observed.
+
+Conclusion:
+- For this controlled regression example, the JSON/ChatBob modifications have not changed ROBERT's standard scientific outputs.
+
+Next step:
+- Treat the regression equivalence validation as complete.
+- Prepare the initial pull request for Juanvi.
+- Then move into question-driven ChatBob design.
+- Broader multi-dataset parity validation remains optional future hardening rather than a blocker for this transition.

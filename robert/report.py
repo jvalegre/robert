@@ -455,7 +455,7 @@ class report:
                             if '-------' in lines[j]:
                                 break
                             elif 'SDs' in lines[j]:
-                                sd_line = float(lines[j].split()[2][1:])
+                                sd_line = float(lines[j].split()[-2][1:])
                                 if sd_line > max_SD:
                                     max_SD = sd_line
                         warnings_dict['max_sd_No PFI'] = max_SD
@@ -466,7 +466,7 @@ class report:
                             if '-------' in lines[j]:
                                 break
                             elif 'SDs' in lines[j]:
-                                sd_line = float(lines[j].split()[2][1:])
+                                sd_line = float(lines[j].split()[-2][1:])
                                 if sd_line > max_SD:
                                     max_SD = sd_line
                         warnings_dict['max_sd_PFI'] = max_SD

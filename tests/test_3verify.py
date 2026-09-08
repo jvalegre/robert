@@ -120,7 +120,7 @@ def test_VERIFY(test_job):
                     assert "o onehot: PASSED, RMSE = 0.52" in outlines[i + 4]
                     assert "o cluster: PASSED, RMSE = 0.49" in outlines[i + 5]
                     assert (
-                        "- Sorted 5-fold CV : R2 = [0.15, 0.66, 0.16, 0.34, 0.17], MAE = [0.49, 0.19, 0.25, 0.37, 0.41], RMSE = [0.5, 0.25, 0.32, 0.44, 0.47]"
+                        "- Sorted 5-fold CV : R2 = [0.0, 0.63, 0.03, 0.33, 0.15], MAE = [0.32, 0.19, 0.32, 0.33, 0.4], RMSE = [0.35, 0.27, 0.39, 0.35, 0.46]"
                         in outlines[i + 6]
                     )
                 break

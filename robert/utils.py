@@ -28,6 +28,7 @@ from matplotlib.ticker import FormatStrFormatter
 import shap
 import seaborn as sb
 from scipy import stats
+from scipy.spatial.distance import cdist
 from importlib.resources import files
 # sklearnex was deactivated in ROBERT v2.1 because it only accelerated RF
 # try:
@@ -59,14 +60,13 @@ from sklearn.inspection import permutation_importance
 from sklearn.exceptions import ConvergenceWarning
 from robert.argument_parser import set_options, var_dict
 from bayes_opt import BayesianOptimization
-from bayes_opt import acquisition
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.1.1"
+robert_version = "2.2.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733. Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Chem. Sci. 2025, 16, 8555-8560."
 
 
 def _parse_class_mapping_reverse(mapping):
@@ -281,9 +281,12 @@ o Other common options:
   --discard "[COL1,COL2,etc]" (default=[]) : CSV columns that will be removed
 
 * Affecting data curation in CURATE:
-  --kfold INT (default='auto') : number of folds for k-fold cross-validation of the RFECV feature selector. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
+  --kfold INT (default=5) : number of folds for k-fold cross-validation of the RFECV feature selector
   --categorical "onehot" or "numbers" (default="onehot") : type of conversion for categorical variables
   --corr_filter_x BOOL (default=True) : activate/disable the correlation filter of descriptors X
+  --rfecv_filter BOOL (default=True) : activate/disable RFECV/PFI descriptor selection (runs
+    independently of --corr_filter_x, only when descriptors outnumber one-third of the datapoints
+    after the correlation filter)
 
 * Affecting model screening in GENERATE:
   --model "[MODEL1,MODEL2,etc]" (default=["RF","GB","NN","MVL"]) : ML models to use in the ML scan (i.e., "[RF,GB]")
@@ -291,7 +294,7 @@ o Other common options:
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
 * Affecting tests, VERIFY:
-  --kfold INT (default='auto') : number of folds for k-fold cross-validation. If 'auto', the program does a LOOCV for databases with less than 50 points, and 5-fold CV for larger databases 
+  --kfold INT (default=5) : number of folds for k-fold cross-validation
 
 * Affecting predictions, PREDICT:
   --t_value INT (default=2) : t-value threshold to identify outliers
@@ -361,6 +364,61 @@ def format_lists(value):
     value = [ele.strip() if isinstance(ele, str) else ele for ele in value]
 
     return value
+
+
+def build_params_dirs(self):
+    '''
+    Builds the (params_dirs, suffixes, suffix_titles, model_names) quadruplet that
+    VERIFY/PREDICT loop over. Normally this is just the winning No_PFI/PFI model
+    (GENERATE/Best_model), and model_names is [None, None] (one shared log file, as before).
+    With --all_models active, GENERATE also stages every model's own files into
+    GENERATE/All_models/{No_PFI,PFI}/{MODEL}/ (see stage_all_models() in generate_utils.py) -
+    this discovers whichever of those per-model folders actually exist (not every model
+    necessarily has a PFI variant) and loops over all of them instead, so each model gets its
+    own full VERIFY/PREDICT pass. model_names then carries the actual model name per entry,
+    which the caller uses to split the log file per model (see verify.py/predict.py) instead
+    of merging every model's output into one shared VERIFY_data.dat/PREDICT_data.dat, where
+    REPORT would have no reliable way to tell which lines belong to which model.
+    '''
+
+    if 'GENERATE/Best_model' in self.args.params_dir:
+        if getattr(self.args, 'all_models', False):
+            params_dirs, suffixes, suffix_titles, model_names = [], [], [], []
+            all_models_dir = self.args.params_dir.replace('Best_model', 'All_models')
+            # group entries by MODEL first (No_PFI then PFI for that model), not by PFI
+            # variant first - verify.py/predict.py write both entries of a model into the
+            # SAME per-model log file, only opening a new Logger (which truncates via mode
+            # 'w') when the model name changes. Grouping by PFI variant first would revisit
+            # each model a second, non-consecutive time (once per variant), so the later
+            # visit would reopen and wipe out the earlier variant's already-written block
+            discovered = {}
+            for pfi_variant in ['No_PFI', 'PFI']:
+                for model_dir in sorted(glob.glob(f'{all_models_dir}/{pfi_variant}/*')):
+                    discovered.setdefault(os.path.basename(model_dir), {})[pfi_variant] = model_dir
+            for model_name in sorted(discovered):
+                for pfi_variant, pfi_label in [('No_PFI', 'no PFI filter'), ('PFI', 'PFI filter')]:
+                    if pfi_variant in discovered[model_name]:
+                        params_dirs.append(discovered[model_name][pfi_variant])
+                        suffixes.append(f'(with {pfi_label}, model {model_name})')
+                        # NOT f'{model_name}_{pfi_variant}': every downstream filename/path
+                        # builder (save_predictions, plot_metrics, etc.) already independently
+                        # prepends model_data['model'] to suffix_title (see e.g. predict_utils.py's
+                        # base_csv_name = f"PREDICT/{model_data['model']}_{suffix_title}") - adding
+                        # the model name here too would double it up (e.g. "GB_GB_No_PFI")
+                        suffix_titles.append(pfi_variant)
+                        model_names.append(model_name)
+        else:
+            params_dirs = [f'{self.args.params_dir}/No_PFI',f'{self.args.params_dir}/PFI']
+            suffixes = ['(with no PFI filter)','(with PFI filter)']
+            suffix_titles = ['No_PFI','PFI']
+            model_names = [None, None]
+    else:
+        params_dirs = [self.args.params_dir]
+        suffixes = ['custom']
+        suffix_titles = ['custom']
+        model_names = [None]
+
+    return params_dirs, suffixes, suffix_titles, model_names
 
 
 def load_variables(kwargs, robert_module):
@@ -482,7 +540,7 @@ def load_variables(kwargs, robert_module):
 
         if robert_module.upper() in ['CURATE','GENERATE']:
             if self.type.lower() == 'clas':
-                if ('MVL' or 'mvl') in self.model:
+                if any(x.upper() == 'MVL' for x in self.model):
                     self.model = [x if x.upper() != 'MVL' else 'AdaB' for x in self.model]
             
             models_gen = [] # use capital letters in all the models
@@ -672,8 +730,6 @@ def correlation_filter(self, csv_df):
     csv_df = csv_df[descriptor_cols_sorted + other_cols].copy()
     csv_df = csv_df.reset_index(drop=True).sort_values(by=self.args.y, kind='stable').reset_index(drop=True)
 
-    # loosen correlation filters if there are too few descriptors
-    n_descps = len(csv_df.columns)-len(self.args.ignore)-1 # all columns - ignored - y
     txt_corr += f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}'
     if self.args.corr_filter_y:
         txt_corr += f', thres_y = {self.args.thres_y}'
@@ -690,11 +746,11 @@ def correlation_filter(self, csv_df):
                 txt_corr += f'\n   - {column}: all the values are the same'
 
             # Remove descriptors with low correlation to the response values
-            if self.args.corr_filter_y:
+            # (skip columns already dropped above as constant - no fresh rsquared_y to check)
+            if self.args.corr_filter_y and column not in descriptors_drop:
                 # Calculate correlation with y for remaining descriptors
-                if column not in descriptors_drop:
-                    res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
-                    rsquared_y = res_y.rvalue**2
+                res_y = stats.linregress(csv_df[column],csv_df[self.args.y])
+                rsquared_y = res_y.rvalue**2
                 if rsquared_y < self.args.thres_y:
                     descriptors_drop.append(column)
                     txt_corr += f'\n   - {column}: R**2 = {rsquared_y:.2} with the {self.args.y} values'
@@ -764,6 +820,14 @@ def correlation_filter(self, csv_df):
     # drop descriptors that did not pass the filters
     csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
 
+    # recompute n_descps AFTER the correlation filter (not before it, at line ~731) - the RFECV/
+    # PFI check below decides whether descriptor selection is still needed on what's left post-
+    # correlation-filter, not on the original pre-filter count. Using the pre-filter count here
+    # triggered RFECV/PFI even when the correlation filter alone had already brought the
+    # descriptor count under the one-third threshold, running an expensive per-model selection
+    # step for no benefit
+    n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1
+
     if len(descriptors_drop) == 0:
         txt_corr += f'\n   -  No descriptors were removed'
 
@@ -775,7 +839,7 @@ def correlation_filter(self, csv_df):
     csv_df_per_model = {}
 
     num_descriptors = round(len(csv_df[self.args.y]) / 3)
-    if n_descps > num_descriptors:
+    if self.args.rfecv_filter and n_descps > num_descriptors:
         cv_type = f'{self.args.repeat_kfolds}x {self.args.kfold}_fold_cv'
         txt_corr += f'\no  There are more descriptors than one-third of the data points. A Recursive Feature Elimination with Cross-Validation (RFECV) or permutation feature importance (PFI) using {cv_type} will be performed to select the most relevant descriptors for each model'
         self.args.log.write(txt_corr)
@@ -885,7 +949,10 @@ def correlation_filter(self, csv_df):
             csv_df_per_model[model] = csv_df_filtered[sorted_cols].copy()
 
     else:
-        txt_corr += f'\n   x The RFECV filter was not applied, there are less descriptors than one-third of the data points ({len(csv_df_filtered.columns)-len(self.args.ignore)-1} <= {num_descriptors})'
+        if not self.args.rfecv_filter:
+            txt_corr += f'\n   x The RFECV/PFI filter was disabled (--rfecv_filter False), descriptor selection was skipped'
+        else:
+            txt_corr += f'\n   x The RFECV filter was not applied, there are less descriptors than one-third of the data points ({n_descps} <= {num_descriptors})'
         # If RFECV is not applied, all models use the same filtered dataframe
         for model in self.args.model:
             csv_df_per_model[model] = csv_df_filtered
@@ -1052,14 +1119,17 @@ def sanity_checks(self, type_checks, module, columns_csv):
         
         elif module.lower() == 'generate':
             if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q5','auto']:
-                self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND'")
+                self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND', 'stratified', 'even', 'extra_q1', 'extra_q5', 'auto'")
                 curate_valid = False
 
             if self.split == 'auto':
                 if self.type.lower() == 'reg':
                     self.split = 'even'
                 elif self.type.lower() == 'clas':
-                    self.split = 'rnd'
+                    # stratified guarantees both train and test keep the same class
+                    # proportions as the full dataset - a plain random split can, by chance,
+                    # leave a class under/over-represented, especially on small datasets
+                    self.split = 'stratified'
 
             for model_type in self.model:
                 if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN'] or len(self.model) == 0:
@@ -1171,10 +1241,12 @@ def check_clas_problem(self,csv_df):
             self.args.type = 'clas'
             if self.args.error_type not in ['acc', 'mcc', 'f1']:
                 self.args.error_type = 'mcc'
-            if ('MVL' or 'mvl') in self.args.model:
+            if any(x.upper() == 'MVL' for x in self.args.model):
                 self.args.model = [x if x.upper() != 'MVL' else 'ADAB' for x in self.args.model]
 
-            unique_vals = list(set(csv_df[self.args.y]))
+            # sorted (not list(set(...))) for deterministic output regardless of string-hash
+            # randomization, matching this file's reproducibility guarantees elsewhere
+            unique_vals = _sorted_class_values(csv_df[self.args.y])
             y_val_detect = f'{unique_vals[0]} and {unique_vals[1]}'
             self.args.log.write(f'\no  Only two different y values were detected ({y_val_detect})! The program will consider classification models (same effect as using "--type clas"). This option can be disabled with "--auto_type False"')
 
@@ -1215,7 +1287,7 @@ def check_clas_problem(self,csv_df):
                 original_label = self.args.class_mapping_reverse[min_class_label]
             else:
                 original_label = min_class_label
-            
+
             class_dist = {}
             for class_label, count in class_counts.items():
                 if hasattr(self.args, 'class_mapping_reverse') and class_label in self.args.class_mapping_reverse:
@@ -1263,6 +1335,17 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
 
     # Missing data handling: robust strategy for columns and rows (optional KNN imputer)
     target_col = self.args.y
+
+    # Missing target (y) values crash later steps (e.g. data splitting), so remove them upfront
+    # and warn the user instead of letting the program fail. External test sets are skipped since
+    # their target column is often unknown on purpose (that's what's being predicted)
+    if not external_test and target_col in csv_df.columns:
+        rows_missing_y = csv_df[target_col].isna()
+        if rows_missing_y.any():
+            n_missing_y = int(rows_missing_y.sum())
+            csv_df = csv_df[~rows_missing_y].reset_index(drop=True)
+            self.args.log.write(f'\nx  WARNING! {n_missing_y} row(s) had missing values in the target column ({target_col}) and were removed, since the target value cannot be predicted or imputed. Please fill in these values manually (or with a reasonable value, e.g. 0) if you want to keep them in the database.\n')
+
     descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
     min_count = int(0.9 * len(csv_df))
 
@@ -1461,6 +1544,15 @@ def Xy_split(csv_df,csv_X,X_scaled_df,csv_y,csv_external_df,csv_X_external,X_sca
         Xy_data['X_train_scaled'] = X_scaled_df
         Xy_data['y_train'] = csv_y
         Xy_data['names_train'] = csv_df[column_names]
+        # keep the X_test/y_test keys present (as empty) even without an internal test split -
+        # this is a real, supported configuration (--csv_test with --auto_test False keeps the
+        # whole database as training data), but most of this file reads Xy_data['X_test_scaled']
+        # etc. unconditionally, so omitting these keys turns a supported option combo into a
+        # KeyError deep inside VERIFY/PREDICT instead of a graceful "no internal test set"
+        Xy_data['X_test'] = csv_X.iloc[0:0]
+        Xy_data['X_test_scaled'] = X_scaled_df.iloc[0:0]
+        Xy_data['y_test'] = csv_y.iloc[0:0]
+        Xy_data['names_test'] = csv_df[column_names].iloc[0:0]
 
     else:
         Xy_data['X_train'] = csv_X.drop(test_points)
@@ -1494,16 +1586,26 @@ def test_select(self,X_scaled,csv_y):
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
 
-    # in the future, we'll adapt other data splitting techniques for classificaiton problems with 3+ target values
-    if self.args.type == 'clas':
-        if len(set(csv_y)) != 2:
-            self.args.split = 'RND' 
+    # KN's classification branch only handles exactly 2 classes (hardcoded class_0/class_1
+    # groups below); EVEN/EXTRA_Q1/EXTRA_Q5 rely on a continuous, ordered target value (the
+    # "lowest/highest 20% of y", quantile bins, etc.) which has no meaningful equivalent for a
+    # discrete class label, regardless of how many classes there are. RND is always safe.
+    # STRATIFIED (below) stratifies directly by the class labels via StratifiedShuffleSplit, so
+    # it doesn't need a fallback here - it works for any number of classes
+    if self.args.type.lower() == 'clas':
+        split_upper = self.args.split.upper()
+        if split_upper in ('EVEN', 'EXTRA_Q1', 'EXTRA_Q5'):
+            self.args.log.write(f'\nx  WARNING! The {self.args.split} split relies on a continuous, ordered target value and isn\'t defined for classification, the STRATIFIED split was used instead.')
+            self.args.split = 'STRATIFIED'
+        elif split_upper == 'KN' and len(set(csv_y)) != 2:
+            self.args.log.write(f'\nx  WARNING! The KN split is only available for binary classification, the STRATIFIED split was used instead.')
+            self.args.split = 'STRATIFIED'
 
     if self.args.split.upper() == 'KN':
         # k-neighbours data split
 
         # selects representative training points for each target value in classification problems
-        if self.args.type == 'clas':
+        if self.args.type.lower() == 'clas':
             class_0_idx = list(csv_y[csv_y == 0].index)
             class_1_idx = list(csv_y[csv_y == 1].index)
             class_0_test_size = round((len(class_0_idx)/len(csv_y))*selected_size)
@@ -1529,19 +1631,41 @@ def test_select(self,X_scaled,csv_y):
 
     elif self.args.split.upper() == 'STRATIFIED':
 
-        size = np.ceil(selected_size * 100 / (len(csv_y)))
-        # Remove the max and min values so they don't end up in the training set
-        # Calculate the number of bins based on the number of points
-        csv_y_capped = csv_y.drop([csv_y.idxmin(), csv_y.idxmax()])
-        y_binned = pd.qcut(csv_y_capped, q=selected_size, labels=False, duplicates='drop')
-        
-        # Adjust the number of bins until each class has at least 2 members
-        while y_binned.value_counts().min() < 2 and selected_size > 2:
-            selected_size -= 1
+        if self.args.type.lower() == 'clas':
+            # classification: the class labels themselves are already the natural strata, so
+            # stratify directly on them - no capping extremes or quantile-binning a continuous
+            # value (that's the regression path below). Works for any number of classes, not
+            # just binary, since StratifiedShuffleSplit itself is class-count-agnostic
+            splitter = StratifiedShuffleSplit(n_splits=1, test_size=selected_size, random_state=self.args.seed)
+            # splitter.split() yields (train_idx, test_idx), in that order
+            for _, test_idx in splitter.split(X_scaled, csv_y):
+                test_points = csv_y.index[test_idx].tolist()
+
+        else:
+            size = np.ceil(selected_size * 100 / (len(csv_y)))
+            # Remove the max and min values so they don't end up in the training set
+            # Calculate the number of bins based on the number of points
+            csv_y_capped = csv_y.drop([csv_y.idxmin(), csv_y.idxmax()])
+            X_scaled_capped = X_scaled.loc[csv_y_capped.index]
+
+            # StratifiedShuffleSplit needs at least 1 sample per class/bin in the smaller partition
+            # (which has ~size% of the points), so the bin count can never exceed that partition's
+            # size - otherwise it raises "train_size should be greater or equal to the number of classes"
+            max_bins = max(2, int(size / 100 * len(csv_y_capped)))
+            selected_size = min(selected_size, max_bins)
+
             y_binned = pd.qcut(csv_y_capped, q=selected_size, labels=False, duplicates='drop')
-        splitter = StratifiedShuffleSplit(n_splits=1, test_size=(100 - size) / 100, random_state=self.args.seed)
-        for test_idx, _ in splitter.split(X_scaled, y_binned):
-            test_points = test_idx.tolist()
+
+            # Adjust the number of bins until each class has at least 2 members
+            while y_binned.value_counts().min() < 2 and selected_size > 2:
+                selected_size -= 1
+                y_binned = pd.qcut(csv_y_capped, q=selected_size, labels=False, duplicates='drop')
+            splitter = StratifiedShuffleSplit(n_splits=1, test_size=size / 100, random_state=self.args.seed)
+            # splitter.split() yields (train_idx, test_idx), in that order. test_idx are
+            # positions within the capped (min/max removed) subset, so map them back to the
+            # original row labels via csv_y_capped's index instead of using them directly
+            for _, test_idx in splitter.split(X_scaled_capped, y_binned):
+                test_points = csv_y_capped.index[test_idx].tolist()
 
     elif self.args.split.upper() == 'EVEN':
         # Remove the max and min values so they don't end up in the training set
@@ -1589,6 +1713,22 @@ def test_select(self,X_scaled,csv_y):
     return test_points
 
 
+def round_int_param(value, bounds):
+    '''
+    Rounds a continuous BO suggestion to a valid integer value for an integer-type
+    hyperparameter, snapping to the nearest allowed step (4th element of bounds, i.e.
+    (lower, upper, int, step) - defaults to step=1, i.e. every integer, if not given) instead
+    of every single integer. A large range like n_estimators (10-200) rarely needs single-unit
+    resolution, so a coarser step lets each BO iteration cover more meaningfully different
+    configurations instead of two iterations landing on e.g. 71 and 72 trees.
+    '''
+    lower, upper = bounds[0], bounds[1]
+    step = bounds[3] if len(bounds) == 4 else 1
+    n_steps = round((value - lower) / step)
+    rounded = lower + n_steps * step
+    return int(max(lower, min(upper, rounded)))
+
+
 def generate_lhs_points(pbounds, n_points, random_state=None):
     """
     Generate initial points using Latin Hypercube Sampling for better space coverage.
@@ -1602,20 +1742,22 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
     Returns:
         List of dictionaries with parameter values
     """
-    np.random.seed(random_state)
-    
+    # use a local RNG instead of np.random.seed(), which would reset the process-global NumPy
+    # random state and could silently perturb any other code in the process that relies on it
+    rng = np.random.RandomState(random_state)
+
     param_names = list(pbounds.keys())
     n_params = len(param_names)
-    
+
     # Generate LHS samples in [0, 1]^n_params
     # Each dimension is divided into n_points intervals, and one point is sampled from each interval
     samples = np.zeros((n_points, n_params))
     for i in range(n_params):
         # Create intervals and sample within each
         intervals = np.linspace(0, 1, n_points + 1)
-        samples[:, i] = np.random.uniform(intervals[:-1], intervals[1:])
+        samples[:, i] = rng.uniform(intervals[:-1], intervals[1:])
         # Shuffle to break correlation between dimensions
-        np.random.shuffle(samples[:, i])
+        rng.shuffle(samples[:, i])
     
     # Scale samples to actual parameter bounds
     initial_points = []
@@ -1626,8 +1768,8 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
             lower, upper = bounds[:2]
             # Scale from [0, 1] to [lower, upper]
             value = lower + sample[i] * (upper - lower)
-            if len(bounds) == 3 and bounds[-1] is int:
-                value = int(round(value))
+            if len(bounds) >= 3 and bounds[2] is int:
+                value = round_int_param(value, bounds)
             point[param_name] = value
         initial_points.append(point)
     
@@ -1635,13 +1777,18 @@ def generate_lhs_points(pbounds, n_points, random_state=None):
 
 
 def BO_optimizer(self,bo_data,Xy_data):
-    # Define an acquisition function for Bayesian optimization
-    _ = acquisition.ExpectedImprovement(xi=self.args.expect_improv)
+    # bayes_opt expects plain (lower, upper) bounds, without the int type marker
+    # used by generate_lhs_points() to round integer hyperparameters
+    pbounds = {name: bounds[:2] for name, bounds in BO_hyperparams(bo_data['model']).items()}
 
-    # Initialize Bayesian optimization
+    # Initialize Bayesian optimization. No acquisition_function is passed on purpose: bayes_opt
+    # then defaults to UpperConfidenceBound(kappa=2.576), which scales its exploration with the
+    # model's own uncertainty (kappa*std) rather than a fixed absolute margin like Expected
+    # Improvement's xi - the latter needs to be hand-tuned to each dataset's error scale to behave
+    # consistently, which isn't practical across the arbitrary datasets ROBERT is run on
     optimizer = BayesianOptimization(
         f=lambda **p: BO_iteration(self, bo_data, Xy_data, **p),
-        pbounds=BO_hyperparams(bo_data['model']),
+        pbounds=pbounds,
         verbose=2,
         random_state=self.args.seed
     )
@@ -1653,14 +1800,30 @@ def BO_optimizer(self,bo_data,Xy_data):
             n_points=self.args.init_points,
             random_state=self.args.seed
         )
-        # Probe the initial points
+        # Probe the initial points (evaluated immediately, not lazily queued, since the
+        # manual suggest/probe loop below replaces optimizer.maximize() and needs these
+        # already registered to base its first suggestion on)
         for params in initial_points:
-            optimizer.probe(params=params, lazy=True)
+            optimizer.probe(params=params, lazy=False)
+
+    # int-type hyperparameters, so they can be rounded below. bayes_opt's own suggest() has no
+    # notion of integer dimensions (pbounds only carries (lower, upper)) - only the LHS points
+    # above get rounded, by generate_lhs_points(). Using optimizer.maximize() directly would
+    # let every iteration from here on suggest and register raw continuous values for these,
+    # even though model_adjust_params() rounds them right before actually building the model -
+    # so the model itself was always fine, but the registered/reported point (and the "best
+    # params" ultimately saved) would misleadingly show decimals for e.g. n_estimators.
+    int_params = {name: bounds for name, bounds in BO_hyperparams(bo_data['model']).items()
+                  if len(bounds) >= 3 and bounds[2] is int}
 
     # Run the optimization (with warnings suppressed for Convergence issues)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=ConvergenceWarning)
-        optimizer.maximize(init_points=0, n_iter=self.args.n_iter)  # init_points=0 since we already probed LHS points
+        for _ in range(self.args.n_iter):
+            next_point = optimizer.suggest()
+            for name, bounds in int_params.items():
+                next_point[name] = round_int_param(next_point[name], bounds)
+            optimizer.probe(params=next_point, lazy=False)
 
     if bo_data['error_type'].upper() in ['RMSE','MAE']:
         BO_target = -optimizer.max['target']
@@ -1685,43 +1848,61 @@ def BO_iteration(self, bo_data, Xy_data, **params):
 
 
 def BO_hyperparams(model_name):
+    '''
+    Hyperparameter search space per model, as (lower, upper) for continuous parameters or
+    (lower, upper, int) / (lower, upper, int, step) for integer ones (step defaults to 1,
+    i.e. every integer, if omitted - see round_int_param()).
+
+    Bounds are tuned for ROBERT's typical dataset sizes (mostly 20-100 datapoints, up to
+    ~10,000 at most), which is far smaller than the sample sizes scikit-learn's own defaults
+    assume - so several ranges deliberately sit in a more heavily-regularized/lower-capacity
+    region than scikit-learn's generic defaults (e.g. NN's hidden_layer_1/2, RF/GB's shallower
+    max_depth). A few parameters are intentionally left out of the search entirely:
+    - GB's validation_fraction: only has any effect if n_iter_no_change is set, which ROBERT
+      never does, so scikit-learn silently ignores it - searching it wastes BO budget on a
+      parameter with zero effect on the fitted model.
+    - RF/GB's min_weight_fraction_leaf: constrains leaf size by weighted sample fraction, but
+      ROBERT never passes sample_weight to fit(), so with implicit uniform weights this is a
+      weaker, redundant echo of min_samples_leaf/min_samples_split (already searched).
+    - NN's tol (lbfgs convergence tolerance): affects when the solver stops, not the quality of
+      the fit for the max_iter budget already given, so it's left at scikit-learn's default.
+    '''
 
     model_BO_params = {
         'RF' : {
-        'n_estimators': (10, 100, int),
+        'n_estimators': (10, 200, int, 10),
         'max_depth': (5, 20, int),
         'min_samples_split': (2, 10, int),
-        'min_samples_leaf': (2, 5, int),
-        'min_weight_fraction_leaf': (0, 0.05),
-        'max_features': (0.25, 1.0),
-        'ccp_alpha': (0, 0.01),
-        'max_samples': (0.25, 1.0)
+        'min_samples_leaf': (2, 10, int),
+        'max_features': (0.1, 1.0),
+        'ccp_alpha': (0, 0.05),
+        'max_samples': (0.5, 1.0)
         },
         'GB': {
-        'n_estimators': (10, 100, int),
+        'n_estimators': (10, 200, int, 10),
         'learning_rate': (0.01, 0.3),
-        'max_depth': (5, 20, int),
+        'max_depth': (2, 10, int), # boosting needs shallower trees than bagging (sklearn's own GB default is 3, vs RF's unlimited)
         'min_samples_split': (2, 10, int),
-        'min_samples_leaf': (2, 5, int),
+        'min_samples_leaf': (2, 10, int),
         'subsample': (0.7, 1.0),
-        'max_features': (0.25, 1.0),
-        'validation_fraction': (0.1, 0.3),
-        'min_weight_fraction_leaf': (0, 0.05),
-        'ccp_alpha': (0, 0.01)
+        'max_features': (0.1, 1.0),
+        'ccp_alpha': (0, 0.05)
         },
         'NN': {
         'hidden_layer_1': (1, 10, int),
         'hidden_layer_2': (0, 10, int),
-        'max_iter': (200, 500, int),
-        'alpha': (0.01, 0.1),
-        'tol': (0.00001, 0.0001)
+        'max_iter': (200, 500, int, 25),
+        'alpha': (0.0001, 0.1) # widened down to sklearn's own default (0.0001) - the previous
+                                # floor of 0.01 excluded that entire region from the search
         },
         'ADAB': {
         'learning_rate': (0.1, 5),
-        'n_estimators': (10, 100, int)
+        'n_estimators': (10, 100, int, 5)
         },
         'GP': {
-        'n_restarts_optimizer': (0, 100, int),
+        'n_restarts_optimizer': (0, 20, int), # scikit-learn's own guidance: 5-10 restarts is
+                                               # typical in practice, the old upper bound of 100
+                                               # went far past where more restarts help
         }
     }
 
@@ -1835,34 +2016,6 @@ def setup_hidden_layers(params):
     hidden_layer_sizes = tuple(hidden_layer_sizes) if hidden_layer_sizes else (1,)
 
     params['hidden_layer_sizes'] = hidden_layer_sizes
-
-    return params
-
-
-def correct_hidden_layers(params):
-    '''
-    Correct for a problem with the 'hidden_layer_sizes' parameter when loading arrays from JSON
-    '''
-    
-    layer_arrays = []
-
-    if not isinstance(params['hidden_layer_sizes'],int):
-        if params['hidden_layer_sizes'][0] == '[':
-            params['hidden_layer_sizes'] = params['hidden_layer_sizes'][1:]
-        if params['hidden_layer_sizes'][-1] == ']':
-            params['hidden_layer_sizes'] = params['hidden_layer_sizes'][:-1]
-        if not isinstance(params['hidden_layer_sizes'],list):
-            for _,ele in enumerate(params['hidden_layer_sizes'].split(',')):
-                if ele != '':
-                    layer_arrays.append(int(ele))
-        else:
-            for _,ele in enumerate(params['hidden_layer_sizes']):
-                if ele != '':
-                    layer_arrays.append(int(ele))
-    else:
-        layer_arrays = ele
-
-    params['hidden_layer_sizes'] = (layer_arrays)
 
     return params
 
@@ -2001,13 +2154,25 @@ def load_n_predict(self, model_data, Xy_data, BO_opt=False, verify_job=False):
     Xy_data[f'{error1}_train'], Xy_data[f'{error2}_train'], Xy_data[f'{error3}_train'] = get_prediction_results(model_data,y_all_list,y_pred_all_list)
     if not BO_opt:
         Xy_data[f'{error1}_test'], Xy_data[f'{error2}_test'], Xy_data[f'{error3}_test'] = get_prediction_results(model_data,Xy_data['y_test'],Xy_data['y_pred_test'])
-        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
-            Xy_data[f'{error1}_external'], Xy_data[f'{error2}_external'], Xy_data[f'{error3}_external'] = get_prediction_results(model_data,Xy_data['y_external'],Xy_data['y_pred_external'])
+        if 'y_external' in Xy_data and len(Xy_data['y_external']) > 0 and Xy_data['y_external'].notna().any():
+            # external targets can be partially known (e.g. predicting on some new, unlabeled
+            # compounds) - score only the rows with a known target instead of skipping every
+            # external metric just because a few rows are NaN
+            y_ext_mask = Xy_data['y_external'].notna().to_numpy()
+            y_ext_known = Xy_data['y_external'][y_ext_mask]
+            y_pred_ext_known = np.asarray(Xy_data['y_pred_external'])[y_ext_mask]
+            Xy_data[f'{error1}_external'], Xy_data[f'{error2}_external'], Xy_data[f'{error3}_external'] = get_prediction_results(model_data,y_ext_known,y_pred_ext_known)
+        if 'y_pred_train_infold' in Xy_data:
+            # in-fold training fit (used for the train-vs-validation gap score)
+            Xy_data[f'{error1}_train_infold'], Xy_data[f'{error2}_train_infold'], Xy_data[f'{error3}_train_infold'] = get_prediction_results(model_data,Xy_data['y_train'],Xy_data['y_pred_train_infold'])
     if BO_opt:
         # calculate sorted CV and its metrics
         # print the target that is above the BO
         # print the final result of the BO just after finishing all the iterations
-        Xy_data = sorted_kfold_cv(loaded_model, model_data, Xy_data, error_labels)
+        # include_test=verify_job: the Low/High report metrics (VERIFY's call, verify_job=True)
+        # need the sorted CV over the whole dataset, but GENERATE's BO/PFI hyperparameter
+        # search (verify_job=False here) must never let the test set leak into tuning
+        Xy_data = sorted_kfold_cv(loaded_model, model_data, Xy_data, error_labels, include_test=verify_job)
         combined_score = (Xy_data[f'{model_data["error_type"]}_train'] + Xy_data[f'{model_data["error_type"]}_up_bottom']) / 2
 
         # Return if this is part of a verify job
@@ -2030,9 +2195,11 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
 
     # create a list of lists with the same number of entries as y
     y_global,y_pred_global = [],[]
+    y_pred_global_train_infold = []
     for _ in range(len(Xy_data['y_train'])):
         y_pred_global.append([])
         y_global.append([])
+        y_pred_global_train_infold.append([])
 
     y_pred_global_test = []
     for _ in range(len(Xy_data['y_test'])):
@@ -2046,11 +2213,12 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
 
     # start the repeated CV
     for CV_repeat in range(int(model_data['repeat_kfolds'])):
-        _,y_pred_global,y_pred_global_test,y_pred_global_external, = kfold_cv(y_global,y_pred_global,
+        _,y_pred_global,y_pred_global_test,y_pred_global_external,y_pred_global_train_infold = kfold_cv(y_global,y_pred_global,
                                         y_pred_global_test,
                                         y_pred_global_external,
                                         model_data,loaded_model,
-                                        Xy_data,CV_repeat,BO_opt=BO_opt)
+                                        Xy_data,CV_repeat,BO_opt=BO_opt,
+                                        y_pred_global_train_infold=y_pred_global_train_infold)
 
     y_train_pred, y_train_std = [],[]
     for y_val in y_pred_global:
@@ -2090,6 +2258,16 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
             Xy_data['y_pred_external'] = y_external_pred
             Xy_data['y_pred_external_sd'] = y_external_std
 
+        # in-fold training fit (each point is predicted by the fold(s) where it was part of
+        # the training portion, i.e. NOT held out) - used for the train-vs-validation gap score
+        y_train_infold_pred = []
+        for y_val_trin in y_pred_global_train_infold:
+            if model_data['type'].lower() == 'reg':
+                y_train_infold_pred.append(np.mean(y_val_trin))
+            elif model_data['type'].lower() == 'clas':
+                y_train_infold_pred.append(_classification_vote(y_val_trin))
+        Xy_data['y_pred_train_infold'] = y_train_infold_pred
+
     return Xy_data
 
 
@@ -2097,7 +2275,8 @@ def kfold_cv(y_global,y_pred_global,
              y_pred_global_test,
              y_pred_global_external,
              model_data,loaded_model,Xy_data,random_state,
-             BO_opt=False,shuffle=True,kfold_cv_type='repeated'):
+             BO_opt=False,shuffle=True,kfold_cv_type='repeated',
+             y_pred_global_train_infold=None,include_test=False):
     '''
     Perform a k-fold CV
     Uses StratifiedKFold for classification problems to maintain class distribution
@@ -2112,17 +2291,24 @@ def kfold_cv(y_global,y_pred_global,
 
     # # load Xy values and sort using y_train as the sorting reference
     if kfold_cv_type == 'sorted':
-        X_init,y_init = sort_n_load(Xy_data) # do not use, currently it doesn't sort indices for X_train as well
+        X_init,y_init = sort_n_load(Xy_data,include_test=include_test) # do not use, currently it doesn't sort indices for X_train as well
 
     else:
         # convert Xy values of training and validation for CV
         X_init = np.array(Xy_data['X_train_scaled'])
         y_init = np.array(Xy_data['y_train'])
 
-        # convert Xy values for the test set and external test set (if any)
-        X_test = np.array(Xy_data['X_test_scaled'])
-        if 'X_external_scaled' in Xy_data:
-            X_external = np.array(Xy_data['X_external_scaled'])
+        # convert Xy values for the test set and external test set (if any) - only needed
+        # outside BO, where these conversions would otherwise run (and be discarded unused)
+        # on every fold of every repeat of every BO iteration
+        if not BO_opt:
+            X_test = np.array(Xy_data['X_test_scaled'])
+            # sklearn estimators reject predict() on a 0-row array (ensure_min_samples=1),
+            # so an empty internal test set (e.g. --csv_test with --auto_test False) needs an
+            # explicit skip here rather than just being an empty-but-present array
+            has_test = len(X_test) > 0
+            if 'X_external_scaled' in Xy_data:
+                X_external = np.array(Xy_data['X_external_scaled'])
 
     ix_training, ix_valid = [], []
     # Loop through each fold and append the training & test indices to the empty lists above
@@ -2134,18 +2320,20 @@ def kfold_cv(y_global,y_pred_global,
         for fold in cv.split(X_init):
             ix_training.append(fold[0]), ix_valid.append(fold[1])
 
-    # Loop through each outer fold, and extract predicted vs actual values and SHAP feature analysis 
-    for (train_outer_ix, test_outer_ix) in zip(ix_training, ix_valid): 
+    # Loop through each outer fold, and extract predicted vs actual values and SHAP feature analysis
+    for (train_outer_ix, test_outer_ix) in zip(ix_training, ix_valid):
         X_train, X_valid = X_init[train_outer_ix, :], X_init[test_outer_ix, :]
         y_train, y_valid = y_init[train_outer_ix], y_init[test_outer_ix]
 
         fit = loaded_model.fit(X_train, y_train)
         y_pred_valid = fit.predict(X_valid)
         if not BO_opt:
-            y_pred_test = fit.predict(X_test)
+            y_pred_test = fit.predict(X_test) if has_test else np.array([])
             if 'X_external_scaled' in Xy_data:
                 y_pred_external = fit.predict(X_external)
-        
+            if kfold_cv_type == 'repeated' and y_pred_global_train_infold is not None:
+                y_pred_train_infold = fit.predict(X_train)
+
         if kfold_cv_type == 'repeated':
             for y_val,y_pred_val,idx in zip(y_valid,y_pred_valid,test_outer_ix):
                 y_global[idx].append(y_val)
@@ -2156,41 +2344,61 @@ def kfold_cv(y_global,y_pred_global,
                 if 'X_external_scaled' in Xy_data:
                     for idx,y_pred_val_external in enumerate(y_pred_external):
                         y_pred_global_external[idx].append(y_pred_val_external)
+                if y_pred_global_train_infold is not None:
+                    for y_pred_val_trin,idx in zip(y_pred_train_infold,train_outer_ix):
+                        y_pred_global_train_infold[idx].append(y_pred_val_trin)
 
         elif kfold_cv_type == 'sorted':
             y_global.append(y_valid)
-            y_pred_global.append(y_pred_valid) 
+            y_pred_global.append(y_pred_valid)
 
-    return y_global,y_pred_global,y_pred_global_test,y_pred_global_external
+    return y_global,y_pred_global,y_pred_global_test,y_pred_global_external,y_pred_global_train_infold
 
 
-def sort_n_load(Xy_data):
+def sort_n_load(Xy_data,include_test=False):
     '''
     Sort Xy data values to enhance reproducibility in cases where same databases are loaded
     with different row order, ensuring stable sorting across OS with kind='stable'.
+
+    include_test=True combines train+validation with the test set first, since the
+    boundary robustness (Low/High) analysis needs the true bottom/top 20% of the whole dataset, not
+    just of the train+validation split - otherwise the true extremes of y could be sitting in
+    the (excluded) test set. This must stay False (the default) during GENERATE's Bayesian
+    Optimization / PFI hyperparameter search (kfold_cv's BO_opt=True path also runs there,
+    not just for the final VERIFY/PREDICT report analysis) - the test set must never leak into
+    hyperparameter selection, and mid-PFI train/test can also briefly have different columns.
     '''
-    
-    X_train_scaled = np.array(Xy_data['X_train_scaled'])
-    y_train = np.array(Xy_data['y_train'])
 
-    sorted_indices = np.argsort(y_train, kind='stable')
-    sorted_X_train_scaled = X_train_scaled[sorted_indices]
-    sorted_y_train = y_train[sorted_indices]
+    if include_test:
+        X_all = np.concatenate([np.array(Xy_data['X_train_scaled']), np.array(Xy_data['X_test_scaled'])])
+        y_all = np.concatenate([np.array(Xy_data['y_train']), np.array(Xy_data['y_test'])])
+    else:
+        X_all = np.array(Xy_data['X_train_scaled'])
+        y_all = np.array(Xy_data['y_train'])
 
-    return sorted_X_train_scaled, sorted_y_train
+    sorted_indices = np.argsort(y_all, kind='stable')
+    sorted_X_all = X_all[sorted_indices]
+    sorted_y_all = y_all[sorted_indices]
+
+    return sorted_X_all, sorted_y_all
 
 
-def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
+def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels,include_test=False):
     '''
     Performs a sorted k-fold cross-validation on the Xy dataset. Returns the average of the two results
+
+    include_test=True runs it over the whole dataset (train+validation+test), for the final
+    VERIFY/PREDICT report analysis. Must stay False for GENERATE's BO/PFI hyperparameter
+    search (see sort_n_load()).
     '''
 
     # perform sorted 5-fold CV
     Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'] = [],[]
-    Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],_,_ = kfold_cv(Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],
+    Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],_,_,_ = kfold_cv(Xy_data['y_sorted_cv'],Xy_data['y_pred_sorted_cv'],
                                                 None,
                                                 None,
-                                                model_data,loaded_model,Xy_data,None,BO_opt=True,shuffle=False,kfold_cv_type='sorted')
+                                                model_data,loaded_model,Xy_data,None,BO_opt=True,shuffle=False,kfold_cv_type='sorted',
+                                                include_test=include_test)
     error1 = error_labels[model_data['type']][0]
     error2 = error_labels[model_data['type']][1]
     error3 = error_labels[model_data['type']][2]
@@ -2221,6 +2429,349 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels):
         Xy_data[f'{model_data["error_type"]}_up_bottom'] = np.mean(np.abs(Xy_data[f'{model_data["error_type"]}_train_sorted_CV']))
 
     return Xy_data
+
+
+def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y_test_pool):
+    '''
+    Runs the SAME 10x repeated 5-fold CV used for interpolation (repeated_kfold_cv), scoped to
+    an arbitrary 80/20 partition instead of the "official" train/test split - so boundary
+    robustness predictions (Low/High, applicability domain) are computed exactly like
+    interpolation's "10x 5-fold CV"/"test" pair: each point in the 80% pool is averaged over
+    its ~10 out-of-fold CV appearances, and each point in the 20% held-out pool is averaged
+    over all repeat*kfold (e.g. 10*5=50) models fitted during the run - instead of a single
+    train-once/test-once fit. This makes the reported RMSE directly comparable to
+    interpolation's, both being averages over the same kind of repeated-CV procedure rather
+    than one being averaged and the other a single noisy draw.
+    '''
+
+    loaded_model = load_model(self, model_data['model'], **model_data['params'])
+    temp_Xy_data = {
+        'X_train_scaled': X_train_pool,
+        'y_train': y_train_pool,
+        'X_test_scaled': X_test_pool,
+        'y_test': y_test_pool,
+    }
+    temp_Xy_data = repeated_kfold_cv(model_data,loaded_model,temp_Xy_data,BO_opt=False)
+
+    # y_pred_test_sd: per-point SD computed directly over all repeat*kfold raw predictions
+    # (same statistic interpolation's item 6 "Avg. standard deviation (SD)" already uses, via
+    # Xy_data['y_pred_test_sd'] in repeated_kfold_cv) - kept in the same units/convention here
+    # so boundary robustness's stability sub-metric is directly comparable to interpolation's
+    return np.array(temp_Xy_data['y_pred_train']), np.array(temp_Xy_data['y_pred_test']), np.array(temp_Xy_data['y_pred_test_sd'])
+
+
+def boundary_plot(self,model_data,Xy_data,path_n_suffix):
+    '''
+    Plots predicted vs actual values for the High extreme (top 20% of y) and Low extreme
+    (bottom 20%), each held out from its own 10x repeated 5-fold CV run on the OTHER 80% - the
+    same methodology interpolation's "10x 5-fold CV"/"test" plot uses (repeated_kfold_cv), just
+    scoped to each extreme's own 80/20 partition of the whole (sorted) dataset instead of the
+    official train/test split. Both the 80%-pool points and the 20%-extreme points are
+    therefore averaged over repeated CV appearances, not a single train-once/test-once fit -
+    making the reported RMSE directly comparable to interpolation's own averaged RMSE.
+    '''
+
+    X_all,y_all = sort_n_load(Xy_data,include_test=True)
+    n_extreme = max(1, round(len(X_all) * 0.2))
+
+    X_bottom80,y_bottom = X_all[:-n_extreme], y_all[:-n_extreme]
+    X_high,y_high = X_all[-n_extreme:], y_all[-n_extreme:]
+    X_top80,y_top = X_all[n_extreme:], y_all[n_extreme:]
+    X_low,y_low = X_all[:n_extreme], y_all[:n_extreme]
+
+    y_pred_bottom,y_pred_high,s_high = _cv_within_partition(self,model_data,X_bottom80,y_bottom,X_high,y_high)
+    y_pred_top,y_pred_low,s_low = _cv_within_partition(self,model_data,X_top80,y_top,X_low,y_low)
+
+    # RMSE of each extreme's own "remaining 80%" (from the same repeated-CV run), used as the
+    # degradation ratio baseline - comparing against interpolation's own RMSE would still mix
+    # two different dataset scopes (Low/High are drawn from the whole dataset, interpolation
+    # only from train+validation), even though both are now the same repeated-CV procedure
+    _,_,rmse_bottom80 = get_prediction_results(model_data,y_bottom,y_pred_bottom)
+    _,_,rmse_top80 = get_prediction_results(model_data,y_top,y_pred_top)
+
+    # RMSE of the extreme folds themselves (Low/High vs their repeated-CV predictions) - this is
+    # the actual "how well does the model do on the extreme 20%" number shown in the report,
+    # replacing VERIFY's old single-pass sorted-CV RMSE now that the predictions come from the
+    # same repeated-CV procedure as interpolation
+    _,_,rmse_high = get_prediction_results(model_data,y_high,y_pred_high)
+    _,_,rmse_low = get_prediction_results(model_data,y_low,y_pred_low)
+
+    # Spearman rank correlation replaces R2 as the "is the fit trustworthy" check for the
+    # extreme folds - R2 (a variance-ratio) is unstable on a small, narrow-range subset and
+    # ends up punishing models regardless of actual quality, whereas rank correlation is far
+    # more robust at small N. Two complementary checks:
+    # - internal: within the Low/High fold's own points, does the model rank them correctly
+    #   (biggest actual value -> biggest predicted value)?
+    # - global: over the WHOLE (sorted) dataset, does the model's ranking correctly place the
+    #   true extremes as extremes at all, rather than compressing them toward the middle?
+    #   Complements Bias (mean shift) with a rank-based view of the same failure mode.
+    # fallbacks use 0.0 (float), not 0 (int) - the f"{value:.2}" format used when logging these
+    # below raises ValueError ("Precision not allowed in integer format specifier") if value
+    # ends up as a plain Python int, which happened on small/degenerate datasets (e.g. a
+    # 2-descriptor, ~35-point dataset where a Low/High fold can have too few points or ties)
+    spearman_high = stats.spearmanr(y_high,y_pred_high).correlation if len(y_high) > 1 else 0.0
+    spearman_low = stats.spearmanr(y_low,y_pred_low).correlation if len(y_low) > 1 else 0.0
+    spearman_high = 0.0 if np.isnan(spearman_high) else spearman_high
+    spearman_low = 0.0 if np.isnan(spearman_low) else spearman_low
+
+    # bottom80 (indices [0:-n_extreme]) + high (indices [-n_extreme:]) covers the whole sorted
+    # dataset exactly once, with no gap or overlap - no need to also pull in the Low run's data
+    y_all_sorted = np.concatenate([y_bottom,y_high])
+    y_pred_all_sorted = np.concatenate([y_pred_bottom,y_pred_high])
+    spearman_global = stats.spearmanr(y_all_sorted,y_pred_all_sorted).correlation
+    spearman_global = 0.0 if np.isnan(spearman_global) else spearman_global
+
+    # sub-metric 3: real range extension - does the model actually dare to predict beyond the
+    # range it was trained on, or does it just clip toward the training boundary (a subtler
+    # form of regression-to-the-mean that scaled RMSE/Spearman alone don't catch, since a model
+    # that never leaves the training range can still rank/fit reasonably within it)?
+    y_max_train = y_bottom.max() # High's model only ever saw up to this value while training
+    y_min_train = y_top.min() # Low's model only ever saw down to this value while training
+    crossing_high = np.mean(y_pred_high > y_max_train)
+    crossing_low = np.mean(y_pred_low < y_min_train)
+
+    # sub-metric 4: prediction uncertainty usefulness - s_high/s_low (per-point SD across all
+    # repeat*kfold raw predictions, same statistic as interpolation's item 6) define a
+    # +-2*SD "repeated-CV prediction band" per point (not a calibrated confidence interval).
+    # 4a. coverage: does the true value actually fall inside that band?
+    y_extreme = np.concatenate([y_high,y_low])
+    pred_extreme = np.concatenate([y_pred_high,y_pred_low])
+    s_extreme = np.concatenate([s_high,s_low])
+    covered = (y_extreme >= pred_extreme-2*s_extreme) & (y_extreme <= pred_extreme+2*s_extreme)
+    coverage = np.mean(covered)
+
+    # 4b. does a higher SD actually flag the harder (higher-error) points? split the extreme
+    # points by their own median SD and compare RMSE between the high-SD and low-SD halves
+    err_extreme = np.abs(y_extreme-pred_extreme)
+    median_s = np.median(s_extreme)
+    low_sd_mask,high_sd_mask = s_extreme <= median_s, s_extreme > median_s
+    if low_sd_mask.sum() > 0 and high_sd_mask.sum() > 0:
+        rmse_low_sd = np.sqrt(np.mean(err_extreme[low_sd_mask]**2))
+        rmse_high_sd = np.sqrt(np.mean(err_extreme[high_sd_mask]**2))
+        sd_rmse_ratio = rmse_high_sd/rmse_low_sd if rmse_low_sd > 0 else float('inf')
+    else: # not enough spread in SD to split into two groups
+        sd_rmse_ratio = 0.0
+
+    _boundary_scatter(self,model_data,path_n_suffix,'high_',
+        y_bottom,y_pred_bottom,y_high,y_pred_high,'Bottom 80%','Top 20%')
+    _boundary_scatter(self,model_data,path_n_suffix,'low_',
+        y_top,y_pred_top,y_low,y_pred_low,'Top 80%','Bottom 20%')
+
+    self.args.log.write(f"      -  Sorted CV extremes (repeated) : RMSE Low = {rmse_low:.2}, RMSE High = {rmse_high:.2}")
+    self.args.log.write(f"      -  Real range extension (Low/High) : Low crossing = {crossing_low:.2}, High crossing = {crossing_high:.2}")
+    self.args.log.write(f"      -  Degradation baseline (remaining 80%) : vs Low (top 80%) RMSE = {rmse_top80:.2}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2}")
+    self.args.log.write(f"      -  Spearman rank (Low/High) : Low (internal) = {spearman_low:.2}, High (internal) = {spearman_high:.2}, global = {spearman_global:.2}")
+    self.args.log.write(f"      -  Uncertainty coverage (+/-2SD band) : {coverage:.2}")
+    self.args.log.write(f"      -  Uncertainty RMSE ratio (high-SD/low-SD) : {sd_rmse_ratio:.3}")
+
+
+def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
+    '''
+    Boundary robustness in X-descriptor space (Section B sub-metric 5), complementing the
+    Low/High sorted-CV analysis (boundary robustness in y-space). Ranks every point in the whole dataset by
+    leverage - h_i = x_i^T (X_train^T X_train)^-1 x_i, the standard QSAR/regression
+    "applicability domain" metric, which (unlike a per-descriptor or plain Euclidean check)
+    accounts for correlations between descriptors - holds out the top 20% highest-leverage
+    (most structurally/descriptor-wise extreme) points as a test set, trains on the remaining
+    80% "typical" points, and scores how well the model extrapolates to those descriptor
+    outliers.
+
+    Leverage is computed using ONLY the training-candidate 80% (X_train above), not the whole
+    dataset, so the holdout points never contribute to defining their own "how extreme am I"
+    reference domain. Resolved in two passes: an initial leverage over the whole dataset picks
+    a provisional 80/20 split, then leverage is recomputed using only that provisional 80% and
+    the split is redone from those (now contamination-free) values.
+    '''
+
+    X_all = np.concatenate([np.array(Xy_data['X_train_scaled']), np.array(Xy_data['X_test_scaled'])])
+    y_all = np.concatenate([np.array(Xy_data['y_train']), np.array(Xy_data['y_test'])])
+    n_test = max(1, round(len(X_all) * 0.2))
+
+    def _leverage(X_ref,X_query):
+        XtX_inv = np.linalg.pinv(X_ref.T @ X_ref)
+        return np.einsum('ij,jk,ik->i', X_query, XtX_inv, X_query)
+
+    # pass 1: provisional split using leverage over the whole dataset (self-contaminated)
+    leverage_provisional = _leverage(X_all,X_all)
+    provisional_train_idx = np.argsort(leverage_provisional, kind='stable')[:-n_test]
+
+    # pass 2: recompute leverage using only the provisional 80% training candidates, then
+    # re-split from these contamination-free values
+    leverage = _leverage(X_all[provisional_train_idx],X_all)
+    sorted_idx = np.argsort(leverage, kind='stable')
+    train_idx, test_idx = sorted_idx[:-n_test], sorted_idx[-n_test:]
+
+    X_train_ad, y_train_ad = X_all[train_idx], y_all[train_idx]
+    X_test_ad, y_test_ad = X_all[test_idx], y_all[test_idx]
+
+    # 10x repeated 5-fold CV within the 80% "typical" pool (same methodology as interpolation
+    # and the Low/High boundary robustness plots - see _cv_within_partition()), instead of a
+    # single train-once/test-once fit, so this RMSE is directly comparable to the others
+    y_pred_train_ad,y_pred_test_ad,_ = _cv_within_partition(self,model_data,X_train_ad,y_train_ad,X_test_ad,y_test_ad)
+
+    _,_,rmse_ad = get_prediction_results(model_data,y_test_ad,y_pred_test_ad)
+
+    # two complementary plots: an actual-vs-predicted scatter (same style as Low/High) shows how
+    # close predictions are to actual values, tying visually to the Scaled RMSE this item is
+    # scored on; a Williams plot (leverage vs standardized residual, with the standard QSAR
+    # warning-leverage h* = 3(p+1)/n and +-3 SD bounds) shows the whole dataset at once and
+    # flags which points are structurally outside the domain / have suspicious residuals
+    _boundary_scatter(self,model_data,path_n_suffix,'ad_',
+        y_train_ad,y_pred_train_ad,y_test_ad,y_pred_test_ad,'Typical 80%','High leverage 20%',
+        title='Applicability domain (leverage)',legend_fontsize=12)
+
+    n_train_ad, p = X_train_ad.shape
+    h_star = 3*(p+1)/n_train_ad
+    residuals_all = np.concatenate([y_train_ad-y_pred_train_ad, y_test_ad-y_pred_test_ad])
+    resid_sd = np.std(residuals_all) if np.std(residuals_all) > 0 else 1
+    std_resid_train = (y_train_ad-y_pred_train_ad)/resid_sd
+    std_resid_test = (y_test_ad-y_pred_test_ad)/resid_sd
+
+    _williams_plot(path_n_suffix,
+        leverage[train_idx],std_resid_train,leverage[test_idx],std_resid_test,h_star)
+
+    self.args.log.write(f"      -  Applicability domain (leverage) : RMSE = {rmse_ad:.2}, h* = {h_star:.2}")
+
+
+def _place_legend(ax,all_x,all_y,labels,fontsize=14):
+    '''
+    Places the legend at the same fixed bottom-right anchor (0.70, 0.15) used by the main
+    "10x 5-fold CV / test" plot (graph_reg), so the margin matches across the report, unless a
+    data point actually falls behind it, in which case (and only then) it falls back to
+    matplotlib's loc='best', which auto-avoids overlapping data.
+    '''
+
+    legend_kwargs = dict(handletextpad=0, fancybox=True, shadow=True, ncol=5, labels=labels, fontsize=fontsize)
+
+    legend = ax.legend(loc='upper center', bbox_to_anchor=(0.70, 0.15), **legend_kwargs)
+
+    # get_window_extent() needs an explicit renderer on the Agg backend (used for saving
+    # figures without a display) - without it, it silently returns a stale/degenerate bbox and
+    # the overlap check below never triggers, which is why the auto-move wasn't working
+    ax.figure.canvas.draw()
+    renderer = ax.figure.canvas.get_renderer()
+    bbox = legend.get_window_extent(renderer=renderer)
+
+    inv = ax.transData.inverted()
+    (x0,y0),(x1,y1) = inv.transform([[bbox.x0,bbox.y0],[bbox.x1,bbox.y1]])
+    x_lo,x_hi = sorted([x0,x1])
+    y_lo,y_hi = sorted([y0,y1])
+
+    overlap = any(x_lo <= x <= x_hi and y_lo <= y <= y_hi for x,y in zip(all_x,all_y))
+    if overlap:
+        legend.remove()
+        legend = ax.legend(loc='best', **legend_kwargs)
+
+    return legend
+
+
+def _williams_plot(path_n_suffix,leverage_train,resid_train,leverage_test,resid_test,h_star,print_fun=True):
+    '''
+    Standard QSAR "Williams plot": leverage (x) vs standardized residual (y), marking the
+    warning leverage h* and the +-3 SD bounds that define the applicability domain.
+    print_fun=False skips the in-image title - used for the small (270px-wide) Section B
+    thumbnails, where the container height crops it anyway (see print_img_tag()) and the
+    surrounding item text already says what the plot shows
+    '''
+
+    importlib.reload(plt) # needed to avoid threading issues
+    sb.set(style="ticks")
+    graph_style = get_graph_style()
+
+    _, ax = plt.subplots(figsize=(7.45,6))
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    if print_fun:
+        plt.text(0.5, 1.08, f'Applicability domain (Williams plot) of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    _ = ax.scatter(leverage_train, resid_train,
+                c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    _ = ax.scatter(leverage_test, resid_test,
+                c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
+
+    ax.axhline(3, color='dimgray', linestyle='--', linewidth=1, zorder=1)
+    ax.axhline(-3, color='dimgray', linestyle='--', linewidth=1, zorder=1)
+    ax.axvline(h_star, color='dimgray', linestyle='--', linewidth=1, zorder=1)
+
+    _place_legend(ax,np.concatenate([leverage_train,leverage_test]),np.concatenate([resid_train,resid_test]),
+        ['Typical 80%','High leverage 20%'],fontsize=12)
+
+    plt.ylabel('Standardized residual', fontsize=14)
+    plt.xlabel('Leverage', fontsize=14)
+
+    all_leverage = np.concatenate([leverage_train, leverage_test])
+    all_resid = np.concatenate([resid_train, resid_test])
+    x_max = max(max(all_leverage)*1.1, h_star*1.2)
+    y_max = max(max(np.abs(all_resid))*1.1, 3.5)
+
+    ax.grid(linestyle='--', linewidth=1)
+    plt.xlim(0, x_max)
+    plt.ylim(-y_max, y_max)
+
+    williams_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_boundary_williams_{os.path.basename(path_n_suffix)}.png'
+    plt.savefig(f'{williams_plot_file}', dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+def _boundary_scatter(self,model_data,path_n_suffix,file_prefix,y_rest,y_pred_rest,y_extreme,y_pred_extreme,rest_label,extreme_label,title='Boundary robustness (sorted CV)',legend_fontsize=14,print_fun=True):
+    '''
+    Shared plotting logic for boundary_plot()'s High and Low scatter plots: "rest" of the
+    data in blue, the highlighted extreme fold in red.
+    print_fun=False skips the in-image title - used for the small (270px-wide) Section B
+    thumbnails, where the container height crops it anyway (see print_img_tag()) and the
+    surrounding item text already says what the plot shows
+    '''
+
+    importlib.reload(plt) # needed to avoid threading issues
+    sb.set(style="ticks")
+    graph_style = get_graph_style()
+
+    _, ax = plt.subplots(figsize=(7.45,6))
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    if print_fun:
+        plt.text(0.5, 1.08, f'{title} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
+
+    _ = ax.scatter(y_rest, y_pred_rest,
+                c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+    _ = ax.scatter(y_extreme, y_pred_extreme,
+                c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
+
+    _place_legend(ax,np.concatenate([y_rest,y_extreme]),np.concatenate([y_pred_rest,y_pred_extreme]),
+        [rest_label,extreme_label],fontsize=legend_fontsize)
+
+    Xy_data_df = pd.DataFrame()
+    Xy_data_df['y_rest'] = y_rest
+    Xy_data_df['y_pred_rest'] = y_pred_rest
+    if len(y_rest) >= 10:
+        _ = sb.regplot(x='y_rest', y='y_pred_rest', data=Xy_data_df, scatter=False, color=".1",
+                        truncate = True, ax=ax, seed=model_data['seed'])
+
+    plt.ylabel(f'Predicted {model_data["y"]}', fontsize=14)
+    plt.xlabel(f'{model_data["y"]}', fontsize=14)
+
+    y_all = np.concatenate([y_rest, y_extreme])
+    y_pred_all = np.concatenate([y_pred_rest, y_pred_extreme])
+    size_space = 0.1*abs(min(y_all)-max(y_all)) if max(y_all) != min(y_all) else 1
+    min_value_graph = min(min(y_all),min(y_pred_all))-size_space
+    max_value_graph = max(max(y_all),max(y_pred_all))+size_space
+
+    ax.grid(linestyle='--', linewidth=1)
+    plt.xlim(min_value_graph, max_value_graph)
+    plt.ylim(min_value_graph, max_value_graph)
+
+    boundary_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_boundary_{file_prefix}{os.path.basename(path_n_suffix)}.png'
+    plt.savefig(f'{boundary_plot_file}', dpi=300, bbox_inches='tight')
+    plt.close()
+
+    path_reduced = '/'.join(f'{boundary_plot_file}'.replace('\\','/').split('/')[-2:])
+    self.args.log.write(f"      -  Graph in: {path_reduced}")
+
+
 
 
 def k_means(self,X_scaled,csv_y,size,seed,idx_list):
@@ -2254,18 +2805,22 @@ def k_means(self,X_scaled,csv_y,size,seed,idx_list):
         self.args.log.write("\nx  The K-means clustering process failed! This might be due to having NaN or strings as descriptors (curate the data first with CURATE) or having too few datapoints!")
         sys.exit()
     centers = kmeans.cluster_centers_
+
+    # Euclidean distance from every point to every cluster center, computed once with a
+    # vectorized pairwise distance call instead of a per-point/per-descriptor Python triple loop
+    dists_to_centers = cdist(X_scaled_array, centers)
+
+    claimed = np.zeros(len(X_scaled_array), dtype=bool)
+    claimed[list(training_idx)] = True
     for i in range(number_of_clusters):
-        results_cluster = 1000000
-        for k in range(len(X_scaled_array[:, 0])):
-            if k not in training_idx:
-                # calculate the Euclidean distance in n-dimensions
-                points_sum = 0
-                for l in range(len(X_scaled_array[0])):
-                    points_sum += (X_scaled_array[:, l][k]-centers[:, l][i])**2
-                if np.sqrt(points_sum) < results_cluster:
-                    results_cluster = np.sqrt(points_sum)
-                    training_point = k
+        dists_i = np.where(claimed, np.inf, dists_to_centers[:, i])
+        training_point = int(np.argmin(dists_i))
+        if np.isinf(dists_i[training_point]):
+            # every point is already claimed by an earlier cluster (e.g. more clusters than
+            # remaining unclaimed points) - skip instead of silently re-appending a duplicate
+            continue
         training_idx.append(training_point)
+        claimed[training_point] = True
 
     test_idx = [idx for idx in range(len(X_scaled_array[:, 0])) if idx not in training_idx]
     test_points = [idx_list[i] for i in test_idx]
@@ -2348,14 +2903,56 @@ def create_heatmap(self,csv_df,suffix,path_raw):
     sb.despine(top=False, right=False)
     name_fig = '_'.join(title_fig.split())
     plt.savefig(f'{path_raw.joinpath(name_fig)}.png', dpi=300, bbox_inches='tight')
+    plt.close()
 
     path_reduced = '/'.join(f'{path_raw}'.replace('\\','/').split('/')[-2:])
     self.args.log.write(f'\no  {name_fig} succesfully created in {path_reduced}')
 
 
-def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,sd_graph=False):
+def create_score_heatmap(csv_df,save_path):
     '''
-    Plot regression graphs of predicted vs actual values for train, validation and test sets
+    Heatmap of each model's final score (0-10) for ONE metric (Interpolation or
+    Boundary robustness - one call per side), used in Section F of the report instead of
+    GENERATE's combined-RMSE heatmap when --all_models is active - the raw BO objective
+    (combined RMSE) only reflects the search criterion used to tune each model's
+    hyperparameters, not the richer final score (test performance, stability, boundary
+    behavior, etc.) that the rest of the report is built around, so it isn't the most useful
+    basis for comparing models against each other. Kept as two single-row images (not one
+    combined 2-row image) so Interpolation can sit in the report's left column and Boundary
+    robustness in the right, matching the same left/right separation used by every other
+    section
+    '''
+
+    importlib.reload(plt)
+    sb.set(font_scale=1.2, style='ticks')
+    _, ax = plt.subplots(figsize=(7.45,4))
+    cmap_blues_75_percent_512 = [mcolor.rgb2hex(c) for c in plt.cm.Blues(np.linspace(0, 0.8, 512))]
+    ax = sb.heatmap(csv_df, annot=True, linewidth=1, cmap=cmap_blues_75_percent_512,
+                     vmin=0, vmax=10, cbar_kws={'label': 'Score (0-10)'}, mask=csv_df.isnull())
+    fontsize = 14
+    ax.set_xlabel("ML Model",fontsize=fontsize)
+    ax.set_ylabel("",fontsize=fontsize)
+    ax.tick_params(axis='x', which='major', labelsize=fontsize)
+    ax.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
+    # no in-image title: the report embeds this at a fixed width with auto height (no crop),
+    # and the report page already prints an "Interpolation"/"Boundary robustness" bold caption
+    # right above it (see print_generate() in report.py), so a second, redundant title would
+    # just eat into the image's vertical space
+    sb.despine(top=False, right=False)
+    plt.savefig(f'{save_path}', dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_test=False,print_fun=True,sd_graph=False,sd_set='test',show_title=True):
+    '''
+    Plot regression graphs of predicted vs actual values for train, validation and test sets.
+    sd_set (only used when sd_graph=True and csv_test=False) picks which averaged-CV ± SD set
+    to plot: 'test' (default, unchanged) or 'train' (out-of-fold CV predictions in
+    train+validation, used for Interpolation item 6's train+validation SD sub-metric).
+    show_title=False skips the in-image title only (print_fun still controls the "Graph in:"
+    log line independently) - used for the small (270px-wide) Section B thumbnails, where the
+    container height crops the title anyway (see print_img_tag()) and the surrounding item
+    text already says what the plot shows
     '''
 
     # Create graph
@@ -2367,28 +2964,32 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     # Set tick sizes
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    
-    error_bars = "test"
+
+    error_bars = sd_set if (sd_graph and not csv_test) else "test"
 
     title_graph = graph_title(self,csv_test,sd_graph,error_bars)
 
-    if print_fun:
+    if show_title:
         plt.text(0.5, 1.08, f'{title_graph} of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
             fontsize=14, fontweight='bold', transform = ax.transAxes)
 
-    # Plot the data
-    if not sd_graph:
+    # Plot the data (also used for the train/out-of-fold ± SD variant, sd_set='train' - same
+    # blue "10x 5-fold CV" dots as the regular plot, with the ± SD error bars added on top
+    # below, instead of the plain "fmt='none'" error bars showing with no dots underneath)
+    if not sd_graph or sd_set == 'train':
         _ = ax.scatter(Xy_data["y_train"], Xy_data["y_pred_train"],
-                    c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)   
+                    c = graph_style['color_train'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
 
-    if not csv_test:
-        _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
-                    c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
-
-    else:
+    if csv_test:
         error_bars = "external"
         _ = ax.scatter(Xy_data["y_external"], Xy_data["y_pred_external"],
                         c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=2)
+
+    # skipped for the train/out-of-fold ± SD variant (sd_set='train') - that variant only
+    # shows the train+validation errorbar plot below, not the (unrelated) test points
+    elif not (sd_graph and sd_set == 'train'):
+        _ = ax.scatter(Xy_data["y_test"], Xy_data["y_pred_test"],
+                    c = graph_style['color_test'], s = graph_style['dot_size'], edgecolor = 'k', linewidths = 0.8, alpha = graph_style['alpha'], zorder=3)
 
     # average CV ± SD graphs 
     if sd_graph:
@@ -2403,6 +3004,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             set_types=['External test',f'± SD']
 
     # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+    legend_coords = None
     if 'CV' in set_types[0]: # CV in VERIFY
         legend_coords = (0.70, 0.15)
     elif len(set_types) == 2: # external test or sets with ± SD
@@ -2410,7 +3012,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             legend_coords = (0.66, 0.15)
         else:
             legend_coords = (0.735, 0.15)
-    ax.legend(loc='upper center', bbox_to_anchor=legend_coords, 
+    ax.legend(loc='upper center', bbox_to_anchor=legend_coords,
             handletextpad=0,
             fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
@@ -2418,7 +3020,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     if not sd_graph:
         line_suff = 'train'
     elif not csv_test:
-        line_suff = 'test'
+        line_suff = error_bars # 'test' or 'train', matches sd_set
     else:
         line_suff = 'external'
 
@@ -2433,11 +3035,16 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     plt.xlabel(f'{params_dict["y"]}', fontsize=14)
 
     # set axis limits and graph PATH
-    min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph)
+    min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph,sd_set)
 
-    # track the range of predictions (used in ROBERT score)
-    pred_min = min(min(Xy_data["y_train"]),min(Xy_data["y_test"]))
-    pred_max = max(max(Xy_data["y_train"]),max(Xy_data["y_test"]))
+    # track the range of predictions (used in ROBERT score) - an empty internal test set
+    # (e.g. --csv_test with --auto_test False) has no y_test values to fold in
+    if len(Xy_data["y_test"]) > 0:
+        pred_min = min(min(Xy_data["y_train"]),min(Xy_data["y_test"]))
+        pred_max = max(max(Xy_data["y_train"]),max(Xy_data["y_test"]))
+    else:
+        pred_min = min(Xy_data["y_train"])
+        pred_max = max(Xy_data["y_train"])
     pred_range = np.abs(pred_max-pred_min)
     Xy_data['pred_min'] = pred_min
     Xy_data['pred_max'] = pred_max
@@ -2452,6 +3059,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
 
     # save graph
     plt.savefig(f'{reg_plot_file}', dpi=300, bbox_inches='tight')
+    plt.close()
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
 
@@ -2474,7 +3082,9 @@ def graph_title(self,csv_test,sd_graph,error_bars):
     # set title for averaged CV ± SD graphs
     else:
         if not csv_test:
-            sets_title = error_bars
+            # 'train' here means the out-of-fold CV predictions in train+validation, not a
+            # literal in-fold training fit - name it accordingly to avoid confusion
+            sets_title = 'out-of-fold CV' if error_bars == 'train' else error_bars
         else:
             sets_title = 'external test'
 
@@ -2483,21 +3093,25 @@ def graph_title(self,csv_test,sd_graph,error_bars):
     return title_graph
 
 
-def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph):
+def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph,sd_set='test'):
     '''
     Set axis limits for regression plots and PATH to save the graphs
     '''
 
     # x and y axis limits for graphs with multiple sets
     if not csv_test:
+        # an empty internal test set (e.g. --csv_test with --auto_test False) has no y_test
+        # values to fold into the axis limits - min()/max() reject empty sequences outright
+        has_test = len(Xy_data["y_test"]) > 0
+
         size_space = 0.1*abs(min(Xy_data["y_train"])-max(Xy_data["y_train"]))
-        min_value_graph = min(min(Xy_data["y_train"]),min(Xy_data["y_pred_train"]),min(Xy_data["y_test"]),min(Xy_data["y_pred_test"]))
-        if 'test' in set_types:
+        min_value_graph = min(min(Xy_data["y_train"]),min(Xy_data["y_pred_train"]))
+        if has_test:
             min_value_graph = min(min_value_graph,min(Xy_data["y_test"]),min(Xy_data["y_pred_test"]))
         min_value_graph = min_value_graph-size_space
-            
-        max_value_graph = max(max(Xy_data["y_train"]),max(Xy_data["y_pred_train"]),max(Xy_data["y_test"]),max(Xy_data["y_pred_test"]))
-        if 'test' in set_types:
+
+        max_value_graph = max(max(Xy_data["y_train"]),max(Xy_data["y_pred_train"]))
+        if has_test:
             max_value_graph = max(max_value_graph,max(Xy_data["y_test"]),max(Xy_data["y_pred_test"]))
         max_value_graph = max_value_graph+size_space
 
@@ -2513,6 +3127,8 @@ def graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph):
     if not csv_test:
         if not sd_graph:
             reg_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_{os.path.basename(path_n_suffix)}.png'
+        elif sd_set == 'train':
+            reg_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_cv_{os.path.basename(path_n_suffix)}.png'
         else:
             reg_plot_file = f'{os.path.dirname(path_n_suffix)}/CV_variability_{os.path.basename(path_n_suffix)}.png'
         path_reduced = '/'.join(f'{reg_plot_file}'.replace('\\','/').split('/')[-2:])
@@ -2559,6 +3175,9 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
         class_labels = [0, 1]
         display_labels = [params_dict['class_0_label'], params_dict['class_1_label']]
 
+    # plot directly onto a pre-created figure (same format/size used in reg graphs) instead
+    # of letting from_predictions() create and leak its own internal figure when ax=None
+    _, ax = plt.subplots(figsize=(7.45,6))
     matrix = ConfusionMatrixDisplay.from_predictions(
         y_actual,
         y_pred,
@@ -2566,11 +3185,8 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
         normalize=None,
         cmap='Blues',
         display_labels=display_labels,
+        ax=ax,
     )
-
-    # transfer it to the same format and size used in reg graphs
-    _, ax = plt.subplots(figsize=(7.45,6))
-    matrix.plot(ax=ax, cmap='Blues')
 
     if print_fun:
         if 'CV' not in set_type:
@@ -2600,14 +3216,35 @@ def graph_clas(self,Xy_data,params_dict,set_type,path_n_suffix,csv_test=False,pr
         path_reduced = '/'.join(f'{clas_plot_file}'.replace('\\','/').split('/')[-3:])
 
     plt.savefig(f'{clas_plot_file}', dpi=300, bbox_inches='tight')
+    plt.close()
 
     if print_fun:
         self.args.log.write(f"      -  Graph in: {path_reduced}")
 
 
-def shap_analysis(self,Xy_data,model_data,path_n_suffix):
+def linear_equation(self,Xy_data,model_data,loaded_model):
     '''
-    Plots and prints the results of the SHAP analysis
+    Prints the linear regression equation for MVL models. Must be logged before shap_analysis()
+    and PFI_plot(), since REPORT's print_features() reads this equation back out of the log file
+    to display it above the SHAP/PFI plots. loaded_model must already be fitted on
+    Xy_data['X_train_scaled']/['y_train'] (shared with shap_analysis()/PFI_plot() so the same
+    model isn't refit 3 times in a row for the same data)
+    '''
+
+    terms = [f'{coef:.3f}*{desc}' for coef,desc in zip(loaded_model.coef_, Xy_data['X_train_scaled'].columns)]
+    equation = f"y = {loaded_model.intercept_:.3f} + " + ' + '.join(terms)
+    equation = equation.replace('+ -', '- ')
+
+    print_eq = f"\n   o  Linear model equation"
+    print_eq += f"\n      -  {equation}"
+
+    self.args.log.write(print_eq)
+
+
+def shap_analysis(self,Xy_data,model_data,path_n_suffix,loaded_model):
+    '''
+    Plots and prints the results of the SHAP analysis. loaded_model must already be fitted on
+    Xy_data['X_train_scaled']/['y_train']
     '''
 
     importlib.reload(plt) # needed to avoid threading issues
@@ -2615,16 +3252,40 @@ def shap_analysis(self,Xy_data,model_data,path_n_suffix):
 
     shap_plot_file = f'{os.path.dirname(path_n_suffix)}/SHAP_{os.path.basename(path_n_suffix)}.png'
 
-    # load and fit the ML model
-    loaded_model = load_model(self, model_data['model'], **model_data['params'])
-    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
-
     # run the SHAP analysis and save the plot
-    explainer = shap.Explainer(loaded_model.predict, Xy_data['X_train_scaled'], seed=model_data['seed'])
-    try:
+    if model_data['model'].upper() in ['RF', 'GB']:
+        # exact Shapley values for tree ensembles in polynomial time, instead of
+        # the Exact/Permutation fallback that shap.Explainer(model.predict, X) uses
+        # (that fallback can't detect the tree structure and gets very slow on
+        # datasets with many rows and/or descriptors)
+        explainer = shap.TreeExplainer(loaded_model)
         shap_values = explainer(Xy_data['X_train_scaled'])
-    except ValueError:
-        shap_values = explainer(Xy_data['X_train_scaled'],max_evals=(2*len(Xy_data['X_train_scaled'].columns))+1)
+    elif model_data['model'].upper() == 'MVL':
+        # exact Shapley values in closed form for linear models (no repeated
+        # model evaluations), instead of the black-box Exact/Permutation fallback
+        explainer = shap.LinearExplainer(loaded_model, Xy_data['X_train_scaled'])
+        shap_values = explainer(Xy_data['X_train_scaled'])
+    else:
+        # black-box models (NN, GP, AdaB) still need the generic Exact/Permutation
+        # fallback, which gets slow because its cost scales with the size of the
+        # background data. Summarizing the background speeds this up a lot on large
+        # datasets; below 100 points summarizing barely helps and only adds
+        # approximation error, so the full training set is used as-is in that case
+        background = Xy_data['X_train_scaled']
+        if len(background) > 100:
+            background = shap.sample(background, nsamples=100, random_state=model_data['seed'])
+        explainer = shap.Explainer(loaded_model.predict, background, seed=model_data['seed'])
+        try:
+            shap_values = explainer(Xy_data['X_train_scaled'])
+        except ValueError:
+            shap_values = explainer(Xy_data['X_train_scaled'],max_evals=(2*len(Xy_data['X_train_scaled'].columns))+1)
+
+    if np.asarray(shap_values.values).ndim == 3:
+        # classifiers return SHAP values per class (n_samples, n_features, n_classes);
+        # shap's own plotting code isn't reliable across class-axis sizes (e.g. size 1
+        # for some binary fits), so pick the last class (the positive class in binary
+        # problems) explicitly and plot/summarize a plain 2D array throughout
+        shap_values = shap_values[..., -1]
 
     shap_show = [self.args.shap_show,len(Xy_data['X_train_scaled'].columns)]
     aspect_shap = 25+((min(shap_show)-2)*5)
@@ -2639,17 +3300,10 @@ def shap_analysis(self,Xy_data,model_data,path_n_suffix):
     path_reduced = '/'.join(f'{shap_plot_file}'.replace('\\','/').split('/')[-2:])
     print_shap = f"\n   o  SHAP plot saved in {path_reduced}"
 
-    # collect SHAP values and print
-    desc_list, min_list, max_list = [],[],[]
-    for i,desc in enumerate(Xy_data['X_train_scaled']):
-        desc_list.append(desc)
-        val_list_indiv= []
-        for _,val in enumerate(shap_values.values):
-            val_list_indiv.append(val[i])
-        min_indiv = min(val_list_indiv)
-        max_indiv = max(val_list_indiv)
-        min_list.append(min_indiv)
-        max_list.append(max_indiv)
+    # collect SHAP values and print (vectorized instead of looping over every row per descriptor)
+    desc_list = list(Xy_data['X_train_scaled'].columns)
+    min_list = shap_values.values.min(axis=0).tolist()
+    max_list = shap_values.values.max(axis=0).tolist()
     
     if max(max_list, key=abs) > max(min_list, key=abs):
         max_list, min_list, desc_list = (list(t) for t in zip(*sorted(zip(max_list, min_list, desc_list), reverse=True)))
@@ -2666,19 +3320,17 @@ def shap_analysis(self,Xy_data,model_data,path_n_suffix):
     plt.gcf().axes[-1].set_box_aspect(aspect_shap)
     
     plt.savefig(f'{shap_plot_file}', dpi=300, bbox_inches='tight')
+    plt.close()
 
 
-def PFI_plot(self,Xy_data,model_data,path_n_suffix):
+def PFI_plot(self,Xy_data,model_data,path_n_suffix,loaded_model):
     '''
-    Plots and prints the results of the PFI analysis
+    Plots and prints the results of the PFI analysis. loaded_model must already be fitted on
+    Xy_data['X_train_scaled']/['y_train']
     '''
 
     importlib.reload(plt) # needed to avoid threading issues
     pfi_plot_file = f'{os.path.dirname(path_n_suffix)}/PFI_{os.path.basename(path_n_suffix)}.png'
-
-    # load and fit the ML model
-    loaded_model = load_model(self, model_data['model'], **model_data['params'])
-    loaded_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train']) 
 
     # select scoring function for PFI analysis based on the error type
     scoring, _, error_type = scoring_n_score(self,model_data,Xy_data,loaded_model)
@@ -2707,6 +3359,7 @@ def PFI_plot(self,Xy_data,model_data,path_n_suffix):
     ax.set(ylabel=None, xlabel='PFI')
 
     plt.savefig(f'{pfi_plot_file}', dpi=300, bbox_inches='tight')
+    plt.close()
 
     path_reduced = '/'.join(f'{pfi_plot_file}'.replace('\\','/').split('/')[-2:])
     print_PFI = f"\n   o  PFI plot saved in {path_reduced}"
@@ -2748,7 +3401,7 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     plt.yticks(fontsize=14)
     
     axis_limit = max(outliers_data['train_scaled'], key=abs)
-    if 'test_scaled' in outliers_data:
+    if outliers_data.get('test_scaled') is not None and len(outliers_data['test_scaled']) > 0:
         if max(outliers_data['test_scaled'], key=abs) > axis_limit:
             axis_limit = max(outliers_data['test_scaled'], key=abs)
     axis_limit = axis_limit+0.5
@@ -2767,6 +3420,7 @@ def outlier_plot(self,Xy_data,path_n_suffix,name_points,graph_style):
     # save plot and print results
     outliers_plot_file = f'{os.path.dirname(path_n_suffix)}/Outliers_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{outliers_plot_file}', dpi=300, bbox_inches='tight')
+    plt.close()
     
     path_reduced = '/'.join(f'{outliers_plot_file}'.replace('\\','/').split('/')[-2:])
     print_outliers += f"\n   o  Outliers plot saved in {path_reduced}"
@@ -2804,8 +3458,9 @@ def outlier_analysis(print_outliers,outliers_data,outliers_set):
         n_points_label = 'test_scaled'
         outliers_name = 'names_test'
 
-    per_cent = (len(outliers_data[outliers_label])/len(outliers_data[n_points_label]))*100
-    print_outliers += f"\n      {label_set}: {len(outliers_data[outliers_label])} outliers out of {len(outliers_data[n_points_label])} datapoints ({per_cent:.1f}%)"
+    n_points = len(outliers_data[n_points_label])
+    per_cent = (len(outliers_data[outliers_label])/n_points)*100 if n_points > 0 else 0.0
+    print_outliers += f"\n      {label_set}: {len(outliers_data[outliers_label])} outliers out of {n_points} datapoints ({per_cent:.1f}%)"
     for val,name in zip(outliers_data[outliers_label], outliers_data[outliers_name]):
         print_outliers += f"\n      -  {name} ({val:.2} SDs)"
     return print_outliers
@@ -2825,6 +3480,10 @@ def outlier_filter(self, Xy_data, name_points):
     # use the mean and SD of the train set
     outliers_mean = np.mean(outliers_train)
     outliers_sd = np.std(outliers_train)
+    # a train set with (near-)identical errors across all points gives SD = 0, which would
+    # turn every scaled error into inf/nan instead of correctly showing "no outliers"
+    if outliers_sd == 0:
+        outliers_sd = 1
 
     outliers_data = {}
     outliers_data['train_scaled'] = (outliers_train-outliers_mean)/outliers_sd
@@ -2903,6 +3562,7 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
     # save plot and print results
     orig_distrib_file = f'y_distribution_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{orig_distrib_file}', dpi=300, bbox_inches='tight')
+    plt.close()
     # for a VERY weird reason, I need to save the figure in the working directory and then move it into PREDICT
     final_distrib_file = f'{os.path.dirname(path_n_suffix)}/y_distribution_{os.path.basename(path_n_suffix)}.png'
     shutil.move(orig_distrib_file, final_distrib_file)
@@ -3024,6 +3684,11 @@ def get_prediction_results(model_data,y,y_pred_all):
     Calculate metrics based on y and y_pred
     '''
 
+    # an empty set (e.g. no internal test set when --csv_test is used with --auto_test False)
+    # has no metrics to compute - sklearn's metric functions reject 0-sample arrays outright
+    if len(y) == 0:
+        return float('nan'), float('nan'), float('nan')
+
     if model_data['type'].lower() == 'reg':
         mae = mean_absolute_error(y,y_pred_all)
         rmse = np.sqrt(mean_squared_error(y,y_pred_all))
@@ -3135,15 +3800,27 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
     Standardizes and separate test set
     '''
 
+    # test_points stays None when csv_test is set and auto_test doesn't force a test_set (e.g.
+    # --csv_test with --auto_test False); Xy_split() expects a list, an empty one meaning "no
+    # test points carved out of the training data"
+    if test_points is None:
+        test_points = []
+
     X_scaled_df,X_scaled_external_df = scale_df(csv_X,csv_X_external)
 
     # separate test set and save it in the Xy data
     if BO_opt:
-        if self.args.csv_test != '':
-            self.args.test_set = 0
-        
+        # --csv_test is for getting predictions on new/external points, which may or may not
+        # have known y values (e.g. compounds not yet made) - it is NOT a substitute for the
+        # internal test split the score is calibrated on, so it must not suppress it. ROBERT
+        # still carves its own internal test set as usual; the external file is used
+        # separately, on top of that, wherever csv_test is actually consumed
         if self.args.auto_test:
-            if self.args.test_set < 0.2:
+            # test_set == 0 is treated as a deliberate "no test set" choice (train on 100% of
+            # the data as train+valid), not a value that needs the safety net - only small,
+            # possibly-accidental nonzero values get raised to 0.2 (--auto_test False bypasses
+            # this entirely, but explicit 0 no longer needs it just for this specific case)
+            if 0 < self.args.test_set < 0.2:
                 self.args.test_set = 0.2
                 self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
@@ -3255,7 +3932,7 @@ def get_graph_style():
     return graph_style
 
 
-def pearson_map(self,csv_df_pearson,module,params_dir=None):
+def pearson_map(self,csv_df_pearson,module,params_dir=None,suffix_title=None):
     '''
     Creates Pearson heatmap
     '''
@@ -3264,10 +3941,29 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
     if module.lower() == 'curate': # only represent the final descriptors in CURATE
         csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
 
-    corr_matrix = csv_df_pearson.corr()
+    # numeric_only=True: in EVALUATE mode, CURATE's categorical_transform() is skipped (only
+    # this heatmap is drawn), so csv_df_pearson can still contain raw non-numeric descriptor
+    # columns - .corr() raises ValueError outright on those instead of just excluding them
+    corr_matrix = csv_df_pearson.corr(numeric_only=True)
     mask = np.zeros_like(corr_matrix, dtype=bool)
     mask[np.triu_indices_from(mask)]= True
-    
+
+    # with only the lower triangle unmasked, the first row (only cell = the diagonal, itself
+    # masked) and the last column (would only be unmasked by a row below the last one, which
+    # doesn't exist) are always entirely blank. bbox_inches='tight' does not crop them away
+    # (they are still valid, if invisible, axes content), which left a large empty gap above
+    # the heatmap - most noticeable with very few descriptors, where it could leave just a
+    # single visible cell. Trimming them keeps every remaining cell meaningful. This is only
+    # for the plot - the function still returns the full, untrimmed corr_matrix, since callers
+    # (e.g. pearson_map_predict()'s correlation-warning scan) index it by original position and
+    # trimming would silently shift some pairs onto the (skipped) diagonal
+    if len(corr_matrix.columns) > 1:
+        corr_matrix_plot = corr_matrix.iloc[1:, :-1]
+        mask_plot = mask[1:, :-1]
+    else:
+        corr_matrix_plot = corr_matrix
+        mask_plot = mask
+
     # no representatoins when there are more than 30 descriptors
     if len(csv_df_pearson.columns) > 30:
         disable_plot = True
@@ -3286,8 +3982,8 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
     else:
         sb.set(font_scale=1.2, style='ticks')
 
-        _ = sb.heatmap(corr_matrix,
-                        mask = mask,
+        _ = sb.heatmap(corr_matrix_plot,
+                        mask = mask_plot,
                         square = True,
                         linewidths = .5,
                         cmap = 'coolwarm',
@@ -3303,18 +3999,24 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
         # Explicitly align tick positions with the full correlation matrix.
         # Newer matplotlib/seaborn combinations can auto-reduce the locator
         # ticks, which then makes set_*ticklabels fail if all labels are passed.
-        tick_positions = np.arange(len(corr_matrix.columns)) + 0.5
-        ax.set_yticks(tick_positions)
-        ax.set_xticks(tick_positions)
-        ax.set_yticklabels(corr_matrix.index, rotation=0)
-        ax.set_xticklabels(corr_matrix.columns)
+        tick_positions_y = np.arange(len(corr_matrix_plot.index)) + 0.5
+        tick_positions_x = np.arange(len(corr_matrix_plot.columns)) + 0.5
+        ax.set_yticks(tick_positions_y)
+        ax.set_xticks(tick_positions_x)
+        ax.set_yticklabels(corr_matrix_plot.index, rotation=0)
+        ax.set_xticklabels(corr_matrix_plot.columns)
 
         title_fig = 'Pearson\'s r heatmap'
         if module.lower() == 'predict':
-            if os.path.basename(Path(params_dir)) == 'No_PFI':
-                suffix_title = 'No_PFI'
-            elif os.path.basename(Path(params_dir)) == 'PFI':
-                suffix_title = 'PFI'
+            # prefer the caller-provided suffix_title (always correct, including per-model
+            # folders like GENERATE/All_models/No_PFI/RF, whose basename is the model name,
+            # not "No_PFI"/"PFI") - fall back to guessing from the folder name only if it
+            # wasn't given
+            if suffix_title is None:
+                if os.path.basename(Path(params_dir)) == 'No_PFI':
+                    suffix_title = 'No_PFI'
+                elif os.path.basename(Path(params_dir)) == 'PFI':
+                    suffix_title = 'PFI'
             title_fig += f'_{suffix_title}'
 
         plt.title(title_fig, y=1.04, fontsize = size_title, fontweight="bold")
@@ -3327,6 +4029,7 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
 
         heatmap_path = self.args.destination.joinpath(heatmap_name)
         plt.savefig(f'{heatmap_path}', dpi=300, bbox_inches='tight')
+        plt.close()
 
         path_reduced = '/'.join(f'{heatmap_path}'.replace('\\','/').split('/')[-2:])
         if module.lower() == 'curate':
@@ -3337,9 +4040,12 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None):
     return corr_matrix
 
 
-def plot_metrics(model_data,suffix_title,verify_metrics,verify_results):
+def plot_metrics(model_data,suffix_title,verify_metrics,verify_results,show_title=True):
     '''
-    Creates a plot with the results of the flawed models in VERIFY
+    Creates a plot with the results of the flawed models in VERIFY.
+    show_title=False skips the in-image title - used for the small (270px-wide) Section B
+    thumbnail, where the container height crops it anyway (see print_img_tag()) and the
+    surrounding item text already says what the plot shows
     '''
 
     importlib.reload(plt) # needed to avoid threading issues
@@ -3387,6 +4093,8 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results):
                 txt_bar = 'fail'
             elif test_color == '#c5c57d':
                 txt_bar = 'unclear'
+            elif test_color == '#a9a9a9':
+                txt_bar = 'N/A'
             ax.text(label_count, offset_txt, txt_bar, color=test_color, 
                     fontstyle='italic', horizontalalignment='center')
         label_count += 1
@@ -3398,8 +4106,9 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results):
     # title and labels of the axis
     plt.ylabel(f'{verify_results["error_type"].upper()}', fontsize=14)
 
-    plt.text(0.5, 1.08, f'VERIFY tests of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
-        fontsize=14, fontweight='bold', transform = ax.transAxes)
+    if show_title:
+        plt.text(0.5, 1.08, f'VERIFY tests of {os.path.basename(path_n_suffix)}', horizontalalignment='center',
+            fontsize=14, fontweight='bold', transform = ax.transAxes)
 
     # add threshold line and arrow indicating passed test direction
     arrow_length = np.abs(max_lim-min_lim)/11
@@ -3444,6 +4153,7 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results):
     # save plot
     verify_plot_file = f'{os.path.dirname(path_n_suffix)}/VERIFY_tests_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(verify_plot_file, dpi=300, bbox_inches='tight')
+    plt.close()
 
     path_reduced = '/'.join(f'{verify_plot_file}'.replace('\\','/').split('/')[-2:])
     print_ver = f"\n   o  VERIFY plot saved in {path_reduced}"

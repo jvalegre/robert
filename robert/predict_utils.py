@@ -3,19 +3,18 @@
 #####################################################.
 
 import os
-import sys
 import ast
 import json
 from pathlib import Path
 import pandas as pd
 import numpy as np
 from robert.utils import (
-    categorical_transform,
     get_graph_style,
     pearson_map,
     graph_reg,
     graph_clas,
     get_error_labels,
+    mcc_scorer_clf,
     )
 
 
@@ -36,34 +35,6 @@ def _get_class_mapping_reverse(model_data):
     return None
 
 
-def test_csv(self,Xy_test_df,descs_model,params_df):
-    """
-    Separates the test databases into X and y. This allows to merge test external databases that 
-    contain different columns with internal test databases coming from GENERATE
-    """
-
-    y_test_df = pd.DataFrame()
-    
-    try:
-        X_test_df = Xy_test_df[descs_model]
-    except KeyError:
-        # this might fail if the initial categorical variables have not been transformed
-        try:
-            self.args.log.write(f"\n   x  There are missing descriptors in the test set! Looking for categorical variables converted from CURATE")
-            Xy_test_df = categorical_transform(self,Xy_test_df,'predict')
-            X_test_df = Xy_test_df[descs_model]
-            self.args.log.write(f"   o  The missing descriptors were successfully created")
-        except KeyError:
-            self.args.log.write(f"   x  There are still missing descriptors in the test set! The following descriptors are needed: {descs_model}")
-            self.args.log.finalize()
-            sys.exit()
-
-    if params_df['y'][0] in Xy_test_df:
-        y_test_df = Xy_test_df[params_df['y'][0]]
-
-    return X_test_df, y_test_df
-
-
 def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     '''
     Plot graphs of predicted vs actual values for train, validation and test sets
@@ -76,10 +47,15 @@ def plot_predictions(self, params_dict, Xy_data, path_n_suffix):
     self.args.log.write(f"\n   o  Saving graphs in:")
 
     if params_dict['type'].lower() == 'reg':
-        # Plot graph with all sets
+        # Plot graph with all sets (kept with its title - the saved PNG stays fully titled;
+        # the report crops the title out via a precisely-measured container height instead,
+        # see report.py's print_score_images height)
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style)
         # Plot CV average ± SD graph of validation or test set
         _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,sd_graph=True)
+        # Plot CV average ± SD graph of the out-of-fold train+validation predictions (item 6's
+        # 2nd stability facet - see print_predict()'s "Average SD in train+validation" line)
+        _ = graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,sd_graph=True,sd_set='train')
         if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
             # Plot CV average ± SD graph of external set
             set_type = 'external'
@@ -183,13 +159,13 @@ def save_predictions(self,Xy_data,model_data,suffix_title):
 
         for col in Xy_data['X_external']:
             Xy_external[col] = Xy_data['X_external'][col].tolist()
-            Xy_external[col] = Xy_data['X_external'][col].tolist()
 
-        # Reconvert external set labels if needed
+        # Reconvert external set labels if needed (external targets may be legitimately
+        # unknown/NaN, e.g. when predicting on new compounds, so those are left as-is)
         if 'y_external' in Xy_data:
             y_external_values = Xy_data['y_external'].tolist()
             if reconvert_labels:
-                y_external_values = [class_mapping_reverse[int(y)] for y in y_external_values]
+                y_external_values = [class_mapping_reverse[int(y)] if pd.notna(y) else y for y in y_external_values]
             Xy_external[model_data['y']] = y_external_values
         
         y_pred_external_values = Xy_data['y_pred_external']
@@ -256,26 +232,71 @@ def print_predict(self,Xy_data,model_data,suffix_title):
         print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
         print_results += f"\n      -  Average SD in test set = {np.mean(Xy_data['y_pred_test_sd']):.2}"
         print_results += f"\n      -  y range of dataset (train+valid.) = {float(Xy_data['pred_min']):.2} to {float(Xy_data['pred_max']):.2}, total {float(Xy_data['pred_range']):.2}"
-        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
+        if 'r2_train_infold' in Xy_data:
+            print_results += f"\n      -  Train fit (in-fold) : R2 = {Xy_data['r2_train_infold']:.2}, MAE = {Xy_data['mae_train_infold']:.2}, RMSE = {Xy_data['rmse_train_infold']:.2}"
+
+        # Interpolation item 6, facets (b)/(c): stability of the out-of-fold CV predictions
+        # themselves (not just the test set - facet (a) above), across the repeated-CV
+        # repetitions. (b) average per-point SD of the out-of-fold predictions in
+        # train+validation; (c) how much the AGGREGATE RMSE itself varies from repeat to
+        # repeat (coefficient of variation = SD/mean of the 10 per-repeat RMSEs) - a
+        # complementary, dataset-wide view of the same "how much does this depend on which
+        # random split we happened to get" question that (a)/(b) ask per-point
+        print_results += f"\n      -  Average SD in train+validation (out-of-fold) = {np.mean(Xy_data['y_pred_train_sd']):.2}"
+        if 'y_pred_train_all' in Xy_data:
+            y_pred_train_all = np.array(Xy_data['y_pred_train_all'])
+            y_train_actual = np.array(Xy_data['y_train'])
+            repeat_rmses = np.sqrt(np.mean((y_train_actual[:,None]-y_pred_train_all)**2,axis=0))
+            if len(repeat_rmses) > 1 and np.mean(repeat_rmses) > 0:
+                rmse_cv_pct = 100*np.std(repeat_rmses,ddof=1)/np.mean(repeat_rmses)
+            else:
+                rmse_cv_pct = 0
+            print_results += f"\n      -  RMSE coefficient of variation (10 repeats) = {rmse_cv_pct:.1f}"
+
+        if 'r2_external' in Xy_data:
             print_results += f"\n      -  External test : R2 = {Xy_data['r2_external']:.2}, MAE = {Xy_data['mae_external']:.2}, RMSE = {Xy_data['rmse_external']:.2}"
 
     elif model_data['type'].lower() == 'clas':
         print_results += f"\n      -  {CV_type} : Accur. = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : Accur. = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
-        if 'y_external' in Xy_data and not Xy_data['y_external'].isnull().values.any() and len(Xy_data['y_external']) > 0:
+
+        # Interpolation item 6 for classification: the same "how much does this depend on
+        # the random split" question as the regression facets, adapted for a discrete label.
+        # (a)/(b) use the repeat-to-repeat agreement rate with the already-computed
+        # majority-voted class instead of a numeric SD; (c) uses the coefficient of
+        # variation of the per-repeat MCC instead of the per-repeat RMSE
+        if 'y_pred_test_all' in Xy_data and len(Xy_data['y_pred_test_all']) > 0:
+            test_agree = [np.mean(np.array(reps) == vote) for reps,vote in zip(Xy_data['y_pred_test_all'],Xy_data['y_pred_test'])]
+            print_results += f"\n      -  Average agreement in test set (10 repeats) = {100*np.mean(test_agree):.1f}"
+
+        if 'y_pred_train_all' in Xy_data:
+            train_agree = [np.mean(np.array(reps) == vote) for reps,vote in zip(Xy_data['y_pred_train_all'],Xy_data['y_pred_train'])]
+            print_results += f"\n      -  Average agreement in train+validation (out-of-fold) (10 repeats) = {100*np.mean(train_agree):.1f}"
+
+            y_pred_train_all = np.array(Xy_data['y_pred_train_all'])
+            y_train_actual = np.array(Xy_data['y_train'])
+            if y_pred_train_all.shape[1] > 1:
+                repeat_mccs = [mcc_scorer_clf(y_train_actual,y_pred_train_all[:,i]) for i in range(y_pred_train_all.shape[1])]
+                if np.mean(repeat_mccs) != 0:
+                    mcc_cv_pct = 100*np.std(repeat_mccs,ddof=1)/abs(np.mean(repeat_mccs))
+                else:
+                    mcc_cv_pct = 0
+                print_results += f"\n      -  MCC coefficient of variation (10 repeats) = {mcc_cv_pct:.1f}"
+
+        if 'acc_external' in Xy_data:
             print_results += f"\n      -  External test : Accur. = {Xy_data['acc_external']:.2}, F1 score = {Xy_data['f1_external']:.2}, MCC = {Xy_data['mcc_external']:.2}"
 
     self.args.log.write(print_results)
 
 
-def pearson_map_predict(self,Xy_data,params_dir):
+def pearson_map_predict(self,Xy_data,params_dir,suffix_title):
     '''
     Plots the Pearson map and analyzes correlation of descriptors.
     '''
 
     X_combined = pd.concat([Xy_data['X_train'], Xy_data['X_test']], axis=0, ignore_index=True)
-    corr_matrix = pearson_map(self,X_combined,'predict',params_dir=params_dir)
+    corr_matrix = pearson_map(self,X_combined,'predict',params_dir=params_dir,suffix_title=suffix_title)
 
     corr_dict = {'descp_1': [],
                  'descp_2': [],

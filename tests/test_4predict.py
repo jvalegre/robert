@@ -92,7 +92,7 @@ def test_PREDICT(test_job):
         if " - Training points:" in line:
             proportion_found = True
             if test_job == "clas":
-                data_points = [29, 8]
+                data_points = [30, 7]
             else:
                 data_points = [30, 7]
             assert f"- Training points: {data_points[0]}" in line
@@ -163,7 +163,7 @@ def test_PREDICT(test_job):
     if test_job == "clas":
         assert len(glob.glob(os.path.join(path_predict, "*.png"))) == 12
     else:
-        assert len(glob.glob(os.path.join(path_predict, "*.png"))) == 14
+        assert len(glob.glob(os.path.join(path_predict, "*.png"))) == 24
     if test_job == "csv_test":
         assert len(glob.glob(os.path.join(path_predict, "csv_test", "*.png"))) == 2
         assert len(glob.glob(os.path.join(path_predict, "csv_test", "*.csv"))) == 2

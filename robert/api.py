@@ -135,11 +135,10 @@ def _resolve_predict_csv(workdir: Path, pred_stem: str, model_code: str, suffix:
     exact = csv_dir / f"{pred_stem}_{model_code}_{suffix}.csv"
     if exact.is_file():
         return str(exact)
-    pattern = str(csv_dir / f"{pred_stem}_{model_code}_{suffix}.csv")
+    # exact match failed - fall back to a glob that still requires model_code, so a workdir
+    # holding CSVs from more than one model can't silently return another model's predictions
+    pattern = str(csv_dir / f"{pred_stem}_{model_code}*{suffix}*.csv")
     matches = sorted(glob.glob(pattern))
-    if not matches:
-        alt_pat = str(csv_dir / f"*{pred_stem}*{suffix}.csv")
-        matches = sorted(glob.glob(alt_pat))
     if not matches:
         raise RuntimeError(f"No prediction CSV found matching {pattern!r}")
     if len(matches) > 1:

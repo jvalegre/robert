@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 200" role="img" aria-label="A sorted strip of data points from lowest to highest target value, with the bottom 20% and top 20% marked as separate Low and High test folds, and the middle 60% used the way ordinary cross-validation already does.">
+  <rect x="0" y="0" width="640" height="200" fill="#ffffff"/>
+  <g font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+    <rect x="55" y="76" width="106" height="32" rx="4" fill="#e0575a" fill-opacity="0.16" stroke="#e0575a" stroke-width="1.3"/>
+    <rect x="161" y="76" width="318" height="32" rx="4" fill="#1f77b4" fill-opacity="0.10" stroke="#1f77b4" stroke-opacity="0.55" stroke-width="1.3"/>
+    <rect x="479" y="76" width="106" height="32" rx="4" fill="#e0575a" fill-opacity="0.16" stroke="#e0575a" stroke-width="1.3"/>
+
+    <g>
+      <circle cx="64" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="81.6" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="99.2" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="116.8" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="134.4" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="152" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="173" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="197.5" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="222" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="246.5" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="271" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="295.5" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="320" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="344.5" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="369" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="393.5" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="418" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="442.5" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="467" cy="92" r="3" fill="#555" opacity="0.55"/>
+      <circle cx="488" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="505.6" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="523.2" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="540.8" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="558.4" cy="92" r="3.2" fill="#e0575a"/>
+      <circle cx="576" cy="92" r="3.2" fill="#e0575a"/>
+    </g>
+
+    <text x="108" y="38" text-anchor="middle" font-size="13" font-weight="700" fill="#e0575a">Low 20%</text>
+    <text x="108" y="57" text-anchor="middle" font-size="11" fill="#e0575a" font-family="Consolas,monospace">held-out fold</text>
+    <text x="320" y="38" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1e1a">middle 60%</text>
+    <text x="320" y="57" text-anchor="middle" font-size="11" fill="#4a4c46" font-family="Consolas,monospace">ordinary training + CV</text>
+    <text x="532" y="38" text-anchor="middle" font-size="13" font-weight="700" fill="#e0575a">High 20%</text>
+    <text x="532" y="57" text-anchor="middle" font-size="11" fill="#e0575a" font-family="Consolas,monospace">held-out fold</text>
+
+    <line x1="55" y1="132" x2="585" y2="132" stroke="#333" stroke-opacity="0.3" stroke-width="1"/>
+    <polygon points="585,132 578,129 578,135" fill="#333" fill-opacity="0.3"/>
+    <text x="55" y="154" font-size="11.5" fill="#78766c" font-family="Consolas,monospace">lowest target value</text>
+    <text x="585" y="154" text-anchor="end" font-size="11.5" fill="#78766c" font-family="Consolas,monospace">highest target value</text>
+    <text x="320" y="180" text-anchor="middle" font-size="11.5" fill="#78766c" font-family="Consolas,monospace">dataset sorted by target value &#8212;</text>
+  </g>
+</svg>

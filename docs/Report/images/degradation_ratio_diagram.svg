@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 150" role="img" aria-label="Bar comparison of RMSE on the rest of the dataset versus RMSE on the extreme fold, with the ratio between them annotated as the degradation ratio, and a table on the right listing the points awarded for each threshold.">
+  <rect x="0" y="0" width="640" height="150" fill="#ffffff"/>
+  <g font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+    <text x="20" y="24" font-size="13.5" font-weight="700" fill="#1c1e1a">RMSE, rest of the sorted data</text>
+    <rect x="20" y="34" width="170" height="24" rx="4" fill="#1f77b4" fill-opacity="0.85"/>
+    <text x="200" y="50" font-size="12.5" fill="#4a4c46" font-family="Consolas,monospace">baseline</text>
+
+    <text x="20" y="92" font-size="13.5" font-weight="700" fill="#e0575a">RMSE, extreme fold (High or Low)</text>
+    <rect x="20" y="102" width="272" height="24" rx="4" fill="#e0575a" fill-opacity="0.85"/>
+    <text x="302" y="118" font-size="12.5" fill="#e0575a" font-family="Consolas,monospace">1.6&#215; baseline</text>
+
+    <line x1="418" y1="14" x2="418" y2="128" stroke="#ccc" stroke-width="1"/>
+
+    <text x="436" y="34" font-size="12.5" font-weight="700" fill="#1c1e1a">Condition</text>
+    <text x="612" y="34" text-anchor="end" font-size="12.5" font-weight="700" fill="#1c1e1a">Points</text>
+    <line x1="436" y1="43" x2="612" y2="43" stroke="#333" stroke-opacity="0.45" stroke-width="1.2"/>
+
+    <text x="436" y="66" font-size="12.5" fill="#4a4c46" font-family="Consolas,monospace">&#8804; 1.5&#215; baseline</text>
+    <text x="612" y="66" text-anchor="end" font-size="13" font-weight="700" fill="#1f77b4" font-family="Consolas,monospace">+1</text>
+
+    <text x="436" y="94" font-size="12.5" fill="#4a4c46" font-family="Consolas,monospace">&gt; 1.5&#215; baseline</text>
+    <text x="612" y="94" text-anchor="end" font-size="13" font-weight="700" fill="#78766c" font-family="Consolas,monospace">+0</text>
+
+    <line x1="436" y1="106" x2="612" y2="106" stroke="#333" stroke-opacity="0.45" stroke-width="1.2"/>
+  </g>
+</svg>

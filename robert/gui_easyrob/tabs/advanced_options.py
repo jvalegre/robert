@@ -181,6 +181,10 @@ class AdvancedOptionsTab(QWidget):
         self.corr_filter_ybool.setChecked(False)
         layout.addRow(QLabel("corr_filter_y:"), self.corr_filter_ybool)
 
+        self.rfecv_filterbool = QCheckBox()
+        self.rfecv_filterbool.setChecked(True)
+        layout.addRow(QLabel("rfecv_filter:"), self.rfecv_filterbool)
+
         self.desc_thresfloat = QLineEdit()
         self.desc_thresfloat.setPlaceholderText("25")
         layout.addRow(QLabel("desc_thres:"), self.desc_thresfloat)

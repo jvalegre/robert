@@ -441,11 +441,15 @@ Reference
 
 .. reference-start
 
-If you use any of the ROBERT modules, please include this citation:  
+If you use any of the ROBERT modules, please include this citation:
 
-* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *14*, e1733. 
+* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *14*, e1733.
 
-If you use the AQME module, please include this citation:  
+If you use ROBERT in low-data regimes, please also include this citation:
+
+* Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Machine learning workflows beyond linear models in low-data regimes. *Chem. Sci.* **2025**, *16*, 8555–8560.
+
+If you use the AQME module, please include this citation:
 
 * Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2023**, *13*, e1663.
 

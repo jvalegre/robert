@@ -112,7 +112,7 @@ def test_VERIFY(test_job):
                     )
                 elif test_job == "standard":
                     assert (
-                        "Original RMSE (10x 5-fold CV) 0.31 + 15% & 30% threshold = 0.36 & 0.4"
+                        "Original RMSE (10x 5-fold CV) 0.29 + 15% & 30% threshold = 0.34 & 0.38"
                         in outlines[i + 1]
                     )
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]

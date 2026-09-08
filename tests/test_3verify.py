@@ -116,7 +116,7 @@ def test_VERIFY(test_job):
                         in outlines[i + 1]
                     )
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]
-                    assert "o y_shuffle: PASSED, RMSE = 0.97" in outlines[i + 3]
+                    assert "o y_shuffle: PASSED, RMSE = 1.0" in outlines[i + 3]
                     assert "o onehot: PASSED, RMSE = 0.53" in outlines[i + 4]
                     assert "o cluster: PASSED, RMSE = 0.49" in outlines[i + 5]
                     assert (

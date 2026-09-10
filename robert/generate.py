@@ -72,14 +72,15 @@ Parameters
         Number of random data splits for the cross-validation of the models. 
     repeat_kfolds : int, default=10
         Number of repetitions for the k-fold cross-validation of the models.
-    split : str, default= 'even' (regression) or 'rnd' (classification)
+    split : str, default='auto' (resolves to 'even' for regression, 'stratified' for classification)
         Specifies how the data is split into training and test sets. Options:
-        1. 'even': splits the data evenly into training and test sets.
-        2. 'RND': randomly splits the data.
-        3. 'stratified': splits the data while preserving the distribution of the target variable.
-        4. 'KN': uses a k-means approach to select representative samples for training (good for intrapolation, bad for extrapolation).
-        5. 'extra_q1': selects the 20% lowest values.
-        6. 'extra_q5': selects the 20% highest values.
+        1. 'auto': resolves to 'even' (regression) or 'stratified' (classification).
+        2. 'even': splits the data evenly into training and test sets.
+        3. 'RND': randomly splits the data.
+        4. 'stratified': splits the data while preserving the distribution of the target variable.
+        5. 'KN': uses a k-means approach to select representative samples for training (good for intrapolation, bad for boundary robustness).
+        6. 'extra_q1': selects the 20% lowest values.
+        7. 'extra_q5': selects the 20% highest values.
         
 """
 #####################################################.
@@ -100,7 +101,8 @@ from robert.generate_utils import (
     BO_workflow,
     PFI_workflow,
     heatmap_workflow,
-    detect_best
+    detect_best,
+    stage_all_models
 )
 
 
@@ -139,8 +141,20 @@ class generate:
         # scan different ML models
         self.args.log.write(f'''   o Starting BO-based hyperoptimization using the combined target:
                     \n     1. 50% = {self.args.error_type.upper()} from a {self.args.repeat_kfolds}x repeated {self.args.kfold}-fold CV (interpoplation)
-                    \n     2. 50% = {self.args.error_type.upper()} from the bottom or top (worst performing) fold in a sorted {self.args.kfold}-fold CV (extrapolation)
+                    \n     2. 50% = {self.args.error_type.upper()} from the bottom or top (worst performing) fold in a sorted {self.args.kfold}-fold CV (boundary robustness)
                     \n''')
+
+        # BO_workflow and PFI_workflow (right below) load the exact same csv_to_load within one
+        # model's iteration, and different models often share the same general fallback CSV too -
+        # cache load_database()'s (expensive: disk read + missing-data imputation + column sort)
+        # result per path and hand out fresh copies instead of redoing that work every time
+        _loaded_csvs = {}
+        def _load_database_cached(csv_path):
+            csv_path = str(csv_path)
+            if csv_path not in _loaded_csvs:
+                _loaded_csvs[csv_path] = load_database(self,csv_path,"generate",print_info=False)
+            csv_df_cached, csv_X_cached, csv_y_cached = _loaded_csvs[csv_path]
+            return csv_df_cached.copy(), csv_X_cached.copy(), csv_y_cached.copy()
 
         for ML_model in self.args.model:
 
@@ -148,11 +162,12 @@ class generate:
 
             # Try to load model-specific curated CSV first, fall back to general CSV
             # Get the base name from the original csv_name (remove path if any)
-            if 'CURATE' in str(self.args.csv_name):
+            csv_name_base = os.path.basename(f'{self.args.csv_name}')
+            if csv_name_base.endswith('_CURATE.csv'):
                 # If csv_name is already a CURATE file, extract the original base name
-                csv_basename = os.path.basename(f'{self.args.csv_name}').replace('_CURATE.csv', '').replace('.csv', '')
+                csv_basename = csv_name_base[:-len('_CURATE.csv')]
             else:
-                csv_basename = os.path.basename(f'{self.args.csv_name}').split('.')[0]
+                csv_basename = csv_name_base.split('.')[0]
             
             curate_folder = self.args.initial_dir.joinpath('CURATE')
             csv_model_specific = curate_folder.joinpath(f'{csv_basename}_CURATE_{ML_model}.csv')
@@ -170,7 +185,7 @@ class generate:
                 self.args.log.write(f'      x Using general database (model-specific not found): {os.path.basename(self.args.csv_name)}')
             
             # load database, discard user-defined descriptors and perform data checks
-            csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
+            csv_df, csv_X, csv_y = _load_database_cached(csv_to_load)
             if self.args.type.lower() == 'clas':
                 self = check_clas_problem(self,csv_df)
                 csv_y = csv_df[self.args.y]
@@ -184,7 +199,7 @@ class generate:
             # apply the PFI descriptor filter if it's activated
             if self.args.pfi_filter:
                 # load database, discard user-defined descriptors and perform data checks
-                csv_df, csv_X, csv_y = load_database(self,csv_to_load,"generate",print_info=False)
+                csv_df, csv_X, csv_y = _load_database_cached(csv_to_load)
                 if self.args.type.lower() == 'clas':
                     self = check_clas_problem(self,csv_df)
                     csv_y = csv_df[self.args.y]
@@ -202,16 +217,19 @@ class generate:
         # detects best combinations
         dir_csv = self.args.destination.joinpath(f"Raw_data")
         _ = detect_best(f'{dir_csv}/No_PFI')
+        if self.args.all_models:
+            _ = stage_all_models(f'{dir_csv}/No_PFI')
 
         # create heatmap plot(s)
         _ = heatmap_workflow(self,"No_PFI")
 
         # detect best and create heatmap for PFI models
         if self.args.pfi_filter:
-            try: # if no models were found
-                _ = detect_best(f'{dir_csv}/PFI')
-                _ = heatmap_workflow(self,"PFI")
-            except UnboundLocalError:
-                pass
+            # detect_best() already returns gracefully (no exception) when no model produced
+            # a result in this folder, matching the unguarded No_PFI call above
+            _ = detect_best(f'{dir_csv}/PFI')
+            if self.args.all_models:
+                _ = stage_all_models(f'{dir_csv}/PFI')
+            _ = heatmap_workflow(self,"PFI")
 
         _ = finish_print(self,start_time,'GENERATE')

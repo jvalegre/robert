@@ -87,7 +87,7 @@ def test_VERIFY(test_job):
                 results_line = True
                 if test_job == "clas":
                     assert (
-                        "Original MCC (10x 5-fold CV) 0.63 - 15% & 30% threshold = 0.53 & 0.44"
+                        "Original MCC (10x 5-fold CV) 0.56 - 15% & 30% threshold = 0.48 & 0.39"
                         in outlines[i + 1]
                     )
                     assert (
@@ -95,28 +95,33 @@ def test_VERIFY(test_job):
                         in outlines[i + 2]
                     )
                     assert (
-                        "o y_shuffle: PASSED, MCC = 0.042, lower than thresholds"
+                        "o y_shuffle: PASSED, MCC = -0.17, lower than thresholds"
                         in outlines[i + 3]
                     )
                     assert (
-                        "o onehot: PASSED, MCC = -0.034, lower than thresholds"
+                        "x onehot: FAILED, MCC = 0.59, higher than thresholds"
                         in outlines[i + 4]
                     )
                     assert (
-                        "- Sorted CV : Accuracy = [0.83, 0.83, 1.0, 0.67, 0.6], F1 score = [0.86, 0.86, 1.0, 0.67, 0.5], MCC = [0.71, 0.71, 1.0, 0.5, 0.41]"
+                        "o cluster: PASSED, MCC = 0.0, lower than thresholds"
                         in outlines[i + 5]
+                    )
+                    assert (
+                        "- Sorted CV : Accuracy = [0.88, 0.88, 0.86, 0.57, 1.0], F1 score = [0.89, 0.89, 0.89, 0.4, 1.0], MCC = [0.77, 0.77, 0.73, 0.35, 1.0]"
+                        in outlines[i + 6]
                     )
                 elif test_job == "standard":
                     assert (
-                        "Original RMSE (10x 5-fold CV) 0.24 + 15% & 30% threshold = 0.28 & 0.31"
+                        "Original RMSE (10x 5-fold CV) 0.29 + 15% & 30% threshold = 0.34 & 0.38"
                         in outlines[i + 1]
                     )
                     assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]
-                    assert "o y_shuffle: PASSED, RMSE = 0.84" in outlines[i + 3]
-                    assert "- onehot: UNCLEAR, RMSE = 0.3" in outlines[i + 4]
+                    assert "o y_shuffle: PASSED, RMSE = 1.0" in outlines[i + 3]
+                    assert "o onehot: PASSED, RMSE = 0.52" in outlines[i + 4]
+                    assert "o cluster: PASSED, RMSE = 0.49" in outlines[i + 5]
                     assert (
-                        "- Sorted 5-fold CV : R2 = [0.0, 0.54, 0.0, 0.42, 0.2], MAE = [0.31, 0.15, 0.04, 0.36, 0.46], RMSE = [0.32, 0.2, 0.05, 0.43, 0.51]"
-                        in outlines[i + 5]
+                        "- Sorted 5-fold CV : R2 = [0.0, 0.63, 0.03, 0.33, 0.15], MAE = [0.32, 0.19, 0.32, 0.33, 0.4], RMSE = [0.35, 0.27, 0.39, 0.35, 0.46]"
+                        in outlines[i + 6]
                     )
                 break
     assert results_line

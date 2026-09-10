@@ -198,6 +198,7 @@ def detect_best(folder):
     # detect files
     file_list = glob.glob(f'{folder}/*.csv')
     errors = []
+    results_model = None
     for file in file_list:
         if '_db' not in file:
             results_model = pd.read_csv(f'{file}', encoding='utf-8')
@@ -205,6 +206,11 @@ def detect_best(folder):
             errors.append(training_error)
         else:
             errors.append(np.nan)
+
+    # no valid model results in this folder (e.g. every model's BO search failed), nothing to select
+    if results_model is None or all(pd.isna(e) for e in errors):
+        return
+
     # detect best result and copy files to the Best_model folder
     if results_model['error_type'][0].lower() in ['mae','rmse']:
         min_idx = errors.index(np.nanmin(errors))
@@ -215,6 +221,32 @@ def detect_best(folder):
 
     shutil.copyfile(f'{best_name}', f'{best_name}'.replace('Raw_data','Best_model'))
     shutil.copyfile(f'{best_db}', f'{best_db}'.replace('Raw_data','Best_model'))
+
+
+def stage_all_models(folder):
+    '''
+    Copies every model's parameter+database CSV pair from Raw_data into its own per-model
+    subfolder under All_models/ (same idea as detect_best()'s Best_model/ folder, but keeping
+    every model instead of just the best one). Each model needs its own dedicated folder since
+    load_dfs() scans a folder for exactly one non-"_db" CSV (the params) plus its "_db" pair
+    (the database) - a folder with several models' files mixed together would be ambiguous.
+    Used when --all_models is active, so VERIFY/PREDICT/REPORT can loop over every model.
+    '''
+
+    file_list = glob.glob(f'{folder}/*.csv')
+    for file in file_list:
+        if '_db' not in file:
+            file_stem = os.path.basename(file).split('.csv')[0]
+            db_file = f'{os.path.dirname(file)}/{file_stem}_db.csv'
+            # PFI params files are already named e.g. "RF_PFI" (see save_pfi_csv()) - strip
+            # that suffix for the destination folder name, so it stays just the model name
+            # ("RF") regardless of PFI/No_PFI, matching build_params_dirs()'s own "_PFI"
+            # suffix it appends when building suffix_titles (avoids a doubled "_PFI_PFI")
+            model_name = file_stem[:-len('_PFI')] if file_stem.endswith('_PFI') else file_stem
+            dest_dir = f'{folder}/{model_name}'.replace('Raw_data','All_models')
+            os.makedirs(dest_dir, exist_ok=True)
+            shutil.copyfile(file, f'{dest_dir}/{os.path.basename(file)}')
+            shutil.copyfile(db_file, f'{dest_dir}/{os.path.basename(db_file)}')
 
 
 def heatmap_workflow(self,folder_hm):
@@ -239,6 +271,15 @@ def heatmap_workflow(self,folder_hm):
     df_cols = []
     for model in self.args.model:
         df_cols.append(model.upper())
+
+    # a model missing from csv_data means its CSV wasn't found under Raw_data/{folder_hm} (BO/PFI
+    # step failed to produce one, or a partial run was resumed) - reindexing on the full model
+    # list would otherwise raise a bare KeyError instead of pointing at the actual missing model
+    missing_models = [model for model in df_cols if model not in csv_data]
+    if missing_models:
+        self.args.log.write(f"\nx  WARNING! No results were found for these models, they will be skipped in the heatmap: {missing_models}")
+        df_cols = [model for model in df_cols if model not in missing_models]
+
     csv_df = csv_df[df_cols]
 
     # plot heatmap

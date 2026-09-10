@@ -92,8 +92,8 @@ def find_prediction_csvs(selected_file_path: str) -> dict[str, Path]:
     return results
 
 def get_robert_report_path(selected_file_path: str | Path) -> Path:
-    """Given the path to a selected file, return the corresponding ROBERT_report.pdf file."""
-    return Path(selected_file_path).parent / "ROBERT_report.pdf"
+    """Given the path to a selected file, return the corresponding ROBERT report PDF file."""
+    return Path(selected_file_path).parent / "ROBERT_report_No_PFI.pdf"
 
 def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
     """Search for external test images in the PREDICT/csv_test directory related to the selected file."""
@@ -133,12 +133,12 @@ def extract_scores_from_robert_report(pdf_path: Path) -> dict:
 
     return result
 
-def extract_extrapolation_fragment(pdf_path: Path, model_key: str) -> QPixmap | None:
-    """Render the extrapolation block from parsed ROBERT report data."""
-    details = _extract_extrapolation_details(pdf_path, model_key)
+def extract_boundary_fragment(pdf_path: Path, model_key: str) -> QPixmap | None:
+    """Render the boundary robustness block from parsed ROBERT report data."""
+    details = _extract_boundary_details(pdf_path, model_key)
     if not details:
         return None
-    return _render_extrapolation_pixmap(details)
+    return _render_boundary_pixmap(details)
 
 def extract_robert_fragment_image(pdf_path: Path, model_key: str) -> QPixmap | None:
     """Render the ROBERT score block from parsed report data."""
@@ -147,8 +147,8 @@ def extract_robert_fragment_image(pdf_path: Path, model_key: str) -> QPixmap | N
         return None
     return _render_robert_score_pixmap(details)
 
-def _get_extrapolation_bbox(page, model_key: str):
-    """Return the PDF area containing the extrapolation block for the requested model."""
+def _get_boundary_bbox(page, model_key: str):
+    """Return the PDF area containing the boundary robustness block for the requested model."""
     if model_key == "No_PFI":
         return (0, 0, 300, page.height)
     if model_key == "PFI":
@@ -156,18 +156,18 @@ def _get_extrapolation_bbox(page, model_key: str):
     return None
 
 
-def _normalize_extrapolation_lines(text: str) -> list[str]:
+def _normalize_boundary_lines(text: str) -> list[str]:
     """Collapse noisy PDF whitespace while preserving the content of each line."""
     return [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
 
 
-def _parse_extrapolation_block(text: str) -> dict | None:
-    """Parse the extrapolation text block into structured data."""
+def _parse_boundary_block(text: str) -> dict | None:
+    """Parse the boundary robustness text block into structured data."""
     if not text:
         return None
 
-    lines = _normalize_extrapolation_lines(text)
-    title_line = next((line for line in lines if "Extrapolation" in line), None)
+    lines = _normalize_boundary_lines(text)
+    title_line = next((line for line in lines if "Boundary robustness" in line), None)
     rmse_line = next((line for line in lines if "[" in line and "]" in line and "%" in line), None)
     scoring_line = next((line for line in lines if "Scoring from" in line), None)
     rule_line = next((line for line in lines if "Every two folds" in line), None)
@@ -198,8 +198,8 @@ def _parse_extrapolation_block(text: str) -> dict | None:
     }
 
 
-def _extract_extrapolation_details(pdf_path: Path, model_key: str) -> dict | None:
-    """Extract structured extrapolation information for one model from the ROBERT report."""
+def _extract_boundary_details(pdf_path: Path, model_key: str) -> dict | None:
+    """Extract structured boundary robustness information for one model from the ROBERT report."""
     if not pdf_path.exists():
         return None
 
@@ -208,17 +208,17 @@ def _extract_extrapolation_details(pdf_path: Path, model_key: str) -> dict | Non
             if len(pdf.pages) <= 2:
                 return None
             page = pdf.pages[2]
-            bbox = _get_extrapolation_bbox(page, model_key)
+            bbox = _get_boundary_bbox(page, model_key)
             if bbox is None:
                 return None
             text = page.within_bbox(bbox).extract_text()
-            return _parse_extrapolation_block(text or "")
+            return _parse_boundary_block(text or "")
     except Exception:
         return None
 
 
 def _score_fill_rgb(obtained: int | None, maximum: int | None) -> tuple[float, float, float]:
-    """Return a fill color for the extrapolation score indicator."""
+    """Return a fill color for the boundary robustness score indicator."""
     if obtained is None or maximum in (None, 0):
         return (0.78, 0.78, 0.78)
     ratio = obtained / maximum
@@ -229,8 +229,8 @@ def _score_fill_rgb(obtained: int | None, maximum: int | None) -> tuple[float, f
     return (0.18, 0.56, 0.26)
 
 
-def _render_extrapolation_pixmap(details: dict) -> QPixmap | None:
-    """Render a synthetic extrapolation card for the GUI using parsed PDF data."""
+def _render_boundary_pixmap(details: dict) -> QPixmap | None:
+    """Render a synthetic boundary robustness card for the GUI using parsed PDF data."""
     width = 620
     height = 250
     margin = 24
@@ -400,7 +400,7 @@ def _extract_robert_score_details(pdf_path: Path, model_key: str) -> dict | None
             if not pdf.pages:
                 return None
             page = pdf.pages[0]
-            bbox = _get_extrapolation_bbox(page, model_key)
+            bbox = _get_boundary_bbox(page, model_key)
             if bbox is None:
                 return None
             text = page.within_bbox(bbox).extract_text()
@@ -513,14 +513,14 @@ def _render_robert_score_pixmap(details: dict) -> QPixmap | None:
         doc.close()
 
 
-def extract_extrapolation_scores(pdf_path: Path) -> dict:
-    """Extract extrapolation scores from the ROBERT report PDF file."""
+def extract_boundary_scores(pdf_path: Path) -> dict:
+    """Extract boundary robustness scores from the ROBERT report PDF file."""
     result = {"PFI": None, "No_PFI": None}
     if not pdf_path.exists():
         return result
 
     for model_key in ("No_PFI", "PFI"):
-        details = _extract_extrapolation_details(pdf_path, model_key)
+        details = _extract_boundary_details(pdf_path, model_key)
         if details and details.get("obtained") is not None and details.get("maximum") is not None:
             result[model_key] = {
                 "obtained": details["obtained"],
@@ -559,7 +559,7 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if score is None:
         result["messages"].append("No valid ROBERT score was detected. Model reliability cannot be evaluated.")
-        result["recommendations"].append("You may verify that ROBERT_report.pdf was generated correctly.")
+        result["recommendations"].append("You may verify that ROBERT_report_No_PFI.pdf was generated correctly.")
         return result
 
     if predictions_identical is True:
@@ -646,11 +646,11 @@ def collect_model_info(selected_file_path: str | Path, df: pd.DataFrame) -> dict
 
 class PredictionDashboardPanel(QWidget):
     """A collapsible dashboard panel to display ROBERT prediction evaluation results and diagnostics."""
-    def __init__(self, scenario: dict, pdf_image=None, extrapolation_score=None, extrapolation_image=None, external_plot=None, parent=None):
+    def __init__(self, scenario: dict, pdf_image=None, boundary_score=None, boundary_image=None, external_plot=None, parent=None):
         super().__init__(parent)
         self._pdf_image = pdf_image
-        self._extrapolation_score = extrapolation_score
-        self._extrapolation_image = extrapolation_image
+        self._boundary_score = boundary_score
+        self._boundary_image = boundary_image
         self._external_plot = external_plot
         self.setObjectName("PredictionDashboard")
         self.expanded_width = 500
@@ -715,7 +715,7 @@ class PredictionDashboardPanel(QWidget):
 
         self._build_status_block(content_layout, scenario)
         self._build_pdf_snapshot_block(content_layout)
-        self._build_extrapolation_block(content_layout, self._extrapolation_score, self._extrapolation_image)
+        self._build_boundary_block(content_layout, self._boundary_score, self._boundary_image)
         self._build_external_validation_block(content_layout, self._external_plot)
         content_layout.addStretch()
 
@@ -769,8 +769,8 @@ class PredictionDashboardPanel(QWidget):
         container_layout.addWidget(image_frame)
         layout.addWidget(container)
 
-    def _build_extrapolation_block(self, layout, score, pixmap):
-        """Build the extrapolation block with a score and image."""
+    def _build_boundary_block(self, layout, score, pixmap):
+        """Build the boundary robustness block with a score and image."""
         if score is None and not pixmap:
             return
 
@@ -782,11 +782,11 @@ class PredictionDashboardPanel(QWidget):
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
 
-        title = QLabel("Extrapolation Capability")
+        title = QLabel("Boundary Robustness")
         title.setStyleSheet("font-weight: bold; font-size: 13px;")
         container_layout.addWidget(title)
 
-        subtitle = QLabel("Assessment of the model's ability to predict beyond the range of the training data.")
+        subtitle = QLabel("Assessment of how well the model holds up at the edges of the training data range and beyond.")
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("font-size: 11px;")
         container_layout.addWidget(subtitle)
@@ -803,32 +803,30 @@ class PredictionDashboardPanel(QWidget):
             image_layout.addWidget(image_label)
             container_layout.addWidget(image_frame)
 
-        if score is not None:
+        if score is not None and score["maximum"] == 2:
             obtained = score["obtained"]
             maximum = score["maximum"]
-            if maximum != 2:
-                raise ValueError(f"Unexpected extrapolation maximum value: {maximum}")
 
             if obtained == 0:
                 summary, color, explanation = (
-                    "No extrapolation capability",
+                    "No boundary robustness",
                     "#b00020",
-                    "The model cannot extrapolate beyond the training domain. Predictions outside the original data range are unreliable.",
+                    "The model is unreliable at the edges of the training range and beyond. Predictions outside the original data range are unreliable.",
                 )
             elif obtained == 1:
                 summary, color, explanation = (
-                    "Limited extrapolation capability",
+                    "Limited boundary robustness",
                     "#8a6d00",
                     "The model may tolerate slight deviations beyond the training range, but predictions near extremes can become unstable.",
                 )
             elif obtained == 2:
                 summary, color, explanation = (
-                    "Acceptable extrapolation capability",
+                    "Acceptable boundary robustness",
                     "#1b5e20",
-                    "The model can extrapolate moderately beyond the training range, although uncertainty increases further from the original data distribution.",
+                    "The model holds up moderately well at the edges of the training range, although uncertainty increases further from the original data distribution.",
                 )
             else:
-                raise ValueError(f"Unexpected extrapolation score: {obtained}")
+                raise ValueError(f"Unexpected boundary robustness score: {obtained}")
 
             summary_label = QLabel(summary)
             summary_label.setStyleSheet(f"color: {color}; font-weight: bold;")

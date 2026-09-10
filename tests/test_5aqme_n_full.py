@@ -44,8 +44,10 @@ def test_AQME(test_job):
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
     for file in [
-        "report_debug.txt",
-        "ROBERT_report.pdf",
+        "report_debug_No_PFI.txt",
+        "report_debug_PFI.txt",
+        "ROBERT_report_No_PFI.pdf",
+        "ROBERT_report_PFI.pdf",
         "AQME-ROBERT_solubility.csv",
         "AQME-ROBERT_Robert_example_2smiles.csv",
         "AQME-ROBERT_solubility_solvent.csv",
@@ -135,8 +137,9 @@ def test_AQME(test_job):
     subprocess.run(cmd_robert)
 
     # check that all the plots, CSV and DAT files are created
-    # find ROBERT_report.pdf
-    assert os.path.exists(f"{path_main}/ROBERT_report.pdf")
+    # find ROBERT_report_No_PFI.pdf and ROBERT_report_PFI.pdf
+    assert os.path.exists(f"{path_main}/ROBERT_report_No_PFI.pdf")
+    assert os.path.exists(f"{path_main}/ROBERT_report_PFI.pdf")
 
     # CURATE folder
     if (
@@ -162,7 +165,7 @@ def test_AQME(test_job):
     if test_job in ["full_clas", "full_clas_test"]:
         assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 12
     else:
-        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 14
+        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 24
     assert len(glob.glob(f"{path_main}/PREDICT/*.dat")) == 1
 
     if test_job == "full_clas_test":
@@ -220,7 +223,7 @@ def test_AQME(test_job):
             assert descp in db_aqme.columns
 
     # find important parts in ROBERT_report
-    outfile = open(f"{path_main}/report_debug.txt", "r")
+    outfile = open(f"{path_main}/report_debug_No_PFI.txt", "r")
     outlines = outfile.readlines()
     outfile.close()
 
@@ -232,11 +235,11 @@ def test_AQME(test_job):
     for line in outlines:
         if "Heatmap_ML_models_No_PFI.png" in line:
             find_heatmap += 1
-        if "VERIFY_tests_RF_PFI.png" in line:
+        if "VERIFY_tests_RF_No_PFI.png" in line:
             find_verify += 1
-        if "SHAP_RF_PFI.png" in line:
+        if "SHAP_RF_No_PFI.png" in line:
             find_shap += 1
-        if "PFI_RF_PFI.png" in line:
+        if "PFI_RF_No_PFI.png" in line:
             find_pfi += 1
         if "Outliers_RF_No_PFI.png" in line:
             find_outliers += 1
@@ -266,8 +269,8 @@ def test_AQME(test_job):
             pred_test_ability,
             cv_sd_models,
             cv_vs_test_models,
-            extrapol_ability,
-            extrapol_ability_clas,
+            bound_ability,
+            bound_ability_clas,
         ) = [], [], [], [], [], [], []
         predict_graphs, flawed_image, cv_sd_image = False, False, False
         y_distrib_image, pearson_pred_image = False, False
@@ -303,24 +306,24 @@ def test_AQME(test_job):
                 flawed_image = True
             if "2. CV predictions of the model" in line:
                 pred_ability.append(line)
-            if "3a. Predictions test set" in line:
+            if "3. Test set predictions" in line:
                 pred_test_ability.append(line)
-            if "3b. Prediction accuracy test vs CV" in line:
+            if "5. CV vs test consistency" in line:
                 cv_vs_test_models.append(line)
-            if "3c. Avg. standard deviation (SD)" in line:
+            if "6. Prediction stability" in line:
                 cv_sd_models.append(line)
             if (
                 "PREDICT/CV_variability_RF_No_PFI.png" in line
                 or "PREDICT\\CV_variability_RF_No_PFI.png" in line
             ):
                 cv_sd_image = True
-            if "3d. Extrapolation (sorted CV)" in line:
-                extrapol_ability.append(line)
-            elif "3c. Consistency (sorted CV)" in line:
-                extrapol_ability_clas.append(line)
+            if "1. Sorted CV, top 20% (High)" in line:
+                bound_ability.append(line)
+            elif "1. Consistency (sorted CV)" in line:
+                bound_ability_clas.append(line)
             if "y_distribution_RF_No_PFI.png" in line:
                 y_distrib_image = True
-            if "Pearson_heatmap_No_PFI.png" in line:
+            if "Pearson_heatmap_RF_No_PFI.png" in line:
                 pearson_pred_image = True
             if (
                 "Failing required tests (Section B.1)" in line
@@ -347,45 +350,39 @@ def test_AQME(test_job):
 
         if test_job == "full_workflow":
             # model summary, robert score, predict graphs and model metrics
-            assert robert_score[0] == "5"
-            assert robert_score[1] == "6"
-            assert ml_model_count == 2
-            assert partition_count == 2
-            assert points_desc[0] == "30:5"
-            assert points_desc[1] == "30:2"
+            # NOTE: report_debug_{suffix}.txt now holds a SINGLE model/suffix's report (one
+            # PDF per suffix - see report.py's "generate one PDF per model (No PFI / PFI)"
+            # loop), not a combined No_PFI+PFI report like before 2.2.0 - so every field below
+            # that used to be checked as a [0]/[1] pair (one per model) now appears exactly
+            # once. The only field that legitimately has 2 entries is robert_score, since each
+            # single-suffix report still shows 2 columns (Interpolation/Boundary robustness)
+            assert robert_score[0] == "4"
+            assert robert_score[1] == "0"
+            assert ml_model_count == 1
+            assert partition_count == 1
+            assert points_desc[0] == "30:11"
             assert predict_graphs
-            assert metrics_train_count == 2
-            assert metrics_test_count == 2
+            assert metrics_train_count == 1
+            assert metrics_test_count == 1
             # advanced analysis, flawed models section 1
-            assert "-2 / 0" in flawed_models[0]
-            assert "-1 / 0" in flawed_models[1]
+            assert "-3 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
-            assert "1 / 2" in pred_ability[0]
-            assert "report/score_w_2_1.jpg" in pred_ability[0]
-            assert "1 / 2" in pred_ability[1]
-            assert "report/score_w_2_1.jpg" in pred_ability[1]
-            # advanced analysis, predictive ability of external test set section 3a
-            assert "2 / 2" in pred_test_ability[0]
-            assert "report/score_w_2_2.jpg" in pred_test_ability[0]
-            assert "2 / 2" in pred_test_ability[1]
-            assert "report/score_w_2_2.jpg" in pred_test_ability[1]
-            # advanced analysis, predictive ability of CV vs test section 3b
+            assert "0 / 2" in pred_ability[0]
+            assert "report/score_w_2_0.jpg" in pred_ability[0]
+            # advanced analysis, predictive ability of external test set, item 3
+            assert "1 / 2" in pred_test_ability[0]
+            assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            # advanced analysis, CV vs test consistency, item 5
             assert "2 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
-            assert "2 / 2" in cv_vs_test_models[1]
-            assert "report/score_w_2_2.jpg" in cv_vs_test_models[1]
-            # advanced analysis, CV variability section 3c
+            # advanced analysis, prediction stability, item 6
             assert "2 / 2" in cv_sd_models[0]
             assert "report/score_w_2_2.jpg" in cv_sd_models[0]
-            assert "2 / 2" in cv_sd_models[1]
-            assert "report/score_w_2_2.jpg" in cv_sd_models[1]
             assert cv_sd_image
-            # advanced analysis, extrapolation section 3d
-            assert "0 / 2" in extrapol_ability[0]
-            assert "report/score_w_2_0.jpg" in extrapol_ability[0]
-            assert "0 / 2" in extrapol_ability[1]
-            assert "report/score_w_2_0.jpg" in extrapol_ability[1]
+            # advanced analysis, boundary robustness, sub-item 1 (Sorted CV, top 20% / High)
+            assert "0 / 2" in bound_ability[0]
+            assert "report/score_w_2_0.jpg" in bound_ability[0]
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -396,35 +393,28 @@ def test_AQME(test_job):
 
         elif test_job == "full_clas":
             # model summary, robert score, predict graphs and model metrics
+            # (see the NOTE above the full_workflow block: report_debug_{suffix}.txt now
+            # holds a single model/suffix's report, so every field below appears once,
+            # except robert_score which still has 2 entries - Interpolation/Boundary)
             assert robert_score[0] == "4"
-            assert robert_score[1] == "6"
-            assert ml_model_count == 2
-            assert points_desc[0] == "29:6"
-            assert points_desc[1] == "29:4"
+            assert robert_score[1] == "1"
+            assert ml_model_count == 1
+            assert points_desc[0] == "30:6"
             # advanced analysis, flawed models section 1
             assert "-2 / 0" in flawed_models[0]
-            assert "-2 / 0" in flawed_models[1]
             assert flawed_image
             # advanced analysis, predictive ability section 2
-            assert "2 / 3" in pred_ability[0]
-            assert "report/score_w_3_2.jpg" in pred_ability[0]
-            assert "2 / 3" in pred_ability[1]
-            assert "report/score_w_3_2.jpg" in pred_ability[1]
-            # advanced analysis, predictive ability of external test set section 3a
-            assert "3 / 3" in pred_test_ability[0]
-            assert "report/score_w_3_3.jpg" in pred_test_ability[0]
-            assert "3 / 3" in pred_test_ability[1]
-            assert "report/score_w_3_3.jpg" in pred_test_ability[1]
-            # advanced analysis, predictive ability of CV vs test section 3b
-            assert "1 / 2" in cv_vs_test_models[0]
-            assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
-            assert "2 / 2" in cv_vs_test_models[1]
-            assert "report/score_w_2_2.jpg" in cv_vs_test_models[1]
-            # advanced analysis, extrapolation section 3d
-            assert "0 / 2" in extrapol_ability_clas[0]
-            assert "report/score_w_2_0.jpg" in extrapol_ability_clas[0]
-            assert "1 / 2" in extrapol_ability_clas[1]
-            assert "report/score_w_2_1.jpg" in extrapol_ability_clas[1]
+            assert "1 / 3" in pred_ability[0]
+            assert "report/score_w_3_1.jpg" in pred_ability[0]
+            # advanced analysis, predictive ability of external test set, item 3
+            assert "1 / 3" in pred_test_ability[0]
+            assert "report/score_w_3_1.jpg" in pred_test_ability[0]
+            # advanced analysis, CV vs test consistency, item 5
+            assert "2 / 2" in cv_vs_test_models[0]
+            assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
+            # advanced analysis, boundary robustness, sub-item 1 (Consistency, sorted CV)
+            assert "1 / 2" in bound_ability_clas[0]
+            assert "report/score_w_2_1.jpg" in bound_ability_clas[0]
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -465,8 +455,10 @@ def test_AQME(test_job):
         if os.path.exists(f"{path_main}/{folder}"):
             shutil.rmtree(f"{path_main}/{folder}")
     for file_discard in [
-        "report_debug.txt",
-        "ROBERT_report.pdf",
+        "report_debug_No_PFI.txt",
+        "report_debug_PFI.txt",
+        "ROBERT_report_No_PFI.pdf",
+        "ROBERT_report_PFI.pdf",
         "AQME-ROBERT_interpret_solubility.csv",
         "AQME-ROBERT_interpret_Robert_example_2smiles.csv",
         "AQME-ROBERT_interpret_solubility_solvent.csv",

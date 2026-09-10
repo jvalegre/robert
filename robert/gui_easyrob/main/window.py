@@ -2097,7 +2097,7 @@ class EasyROB(QMainWindow):
             "<pre style='color:white; background-color:black; font-family:monospace;'></pre>"
         )
 
-        # Path to run directory 
+        # Path to run directory
         if self.file_path:
             run_dir = os.path.dirname(self.file_path)
         elif self.csv_test_path:
@@ -2158,6 +2158,8 @@ class EasyROB(QMainWindow):
         wf_predict = self.workflow_selector.currentText()
         if wf_predict == "Full Workflow" or wf_predict == "REPORT":
             self.rename_existing_pdf("ROBERT_report.pdf", run_dir)
+            self.rename_existing_pdf("ROBERT_report_No_PFI.pdf", run_dir)
+            self.rename_existing_pdf("ROBERT_report_PFI.pdf", run_dir)
 
         # ==================================================
         # Cache mapped CSVs (TRAIN + TEST)
@@ -2592,6 +2594,9 @@ class EasyROB(QMainWindow):
         if self.corr_filter_y_value:
             command += ' --corr_filter_y True'
 
+        if not self.rfecv_filter_value:
+            command += ' --rfecv_filter False'
+
         if self.desc_thres_value:
             command += f' --desc_thres {self.desc_thres_value}'
 
@@ -2666,6 +2671,7 @@ class EasyROB(QMainWindow):
         self.categorical_value = self.options_tab.categoricalstr.currentText().strip()
         self.corr_filter_x_value = self.options_tab.corr_filter_xbool.isChecked()
         self.corr_filter_y_value = self.options_tab.corr_filter_ybool.isChecked()
+        self.rfecv_filter_value = self.options_tab.rfecv_filterbool.isChecked()
         self.desc_thres_value = self.options_tab.desc_thresfloat.text().strip()
         self.thres_x_value = self.options_tab.thres_xfloat.text().strip()
         self.thres_y_value = self.options_tab.thres_yfloat.text().strip()
@@ -3508,7 +3514,7 @@ class EasyROB(QMainWindow):
         # Full workflow / REPORT
         # ------------------------
         if not self.manual_stop and (workflow == "Full Workflow" or workflow == "REPORT"):
-            if exit_code == 0 and "ROBERT_report.pdf was created successfully" in output_text:
+            if exit_code == 0 and "ROBERT_report_No_PFI.pdf was created successfully" in output_text:
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Information)
                 msg_box.setWindowTitle("Success!")

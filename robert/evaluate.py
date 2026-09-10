@@ -43,7 +43,7 @@ import shutil
 import time
 import pandas as pd
 from pathlib import Path
-from robert.utils import load_variables, finish_print, load_database, prepare_sets
+from robert.utils import load_variables, finish_print, load_database, prepare_sets, check_clas_problem
 from robert.generate_utils import set_sets
 
 
@@ -69,6 +69,12 @@ class evaluate:
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
+
+        # adjust options of classification problems and detects whether the right type of problem was used
+        self = check_clas_problem(self,csv_df)
+        # check_clas_problem() converts csv_df's y column to integer class codes in place;
+        # csv_y was captured before that conversion, so it needs refreshing to stay in sync
+        csv_y = csv_df[self.args.y]
 
         # standardizes and separates an external test set
         Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,None,self.args.names,None,None,None,BO_opt=True)

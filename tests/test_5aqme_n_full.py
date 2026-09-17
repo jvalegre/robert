@@ -267,10 +267,10 @@ def test_AQME(test_job):
             flawed_models,
             pred_ability,
             pred_test_ability,
+            train_val_gap_models,
             cv_sd_models,
             cv_vs_test_models,
             bound_ability,
-            bound_ability_clas,
         ) = [], [], [], [], [], [], []
         predict_graphs, flawed_image, cv_sd_image = False, False, False
         y_distrib_image, pearson_pred_image = False, False
@@ -308,6 +308,8 @@ def test_AQME(test_job):
                 pred_ability.append(line)
             if "3. Test set predictions" in line:
                 pred_test_ability.append(line)
+            if "4. Train vs validation gap" in line:
+                train_val_gap_models.append(line)
             if "5. CV vs test consistency" in line:
                 cv_vs_test_models.append(line)
             if "6. Prediction stability" in line:
@@ -319,8 +321,6 @@ def test_AQME(test_job):
                 cv_sd_image = True
             if "1. Sorted CV, top 20% (High)" in line:
                 bound_ability.append(line)
-            elif "1. Consistency (sorted CV)" in line:
-                bound_ability_clas.append(line)
             if "y_distribution_RF_No_PFI.png" in line:
                 y_distrib_image = True
             if "Pearson_heatmap_RF_No_PFI.png" in line:
@@ -373,6 +373,9 @@ def test_AQME(test_job):
             # advanced analysis, predictive ability of external test set, item 3
             assert "1 / 2" in pred_test_ability[0]
             assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            # advanced analysis, train vs validation gap, item 4
+            assert "2 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_2.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
             assert "2 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
@@ -394,27 +397,35 @@ def test_AQME(test_job):
         elif test_job == "full_clas":
             # model summary, robert score, predict graphs and model metrics
             # (see the NOTE above the full_workflow block: report_debug_{suffix}.txt now
-            # holds a single model/suffix's report, so every field below appears once,
-            # except robert_score which still has 2 entries - Interpolation/Boundary)
-            assert robert_score[0] == "4"
-            assert robert_score[1] == "1"
+            # holds a single model/suffix's report, so every field below appears once.
+            # Unlike full_workflow, robert_score here has only 1 entry: classification
+            # has no Boundary robustness score - see docs/Report/score.rst - so Section A
+            # only ever renders the Interpolation column, with the right column left empty
+            # rather than stretched. Classification's B.2/B.3a/B.3b/B.3c/B.3d are now
+            # homogenized to the same 0-2-point structure as regression (see score.rst) -
+            # items 2/3 used to go up to 3 points with different MCC thresholds)
+            assert robert_score[0] == "5"
+            assert len(robert_score) == 1
             assert ml_model_count == 1
             assert points_desc[0] == "30:6"
             # advanced analysis, flawed models section 1
             assert "-2 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
-            assert "1 / 3" in pred_ability[0]
-            assert "report/score_w_3_1.jpg" in pred_ability[0]
+            assert "1 / 2" in pred_ability[0]
+            assert "report/score_w_2_1.jpg" in pred_ability[0]
             # advanced analysis, predictive ability of external test set, item 3
-            assert "1 / 3" in pred_test_ability[0]
-            assert "report/score_w_3_1.jpg" in pred_test_ability[0]
+            assert "1 / 2" in pred_test_ability[0]
+            assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            # advanced analysis, train vs validation gap, item 4 (new for classification -
+            # homogenizes with regression, which already had this item)
+            assert "1 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_1.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
             assert "2 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
-            # advanced analysis, boundary robustness, sub-item 1 (Consistency, sorted CV)
-            assert "1 / 2" in bound_ability_clas[0]
-            assert "report/score_w_2_1.jpg" in bound_ability_clas[0]
+            # no boundary robustness sub-items for classification (no sub-item 1 to check)
+            assert not bound_ability
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image

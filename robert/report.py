@@ -39,7 +39,6 @@ from robert.report_utils import (
     adv_test,
     adv_diff_test,
     adv_cv_sd,
-    adv_sorted_cv,
     adv_train_val_gap,
     adv_sorted_cv_high,
     adv_sorted_cv_low,
@@ -103,11 +102,30 @@ class report:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
 
-        eval_only = False
-        # if EVALUATE is activated, no PFI models are generated
+        # if EVALUATE is activated, no PFI models are ever generated (it always scores the
+        # model as-is on the descriptors already in the input CSV, never re-curates them) - so
+        # the PFI PDF loop below is skipped whenever EVALUATE was involved
         path_eval = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
-        if os.path.exists(path_eval):
-            eval_only = True
+        eval_only = os.path.exists(path_eval)
+        skip_pfi = eval_only
+        # stored on self too (not just the local var) so module_lines() can add a provenance
+        # note to Section A without needing this threaded through print_score()'s own call chain
+        self.eval_only = eval_only
+
+        # detects whether EVALUATE evaluated a model with user-supplied hyperparameters
+        # (model_obj/model_file/model_params) rather than the trivial 'MVL' default - only
+        # those carry the data-leakage risk flagged in print_warnings() below, since 'MVL'
+        # has no hyperparameters that could have been tuned on data ROBERT now scores against.
+        # The model name is read off the actual GENERATE output (not re-derived from CLI args,
+        # which aren't available here) - EVALUATE always narrows GENERATE to a single model, so
+        # the first non-'_db' CSV in Best_model/No_PFI names it
+        self.custom_model_used = False
+        if eval_only:
+            no_pfi_files = [f for f in glob.glob(f'{os.getcwd()}/GENERATE/Best_model/No_PFI/*.csv')
+                             if not os.path.basename(f).endswith('_db.csv')]
+            if no_pfi_files:
+                resolved_model_name = os.path.splitext(os.path.basename(no_pfi_files[0]))[0]
+                self.custom_model_used = resolved_model_name != 'MVL'
 
         # spacing used for the Boundary robustness (right) column in Sections A and B
         self.spacing_PFI = f'{("&nbsp;")*4}'
@@ -143,7 +161,7 @@ class report:
                 _, _, dat_files_pre, _, _ = self.get_repro(eval_only)
 
                 for suffix in ['No PFI', 'PFI']:
-                    if eval_only and suffix == 'PFI':
+                    if skip_pfi and suffix == 'PFI':
                         continue
 
                     _, params_df_pre = self.get_transparency(suffix)
@@ -162,7 +180,7 @@ class report:
                     )
 
             for suffix in ['No PFI', 'PFI']:
-                if eval_only and suffix == 'PFI':
+                if skip_pfi and suffix == 'PFI':
                     continue
                 if model_scores[suffix]:
                     self.save_score_heatmap(model_scores[suffix], suffix)
@@ -180,7 +198,7 @@ class report:
 
             # generate one PDF per model (No PFI / PFI)
             for suffix in ['No PFI', 'PFI']:
-                if eval_only and suffix == 'PFI':
+                if skip_pfi and suffix == 'PFI':
                     continue
 
                 suffix_title = '_'.join(suffix.split())
@@ -356,7 +374,7 @@ class report:
 
         # starts with the icon of ROBERT score
         score_dat = ''
-        score_dat = self.module_lines('score',score_dat)
+        score_dat = self.module_lines('score',score_dat,pred_type=pred_type)
 
         # calculates the ROBERT score (R2 is analogous for accuracy in classification)
         data_score = {}
@@ -378,8 +396,13 @@ class report:
             score_dat += f"""<p style="text-align: justify;">Score not available: this model's test set has {n_test} point(s), not the standard ~20% split the ROBERT score was calibrated for (see <a href="https://robert.readthedocs.io/en/latest/Report/score.html">the ROBERT score documentation</a>). This happens with a custom --test_set value, including 0 (i.e. no held-out test set). The rest of this report (feature importances, outlier analysis, reproducibility, etc.) is unaffected.</p>"""
             return score_dat,data_score
 
+        # Boundary robustness isn't defined for classification (no Low/High/applicability-
+        # domain analysis exists for a discrete MCC-based model - see boundary_plot(), which
+        # only runs for pred_type=='reg'), so only the Interpolation column is shown
+        score_cols = ['interpolation'] if pred_type == 'clas' else ['interpolation','boundary']
+
         columns_score = []
-        for col in ['interpolation','boundary']:
+        for col in score_cols:
             spacing = '' if col == 'interpolation' else self.spacing_PFI
             score_key = 'interp_score' if col == 'interpolation' else 'extrap_score'
             score_val = data_score.get(f'{score_key}_{suffix}', 0)
@@ -389,11 +412,16 @@ class report:
             score_icon = int(round(score_val))
             score_info = f"""<img src="file:///{self._posix_uri(self.args.path_icons)}/score_{score_icon}.jpg" style="width: 100%; margin-top:7px; margin-bottom:-18px;"></p>"""
             columns_score.append(get_col_score(score_info,data_score,suffix,col,spacing))
+        if pred_type == 'clas':
+            # no Boundary robustness column - keep the original two-column layout/proportions
+            # with the right side blank, rather than stretching Interpolation full width
+            columns_score.append('')
 
         # Combine both columns
         score_dat += combine_cols(columns_score)
 
-        # add corresponding images (left: Results, right: Results_boundary_high)
+        # add corresponding images (left: Results, right: Results_boundary_high - clas has no
+        # boundary image, see above, so the right side stays blank)
         # the saved PNGs keep their in-image title (matplotlib plt.text) - height 218 is
         # deliberately LESS than what the full titled image needs at 270px width (~237px,
         # aspect 0.878), so object-fit:cover (anchored bottom, see print_img_tag) crops
@@ -405,26 +433,25 @@ class report:
         height = 218
         if pred_type == 'clas':
             height += diff_height
-        score_dat += self.print_score_images(suffix_title,height)
+        score_dat += self.print_score_images(suffix_title,height,pred_type)
 
         # metrics text row beneath the images
         module_file = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
-        columns_summary = [
-            get_metrics(module_file,suffix,''),
-            get_boundary_metrics(data_score,suffix,pred_type,self.spacing_PFI),
-        ]
-
-        # Combine both columns
+        columns_summary = [get_metrics(module_file,suffix,'')]
+        if pred_type == 'clas':
+            columns_summary.append('')
+        else:
+            columns_summary.append(get_boundary_metrics(data_score,suffix,self.spacing_PFI))
         score_dat += combine_cols(columns_summary)
 
         return score_dat,data_score
 
 
-    def print_score_images(self,suffix_title,height):
+    def print_score_images(self,suffix_title,height,pred_type):
         """
-        Places the interpolation (Results_*.png) and boundary robustness
-        (Results_boundary_high_*.png) images for this model side by side (original fixed-size
-        image row layout)
+        Places the interpolation (Results_*.png) image for this model - alongside the boundary
+        robustness (Results_boundary_high_*.png) image for regression, since that analysis
+        isn't defined for classification (see print_score())
         """
 
         module_path = Path(f'{os.getcwd()}/PREDICT')
@@ -432,18 +459,22 @@ class report:
         # glob (not rglob): avoids picking up files from the PREDICT/csv_test subfolder
         interp_images = [str(fp) for fp in module_path.glob('Results_*.png')
                           if self.matches_suffix(str(fp),suffix_title) and 'Results_boundary' not in str(fp)]
+
+        interp_images = self._filter_by_model(interp_images)
+        interp_image = interp_images[0] if interp_images else ''
+        left_tag = self.print_img_tag(interp_image,height)
+
+        if pred_type == 'clas':
+            # no boundary-robustness image - keep the original two-column row layout/
+            # proportions with the right side blank
+            return self.print_img_row_indent(left_tag,'',-5)
+
         # top 20% (High) plot only - the low/ad/williams variants have their own filenames now
         # (Results_boundary_low_..., Results_boundary_ad_..., Results_boundary_williams_...)
         bound_images = [str(fp) for fp in module_path.glob('Results_boundary_high_*.png')
                           if self.matches_suffix(str(fp),suffix_title)]
-
-        interp_images = self._filter_by_model(interp_images)
         bound_images = self._filter_by_model(bound_images)
-
-        interp_image = interp_images[0] if interp_images else ''
         bound_image = bound_images[0] if bound_images else ''
-
-        left_tag = self.print_img_tag(interp_image,height)
         right_tag = self.print_img_tag(bound_image,height)
 
         return self.print_img_row_indent(left_tag,right_tag,-5)
@@ -466,9 +497,31 @@ class report:
         # analyze and append warnings
         warnings_dict = self.analyze_warnings(data_score,suffix,warnings_dict,pred_type)
 
-        # add box (full width now that it's a single box, not paired with a PFI column)
+        # add box (full width now that it's a single box, not paired with a PFI column) -
+        # min-height stretches it down toward the footer by default (leaves room for more
+        # warnings than this particular report happens to have) but with a real safety margin
+        # this time: the previous 270px value left only ~8pt of slack before the footer, which
+        # is exactly what the 2nd citation line ate into, forcing the whole box onto its own
+        # page. 235px leaves a much larger buffer. page-break-inside:avoid is the actual
+        # guarantee though - if content ever exceeds even that (more warnings, longer text),
+        # the box moves to the next page whole instead of being clipped mid-box
         warning_print = f'''
-        <div style="width:100%; box-sizing:border-box; border:0.5px solid Gray; padding:4px 4px 4px 4px; margin-top: 20px; min-height:270px; text-align: justify;">'''
+        <div style="width:100%; box-sizing:border-box; border:0.5px solid Gray; padding:4px 4px 12px 4px; margin-top: 10px; margin-bottom: 15px; min-height: 235px; text-align: justify; page-break-inside: avoid;">'''
+
+        # a big, impossible-to-miss banner (separate from the bulleted severe-warnings list
+        # below, which uses a small 15px bullet) for the one risk ROBERT cannot itself measure
+        # or correct: hyperparameters supplied by the user (EVALUATE's model_obj/model_file/
+        # model_params) rather than searched by ROBERT's own BO within a held-out split. If
+        # those hyperparameters were chosen using a process that already saw data ROBERT now
+        # scores against (CV folds or the test set), both scores are optimistic to an unknown
+        # degree - this can't be detected from the CSV alone, so it's surfaced instead of silently
+        # trusted. Doesn't apply to the plain 'MVL' default, which has nothing to tune
+        if getattr(self,'custom_model_used',False):
+            warning_print += f'''
+        <div style="width:100%; box-sizing:border-box; background-color:{color_dict['red']}; padding:8px; margin-top:2px; margin-bottom:10px; text-align:center;">
+        <span style="font-size:17px; font-weight:bold; color:white;">&#9888; POSSIBLE DATA LEAKAGE: externally-tuned hyperparameters</span><br>
+        <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (EVALUATE), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
+        </div>'''
 
         # add severe warnings
         warning_print += f'''
@@ -485,7 +538,7 @@ class report:
 
         # add moderate warnings
         warning_print += f'''
-        <p style="margin-bottom: -10px; margin-top: 35px;"><strong>{space}Moderate warnings</strong></p>'''
+        <p style="margin-bottom: -10px; margin-top: 20px;"><strong>{space}Moderate warnings</strong></p>'''
         if len(warnings_dict[f'moderate_warnings_{suffix}']) == 0:
             warning_print += self.print_line_warning(
                 'No moderate warnings detected',
@@ -646,14 +699,15 @@ class report:
 
     def print_assessment(self,space,suffix,data_score,style_lines,warnings_dict,color_dict,pred_type):
         '''
-        Add overall assessment to the ROBERT score section. Interpolation (max 10) and
-        Boundary robustness (max 10 for reg, 2 for clas) now have independent, differently-scaled
-        scores, so the assessment uses whichever fraction of its own max is worse (a model
-        that isn't robust at the boundaries is unreliable even if it interpolates well).
+        Add overall assessment to the ROBERT score section. For regression, Interpolation and
+        Boundary robustness (each max 10) are independent scores, so the assessment uses
+        whichever fraction is worse (a model that isn't robust at the boundaries is unreliable
+        even if it interpolates well). Boundary robustness isn't defined for classification (see
+        print_score()), so the assessment there is based on Interpolation alone.
         '''
 
         assessment_print = f'''
-<p style="margin-bottom: -10px; margin-top: 35px;"><strong>{space}Overall assessment</strong></p>'''
+<p style="margin-bottom: -10px; margin-top: 20px;"><strong>{space}Overall assessment</strong></p>'''
 
         # the verdict below leans on interp_score/extrap_score, which fold in the (unavailable)
         # test-set score component - see print_score() for how score_available is derived
@@ -664,12 +718,16 @@ class report:
             return assessment_print
 
         interp_score = data_score.get(f'interp_score_{suffix}', 0)
-        bound_score = data_score.get(f'extrap_score_{suffix}', 0)
         interp_max = 10
-        bound_max = 10 if pred_type == 'reg' else 2
         interp_pct = interp_score / interp_max
-        bound_pct = bound_score / bound_max if bound_max else 0
-        overall_pct = min(interp_pct,bound_pct)
+
+        if pred_type == 'reg':
+            bound_score = data_score.get(f'extrap_score_{suffix}', 0)
+            bound_max = 10
+            bound_pct = bound_score / bound_max
+            overall_pct = min(interp_pct,bound_pct)
+        else:
+            overall_pct = interp_pct
 
         if len(warnings_dict[f'severe_warnings_{suffix}']) > 0 or overall_pct < 0.5:
             assessment_print += self.print_line_warning(
@@ -715,7 +773,7 @@ class report:
 
         adv_score_dat = ''
 
-        adv_score_dat += self.module_lines('adv_anal',adv_score_dat)
+        adv_score_dat += self.module_lines('adv_anal',adv_score_dat,pred_type=pred_type)
 
         # Text sub-metrics pair up row by row via combine_cols (proven fine for text
         # everywhere else in the report). Images are NOT put in flex/table columns - they use
@@ -734,7 +792,7 @@ class report:
             # row-based version is the one confirmed to render at the correct size with
             # correct pagination, so it's what's shipped despite the residual gap.
             interp_rows = [
-                adv_flawed(suffix,data_score,''),
+                adv_flawed(suffix,data_score,'',pred_type),
                 adv_predict(self,suffix,data_score,'',pred_type),
                 adv_test(self,suffix,data_score,'',pred_type),
                 adv_train_val_gap(self,suffix,data_score,''),
@@ -750,20 +808,21 @@ class report:
             ]
 
         else:
-            # classification: Low/High/degradation/bias still aren't defined for MCC, so
-            # Boundary robustness keeps only the existing fold-consistency score (see
-            # calc_score). Interpolation item 6 (prediction stability) is defined for
-            # classification too - see the 'clas' branch in get_predict_scores()
+            # classification: Boundary robustness isn't defined for a discrete MCC-based model
+            # (no Low/High/degradation/applicability-domain analysis - see print_score()), so
+            # only the Interpolation column is shown. Interpolation items 4 (train vs
+            # validation gap) and 6 (prediction stability) are defined for classification too -
+            # see the 'clas' branch in get_predict_scores() - so the row structure/order now
+            # matches regression's exactly (5 rows)
             interp_rows = [
-                adv_flawed(suffix,data_score,''),
+                adv_flawed(suffix,data_score,'',pred_type),
                 adv_predict(self,suffix,data_score,'',pred_type),
                 adv_test(self,suffix,data_score,'',pred_type),
+                adv_train_val_gap(self,suffix,data_score,'',pred_type),
                 adv_diff_test(self,suffix,data_score,'',pred_type) + adv_cv_sd(self,suffix,data_score,'',pred_type),
             ]
 
-            bound_rows = [
-                adv_sorted_cv(self,suffix,data_score,self.spacing_PFI,pred_type),
-            ]
+            bound_rows = []
 
         # images are interleaved right after the row they illustrate (not all dumped at the
         # end) so each one stays visually attached to its sub-metric: VERIFY_tests + High plot
@@ -816,6 +875,8 @@ class report:
 
         for i in range(max(len(interp_rows),len(bound_rows))):
             left = interp_rows[i] if i < len(interp_rows) else ''
+            # bound_rows is empty for clas (no Boundary robustness column) - right stays
+            # blank and the two-column layout/proportions are kept as-is
             right = bound_rows[i] if i < len(bound_rows) else ''
             adv_score_dat += combine_cols([left,right],align_top=True)
             adv_score_dat += img_after_row.get(i,'')
@@ -1049,10 +1110,50 @@ class report:
                 generate_dat += self.best_models_text(suffix_title)
             else:
                 generate_dat += self.print_img('Heatmap',-5,height,'GENERATE',suffix_title)
+                generate_dat += self.default_best_model_text(suffix_title)
 
         generate_dat += '<p style="margin-bottom: 50px;"></p>'
 
         return generate_dat
+
+
+    def default_best_model_text(self,suffix_title):
+        """
+        Informative-only line (doesn't change which model runs through VERIFY/PREDICT/REPORT)
+        showing which of the screened algorithms GENERATE picked as the best for this PFI
+        variant, and its combined error. Cheap equivalent of best_models_text() for the
+        default (non --all_models) case: reads the same Raw_data CSVs GENERATE's own
+        heatmap_workflow()/detect_best() already produce, instead of requiring the full
+        --all_models pipeline (every model through VERIFY/PREDICT) just to report this.
+        Skipped when only one model was screened - there's nothing to compare against.
+        """
+
+        if len(self.args.model) <= 1:
+            return ''
+
+        raw_dir = Path(f'{os.getcwd()}/GENERATE/Raw_data/{suffix_title}')
+        error_type = self.args.error_type.lower()
+
+        model_errors = {}
+        for csv_file in glob.glob(str(raw_dir / '*.csv')):
+            if '_db' in os.path.basename(csv_file):
+                continue
+            try:
+                params_df = pd.read_csv(csv_file, encoding='utf-8')
+                model_name = str(params_df['model'][0]).upper()
+                model_errors[model_name] = params_df[f'combined_{error_type}'][0]
+            except (KeyError, IndexError, pd.errors.EmptyDataError):
+                continue
+
+        if len(model_errors) <= 1:
+            return ''
+
+        best_model = min(model_errors, key=model_errors.get) if error_type in ['mae','rmse'] else max(model_errors, key=model_errors.get)
+        screened = ', '.join(model.upper() for model in self.args.model if model.upper() in model_errors)
+
+        return (f'<p style="margin-top: 10px; margin-bottom: 0px; font-size: 12.5px;"><i>'
+                f'Best of [{screened}]: <b>{best_model}</b> (combined {error_type.upper()} = {model_errors[best_model]:.2})'
+                f'</i></p>')
 
 
     def best_models_text(self,suffix_title):
@@ -1118,7 +1219,7 @@ class report:
         Generates the reproducibility section
         """
 
-        version_n_date, citation, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules,self.model_suffix)
+        version_n_date, citation_main, citation_lowdata, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules,self.model_suffix)
         robert_version = version_n_date.split()[2]
 
         if self.args.csv_name == '' or self.args.csv_test == '':
@@ -1126,9 +1227,11 @@ class report:
 
         repro_dat,citation_dat = '',''
 
-        # version, date and citation
+        # version, date and citation - the main ROBERT paper and the low-data-regimes one each
+        # get their own row (still 2 lines total, same as before) instead of one long paragraph
         citation_dat += f"""<p style="text-align: justify; margin-top: -9px;"><br>{version_n_date}</p>
-        <p style="text-align: justify;  margin-top: -10px;"><span style="font-weight:bold;">How to cite:</span> {citation}</p>"""
+        <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">How to cite:</span> {citation_main}</p>
+        <p style="text-align: justify; margin-top: 0px;"><span style="font-weight:bold;">Low data regimes:</span> {citation_lowdata}</p>"""
 
         aqme_workflow,aqme_updated = False,True
         crest_workflow = False
@@ -1388,7 +1491,16 @@ class report:
 
         if module == 'score':
             module_name = 'Section A. ROBERT Score'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on; Boundary robustness measures how well it holds up at the edges of that range, where predictions are hardest to trust.</i>'
+            if pred_type == 'clas':
+                # Boundary robustness isn't defined for classification (see print_score())
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on.</i>'
+            else:
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on; Boundary robustness measures how well it holds up at the edges of that range, where predictions are hardest to trust.</i>'
+            if getattr(self,'eval_only',False):
+                # provenance note: this model came from EVALUATE (a user-supplied model/
+                # hyperparameters), not from ROBERT's own BO hyperparameter search - flagged
+                # here since it's the first thing a reader sees, for scientific transparency
+                section_explain += ' <b>Note:</b> this model was provided by the user through the EVALUATE module and was not optimized through ROBERT\'s own Bayesian search.'
         elif module == 'adv_anal':
             module_name = 'Section B. Advanced Score Analysis'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the ROBERT score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'

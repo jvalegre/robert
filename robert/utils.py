@@ -51,7 +51,7 @@ from sklearn.ensemble import (
     )
 from sklearn.gaussian_process import GaussianProcessRegressor, GaussianProcessClassifier
 from sklearn.neural_network import MLPRegressor, MLPClassifier
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge, LogisticRegression
 from sklearn.impute import KNNImputer
 from sklearn.base import clone
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedShuffleSplit, RepeatedKFold, KFold, StratifiedKFold
@@ -234,13 +234,22 @@ def command_line_args(exe_type,sys_args):
         if arg in bool_args:
             available_args.append(f"{arg}")
         else:
-            available_args.append(f"{arg} =")
+            # no space before '=' - getopt.long_has_args() checks for an exact "arg=" entry
+            # to resolve exact option matches (e.g. "--model") before falling back to prefix-
+            # uniqueness checks; a stray space here ("arg =") defeated that exact-match check,
+            # which stayed silent as long as no other option shared a prefix with this one, but
+            # started raising "option --model not a unique prefix" once model_obj/model_file/
+            # model_params (EVALUATE) were added as options sharing the "model" prefix
+            available_args.append(f"{arg}=")
 
     try:
         opts, _ = getopt.getopt(sys.argv[1:], "h", available_args)
     except getopt.GetoptError as err:
         print(err)
-        sys.exit()
+        # a nonzero exit code (bare sys.exit() defaults to 0, i.e. "success") so callers that
+        # check the exit code - e.g. easyROB's RobertWorker - correctly detect this as a failed
+        # run instead of reporting it as finished successfully
+        sys.exit(1)
 
     for arg, value in opts:
         if arg.find("--") > -1:
@@ -289,7 +298,7 @@ o Other common options:
     after the correlation filter)
 
 * Affecting model screening in GENERATE:
-  --model "[MODEL1,MODEL2,etc]" (default=["RF","GB","NN","MVL"]) : ML models to use in the ML scan (i.e., "[RF,GB]")
+  --model "[MODEL1,MODEL2,etc]" (default=["RF","GB","NN","MVL"]) : ML models to use in the ML scan (i.e., "[RF,GB]"). Options: 'RF', 'MVL', 'GB', 'NN', 'GP', 'AdaB', 'RIDGE' (regression only), 'LOGISTIC' (classification only)
   --type "reg" or "clas" (default="reg") : regression or classification models
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
@@ -528,7 +537,7 @@ def load_variables(kwargs, robert_module):
             # except (ModuleNotFoundError,ImportError):
             #     self.log.write(f"\nx  WARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
-        if robert_module.upper() in ['GENERATE', 'VERIFY']:
+        if robert_module.upper() in ['GENERATE', 'VERIFY', 'EVALUATE']:
             # adjust the default value of error_type for classification
             if self.type.lower() == 'clas':
                 if self.error_type not in ['acc', 'mcc', 'f1']:
@@ -542,7 +551,7 @@ def load_variables(kwargs, robert_module):
             if self.type.lower() == 'clas':
                 if any(x.upper() == 'MVL' for x in self.model):
                     self.model = [x if x.upper() != 'MVL' else 'AdaB' for x in self.model]
-            
+
             models_gen = [] # use capital letters in all the models
             for model_type in self.model:
                 models_gen.append(model_type.upper())
@@ -1095,12 +1104,16 @@ def sanity_checks(self, type_checks, module, columns_csv):
     if module.lower() == 'evaluate':
         curate_valid = locate_csv(self,self.csv_name,curate_valid)
 
-        if self.eval_model.lower() not in ['mvl']:
-            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL' (more options will be added soon)")
+        # eval_model ('MVL', the legacy default) is only actually used as a fallback when none
+        # of model_obj/model_file/model_params are given - those resolve (and validate) an
+        # arbitrary scikit-learn model instead, see evaluate.py's resolve_eval_model()
+        using_custom_model = bool(self.model_obj is not None or self.model_file or self.model_params)
+        if not using_custom_model and self.eval_model.lower() not in ['mvl']:
+            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL', or provide model_obj/model_file/model_params for an arbitrary scikit-learn model")
             curate_valid = False
 
-        if self.type.lower() not in ['reg']:
-            self.log.write(f"\nx  The type option used is not valid in EVALUATE! Options: 'reg' (the 'clas' option will be added soon)")
+        if self.type.lower() not in ['reg','clas']:
+            self.log.write(f"\nx  The type option used is not valid in EVALUATE! Options: 'reg', 'clas'")
             curate_valid = False
 
     elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
@@ -1131,13 +1144,23 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     # leave a class under/over-represented, especially on small datasets
                     self.split = 'stratified'
 
-            for model_type in self.model:
-                if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN'] or len(self.model) == 0:
-                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN'")
-                    curate_valid = False
-                if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
-                    self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")                 
-                    curate_valid = False
+            if len(self.model) == 0:
+                self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
+                curate_valid = False
+            else:
+                for model_type in self.model:
+                    if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN','RIDGE','LOGISTIC']:
+                        self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
+                        curate_valid = False
+                    if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
+                        self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")
+                        curate_valid = False
+                    if model_type.upper() == 'RIDGE' and self.type.lower() == 'clas':
+                        self.log.write(f"\nx  Ridge regression (RIDGE in the model_type option) is not compatible with classification! Use LOGISTIC instead.")
+                        curate_valid = False
+                    if model_type.upper() == 'LOGISTIC' and self.type.lower() == 'reg':
+                        self.log.write(f"\nx  Logistic regression (LOGISTIC in the model_type option) is not compatible with regression, it's a classifier despite the name! Use RIDGE instead.")
+                        curate_valid = False
 
             if self.type.lower() not in ['reg','clas']:
                 self.log.write(f"\nx  The type option used is not valid! Options: 'reg', 'clas'")
@@ -1586,6 +1609,15 @@ def test_select(self,X_scaled,csv_y):
     min_test_size = 4
     selected_size = max(test_input_size,min_test_size)
 
+    # normally sanity_checks() resolves the 'auto' default into a real split method ('even' for
+    # regression, 'stratified' for classification) before this function ever runs - but EVALUATE's
+    # lightweight path calls load_database() with print_info=False, which skips sanity_checks()
+    # entirely, so 'auto' can still reach here literally. None of the branches below match it,
+    # which left test_points unassigned before the final test_points.sort() (UnboundLocalError) -
+    # resolve it here too so this function is correct regardless of whether the caller already did
+    if self.args.split.lower() == 'auto':
+        self.args.split = 'stratified' if self.args.type.lower() == 'clas' else 'even'
+
     # KN's classification branch only handles exactly 2 classes (hardcoded class_0/class_1
     # groups below); EVEN/EXTRA_Q1/EXTRA_Q5 rely on a continuous, ordered target value (the
     # "lowest/highest 20% of y", quantile bins, etc.) which has no meaningful equivalent for a
@@ -1625,8 +1657,11 @@ def test_select(self,X_scaled,csv_y):
             test_points = k_means(self,X_scaled,csv_y,training_size,self.args.seed,idx_list)
 
     elif self.args.split.upper() == 'RND':
-        size = round(selected_size * 100 / (len(csv_y)))
-        _, X_test, _, _ = train_test_split(X_scaled, csv_y, test_size=size/100, random_state=self.args.seed)
+        # pass selected_size directly as an exact point count - converting it to a percentage
+        # and back (as done previously) round-trips through two roundings and can inflate the
+        # test set by a point or two, so RND would pick a different-sized test set than the
+        # other split methods for the same test_set/database
+        _, X_test, _, _ = train_test_split(X_scaled, csv_y, test_size=selected_size, random_state=self.args.seed)
         test_points = X_test.index.tolist()
 
     elif self.args.split.upper() == 'STRATIFIED':
@@ -1793,6 +1828,11 @@ def BO_optimizer(self,bo_data,Xy_data):
         random_state=self.args.seed
     )
 
+    # this manual probe/suggest loop replaces optimizer.maximize() (see comment below), which is
+    # the only place bayes_opt prints the table header - since maximize() is never called, the
+    # header row is otherwise silently skipped and only the data rows (from probe()) get printed
+    optimizer.logger.log_optimization_start(optimizer.space.keys)
+
     # Generate initial points using Latin Hypercube Sampling for better space coverage
     if self.args.init_points > 0:
         initial_points = generate_lhs_points(
@@ -1903,6 +1943,15 @@ def BO_hyperparams(model_name):
         'n_restarts_optimizer': (0, 20, int), # scikit-learn's own guidance: 5-10 restarts is
                                                # typical in practice, the old upper bound of 100
                                                # went far past where more restarts help
+        },
+        'RIDGE': {
+        'alpha': (0.01, 100) # standard grid-search range for L2 regularization strength -
+                              # spans from near-unregularized (close to MVL) to heavily
+                              # regularized
+        },
+        'LOGISTIC': {
+        'C': (0.01, 100) # standard grid-search range for inverse regularization strength -
+                          # small C = more regularization, large C = closer to unregularized
         }
     }
 
@@ -1922,13 +1971,34 @@ def BO_metrics(self, bo_data, Xy_data):
     return bo_data
 
 
+_SKLEARN_ESTIMATOR_CACHE = {}
+
+
+def resolve_sklearn_estimator(model_name, pred_type):
+    '''
+    Resolve a scikit-learn estimator CLASS (not yet instantiated) by its exact class name,
+    restricted to sklearn's own registered estimators (sklearn.utils.all_estimators()) - this
+    never imports/executes anything outside sklearn, even though the name can ultimately come
+    from a user-provided file (EVALUATE's --model_params/--model_file). Returns None if the
+    name isn't a real sklearn regressor/classifier (or isn't available in this sklearn version).
+    '''
+
+    key = 'regressor' if pred_type.lower() == 'reg' else 'classifier'
+    if key not in _SKLEARN_ESTIMATOR_CACHE:
+        from sklearn.utils import all_estimators
+        _SKLEARN_ESTIMATOR_CACHE[key] = dict(all_estimators(type_filter=key))
+    return _SKLEARN_ESTIMATOR_CACHE[key].get(model_name)
+
+
 def model_adjust_params(self,model_name,params):
     '''
     Add seed and convert parameters to integers, since they come as floats with decimals in the iterations
 
     '''
 
-    if model_name != 'MVL':
+    known_models = ['RF','GB','NN','ADAB','GP','RIDGE','LOGISTIC']
+
+    if model_name in known_models:
         params['random_state'] = self.args.seed
 
         if model_name in ['RF','GB']:
@@ -1949,6 +2019,29 @@ def model_adjust_params(self,model_name,params):
 
         elif model_name == 'GP':
             params['n_restarts_optimizer'] = round(params['n_restarts_optimizer'])
+
+        elif model_name == 'LOGISTIC':
+            # avoids lbfgs convergence warnings within scikit-learn's default max_iter=100 -
+            # not searched (doesn't affect fit quality, only how long convergence takes)
+            if 'max_iter' not in params:
+                params['max_iter'] = 1000
+
+    elif model_name != 'MVL':
+        # arbitrary scikit-learn model (see EVALUATE's --model_params/--model_file) - only fill
+        # in a seed if this class actually accepts one (most linear/neighbor-based models don't
+        # take random_state at all and would raise a TypeError on instantiation) AND the user
+        # didn't already set their own random_state - unlike ROBERT's own BO-tuned models above
+        # (whose search space never includes random_state, so there's nothing to defer to), a
+        # user-supplied value here was typed on purpose (e.g. to match how they originally
+        # trained the model) and silently overwriting it would evaluate a different model than
+        # the one the user thinks they're evaluating, while still looking fully reproducible
+        if 'random_state' not in params:
+            model_cls = resolve_sklearn_estimator(model_name, self.args.type)
+            if model_cls is not None:
+                import inspect
+                if 'random_state' in inspect.signature(model_cls.__init__).parameters:
+                    params['random_state'] = self.args.seed
+                    self.args.log.write(f"\no  No random_state was specified for {model_name} - using --seed ({self.args.seed}) as the model's random_state.")
 
     return params
 
@@ -1997,7 +2090,31 @@ def load_model(self, model_name, **params):
 
     elif model_name == 'MVL':
         loaded_model = LinearRegression(**params)
-    
+
+    elif model_name == 'RIDGE':
+        # regression only - unlike RF/GB/NN/ADAB/GP, Ridge has no natural classifier
+        # counterpart under the same name (sanity_checks() already rejects RIDGE for type='clas')
+        loaded_model = Ridge(**params)
+
+    elif model_name == 'LOGISTIC':
+        # classification only - despite the name, LogisticRegression is a classifier, not a
+        # regressor (sanity_checks() already rejects LOGISTIC for type='reg')
+        loaded_model = LogisticRegression(**params)
+
+    else:
+        # not one of ROBERT's built-in short codes - resolve it as an arbitrary scikit-learn
+        # estimator by its exact class name instead (see EVALUATE's --model_params/
+        # --model_file/--model_obj, which is where a name like this comes from)
+        model_cls = resolve_sklearn_estimator(model_name, self.args.type)
+        if model_cls is None:
+            self.args.log.write(f"\nx  WARNING! '{model_name}' is not a valid scikit-learn {self.args.type} estimator name (or isn't available in this scikit-learn version). Check the exact class name (e.g., 'RandomForestRegressor').")
+            sys.exit()
+        try:
+            loaded_model = model_cls(**params)
+        except TypeError as error:
+            self.args.log.write(f"\nx  WARNING! Invalid hyperparameters for {model_name}: {error}")
+            sys.exit()
+
     return loaded_model
 
 

@@ -140,7 +140,7 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
 **1.** Create and activate the conda environment where you want to install the program. If you are not sure of what 
-this point means, check out the "Users with no Python experience" section. It only works with Python 3.11 or 3.12:
+this point means, check out the "Users with no Python experience" section. It only works with Python 3.12 or 3.13:
 
 .. code-block:: shell 
    

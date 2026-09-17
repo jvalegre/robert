@@ -238,6 +238,25 @@ Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
       RND to STRATIFIED - preserving class proportions in both train and test is standard
       practice for classification, and a plain random split can, by chance, leave a class
       under/over-represented, especially on small datasets
+   -  ``--split RND`` picked its test set size by converting the target point count to a
+      percentage and passing that percentage back into ``train_test_split()``, which rounds it
+      to a point count again - this round-trip through a percentage could inflate the test set
+      by a point or two versus the other split methods on the same database. RND now passes the
+      target point count directly, matching STRATIFIED/EVEN
+
+   **Fixed the hyperparameter table header missing from the BO console/log output**
+   -  The Bayesian Optimization progress table (one row per iteration, showing the target metric
+      and each hyperparameter) was missing its column-name header row, making the numbers hard to
+      read. ROBERT drives ``bayes_opt`` with a manual probe/suggest loop instead of its
+      ``optimizer.maximize()`` (needed to round integer hyperparameters correctly - see below),
+      but the header is only ever printed from inside ``maximize()``, so it was silently skipped
+
+   **Fixed pip install failing on a fresh environment**
+   -  ``python_requires`` allowed Python 3.11, but the pinned ``scipy==1.18.0`` requires Python
+      >=3.12, so installing on 3.11 failed to resolve. ``PySide6==6.9.2`` also doesn't support
+      Python 3.14 yet, but nothing capped the upper bound, so installing on 3.14 failed too.
+      ``python_requires`` is now ``>=3.12,<3.14`` (only 3.12/3.13 are actually installable with
+      the current pinned dependencies), and the classifiers/docs were updated to match
 
 Version 2.1.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.1.1>`__]
    - Adding RMSE values for each fold to calculate t- and Wilconxon tests

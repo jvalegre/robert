@@ -17,6 +17,18 @@ from robert.utils import (
     model_adjust_params
     )
 
+# ROBERT's own short codes for the models GENERATE can use, case-insensitive (normalized to
+# upper, e.g. 'rf' -> 'RF')
+KNOWN_MODEL_CODES = ['RF','MVL','GB','GP','ADAB','NN','RIDGE','LOGISTIC']
+
+
+def normalize_model_name(model_name):
+    '''
+    Normalizes one of ROBERT's own short model codes to uppercase (case-insensitive).
+    '''
+
+    return model_name.upper() if model_name.upper() in KNOWN_MODEL_CODES else model_name
+
 
 # hyperopt workflow
 def BO_workflow(self, Xy_data, csv_df, ML_model):
@@ -24,7 +36,9 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     Load hyperparameter space and perform a Bayesian optimization
     '''
 
-    bo_data = {'model': ML_model.upper(),
+    model_key = normalize_model_name(ML_model)
+
+    bo_data = {'model': model_key,
                 'type': self.args.type.lower(),
                 'kfold': self.args.kfold,
                 'repeat_kfolds': self.args.repeat_kfolds,
@@ -39,7 +53,7 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
         bo_data['params'] = model_adjust_params(self, bo_data['model'], bo_data['params'])
 
     else:
-        bo_data['params'] = {} # no need to format params
+        bo_data['params'] = {}
         bo_data = BO_metrics(self, bo_data, Xy_data)
         metric_combined = bo_data[f"combined_{bo_data['error_type']}"]
         self.args.log.write(f"   o Combined {bo_data['error_type'].upper()} for {bo_data['model']} (no BO needed) (no PFI filter): {metric_combined:.2}")
@@ -47,9 +61,10 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     # include the Set column to differentiate between train and test sets (and external test, if any)
     csv_df = set_sets(csv_df,Xy_data)
 
-    # save csv files with model params and with Xy datapoints
-    db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_db")
-    params_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model.upper()}")
+    # save csv files with model params and with Xy datapoints - both filenames must use the
+    # same case (model_key) or PFI_workflow() can't find the params file it just wrote back
+    db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{model_key}_db")
+    params_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{model_key}")
     _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
     
     # Convert params dict to string to avoid serialization issues
@@ -270,7 +285,7 @@ def heatmap_workflow(self,folder_hm):
     # sort columns in the same order as the optimization
     df_cols = []
     for model in self.args.model:
-        df_cols.append(model.upper())
+        df_cols.append(normalize_model_name(model))
 
     # a model missing from csv_data means its CSV wasn't found under Raw_data/{folder_hm} (BO/PFI
     # step failed to produce one, or a partial run was resumed) - reindexing on the full model

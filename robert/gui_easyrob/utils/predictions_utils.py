@@ -91,9 +91,11 @@ def find_prediction_csvs(selected_file_path: str) -> dict[str, Path]:
             results["PFI"] = path
     return results
 
-def get_robert_report_path(selected_file_path: str | Path) -> Path:
-    """Given the path to a selected file, return the corresponding ROBERT report PDF file."""
-    return Path(selected_file_path).parent / "ROBERT_report_No_PFI.pdf"
+def get_robert_report_path(selected_file_path: str | Path, model_key: str) -> Path:
+    """Given the path to a selected file and model key ("No_PFI" or "PFI"), return the
+    corresponding ROBERT report PDF file - v2.2 generates one PDF per suffix instead of a
+    single combined report, so the path must depend on which tab/model is being displayed."""
+    return Path(selected_file_path).parent / f"ROBERT_report_{model_key}.pdf"
 
 def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
     """Search for external test images in the PREDICT/csv_test directory related to the selected file."""
@@ -119,41 +121,41 @@ def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
 
     return results
 
-def extract_scores_from_robert_report(pdf_path: Path) -> dict:
-    """Extract scores from the ROBERT report PDF file."""
-    result = {"pdf_found": False, "PFI": None, "No_PFI": None}
-    if not pdf_path.exists():
-        return result
+def extract_scores_from_robert_report(pdf_path: Path) -> dict | None:
+    """Extract the Interpolation score details (the report's headline score) from the ROBERT
+    report PDF file. The file itself is already specific to one model/suffix - see
+    get_robert_report_path() - so there's a single score to extract, not one per model."""
+    return _extract_robert_score_details(pdf_path)
 
-    result["pdf_found"] = True
-    for model_key in ("No_PFI", "PFI"):
-        details = _extract_robert_score_details(pdf_path, model_key)
-        if details and details.get("score") is not None:
-            result[model_key] = details["score"]
-
-    return result
-
-def extract_boundary_fragment(pdf_path: Path, model_key: str) -> QPixmap | None:
-    """Render the boundary robustness block from parsed ROBERT report data."""
-    details = _extract_boundary_details(pdf_path, model_key)
-    if not details:
-        return None
-    return _render_boundary_pixmap(details)
-
-def extract_robert_fragment_image(pdf_path: Path, model_key: str) -> QPixmap | None:
-    """Render the ROBERT score block from parsed report data."""
-    details = _extract_robert_score_details(pdf_path, model_key)
+def extract_boundary_fragment(pdf_path: Path) -> QPixmap | None:
+    """Render the boundary robustness block from parsed ROBERT report data (regression only -
+    classification has no Boundary robustness score, see _extract_boundary_details())."""
+    details = _extract_boundary_details(pdf_path)
     if not details:
         return None
     return _render_robert_score_pixmap(details)
 
-def _get_boundary_bbox(page, model_key: str):
-    """Return the PDF area containing the boundary robustness block for the requested model."""
-    if model_key == "No_PFI":
-        return (0, 0, 300, page.height)
-    if model_key == "PFI":
-        return (300, 0, page.width, page.height)
-    return None
+def extract_robert_fragment_image(pdf_path: Path) -> QPixmap | None:
+    """Render the ROBERT score block from parsed report data."""
+    details = _extract_robert_score_details(pdf_path)
+    if not details:
+        return None
+    return _render_robert_score_pixmap(details)
+
+# v2.2 generates one full-width PDF per model/suffix (see get_robert_report_path()) instead
+# of a single combined report with a No_PFI/PFI side-by-side layout. Section A's own layout
+# now uses that same left/right split for a DIFFERENT pair of columns: Interpolation (the
+# report's headline score) on the left, Boundary robustness on the right (regression only -
+# blank for classification, see docs/Report/score.rst). Model/suffix selection is handled
+# entirely by which PDF gets opened now, so these bboxes are fixed, not model-dependent.
+def _score_bbox(page):
+    """Left half of page 0: the Interpolation score block."""
+    return (0, 0, 300, page.height)
+
+
+def _boundary_bbox(page):
+    """Right half of page 0: the Boundary robustness score block."""
+    return (300, 0, page.width, page.height)
 
 
 def _normalize_boundary_lines(text: str) -> list[str]:
@@ -162,171 +164,53 @@ def _normalize_boundary_lines(text: str) -> list[str]:
 
 
 def _parse_boundary_block(text: str) -> dict | None:
-    """Parse the boundary robustness text block into structured data."""
+    """Parse the Boundary robustness summary block into structured data. Boundary robustness
+    is scored 0-10, the same scale and "Title . Score N" heading as Interpolation (see
+    _parse_robert_score_block()), with two headline metrics instead of the model/points lines
+    - shaped to match that function's output so both scores can share
+    _render_robert_score_pixmap()."""
     if not text:
         return None
 
     lines = _normalize_boundary_lines(text)
-    title_line = next((line for line in lines if "Boundary robustness" in line), None)
-    rmse_line = next((line for line in lines if "[" in line and "]" in line and "%" in line), None)
-    scoring_line = next((line for line in lines if "Scoring from" in line), None)
-    rule_line = next((line for line in lines if "Every two folds" in line), None)
-
+    title_line = next(
+        (line for line in lines if "Boundary robustness" in line and re.search(r"\bScore\s+\d+\b", line, re.IGNORECASE)),
+        None,
+    )
     if not title_line:
         return None
 
-    score_match = re.search(r"\(\s*(\d+)\s*/\s*(\d+)\s*\)", title_line)
-    obtained = int(score_match.group(1)) if score_match else None
-    maximum = int(score_match.group(2)) if score_match else None
+    score_match = re.search(r"\bScore\s+(\d+)\b", title_line, re.IGNORECASE)
+    if not score_match:
+        return None
 
-    values = []
-    if rmse_line:
-        values_match = re.search(r"\[(.*?)\]", rmse_line)
-        if values_match:
-            values = [value.strip() for value in values_match.group(1).split(",") if value.strip()]
-
-    clean_title = re.sub(r"\(\s*\d+\s*/\s*\d+\s*\)", "", title_line).strip()
+    low_line = next((line for line in lines if "Scaled RMSE (Low" in line), "")
+    high_line = next((line for line in lines if "Scaled RMSE (High" in line), "")
 
     return {
-        "title": clean_title,
-        "obtained": obtained,
-        "maximum": maximum,
-        "rmse_values": values,
-        "rmse_label": "Scaled RMSEs across 5-fold CV:",
-        "scoring_line": scoring_line or "Scoring from 0 to 2",
-        "rule_line": rule_line or "Every two folds with RMSEs <= 1.25*min RMSE: +1.",
+        "title": "Boundary robustness",
+        "score": int(score_match.group(1)),
+        "model_line": low_line,
+        "points_line": high_line,
     }
 
 
-def _extract_boundary_details(pdf_path: Path, model_key: str) -> dict | None:
-    """Extract structured boundary robustness information for one model from the ROBERT report."""
+def _extract_boundary_details(pdf_path: Path) -> dict | None:
+    """Extract structured boundary robustness information from the ROBERT report. Returns
+    None for classification reports, whose Section A right column has no Boundary robustness
+    block at all (not scored for classification - see docs/Report/score.rst)."""
     if not pdf_path.exists():
         return None
 
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            if len(pdf.pages) <= 2:
+            if not pdf.pages:
                 return None
-            page = pdf.pages[2]
-            bbox = _get_boundary_bbox(page, model_key)
-            if bbox is None:
-                return None
-            text = page.within_bbox(bbox).extract_text()
+            page = pdf.pages[0]
+            text = page.within_bbox(_boundary_bbox(page)).extract_text()
             return _parse_boundary_block(text or "")
     except Exception:
         return None
-
-
-def _score_fill_rgb(obtained: int | None, maximum: int | None) -> tuple[float, float, float]:
-    """Return a fill color for the boundary robustness score indicator."""
-    if obtained is None or maximum in (None, 0):
-        return (0.78, 0.78, 0.78)
-    ratio = obtained / maximum
-    if ratio <= 0:
-        return (0.82, 0.18, 0.22)
-    if ratio < 1:
-        return (0.88, 0.66, 0.10)
-    return (0.18, 0.56, 0.26)
-
-
-def _render_boundary_pixmap(details: dict) -> QPixmap | None:
-    """Render a synthetic boundary robustness card for the GUI using parsed PDF data."""
-    width = 620
-    height = 250
-    margin = 24
-    line_gap = 38
-
-    obtained = details.get("obtained")
-    maximum = details.get("maximum")
-    score_fill = _score_fill_rgb(obtained, maximum)
-
-    doc = fitz.open()
-    try:
-        page = doc.new_page(width=width, height=height)
-        page.draw_rect(
-            fitz.Rect(6, 6, width - 6, height - 6),
-            color=(0.72, 0.72, 0.72),
-            fill=(1.0, 1.0, 1.0),
-            width=1.2,
-        )
-        page.draw_rect(
-            fitz.Rect(14, 14, width - 14, height - 14),
-            color=(0.86, 0.86, 0.86),
-            fill=None,
-            width=0.8,
-        )
-
-        title_y = 42
-        page.insert_text(
-            fitz.Point(margin, title_y),
-            details["title"],
-            fontsize=22,
-            fontname="hebo",
-            color=(0.07, 0.16, 0.28),
-        )
-
-        score_rect = fitz.Rect(width - 190, 22, width - margin, 58)
-        page.draw_rect(score_rect, color=(0.65, 0.65, 0.65), fill=(1, 1, 1), width=0.9)
-        if obtained is not None and maximum is not None:
-            page.insert_text(
-                fitz.Point(score_rect.x0 + 12, score_rect.y0 + 24),
-                f"{obtained} / {maximum}",
-                fontsize=20,
-                fontname="hebo",
-                color=(0.10, 0.18, 0.28),
-            )
-            cell_size = 16
-            gap = 6
-            start_x = score_rect.x1 - 14 - ((cell_size + gap) * maximum - gap)
-            for idx in range(maximum):
-                rect = fitz.Rect(
-                    start_x + idx * (cell_size + gap),
-                    score_rect.y0 + 10,
-                    start_x + idx * (cell_size + gap) + cell_size,
-                    score_rect.y0 + 10 + cell_size,
-                )
-                fill = score_fill if idx < obtained else (0.94, 0.94, 0.94)
-                page.draw_rect(rect, color=(0.45, 0.45, 0.45), fill=fill, width=0.8)
-
-        page.insert_text(
-            fitz.Point(margin, title_y + line_gap),
-            details["rmse_label"],
-            fontsize=20,
-            fontname="hebo",
-            color=(0.12, 0.20, 0.30),
-        )
-        rmse_text = f"[{', '.join(details['rmse_values'])}]" if details["rmse_values"] else "[]"
-        values_rect = fitz.Rect(margin - 2, title_y + line_gap + 12, width - margin, title_y + line_gap * 2 + 20)
-        page.draw_rect(values_rect, color=(0.86, 0.86, 0.86), fill=(1, 1, 1), width=0.8)
-        page.insert_text(
-            fitz.Point(margin + 8, title_y + line_gap * 2 + 8),
-            rmse_text,
-            fontsize=20,
-            fontname="hebo",
-            color=(0.05, 0.05, 0.05),
-        )
-        page.insert_text(
-            fitz.Point(margin, title_y + line_gap * 3 + 4),
-            f"- {details['scoring_line']}",
-            fontsize=20,
-            fontname="hebo",
-            color=(0.24, 0.30, 0.36),
-        )
-        page.insert_text(
-            fitz.Point(margin, title_y + line_gap * 4 + 8),
-            details["rule_line"],
-            fontsize=20,
-            fontname="helv",
-            color=(0.05, 0.05, 0.05),
-        )
-
-        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0), alpha=False)
-        qimg = QImage.fromData(QByteArray(pix.tobytes("png")))
-        return QPixmap.fromImage(qimg)
-    except Exception:
-        return None
-    finally:
-        doc.close()
 
 
 def _parse_robert_score_block(text: str) -> dict | None:
@@ -390,8 +274,9 @@ def _extract_robert_points_line(lines: list[str], title: str) -> str:
     return ""
 
 
-def _extract_robert_score_details(pdf_path: Path, model_key: str) -> dict | None:
-    """Extract structured ROBERT score information for one model from the report."""
+def _extract_robert_score_details(pdf_path: Path) -> dict | None:
+    """Extract structured Interpolation score information (the report's headline score) from
+    the ROBERT report."""
     if not pdf_path.exists():
         return None
 
@@ -400,10 +285,7 @@ def _extract_robert_score_details(pdf_path: Path, model_key: str) -> dict | None
             if not pdf.pages:
                 return None
             page = pdf.pages[0]
-            bbox = _get_boundary_bbox(page, model_key)
-            if bbox is None:
-                return None
-            text = page.within_bbox(bbox).extract_text()
+            text = page.within_bbox(_score_bbox(page)).extract_text()
             return _parse_robert_score_block(text or "")
     except Exception:
         return None
@@ -513,21 +395,11 @@ def _render_robert_score_pixmap(details: dict) -> QPixmap | None:
         doc.close()
 
 
-def extract_boundary_scores(pdf_path: Path) -> dict:
-    """Extract boundary robustness scores from the ROBERT report PDF file."""
-    result = {"PFI": None, "No_PFI": None}
-    if not pdf_path.exists():
-        return result
-
-    for model_key in ("No_PFI", "PFI"):
-        details = _extract_boundary_details(pdf_path, model_key)
-        if details and details.get("obtained") is not None and details.get("maximum") is not None:
-            result[model_key] = {
-                "obtained": details["obtained"],
-                "maximum": details["maximum"],
-            }
-
-    return result
+def extract_boundary_scores(pdf_path: Path) -> int | None:
+    """Extract the Boundary robustness score (0-10) from the ROBERT report PDF file.
+    Returns None for classification reports, which have no Boundary robustness score."""
+    details = _extract_boundary_details(pdf_path)
+    return details.get("score") if details else None
 
 def extract_prediction_info(df: pd.DataFrame) -> dict:
     """Extract prediction information from a DataFrame."""
@@ -613,33 +485,18 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
 def evaluate_predictions_for_model(selected_file_path: str | Path, df: pd.DataFrame, model_key: str) -> dict:
     """Evaluate predictions for a specific model."""
-    pdf_path = get_robert_report_path(selected_file_path)
-    scores = extract_scores_from_robert_report(pdf_path)
+    pdf_path = get_robert_report_path(selected_file_path, model_key)
+    details = extract_scores_from_robert_report(pdf_path)
+    score = details.get("score") if details else None
     prediction_info = extract_prediction_info(df)
     scenario = evaluate_model_scenario(
-        score=scores.get(model_key),
+        score=score,
         predictions_identical=prediction_info["predictions_identical"],
     )
     return {
         "model": model_key,
         "pdf_path": pdf_path,
-        "score": scores.get(model_key),
-        "prediction_info": prediction_info,
-        "scenario": scenario,
-    }
-
-def collect_model_info(selected_file_path: str | Path, df: pd.DataFrame) -> dict:
-    """Collect information for all models."""
-    pdf_path = get_robert_report_path(selected_file_path)
-    score_info = extract_scores_from_robert_report(pdf_path)
-    prediction_info = extract_prediction_info(df)
-    scenario = evaluate_model_scenario(
-        score=score_info["score"],
-        predictions_identical=prediction_info["predictions_identical"],
-    )
-    return {
-        "pdf_path": pdf_path,
-        "score_info": score_info,
+        "score": score,
         "prediction_info": prediction_info,
         "scenario": scenario,
     }
@@ -803,30 +660,34 @@ class PredictionDashboardPanel(QWidget):
             image_layout.addWidget(image_label)
             container_layout.addWidget(image_frame)
 
-        if score is not None and score["maximum"] == 2:
-            obtained = score["obtained"]
-            maximum = score["maximum"]
-
-            if obtained == 0:
-                summary, color, explanation = (
-                    "No boundary robustness",
+        # Boundary robustness is scored 0-10 (regression only), the same scale used for the
+        # main ROBERT score - see _robert_score_style() for the VERY WEAK/WEAK/MODERATE/STRONG
+        # bands it's built from
+        if score is not None:
+            label = _robert_score_style(score)["label"]
+            summary_texts = {
+                "VERY WEAK": (
+                    "No boundary robustness" if score <= 0 else "Very weak boundary robustness",
                     "#b00020",
                     "The model is unreliable at the edges of the training range and beyond. Predictions outside the original data range are unreliable.",
-                )
-            elif obtained == 1:
-                summary, color, explanation = (
-                    "Limited boundary robustness",
+                ),
+                "WEAK": (
+                    "Weak boundary robustness",
                     "#8a6d00",
                     "The model may tolerate slight deviations beyond the training range, but predictions near extremes can become unstable.",
-                )
-            elif obtained == 2:
-                summary, color, explanation = (
-                    "Acceptable boundary robustness",
+                ),
+                "MODERATE": (
+                    "Moderate boundary robustness",
+                    "#276dd6",
+                    "The model holds up reasonably well at the edges of the training range, although uncertainty increases further from the original data distribution.",
+                ),
+                "STRONG": (
+                    "Strong boundary robustness",
                     "#1b5e20",
-                    "The model holds up moderately well at the edges of the training range, although uncertainty increases further from the original data distribution.",
-                )
-            else:
-                raise ValueError(f"Unexpected boundary robustness score: {obtained}")
+                    "The model remains reliable at the edges of the training range and beyond, showing robust predictions even for extreme values.",
+                ),
+            }
+            summary, color, explanation = summary_texts[label]
 
             summary_label = QLabel(summary)
             summary_label.setStyleSheet(f"color: {color}; font-weight: bold;")

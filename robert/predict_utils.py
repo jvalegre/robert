@@ -260,6 +260,8 @@ def print_predict(self,Xy_data,model_data,suffix_title):
         print_results += f"\n      -  {CV_type} : Accur. = {Xy_data['acc_train']:.2}, F1 score = {Xy_data['f1_train']:.2}, MCC = {Xy_data['mcc_train']:.2}"
         if 'y_pred_test' in Xy_data and not Xy_data['y_test'].isnull().values.any() and len(Xy_data['y_test']) > 0:
             print_results += f"\n      -  Test : Accur. = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
+        if 'mcc_train_infold' in Xy_data:
+            print_results += f"\n      -  Train fit (in-fold) : Accur. = {Xy_data['acc_train_infold']:.2}, F1 score = {Xy_data['f1_train_infold']:.2}, MCC = {Xy_data['mcc_train_infold']:.2}"
 
         # Interpolation item 6 for classification: the same "how much does this depend on
         # the random split" question as the regression facets, adapted for a discrete label.

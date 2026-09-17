@@ -1162,10 +1162,10 @@ def test_predictions_add_loaded_df_replaces_loading_tab(monkeypatch):
     df = pd.DataFrame({"SMILES": ["C"], "target_pred": [1.0]})
     monkeypatch.setattr(tab, "_filter_prediction_dataframe", lambda frame: frame)
     monkeypatch.setattr(predictions_module, "evaluate_predictions_for_model", lambda base, frame, key: {"pdf_path": "report.pdf", "model": key, "scenario": "demo"})
-    monkeypatch.setattr(predictions_module, "get_robert_report_path", lambda base: "report.pdf")
-    monkeypatch.setattr(predictions_module, "extract_robert_fragment_image", lambda path, key: None)
-    monkeypatch.setattr(predictions_module, "extract_boundary_scores", lambda path: {"No_PFI": None})
-    monkeypatch.setattr(predictions_module, "extract_boundary_fragment", lambda path, key: None)
+    monkeypatch.setattr(predictions_module, "get_robert_report_path", lambda base, key: "report.pdf")
+    monkeypatch.setattr(predictions_module, "extract_robert_fragment_image", lambda path: None)
+    monkeypatch.setattr(predictions_module, "extract_boundary_scores", lambda path: None)
+    monkeypatch.setattr(predictions_module, "extract_boundary_fragment", lambda path: None)
     monkeypatch.setattr(predictions_module, "find_external_test_pixmaps", lambda base: {})
     widget = predictions_module.QWidget()
     monkeypatch.setattr(tab, "_create_table_with_stats", lambda frame, info, pdf_image: widget)
@@ -1275,10 +1275,10 @@ def test_predictions_refresh_with_new_path_loads_csvs_synchronously(tmp_path, mo
         "evaluate_predictions_for_model",
         lambda base, frame, key: {"pdf_path": "report.pdf", "model": key, "scenario": "demo"},
     )
-    monkeypatch.setattr(predictions_module, "get_robert_report_path", lambda base: "report.pdf")
-    monkeypatch.setattr(predictions_module, "extract_robert_fragment_image", lambda path, key: None)
-    monkeypatch.setattr(predictions_module, "extract_boundary_scores", lambda path: {})
-    monkeypatch.setattr(predictions_module, "extract_boundary_fragment", lambda path, key: None)
+    monkeypatch.setattr(predictions_module, "get_robert_report_path", lambda base, key: "report.pdf")
+    monkeypatch.setattr(predictions_module, "extract_robert_fragment_image", lambda path: None)
+    monkeypatch.setattr(predictions_module, "extract_boundary_scores", lambda path: None)
+    monkeypatch.setattr(predictions_module, "extract_boundary_fragment", lambda path: None)
     monkeypatch.setattr(predictions_module, "find_external_test_pixmaps", lambda base: {})
     monkeypatch.setattr(
         tab,
@@ -1600,7 +1600,7 @@ def test_full_user_workflow_end_to_end(
         monkeypatch.setattr(
             predictions_module,
             "extract_boundary_scores",
-            lambda *args, **kwargs: {},
+            lambda *args, **kwargs: None,
         )
         monkeypatch.setattr(
             predictions_module,

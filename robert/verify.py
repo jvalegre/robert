@@ -312,13 +312,19 @@ class verify:
         even if it has only learned "which of the two point clouds is this compound in" - not
         the underlying relationship. If the real model barely beats this trivial baseline, that
         is a sign of exactly that failure mode, regardless of how good its raw CV error looks
-        in isolation. Classification is not affected by this failure mode the same way (already
-        covered by the y_mean test's majority-class baseline), so this test reuses that result
-        there.
+        in isolation.
+
+        _ClusterMeanBaseline predicts each point with its cluster's mean y - a continuous value
+        that isn't a valid class label, so it can't be reused for classification as-is (an
+        earlier version aliased this test to y_mean's result for classification, but that just
+        duplicated a different, X-blind baseline - the majority-class test - under a misleading
+        name, not a real equivalent). Skipped (N/A) for classification instead of guessing at a
+        classification-specific baseline until one is actually designed and validated.
         '''
 
         if model_data['type'].lower() != 'reg':
-            verify_results['cluster'] = verify_results['y_mean']
+            verify_results['cluster'] = verify_results['CV_score']
+            verify_results['cluster_skipped'] = True
             return verify_results
 
         baseline_model = _ClusterMeanBaseline(random_state=model_data['seed'])
@@ -372,6 +378,12 @@ class verify:
             if test_ver == 'onehot' and verify_results.get('onehot_skipped',False):
                 colors[i] = gray_color
                 results_print[i] = f'\n         - {test_ver}: N/A, all descriptors are already binary (0/1)'
+                continue
+
+            # cluster test skipped for classification (see cluster_test()): not scored
+            if test_ver == 'cluster' and verify_results.get('cluster_skipped',False):
+                colors[i] = gray_color
+                results_print[i] = f'\n         - {test_ver}: N/A, not defined for classification'
                 continue
 
             if verify_results['error_type'].lower() in ['mae','rmse']:

@@ -39,13 +39,13 @@ try:
 
     from version import SOFTWARE_VERSIONS
     from utils import utils_gui, molssi_utils
-    from tabs import predictions, aqme, advanced_options, molssi, results, images
+    from tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate
 
 except ImportError as e:
 
     from robert.gui_easyrob.version import SOFTWARE_VERSIONS
     from robert.gui_easyrob.utils import utils_gui, molssi_utils
-    from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images
+    from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate
 
 
 # ------------------------------------------------------------
@@ -113,6 +113,7 @@ AdvancedOptionsTab = advanced_options.AdvancedOptionsTab
 MolSSIDatabasesTab = molssi.MolSSIDatabasesTab
 ResultsTab = results.ResultsTab
 ImagesTab = images.ImagesTab
+EvaluateTab = evaluate.EvaluateTab
 
 # ------------------------------------------------------------
 # Base directory (used for assets, tutorials, etc.)
@@ -775,6 +776,9 @@ class EasyROB(QMainWindow):
         # Predictions tab
         self.predictions_tab = PredictionsTab(self.tab_widget)
 
+        # Evaluate tab (self-contained: doesn't depend on a prior run)
+        self.evaluate_tab = EvaluateTab(self.tab_widget)
+
         # ===============================
         # Add Tabs to Tab Widget (Display order)
         # ===============================
@@ -793,6 +797,8 @@ class EasyROB(QMainWindow):
         self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.images_tab), False)
 
         self.tab_widget.addTab(self.predictions_tab, "Predictions")
+
+        self.tab_widget.addTab(self.evaluate_tab, "Evaluate")
 
         # Start disabled
         self.tab_widget.setTabEnabled(

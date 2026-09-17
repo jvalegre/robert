@@ -19,7 +19,7 @@
     <rect x="30" y="50" width="260" height="120" fill="url(#hatchRed)"/>
     <text x="40" y="68" font-size="11" font-style="italic" fill="#e0575a" fill-opacity="0.7" font-family="Consolas,monospace">extrapolation zone</text>
 
-    <line x1="30" y1="170" x2="290" y2="170" stroke="#333" stroke-opacity="0.35" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <line x1="30" y1="170" x2="290" y2="170" stroke="#333" stroke-opacity="0.5" stroke-width="1.2" stroke-dasharray="4 3"/>
     <text x="34" y="184" font-size="11" fill="#78766c" font-family="Consolas,monospace">training max</text>
 
     <!-- ideal true = predicted trend, extended into the shaded zone -->
@@ -31,17 +31,17 @@
     <circle cx="230" cy="95.7" r="4" fill="#555" opacity="0.6"/>
     <circle cx="270" cy="66.1" r="4" fill="#555" opacity="0.6"/>
 
-    <!-- stems from true value down to the clipped prediction -->
-    <line x1="150" y1="154.8" x2="150" y2="170" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
-    <line x1="190" y1="125.2" x2="190" y2="170" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
-    <line x1="230" y1="95.7" x2="230" y2="170" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
-    <line x1="270" y1="66.1" x2="270" y2="170" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
+    <!-- stems from true value down to the clipped prediction, which stays short of the line -->
+    <line x1="150" y1="154.8" x2="150" y2="178" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
+    <line x1="190" y1="125.2" x2="190" y2="178" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
+    <line x1="230" y1="95.7" x2="230" y2="178" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
+    <line x1="270" y1="66.1" x2="270" y2="178" stroke="#e0575a" stroke-width="1" stroke-opacity="0.55"/>
 
-    <!-- predictions: all clamped exactly at the training max, however high the true value climbs -->
-    <circle cx="150" cy="170" r="4.5" fill="#e0575a"/>
-    <circle cx="190" cy="170" r="4.5" fill="#e0575a"/>
-    <circle cx="230" cy="170" r="4.5" fill="#e0575a"/>
-    <circle cx="270" cy="170" r="4.5" fill="#e0575a"/>
+    <!-- predictions: clamped just short of the training max, however high the true value climbs -->
+    <circle cx="150" cy="178" r="4.5" fill="#e0575a"/>
+    <circle cx="190" cy="178" r="4.5" fill="#e0575a"/>
+    <circle cx="230" cy="178" r="4.5" fill="#e0575a"/>
+    <circle cx="270" cy="178" r="4.5" fill="#e0575a"/>
 
     <circle cx="220" cy="204" r="4" fill="#555" opacity="0.6"/>
     <text x="232" y="208" font-size="10.5" fill="#78766c" font-family="Consolas,monospace">true</text>

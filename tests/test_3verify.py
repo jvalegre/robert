@@ -103,7 +103,7 @@ def test_VERIFY(test_job):
                         in outlines[i + 4]
                     )
                     assert (
-                        "o cluster: PASSED, MCC = 0.0, lower than thresholds"
+                        "- cluster: N/A, not defined for classification"
                         in outlines[i + 5]
                     )
                     assert (

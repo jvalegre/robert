@@ -27,9 +27,8 @@ Parameters
         4. 'NN' (MLP neural network)
         5. 'GP' (Gaussian Process)
         6. 'AdaB' (AdaBoost)
-    custom_params : str, default=None
-        Define new parameters for the ML models used in the hyperoptimization workflow. The path
-        to the folder containing all the yaml files should be specified (i.e. custom_params='YAML_FOLDER')
+        7. 'RIDGE' (Ridge regression, regression only)
+        8. 'LOGISTIC' (Logistic regression, classification only)
     type : str, default='reg'
         Type of the pedictions. Options: 
         1. 'reg' (Regressor)
@@ -102,7 +101,8 @@ from robert.generate_utils import (
     PFI_workflow,
     heatmap_workflow,
     detect_best,
-    stage_all_models
+    stage_all_models,
+    normalize_model_name
 )
 
 
@@ -157,6 +157,14 @@ class generate:
             return csv_df_cached.copy(), csv_X_cached.copy(), csv_y_cached.copy()
 
         for ML_model in self.args.model:
+
+            # normalize once, upfront, so every downstream step in this iteration (BO_workflow,
+            # PFI_workflow, the log line below) agrees on the same name - BO_workflow() already
+            # normalized internally for its own No_PFI save, but PFI_workflow()/save_pfi_csv()
+            # used the raw, unnormalized ML_model for the PFI CSV's filename instead, which
+            # broke heatmap_workflow()'s No_PFI/PFI name matching whenever a model was given in
+            # lowercase/mixed case (e.g. --model "['ridge']")
+            ML_model = normalize_model_name(ML_model)
 
             self.args.log.write(f'   - {cycle}/{len(self.args.model)} - ML model: {ML_model} ')
 

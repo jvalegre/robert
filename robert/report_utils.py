@@ -10,6 +10,7 @@ import numpy as np
 import textwrap
 from pathlib import Path
 import ast
+import json
 
 
 title_no_pfi = 'No PFI (standard descriptor filter):'
@@ -129,31 +130,21 @@ def get_metrics(file,suffix,spacing):
     return column
 
 
-def get_boundary_metrics(data_score,suffix,pred_type,spacing):
+def get_boundary_metrics(data_score,suffix,spacing):
     """
-    Gather the Low/High (sorted CV) boundary robustness metrics for the ROBERT score section
+    Gather the Low/High (sorted CV) boundary robustness metrics for the ROBERT score section.
+    Regression only - boundary robustness isn't defined for classification (see print_score()
+    in report.py)
     """
 
-    if pred_type.lower() == 'reg':
-        # repeated-CV values from boundary_plot() (same methodology as interpolation) -
-        # not VERIFY's old single-pass sorted-CV array, which is kept only for classification
-        low_val = data_score.get(f'scaled_rmse_low_{suffix}')
-        high_val = data_score.get(f'scaled_rmse_high_{suffix}')
-        if low_val is None or high_val is None:
-            return ''
-    else:
-        sorted_vals = data_score.get('scaled_mcc_sorted_' + suffix, [])
-        if not sorted_vals:
-            return ''
-        low_val = sorted_vals[0]
-        high_val = sorted_vals[-1]
+    # repeated-CV values from boundary_plot() (same methodology as interpolation)
+    low_val = data_score.get(f'scaled_rmse_low_{suffix}')
+    high_val = data_score.get(f'scaled_rmse_high_{suffix}')
+    if low_val is None or high_val is None:
+        return ''
 
-    if pred_type == 'reg':
-        metric_line = f'Scaled RMSE (Low, sorted CV) = {low_val}%.'
-        metric_line += f'<br>Scaled RMSE (High, sorted CV) = {high_val}%.'
-    else:
-        metric_line = f'MCC (Low, sorted CV) = {low_val}.'
-        metric_line += f'<br>MCC (High, sorted CV) = {high_val}.'
+    metric_line = f'Scaled RMSE (Low, sorted CV) = {low_val}%.'
+    metric_line += f'<br>Scaled RMSE (High, sorted CV) = {high_val}%.'
 
     indent = f'padding-left: {BOUNDARY_INDENT};' if spacing else ''
     column = f"""
@@ -473,7 +464,7 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
     return column
 
 
-def adv_flawed(suffix,data_score,spacing):
+def adv_flawed(suffix,data_score,spacing,pred_type):
     """
     Gather the advanced analysis of flawed models
     """
@@ -485,12 +476,16 @@ def adv_flawed(suffix,data_score,spacing):
     else:
         flaw_result = f'Warning! The model probably has important flaws.'
 
+    # 4 VERIFY tests for regression (y-mean, y-shuffle, onehot, cluster); classification skips
+    # the cluster test (N/A - see cluster_test() in verify.py), so only 3 are actually scored
+    min_score = -8 if pred_type == 'reg' else -6
+
     # adds a bit more space if there is no test set
     score_adv_flawed = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     init_spacing = f'<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}'
     column = f"""
     {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed} / 0)</p>
-    {score_adv_flawed}{flaw_result}<br>{spacing}<i>· Scoring from -8 to 0 ·</i><br>{spacing}Pass: 0, Unclear: -1, Fail: -2.</p>
+    {score_adv_flawed}{flaw_result}<br>{spacing}<i>· Scoring from {min_score} to 0 ·</i><br>{spacing}Pass: 0, Unclear: -1, Fail: -2.</p>
     """
 
     return column
@@ -500,11 +495,8 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
     """
     Gather the advanced analysis of predictive ability
 
-    Updated for classification:
-      - Instead of awarding up to 2 points, we now award up to 3.
-      - We define new thresholds for MCC:
-            if MCC > 0.75 => 3, if 0.50 < MCC <= 0.75 => 2,
-            if 0.30 < MCC <= 0.50 => 1, else => 0
+    Classification uses the same 0-2 scale as regression (see score_rmse_mcc()):
+    MCC > 0.6 => 2, 0.3 < MCC <= 0.6 => 1, else => 0
     """
 
     score_predict = data_score.get(f'cv_score_combined_{suffix}', 0)
@@ -527,21 +519,21 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
         """
         return column
     else:
-        # Classification: award up to 3 points - reuse the same thresholds already computed
-        # into cv_score_combined_{suffix} via score_rmse_mcc(), instead of a second hand-rolled
+        # Classification: reuse the same thresholds already computed into
+        # cv_score_combined_{suffix} via score_rmse_mcc(), instead of a second hand-rolled
         # copy that could silently drift from the score actually feeding interp_score
         mcc_cv = data_score.get(f'r2_cv_{suffix}', 0)
         display_score = score_predict
 
-        predict_image = f'{self._posix_uri(self.args.path_icons)}/score_w_3_{display_score}.jpg'
+        predict_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{display_score}.jpg'
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} ({cv_type}) = {mcc_cv}.'
-        thres_line = "MCC >0.75: +3; 0.50-0.75: +2; 0.30-0.50: +1"
+        thres_line = "MCC >0.6: +2; 0.3-0.6: +1"
 
         init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
         score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({display_score} / 3 &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
-        {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 3 ·</i><br>{spacing}{thres_line}</p>
+        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({display_score} / 2 &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
+        {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
         """
         return column
 
@@ -566,20 +558,20 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
         """
         return column
     else:
-        # Classification: award up to 3 points - reuse the same thresholds already computed
-        # into test_score_combined_{suffix} via score_rmse_mcc(), instead of a second hand-rolled
+        # Classification: reuse the same thresholds already computed into
+        # test_score_combined_{suffix} via score_rmse_mcc(), instead of a second hand-rolled
         # copy that could silently drift from the score actually feeding interp_score
         test_mcc = data_score.get(f"r2_test_{suffix}", 0)
         display_score = score_test
 
-        test_image = f'{self._posix_uri(self.args.path_icons)}/score_w_3_{display_score}.jpg'
+        test_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{display_score}.jpg'
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} (test set) = {test_mcc}.'
-        thres_line = ('MCC >0.75: +3; 0.50-0.75: +2; 0.30-0.50: +1')
+        thres_line = ('MCC >0.6: +2; 0.3-0.6: +1')
 
         score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({display_score} / 3 &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
-        {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 3 ·</i><br>{spacing}{thres_line}</p>
+        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({display_score} / 2 &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
+        {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
         """
         return column
 
@@ -677,52 +669,40 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
     return column
 
 
-def adv_sorted_cv(self, suffix, data_score, spacing, pred_type):
-    """
-    Gather the advanced analysis of sorted CV fold-by-fold consistency, for classification
-    only (regression's boundary robustness column uses the 5 dedicated functions below
-    instead: adv_sorted_cv_high, adv_sorted_cv_low, adv_spearman, adv_bound_sd,
-    adv_applicability_domain).
-    """
 
-    score_sorted = data_score.get(f'sorted_cv_score_{suffix}', 0)
-    sorted_cv_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_sorted}.jpg'
-
-    if 'scaled_mcc_sorted_' + suffix not in data_score:
-        data_score[f'scaled_mcc_sorted_{suffix}'] = []
-    sorted_mcc = [f'{val}' for val in data_score[f'scaled_mcc_sorted_{suffix}']]
-    sorted_mcc_str = str(sorted_mcc).replace("'", '')
-
-    column = f"""
-    <p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Consistency (sorted CV)</span> &nbsp;({score_sorted} / 2 &nbsp;<img src="file:///{sorted_cv_image}" alt="ROBERT Score" style="width: 13%">)</p>
-    <p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}MCCs across 5-fold CV:
-    <br>{spacing}{sorted_mcc_str}
-    <br>{spacing}<i>· Scoring from 0 to 2 ·</i>
-    <br>{spacing}Every two folds with MCCs ≥ 0.75*max MCC: +1.</p>
-    """
-    return column
-
-
-def adv_train_val_gap(self,suffix,data_score,spacing):
+def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
     """
     Interpolation sub-metric 4: gap between out-of-fold validation error and the same fold's
     own in-fold training fit (a large gap indicates the model memorizes each fold's training
-    split instead of generalizing to its own held-out validation split)
+    split instead of generalizing to its own held-out validation split).
+
+    Classification uses the same ΔMCC-based comparison as item 5's CV-vs-test consistency
+    check (see adv_diff_test()), applied to train-infold vs CV instead of CV vs test.
     """
 
     score_gap = data_score.get(f'train_val_gap_score_{suffix}', 0)
     gap_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_gap}.jpg'
 
-    scaled_trainfit = data_score.get(f'scaled_rmse_trainfit_{suffix}')
-    factor_trainfit = data_score.get(f'factor_trainfit_{suffix}')
+    if pred_type == 'reg':
+        scaled_trainfit = data_score.get(f'scaled_rmse_trainfit_{suffix}')
+        factor_trainfit = data_score.get(f'factor_trainfit_{suffix}')
 
-    if scaled_trainfit is None:
-        gap_result = 'Not available.'
+        if scaled_trainfit is None:
+            gap_result = 'Not available.'
+        else:
+            gap_result = f'Validation is {round(factor_trainfit,2)}*train RMSE.'
+
+        thres_line = 'Validation ≤ 1.25*train RMSE: +2.'
+        thres_line += f'<br>{spacing}Validation ≤ 1.50*train RMSE: +1.'
     else:
-        gap_result = f'Validation is {round(factor_trainfit,2)}*train RMSE.'
+        diff_trainfit = data_score.get(f'diff_trainfit_{suffix}')
 
-    thres_line = 'Validation ≤ 1.25*train RMSE: +2.'
-    thres_line += f'<br>{spacing}Validation ≤ 1.50*train RMSE: +1.'
+        if diff_trainfit is None:
+            gap_result = 'Not available.'
+        else:
+            gap_result = f'The ΔMCC between train and CV is {diff_trainfit}.'
+
+        thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
 
     score_adv_gap = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Train vs validation gap</span> &nbsp;({score_gap} / 2 &nbsp;<img src="file:///{gap_image}" alt="ROBERT Score" style="width: 13%">)</p>
@@ -953,11 +933,20 @@ def get_col_transpa(params_dict,suffix,section,spacing):
     for _,ele in enumerate(params_dict.keys()):
         if ele not in excluded_params:
             if ele == 'model' and section == 'model_section':
-                sklearn_model = models_dict[params_dict[ele].upper()]
+                # ROBERT's own short codes (RF/MVL/...) need translating to their full sklearn
+                # class name; a dynamic scikit-learn model (see EVALUATE's --model_params/
+                # --model_file) already stores the exact class name directly, so it's used as-is
+                sklearn_model = models_dict.get(params_dict[ele].upper(), params_dict[ele])
                 sklearn_model = f"""{first_line}sklearn model: {sklearn_model}</p>"""
             elif section == 'model_section' and ele.lower() not in misc_params:
                 if ele == 'params':
-                    model_params = ast.literal_eval(params_dict['params'])
+                    # try JSON first (new format, e.g. from EVALUATE's dynamic scikit-learn
+                    # models - True/False/None come out as lowercase true/false/null, which
+                    # ast.literal_eval doesn't understand), fall back to the old format
+                    try:
+                        model_params = json.loads(params_dict['params'])
+                    except (json.JSONDecodeError, TypeError):
+                        model_params = ast.literal_eval(params_dict['params'])
                     for param in model_params:
                         col_info += f"""{reduced_line}{param}: {model_params[param]}</p>"""
             elif section == 'misc_section' and ele.lower() in misc_params:
@@ -1016,25 +1005,26 @@ def calc_score(dat_files,suffix,pred_type,data_score):
         elif diff_mcc <= 0.30:
             data_score[f'diff_mcc_score_{suffix}'] += 1
 
-        # Interpolation: flawed-model gate + CV + test + MCC-diff (item 5) + prediction
-        # stability (item 6, see the 'clas' branch in get_predict_scores()) - Low/High/
-        # degradation/bias still aren't well-defined for MCC, so Boundary robustness keeps
-        # only the existing fold-consistency score. Max achievable is 10: cv_score_combined(3)
-        # + test_score_combined(3) + flawed_mod_score(0, never positive) + diff_mcc_score(2)
+        # Interpolation: flawed-model gate + CV + test + train-vs-validation gap (item 4) +
+        # MCC-diff (item 5) + prediction stability (item 6, see the 'clas' branch in
+        # get_predict_scores()) - same 5-item structure as regression, homogenized to the same
+        # 0-2 scale per item. Max achievable is 10: cv_score_combined(2) + test_score_combined(2)
+        # + flawed_mod_score(0, never positive) + train_val_gap_score(2) + diff_mcc_score(2)
         # + cv_sd_score(2) - see interp_max in print_assessment()
         interp_score = (
             data_score.get(f'cv_score_combined_{suffix}', 0)
             + data_score.get(f'test_score_combined_{suffix}', 0)
             + data_score.get(f'flawed_mod_score_{suffix}', 0)
+            + data_score.get(f'train_val_gap_score_{suffix}', 0)
             + data_score.get(f'diff_mcc_score_{suffix}', 0)
             + data_score.get(f'cv_sd_score_{suffix}', 0)
         )
         if interp_score < 0:
             interp_score = 0
 
-        extrap_score = data_score.get(f'sorted_cv_score_{suffix}', 0)
-        if extrap_score < 0:
-            extrap_score = 0
+        # Boundary robustness isn't defined for classification (see score.rst) - no sub-metric
+        # is well-defined for a discrete MCC-based score, so this always stays 0/unused
+        extrap_score = 0
 
         data_score[f'interp_score_{suffix}'] = interp_score
         data_score[f'extrap_score_{suffix}'] = extrap_score
@@ -1383,6 +1373,31 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     data_score[f'cv_score_combined_{suffix}'] = data_score[f'cv_score_rmse_{suffix}']
                     data_score[f'test_score_combined_{suffix}'] = data_score[f'test_score_rmse_{suffix}']
 
+                    # train-vs-validation gap (interpolation, item 4 - homogenized with
+                    # regression's B.3b): compares the in-fold training MCC against the
+                    # out-of-fold CV MCC (r2_cv_{suffix} above), same ΔMCC thresholds as
+                    # item 5's CV-vs-test consistency check (see diff_mcc_score below)
+                    data_score[f'train_val_gap_score_{suffix}'] = 0
+                    for j in range(i,i+12):
+                        if 'Train fit (in-fold)' in dat_predict[j]:
+                            parts = dat_predict[j].split(',')
+                            mcc_trainfit = None
+                            for part in parts:
+                                if 'MCC' in part:
+                                    mcc_trainfit = float(part.split('=')[-1])
+                                    break
+                            if mcc_trainfit is not None:
+                                data_score[f'mcc_trainfit_{suffix}'] = mcc_trainfit
+                                diff_trainfit = round(abs(data_score.get(f'r2_cv_{suffix}', 0) - mcc_trainfit), 2)
+                                data_score[f'diff_trainfit_{suffix}'] = diff_trainfit
+                                train_val_gap_score = 0
+                                if diff_trainfit < 0.15:
+                                    train_val_gap_score += 2
+                                elif diff_trainfit <= 0.30:
+                                    train_val_gap_score += 1
+                                data_score[f'train_val_gap_score_{suffix}'] = train_val_gap_score
+                            break
+
             # Interpolation item 6 - three facets of stability under resampling, each scored
             # 0-2 with its own threshold, then averaged and rounded into the final item score
             # (facet (a) unchanged from before; (b)/(c) new, logged by print_predict() in
@@ -1496,9 +1511,10 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
 def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
     '''
     Calculate scores for R2 and MCC using predetermined thresholds
-    
+
     For regression (scaled RMSE): 0-2 points
-    For classification (MCC): 0-3 points
+    For classification (MCC): 0-2 points, same scale as regression (homogenized so both
+    prediction types share the same 0-2 tiers/max everywhere in Section B)
     '''
 
     r2_mcc_score = 0
@@ -1510,13 +1526,11 @@ def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
             r2_mcc_score += 1
 
     else: # MCC
-        if scaledrmse_mcc_val > 0.75:
-            r2_mcc_score += 3
-        elif scaledrmse_mcc_val > 0.5:
+        if scaledrmse_mcc_val > 0.6:
             r2_mcc_score += 2
         elif scaledrmse_mcc_val > 0.3:
             r2_mcc_score += 1
-    
+
     return r2_mcc_score
 
 
@@ -1584,14 +1598,24 @@ def repro_info(modules,model_suffix=''):
                             command_line = line.split('Command line used in ROBERT: ')[1]
             total_time = round(total_time,2)
             dat_files[module] = txt_file
- 
+
     try:
         import platform
         python_version = platform.python_version()
     except:
         python_version = '(version could not be determined)'
-    
-    return version_n_date, citation, command_line, python_version, total_time, dat_files
+
+    # split the single logged citation line (robert_ref in utils.py, always the main ROBERT
+    # paper followed by the low-data-regimes one) back into its two references, so the report
+    # can show them on their own row each instead of one long wrapped paragraph
+    citation_main, citation_lowdata = citation.strip(), ''
+    lowdata_marker = 'Dalmau, D.; Sigman, M. S.;'
+    if lowdata_marker in citation:
+        split_idx = citation.index(lowdata_marker)
+        citation_main = citation[:split_idx].strip()
+        citation_lowdata = citation[split_idx:].strip()
+
+    return version_n_date, citation_main, citation_lowdata, command_line, python_version, total_time, dat_files
 
 
 def make_report(report_html, HTML, pdf_name='ROBERT_report.pdf'):

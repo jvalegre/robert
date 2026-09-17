@@ -8,7 +8,6 @@ setup(
     packages=find_packages(exclude=["tests"]),
     package_data={
         "robert": [
-            "model_params/*",
             "report/*",
             "icons/*",
         ],
@@ -38,10 +37,8 @@ setup(
         "Intended Audience :: Developers", # Define that your audience are developers
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.11", # Specify which python versions you want to support
-        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.12", # scipy==1.18.0 needs >=3.12, PySide6==6.9.2 needs <3.14
         "Programming Language :: Python :: 3.13",
-        "Programming Language :: Python :: 3.14",
     ],
     install_requires=[
         "PyYAML==6.0.3",
@@ -65,7 +62,7 @@ setup(
         "psutil==7.2.2",
         "requests==2.34.2",
     ],
-    python_requires=">=3.11",
+    python_requires=">=3.12,<3.14",
     include_package_data=True,
     entry_points={
         "console_scripts": [

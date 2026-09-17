@@ -40,6 +40,7 @@ try:
         QIcon,
         QLabel,
         QLineEdit,
+        QMessageBox,
         QPushButton,
         QUrl,
         QVBoxLayout,
@@ -60,6 +61,7 @@ except ImportError as e:
         QIcon,
         QLabel,
         QLineEdit,
+        QMessageBox,
         QPushButton,
         QUrl,
         QVBoxLayout,
@@ -219,6 +221,15 @@ class AdvancedOptionsTab(QWidget):
         self.model_group.setLayout(self.model_layout)
         layout.addRow(self.model_group)
 
+        # models restricted to a single prediction type - RF/GB/NN/GP/AdaB have both a
+        # regressor and a classifier version under the same short code, so they aren't listed
+        # here (valid for either type)
+        model_type_restriction = {
+            "MVL": "Regression",
+            "Ridge": "Regression",
+            "Logistic": "Classification",
+        }
+
         def update_model_options():
             """Updates the model options based on the selected type."""
 
@@ -232,11 +243,31 @@ class AdvancedOptionsTab(QWidget):
             for model, checkbox in self.modellist.items():
                 checkbox.setChecked(model in default_checked_models)
 
-        # Create checkboxes (only once)
-        all_models = ["RF", "MVL", "GB", "NN", "GP", "AdaB"]
+        def on_model_checkbox_toggled(model, checked):
+            """Warns and immediately unchecks a model that isn't valid for the current type -
+            same restriction sanity_checks() already enforces for the CLI (--model/--type), just
+            caught here before a run is even launched instead of failing partway through."""
+
+            if not checked:
+                return
+            required_type = model_type_restriction.get(model)
+            if required_type is not None and self.type.currentText() != required_type:
+                self.modellist[model].blockSignals(True)
+                self.modellist[model].setChecked(False)
+                self.modellist[model].blockSignals(False)
+                QMessageBox.warning(
+                    self, "Incompatible model",
+                    f"'{model}' is only valid for {required_type.lower()}, not "
+                    f"{self.type.currentText().lower()}. It has been deselected."
+                )
+
+        # Create checkboxes (only once) - Ridge/Logistic aren't checked by default (keeps
+        # existing default runs unchanged), but are available to opt into
+        all_models = ["RF", "MVL", "GB", "NN", "GP", "AdaB", "Ridge", "Logistic"]
         row, col = 0, 0
         for model in all_models:
             checkbox = QCheckBox(model)
+            checkbox.toggled.connect(lambda checked, m=model: on_model_checkbox_toggled(m, checked))
             self.modellist[model] = checkbox
             self.model_layout.addWidget(checkbox, row, col)
 

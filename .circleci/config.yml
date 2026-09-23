@@ -49,6 +49,7 @@ jobs:
           command: |
             apt-get update
             apt-get install -y \
+              curl \
               xvfb \
               libx11-6 \
               libx11-xcb1 \
@@ -293,14 +294,15 @@ jobs:
 
             # ------------------------------------------------------------------
             # Upload this node's coverage directly - Codecov merges multiple uploads
-            # for the same commit automatically, so with parallelism each of the 4
-            # nodes just uploads its own slice instead of combining them into one
-            # file first (the codecov orb doesn't work with this miniconda docker
-            # image, hence the plain uploader script instead of codecov/upload)
+            # for the same commit automatically, so with parallelism each node just
+            # uploads its own slice instead of combining them into one file first
+            # (the codecov orb doesn't work with this miniconda docker image, hence
+            # the plain uploader script instead of codecov/upload)
             # ------------------------------------------------------------------
-            curl -Os https://uploader.codecov.io/latest/linux/codecov
+            curl -Os https://cli.codecov.io/latest/linux/codecov
             chmod +x codecov
-            ./codecov -t "$CODECOV_TOKEN" -f coverage.xml -F "node-${CIRCLE_NODE_INDEX}"
+            ./codecov upload-process --disable-search --fail-on-error \
+              -t "$CODECOV_TOKEN" -f coverage.xml -F "node-${CIRCLE_NODE_INDEX}"
       - store_test_results:
           path: test-results
 

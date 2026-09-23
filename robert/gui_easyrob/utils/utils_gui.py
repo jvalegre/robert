@@ -384,6 +384,7 @@ class SegmentedButtonGroup(QWidget):
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
         self._buttons = {}
+        self._options = list(options)
 
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -431,6 +432,12 @@ class SegmentedButtonGroup(QWidget):
         button = self._buttons.get(text)
         if button is not None:
             button.setChecked(True)
+
+    def count(self):
+        return len(self._options)
+
+    def itemText(self, index):
+        return self._options[index]
 
 class YesNoToggle(QWidget):
     """

@@ -273,7 +273,15 @@ def test_EVALUATE_classification():
             debug_content = f.read()
         assert "Traceback (most recent call last)" not in debug_content
         # classification has no Boundary robustness score (see score.rst) - only Interpolation
-        assert "Boundary robustness" not in debug_content
+        # gets a real score column; the right column instead shows a short note explaining why
+        # it's disabled (see print_score() in report.py) rather than being left blank
+        assert "Boundary robustness" in debug_content
+        assert "Disabled in classification problems" in debug_content
+        score_imgs = [
+            line for line in debug_content.splitlines()
+            if "report/score_" in line and "report/score_w" not in line
+        ]
+        assert len(score_imgs) == 1  # Interpolation only - no Boundary robustness score bar/image
         # RandomForestClassifier's hyperparameters came from the user, same leakage risk as
         # the regression case above - the banner isn't regression-specific
         assert "POSSIBLE DATA LEAKAGE" in debug_content

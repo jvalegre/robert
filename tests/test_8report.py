@@ -90,12 +90,14 @@ def test_REPORT(test_job):
 
     # score images ("report/score_N.jpg") are the Interpolation/Boundary robustness score
     # bars in Section A - classification only ever gets one (Interpolation), since Boundary
-    # robustness isn't defined for it (see docs/Report/score.rst); the right-hand column is
-    # left empty rather than stretching Interpolation to full width
+    # robustness isn't defined for it (see docs/Report/score.rst); the right-hand column
+    # shows a short "disabled" note instead (see print_score() in report.py) rather than
+    # being left empty or stretching Interpolation to full width
     score_imgs = [line for line in outlines if "report/score_" in line and "report/score_w" not in line]
     if test_job == "clas":
         assert len(score_imgs) == 1
-        assert "Boundary robustness" not in full_text
+        assert "Boundary robustness" in full_text
+        assert "Disabled in classification problems" in full_text
         assert "1. Consistency (sorted CV)" not in full_text
         assert (
             "Interpolation measures how reliably the model predicts within the range "

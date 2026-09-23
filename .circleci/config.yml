@@ -15,10 +15,14 @@ orbs:
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
   build-and-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
-    # Split across 4 containers (below, via `circleci tests split`) so the suite - which now
+    # Split across 6 containers (below, via `circleci tests split`) so the suite - which now
     # includes several real, slow AQME/xtb-based tests - fits within the per-job time limit
-    # instead of timing out running everything sequentially in one container
-    parallelism: 4
+    # instead of timing out running everything sequentially in one container. The
+    # test_1curate->test_4predict pipeline chain and GUI tests are still pinned to node 0
+    # (see below), so this mainly helps by spreading the independent test files (including
+    # the slow real ones in test_5aqme_n_full.py/test_6evaluate.py/test_8report.py) thinner
+    # across the other 5 nodes
+    parallelism: 6
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
     # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python

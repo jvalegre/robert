@@ -31,6 +31,7 @@ from robert.utils import (load_variables,
     create_score_heatmap,
 )
 from robert.report_utils import (
+    BOUNDARY_INDENT,
     get_csv_names,
     get_col_score,
     calc_score,
@@ -63,6 +64,86 @@ from robert.report_utils import (
 
 # suffixes -> output PDF filenames, one PDF per model
 PDF_NAMES = {'No PFI': 'ROBERT_report_No_PFI.pdf', 'PFI': 'ROBERT_report_PFI.pdf'}
+
+# a descriptor whose importance is this small a fraction of the top descriptor's (or below
+# this absolute value) contributes essentially nothing - used by _has_low_relevance_descp()
+# below to flag when trimming near-irrelevant descriptors is worth trying (fewer, more
+# relevant descriptors often generalize better than many diluted ones)
+LOW_RELEVANCE_RELATIVE_THRESHOLD = 0.04
+LOW_RELEVANCE_ABSOLUTE_THRESHOLD = 0.05
+
+
+def _has_low_relevance_descp(lines,start_idx,shap=False):
+    '''
+    Scans the descriptor-importance lines right after a "PFI plot saved"/"SHAP plot saved"
+    marker (see PFI_plot()/shap_analysis() in utils.py for the exact format) and returns True
+    if any descriptor other than the top one is negligible: below
+    LOW_RELEVANCE_RELATIVE_THRESHOLD of the top descriptor's magnitude, or below
+    LOW_RELEVANCE_ABSOLUTE_THRESHOLD in absolute terms. Both PFI and SHAP list descriptors
+    sorted from most to least important already, so the first value found is the top one.
+    '''
+
+    values = []
+    for line in lines[start_idx+1:]:
+        stripped = line.strip()
+        if not stripped.startswith('-'):
+            break
+        if shap:
+            # "-  {desc} = min: {min}, max: {max}" - use the larger-magnitude side as the
+            # importance proxy, matching how these lines are already sorted (utils.py)
+            min_match = re.search(r'min:\s*(-?[\d.]+)', stripped)
+            max_match = re.search(r'max:\s*(-?[\d.]+)', stripped)
+            if not (min_match and max_match):
+                continue
+            values.append(max(abs(float(min_match.group(1))), abs(float(max_match.group(1)))))
+        else:
+            # "-  {desc} = {value} +- {sd}" - PFI values can be negative (a genuinely useless/
+            # noisy descriptor can shuffle-permute to a *better* score by chance), so compare
+            # magnitudes, not signed values
+            val_match = re.search(r'=\s*(-?[\d.]+)\s*\+-', stripped)
+            if not val_match:
+                continue
+            values.append(abs(float(val_match.group(1))))
+
+    if len(values) < 2:
+        return False
+
+    top = values[0]
+    if top <= 0:
+        return False
+    for val in values[1:]:
+        if val < LOW_RELEVANCE_RELATIVE_THRESHOLD * top or val < LOW_RELEVANCE_ABSOLUTE_THRESHOLD:
+            return True
+    return False
+
+
+def _scan_outlier_block(lines,start_idx):
+    '''
+    Scans one "Outliers plot saved" block (see outlier_analysis() in utils.py) and returns
+    (max_sd, outlier_pct): the single largest SD value found (as before), and the combined
+    outlier percentage across every "{label}: {N} outliers out of {M} datapoints ({pct}%)"
+    summary line in the block (e.g. Train + Test combined), so "too many outliers overall"
+    can be flagged separately from "one very extreme outlier" (the existing 6.5 SD check).
+    '''
+
+    max_sd = 0.0
+    total_outliers, total_points = 0, 0
+    for line in lines[start_idx:]:
+        if '-------' in line:
+            break
+        sd_match = re.search(r'\(([\d.]+)\s*SDs\)', line)
+        if sd_match:
+            sd_line = float(sd_match.group(1))
+            if sd_line > max_sd:
+                max_sd = sd_line
+            continue
+        pct_match = re.search(r'(\d+) outliers out of (\d+) datapoints', line)
+        if pct_match:
+            total_outliers += int(pct_match.group(1))
+            total_points += int(pct_match.group(2))
+
+    outlier_pct = (total_outliers / total_points * 100) if total_points > 0 else 0.0
+    return max_sd, outlier_pct
 
 
 class report:
@@ -215,7 +296,7 @@ class report:
                 report_html += score_dat
 
                 # print warnings in ROBERT score section
-                warnings_dat, warnings_dict = self.print_warnings(pred_type, data_score, suffix)
+                warnings_dat, warnings_dict = self.print_warnings(dat_files, pred_type, data_score, suffix)
                 report_html += warnings_dat
 
                 # print advanced score analysis
@@ -372,10 +453,6 @@ class report:
         Generates the ROBERT score section (left = Interpolation, right = Boundary robustness)
         """
 
-        # starts with the icon of ROBERT score
-        score_dat = ''
-        score_dat = self.module_lines('score',score_dat,pred_type=pred_type)
-
         # calculates the ROBERT score (R2 is analogous for accuracy in classification)
         data_score = {}
         data_score = calc_score(dat_files,suffix,pred_type,data_score)
@@ -383,18 +460,35 @@ class report:
         # the score's thresholds were calibrated assuming the standard test_set=0.2 split (see
         # calc_score()/get_predict_scores() for how score_available is derived, and the note in
         # score.rst) - with a non-standard internal split (including 0, i.e. no held-out test
-        # set), the score isn't meaningful, so it's replaced with a short notice instead of a
-        # misleadingly low value. --csv_test does NOT affect this: it no longer suppresses the
-        # internal test split (see prepare_sets() in utils.py) precisely so the score keeps
-        # working normally even when an external test set is also provided - an external file
-        # may not even have known y values (e.g. compounds not yet made), so it can't be relied
-        # on as a substitute for the internal, score-calibrated test set. Defaults to available
-        # (fail open) if the underlying line wasn't found for some reason, rather than hiding
-        # the score by mistake
-        if not data_score.get(f'score_available_{suffix}', True):
-            n_test = data_score.get(f'n_test_{suffix}')
-            score_dat += f"""<p style="text-align: justify;">Score not available: this model's test set has {n_test} point(s), not the standard ~20% split the ROBERT score was calibrated for (see <a href="https://robert.readthedocs.io/en/latest/Report/score.html">the ROBERT score documentation</a>). This happens with a custom --test_set value, including 0 (i.e. no held-out test set). The rest of this report (feature importances, outlier analysis, reproducibility, etc.) is unaffected.</p>"""
-            return score_dat,data_score
+        # set), the score isn't calibrated, so its bars/tier labels are replaced with grayed-out,
+        # "N/A"-labeled versions instead of a misleading STRONG/WEAK claim (see score_gray_N.jpg/
+        # score_w_2_gray_N.jpg below and in report_utils.py's score_badge_2()) - the underlying
+        # numbers, images and warnings are still real and shown exactly as usual. --csv_test does
+        # NOT affect this: it no longer suppresses the internal test split (see prepare_sets() in
+        # utils.py) precisely so the score keeps working normally even when an external test set
+        # is also provided. Defaults to available (fail open) if the underlying line wasn't found
+        # for some reason, rather than hiding the score by mistake
+        score_available = data_score.get(f'score_available_{suffix}', True)
+
+        # starts with the icon of ROBERT score - when the score isn't calibrated, the standing
+        # intro paragraph is replaced (not just dropped) with the shorter "Score not available"
+        # notice, in the exact same slot/spacing (see explain_override in module_lines()) so the
+        # Interpolation/Boundary robustness columns right below keep the same tight spacing they
+        # always have under that slot, instead of sitting oddly close under a separately-appended
+        # paragraph
+        explain_override = None
+        if not score_available:
+            reason = data_score.get(f'score_unavailable_reason_{suffix}')
+            if reason == 'cv':
+                cv_type = data_score.get(f'cv_type_{suffix}', '')
+                reason_txt = f"this model used {cv_type} instead of the standard 10x repeated 5-fold CV the ROBERT score was calibrated for. If you want a score, use the default --kfold 5 --repeat_kfolds 10"
+            else:
+                n_test = data_score.get(f'n_test_{suffix}')
+                reason_txt = f"this model's test set has {n_test} point(s), not the standard ~20% split the ROBERT score was calibrated for. If you want a score, use the default --test_set 0.2"
+            explain_override = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Score not available: {reason_txt} (see <a href="https://robert.readthedocs.io/en/latest/Report/score.html">the ROBERT score documentation</a>).</i>'
+
+        score_dat = ''
+        score_dat = self.module_lines('score',score_dat,pred_type=pred_type,explain_override=explain_override)
 
         # Boundary robustness isn't defined for classification (no Low/High/applicability-
         # domain analysis exists for a discrete MCC-based model - see boundary_plot(), which
@@ -410,12 +504,18 @@ class report:
             # already plain integer sums of 0/2 sub-scores (see calc_score()), this round()
             # is just a defensive cast
             score_icon = int(round(score_val))
-            score_info = f"""<img src="file:///{self._posix_uri(self.args.path_icons)}/score_{score_icon}.jpg" style="width: 100%; margin-top:7px; margin-bottom:-18px;"></p>"""
+            icon_name = f'score_{score_icon}' if score_available else f'score_gray_{score_icon}'
+            score_info = f"""<img src="file:///{self._posix_uri(self.args.path_icons)}/{icon_name}.jpg" style="width: 100%; margin-top:7px; margin-bottom:-18px;"></p>"""
             columns_score.append(get_col_score(score_info,data_score,suffix,col,spacing))
         if pred_type == 'clas':
-            # no Boundary robustness column - keep the original two-column layout/proportions
-            # with the right side blank, rather than stretching Interpolation full width
-            columns_score.append('')
+            # no Boundary robustness column (see comment above) - a short note instead of a
+            # blank column, so it reads as intentionally disabled rather than missing content,
+            # matching the wording used for the same reason in Section E (see module_lines())
+            indent = f'padding-left: {BOUNDARY_INDENT};' if self.spacing_PFI else ''
+            columns_score.append(f'''<div style="{indent} box-sizing: border-box;">
+            <p style="margin-top:-18px;"><span style="font-weight:bold;">Boundary robustness</span></p>
+            <p style="margin-top: -10px;"><i>Disabled in classification problems.</i></p>
+            </div>''')
 
         # Combine both columns
         score_dat += combine_cols(columns_score)
@@ -447,11 +547,12 @@ class report:
         return score_dat,data_score
 
 
-    def print_score_images(self,suffix_title,height,pred_type):
+    def get_score_image_tags(self,suffix_title,height,pred_type):
         """
-        Places the interpolation (Results_*.png) image for this model - alongside the boundary
-        robustness (Results_boundary_high_*.png) image for regression, since that analysis
-        isn't defined for classification (see print_score())
+        Locates the interpolation (Results_*.png) and, for regression, boundary robustness
+        (Results_boundary_high_*.png) images for this model and returns them as ready-to-embed
+        <img> tags (right tag is '' for classification, where that analysis isn't defined - see
+        print_score())
         """
 
         module_path = Path(f'{os.getcwd()}/PREDICT')
@@ -465,9 +566,7 @@ class report:
         left_tag = self.print_img_tag(interp_image,height)
 
         if pred_type == 'clas':
-            # no boundary-robustness image - keep the original two-column row layout/
-            # proportions with the right side blank
-            return self.print_img_row_indent(left_tag,'',-5)
+            return left_tag,''
 
         # top 20% (High) plot only - the low/ad/williams variants have their own filenames now
         # (Results_boundary_low_..., Results_boundary_ad_..., Results_boundary_williams_...)
@@ -477,36 +576,70 @@ class report:
         bound_image = bound_images[0] if bound_images else ''
         right_tag = self.print_img_tag(bound_image,height)
 
+        return left_tag,right_tag
+
+
+    def print_score_images(self,suffix_title,height,pred_type):
+        """
+        Places the interpolation image for this model - alongside the boundary robustness image
+        for regression (see get_score_image_tags())
+        """
+
+        left_tag,right_tag = self.get_score_image_tags(suffix_title,height,pred_type)
+
+        # no boundary-robustness image for classification - keep the original two-column row
+        # layout/proportions with the right side blank
         return self.print_img_row_indent(left_tag,right_tag,-5)
 
 
-    def print_warnings(self,pred_type,data_score,suffix):
+    def print_warnings(self,dat_files,pred_type,data_score,suffix):
         """
-        Generates the warning box in the ROBERT score section
+        Generates the warning box in the ROBERT score section. Always a single, complete box on
+        page 1: severe warnings and the Overall assessment are never cut, moderate warnings show
+        as many as reliably fit (see MODERATE_WARNINGS_BUDGET below) with a "..." marker if more
+        were found than shown - never a second box, never spilling onto page 2
         """
 
         # load spacing, colors, and line and table formats
         space,color_dict,style_lines,warnings_dat = self.get_warning_params()
 
-        # gather the lines from PREDICT where the potential warnings are print
-        warnings_dict = self.get_warning_lines(pred_type)
+        # gather the lines from PREDICT (and VERIFY, for the cluster-test check) where the
+        # potential warnings are printed
+        warnings_dict = self.get_warning_lines(pred_type,dat_files.get('VERIFY',[]))
 
         warnings_dict[f'severe_warnings_{suffix}'] = []
         warnings_dict[f'moderate_warnings_{suffix}'] = []
 
-        # analyze and append warnings
+        # analyze and append warnings, already in priority order (most decision-critical first
+        # - see analyze_warnings() for the ordering rationale)
         warnings_dict = self.analyze_warnings(data_score,suffix,warnings_dict,pred_type)
 
-        # add box (full width now that it's a single box, not paired with a PFI column) -
-        # min-height stretches it down toward the footer by default (leaves room for more
-        # warnings than this particular report happens to have) but with a real safety margin
-        # this time: the previous 270px value left only ~8pt of slack before the footer, which
-        # is exactly what the 2nd citation line ate into, forcing the whole box onto its own
-        # page. 235px leaves a much larger buffer. page-break-inside:avoid is the actual
-        # guarantee though - if content ever exceeds even that (more warnings, longer text),
-        # the box moves to the next page whole instead of being clipped mid-box
+        severe_list = warnings_dict[f'severe_warnings_{suffix}']
+        moderate_list = warnings_dict[f'moderate_warnings_{suffix}']
+
+        # simple proportional rule: the content above this box (header/citation + Section A's
+        # score display) is always about the same height, so the box gets a fixed line budget
+        # and severe warnings (always shown in full) eat into it first - whatever's left goes
+        # to moderate warnings, truncated with "..." if there isn't room for all of them.
+        # TOTAL_LINE_BUDGET=6 (severe + moderate shown + "..." + the always-shown Overall
+        # assessment line, combined) was measured directly against a real worst-case report
+        # (AQME citation line + a fully populated score display), where the box needed ~18.6pt
+        # per line and only ~183pt was left above the page-1 boundary - about 6 lines' worth
+        TOTAL_LINE_BUDGET = 5
+        moderate_budget = max(0, TOTAL_LINE_BUDGET - len(severe_list) - 1)  # -1 reserves the Overall assessment line
+        if len(moderate_list) <= moderate_budget:
+            moderate_shown = moderate_list
+        else:
+            moderate_shown = moderate_list[:max(0, moderate_budget - 1)]  # -1 reserves the "..." line
+        moderate_hidden = len(moderate_list) - len(moderate_shown)
+
+        # add box (full width now that it's a single box, not paired with a PFI column) - a
+        # small min-height so a mostly-empty box (few/no warnings) doesn't look collapsed,
+        # without artificially inflating the common case. page-break-inside:avoid guarantees
+        # this box (severe + capped moderate + assessment) always renders as one complete,
+        # self-contained block on page 1 - it never splits and never spills onto page 2
         warning_print = f'''
-        <div style="width:100%; box-sizing:border-box; border:0.5px solid Gray; padding:4px 4px 12px 4px; margin-top: 10px; margin-bottom: 15px; min-height: 235px; text-align: justify; page-break-inside: avoid;">'''
+        <div style="width:100%; box-sizing:border-box; border:0.5px solid Gray; padding:4px 4px 6px 4px; margin-top: 8px; margin-bottom: 15px; min-height: 60px; text-align: justify; page-break-inside: avoid;">'''
 
         # a big, impossible-to-miss banner (separate from the bulleted severe-warnings list
         # below, which uses a small 15px bullet) for the one risk ROBERT cannot itself measure
@@ -525,28 +658,32 @@ class report:
 
         # add severe warnings
         warning_print += f'''
-        <p style="margin-bottom: -10px; margin-top: 5px;"><strong>{space}Severe warnings</strong></p>'''
-        if len(warnings_dict[f'severe_warnings_{suffix}']) == 0:
+        <p style="margin: 3px 0;"><strong>{space}Severe warnings</strong></p>'''
+        if len(severe_list) == 0:
             warning_print += self.print_line_warning(
                 'No severe warnings detected',
                 style_lines,color_dict['blue'],space)
         else:
-            for sev_warning in warnings_dict[f'severe_warnings_{suffix}']:
+            for sev_warning in severe_list:
                 warning_print += self.print_line_warning(
                     sev_warning,
                     style_lines,color_dict['red'],space)
 
-        # add moderate warnings
+        # add moderate warnings (capped - see MODERATE_WARNINGS_BUDGET above)
         warning_print += f'''
-        <p style="margin-bottom: -10px; margin-top: 20px;"><strong>{space}Moderate warnings</strong></p>'''
-        if len(warnings_dict[f'moderate_warnings_{suffix}']) == 0:
+        <p style="margin: 6px 0 3px 0;"><strong>{space}Moderate warnings</strong></p>'''
+        if len(moderate_list) == 0:
             warning_print += self.print_line_warning(
                 'No moderate warnings detected',
                 style_lines,color_dict['blue'],space)
         else:
-            for mode_warning in warnings_dict[f'moderate_warnings_{suffix}']:
+            for mode_warning in moderate_shown:
                 warning_print += self.print_line_warning(
                     mode_warning,
+                    style_lines,color_dict['yellow'],space)
+            if moderate_hidden:
+                warning_print += self.print_line_warning(
+                    '...',
                     style_lines,color_dict['yellow'],space)
 
         # add overall assessment
@@ -574,117 +711,237 @@ class report:
             'yellow': '#c5c57d',
             'blue': '#9ba5e3'
         }
-        style_lines = '<p style="margin-bottom: -10px;">'
+        # explicit, equal, small top/bottom margins (rather than relying on the browser's
+        # default ~12px <p> margin collapsing against a negative margin-bottom) so consecutive
+        # warning lines pack predictably tight, instead of depending on margin-collapsing
+        # arithmetic that's easy to get wrong when tuning spacing
+        style_lines = '<p style="font-size: 11px; margin: 2px 0;">'
 
         warnings_dat = ''
 
         return space,color_dict,style_lines,warnings_dat
 
+
     def analyze_warnings(self,data_score,suffix,warnings_dict,pred_type):
         '''
-        Analyze and append warnings
+        Analyze and append warnings. Appended in priority order (most decision-critical for an
+        inexperienced user first) - all of them are shown in the Section A box (see
+        print_warnings()), but the order still matters for how a reader scans the list.
         '''
+
+        severe = warnings_dict[f'severe_warnings_{suffix}']
+        moderate = warnings_dict[f'moderate_warnings_{suffix}']
 
         # tests from flawed models
         if data_score[f'flawed_mod_score_{suffix}'] < 0:
             if data_score[f'failed_tests_{suffix}'] > 0:
-                warnings_dict[f'severe_warnings_{suffix}'].append('Failing required tests (Section B.1)')
+                severe.append('Failing required tests (Section B.1)')
             else:
-                warnings_dict[f'moderate_warnings_{suffix}'].append('Some tests are unclear (Section B.1)')
+                moderate.append('Some tests are unclear (Section B.1)')
 
-        # variation in CV
+        # train-vs-validation and CV-vs-test gaps at 0/2 both point to the same underlying
+        # problem an inexperienced user is unlikely to recognize from the number alone: the
+        # model looks fine on the data it was fit to, but that doesn't carry over - i.e.
+        # overfitting. Severe (not moderate) because this directly undermines the model's main
+        # purpose (predicting new points), regardless of how good the raw CV/test numbers look
+        if data_score.get(f'train_val_gap_score_{suffix}', 1) == 0:
+            severe.append('Overfitting observed between train and validation (Section B.4)')
+        if pred_type == 'reg':
+            diff_test_zero = data_score.get(f'diff_scaled_rmse_score_{suffix}', 1) == 0
+        else:
+            diff_test_zero = data_score.get(f'diff_mcc_score_{suffix}', 1) == 0
+        if diff_test_zero:
+            severe.append('Inconsistent results between CV and test (Section B.5)')
+
+        # variation in CV (existing - unstable predictions across repeated CV runs)
         if pred_type == 'reg':
             if data_score[f'cv_sd_score_{suffix}'] == 0:
-                warnings_dict[f'moderate_warnings_{suffix}'].append('Imprecise predictions (Section B.6)')
+                moderate.append('Imprecise predictions (Section B.6)')
         elif pred_type == 'clas':
             if data_score[f'diff_mcc_score_{suffix}'] == 0:
-                warnings_dict[f'moderate_warnings_{suffix}'].append('Imprecise predictions (Section B.5)')
+                moderate.append('Imprecise predictions (Section B.6)')
 
-        # y distribution
+        # weak CV / test-set predictions on their own (0/2, Sections B.2/B.3) - distinct from
+        # the overfitting checks above, which compare two numbers against each other; these
+        # flag a single score that's just low
+        if data_score.get(f'cv_score_combined_{suffix}', 1) == 0:
+            moderate.append('Weak cross-validation predictions (Section B.2)')
+        if data_score.get(f'test_score_combined_{suffix}', 1) == 0:
+            moderate.append('Weak test-set predictions (Section B.3)')
+
+        # low-relevance descriptor found in PFI and/or SHAP - suggests the model might improve
+        # by trimming near-irrelevant descriptors rather than keeping them all (see
+        # LOW_RELEVANCE_RELATIVE_THRESHOLD/LOW_RELEVANCE_ABSOLUTE_THRESHOLD above)
+        if warnings_dict.get(f'low_relevance_descp_{suffix}', False):
+            moderate.append('Low-relevance descriptor(s) detected, try removing them (Section D)')
+
+        # bimodal y-values and/or a failed VERIFY cluster test both hint the response might
+        # really be two distinct groups rather than one continuous variable - classification
+        # could describe the data better than regression here (regression only: the cluster
+        # test is N/A for classification, and "bimodal" only means something for a continuous y)
+        if pred_type == 'reg' and (warnings_dict.get(f'bimodal_y_{suffix}', False) or warnings_dict.get(f'cluster_test_failed_{suffix}', False)):
+            moderate.append('Response may have two separate groups, classification might fit better (Section C)')
+
+        # Boundary robustness / extrapolation (regression only - not defined for classification)
+        if pred_type == 'reg':
+            if data_score.get(f'applicability_domain_score_{suffix}', 1) == 0:
+                moderate.append('Poor extrapolation to descriptors very different from training (Boundary robustness)')
+
+            high_zero = data_score.get(f'sorted_cv_high_score_{suffix}', 1) == 0
+            low_zero = data_score.get(f'sorted_cv_low_score_{suffix}', 1) == 0
+            if high_zero or low_zero:
+                if high_zero and low_zero:
+                    zone_txt = 'the upper and lower zones'
+                elif high_zero:
+                    zone_txt = 'the upper zone'
+                else:
+                    zone_txt = 'the lower zone'
+                moderate.append(f'Difficult to extrapolate new predictions in {zone_txt} (Boundary robustness)')
+
+            if data_score.get(f'degradation_score_{suffix}', 1) == 0:
+                moderate.append("Extrapolation error may be much larger than the model's own error (Boundary robustness)")
+
+            spearman_low = data_score.get(f'spearman_low_{suffix}')
+            spearman_high = data_score.get(f'spearman_high_{suffix}')
+            if spearman_low is not None and spearman_high is not None:
+                low_fail = spearman_low < 0.5
+                high_fail = spearman_high < 0.5
+                if low_fail or high_fail:
+                    if low_fail and high_fail:
+                        zone_txt = 'the upper and lower zones'
+                    elif high_fail:
+                        zone_txt = 'the upper zone'
+                    else:
+                        zone_txt = 'the lower zone'
+                    moderate.append(f'Difficult to prioritize new predictions (maximize/minimize) in {zone_txt} (Boundary robustness)')
+
+        # y distribution (existing)
         if 'WARNING! Your data is not uniform' in warnings_dict[f'y_dist_info_{suffix}']:
             if pred_type == 'reg':
-                warnings_dict[f'moderate_warnings_{suffix}'].append('Uneven y distribution (Section C)')
+                moderate.append('Uneven y distribution (Section C)')
             elif pred_type == 'clas': # it's severe in clasification
-                warnings_dict[f'severe_warnings_{suffix}'].append('Very uneven class distribution (Section C)')
+                severe.append('Very uneven class distribution (Section C)')
         elif 'WARNING! Your data is slightly not uniform' in warnings_dict[f'y_dist_info_{suffix}']:
             if pred_type == 'reg':
-                warnings_dict[f'moderate_warnings_{suffix}'].append('Slightly uneven y distribution (Section C)')
+                moderate.append('Slightly uneven y distribution (Section C)')
             elif pred_type == 'clas':
-                warnings_dict[f'moderate_warnings_{suffix}'].append('Uneven class distribution (Section C)')
+                moderate.append('Uneven class distribution (Section C)')
 
-        # feature correlation
+        # feature correlation (existing)
         if 'WARNING! High correlations' in warnings_dict[f'pearson_info_{suffix}']:
-            warnings_dict[f'moderate_warnings_{suffix}'].append('Highly correlated features (Section D)')
+            moderate.append('Highly correlated features (Section D)')
         elif 'WARNING! Noticeable correlations' in warnings_dict[f'pearson_info_{suffix}']:
-            warnings_dict[f'moderate_warnings_{suffix}'].append('Moderately correlated features (Section D)')
+            moderate.append('Moderately correlated features (Section D)')
 
-        # outliers (threshold is set above 6.5 SD, around 99.9 CI)
+        # outliers - existing check (one very extreme point, > 6.5 SD, ~99.9% CI) plus a new,
+        # separate check for too many outliers overall (> 5% of the dataset), regardless of
+        # how extreme any single one is
         if pred_type == 'reg':
             if warnings_dict[f'max_sd_{suffix}'] > 6.5:
-                warnings_dict[f'moderate_warnings_{suffix}'].append('Potential "faulty" outliers (Section E)')
+                moderate.append('Potential "faulty" outliers (Section E)')
+            if warnings_dict.get(f'outlier_pct_{suffix}', 0) > 5:
+                moderate.append('More than 5% of points are outliers, check and explain them (Section E)')
 
         return warnings_dict
 
 
-    def get_warning_lines(self,pred_type):
+    def get_warning_lines(self,pred_type,dat_verify=None):
         '''
-        Gather the lines from PREDICT where the potential warnings are print
+        Gather the lines from PREDICT (and VERIFY, for the cluster-test check) where the
+        potential warnings are printed
         '''
 
         warnings_dict = {}
+        for suf_key in ('No PFI','PFI'):
+            warnings_dict[f'bimodal_y_{suf_key}'] = False
+            warnings_dict[f'outlier_pct_{suf_key}'] = 0.0
+            warnings_dict[f'low_relevance_descp_{suf_key}'] = False
 
         # get lines with warnings from PREDICT
         file_pred = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
         with open(file_pred, 'r', encoding='utf-8') as datfile:
             lines = datfile.readlines()
             pfi_section_pearson = False # to get both No PFI and PFI information
-            pfi_section_y_dist = False
             pfi_section_outlier = False
+            pfi_section_pfi = False
+            pfi_section_shap = False
+            # the bimodal marker line only appears conditionally (unlike Pearson/y-dist/PFI/
+            # SHAP/outliers, which always print something) - a plain "first vs second
+            # occurrence" toggle would misattribute it to No PFI if it only fires for PFI (or
+            # vice versa), so track which suffix we're in via the always-present y-dist marker
+            # instead, and just read that state when (if) the bimodal line shows up
+            y_dist_suffix = 'No PFI'
+            seen_first_y_dist = False
             for i,line in enumerate(lines):
                 if 'Ideally, variables should show low' in line and not pfi_section_pearson:
                     warnings_dict['pearson_info_No PFI'] = lines[i+1][6:]
                     pfi_section_pearson = True # the next line found will correspond to the PFI section
                 elif 'Ideally, variables should show low' in line and pfi_section_pearson:
                     warnings_dict['pearson_info_PFI'] = lines[i+1][6:]
-                if 'Ideally, the number of datapoints in' in line and not pfi_section_y_dist:
-                    warnings_dict['y_dist_info_No PFI'] = lines[i+2][6:]
-                    pfi_section_y_dist = True
-                elif 'Ideally, the number of datapoints in' in line and pfi_section_y_dist:
-                    warnings_dict['y_dist_info_PFI'] = lines[i+2][6:]
+
+                if 'Ideally, the number of datapoints in' in line:
+                    if seen_first_y_dist:
+                        y_dist_suffix = 'PFI'
+                    warnings_dict[f'y_dist_info_{y_dist_suffix}'] = lines[i+2][6:]
+                    seen_first_y_dist = True
+
+                if 'WARNING! Your data seems to have two separate y-value groups' in line:
+                    warnings_dict[f'bimodal_y_{y_dist_suffix}'] = True
+
+                # PFI relative importance - flags a descriptor other than the top one whose
+                # influence is negligible (< 4% of the top descriptor's, or < 0.05 in absolute
+                # terms) once "PFI plot saved" is found, its descriptor lines are all
+                # "-  {desc} = {value} +- {sd}" until the next blank/section line (see
+                # PFI_plot() in utils.py) - sorted descending, so the first value is the max
+                if 'PFI plot saved' in line and not pfi_section_pfi:
+                    warnings_dict['low_relevance_descp_No PFI'] = _has_low_relevance_descp(lines,i)
+                    pfi_section_pfi = True
+                elif 'PFI plot saved' in line and pfi_section_pfi:
+                    warnings_dict['low_relevance_descp_PFI'] = _has_low_relevance_descp(lines,i)
+
+                # SHAP relative importance - same idea, using max(|min|,|max|) per descriptor
+                # as the magnitude proxy (see shap_analysis() in utils.py, "-  {desc} = min:
+                # {min}, max: {max}" lines, also sorted descending by that same magnitude)
+                if 'SHAP plot saved' in line and not pfi_section_shap:
+                    if _has_low_relevance_descp(lines,i,shap=True):
+                        warnings_dict['low_relevance_descp_No PFI'] = True
+                    pfi_section_shap = True
+                elif 'SHAP plot saved' in line and pfi_section_shap:
+                    if _has_low_relevance_descp(lines,i,shap=True):
+                        warnings_dict['low_relevance_descp_PFI'] = True
+
                 if pred_type == 'reg':
                     if 'Outliers plot saved' in line and not pfi_section_outlier:
-                        max_SD = 0
-                        for j in range(i,len(lines)):
-                            if '-------' in lines[j]:
-                                break
-                            elif 'SDs' in lines[j]:
-                                # regex instead of a fixed split index: the outlier name (from
-                                # --names) can itself contain spaces, which would otherwise
-                                # shift where the SD value lands after lines[j].split()
-                                sd_match = re.search(r'\(([\d.]+)\s*SDs\)', lines[j])
-                                if sd_match:
-                                    sd_line = float(sd_match.group(1))
-                                    if sd_line > max_SD:
-                                        max_SD = sd_line
+                        max_SD, outlier_pct = _scan_outlier_block(lines,i)
                         warnings_dict['max_sd_No PFI'] = max_SD
+                        warnings_dict['outlier_pct_No PFI'] = outlier_pct
                         pfi_section_outlier = True
                     elif 'Outliers plot saved' in line and pfi_section_outlier:
-                        max_SD = 0
-                        for j in range(i,len(lines)):
-                            if '-------' in lines[j]:
-                                break
-                            elif 'SDs' in lines[j]:
-                                # regex instead of a fixed split index: the outlier name (from
-                                # --names) can itself contain spaces, which would otherwise
-                                # shift where the SD value lands after lines[j].split()
-                                sd_match = re.search(r'\(([\d.]+)\s*SDs\)', lines[j])
-                                if sd_match:
-                                    sd_line = float(sd_match.group(1))
-                                    if sd_line > max_SD:
-                                        max_SD = sd_line
+                        max_SD, outlier_pct = _scan_outlier_block(lines,i)
                         warnings_dict['max_sd_PFI'] = max_SD
+                        warnings_dict['outlier_pct_PFI'] = outlier_pct
 
-            return warnings_dict
+        # VERIFY's cluster test (regression only - N/A for classification, see
+        # cluster_test() in verify.py) is the 4th of 4 fixed-order flawed-model tests
+        # (y_mean, y_shuffle, onehot, cluster) printed right after the "Original {RMSE/MCC}
+        # (" line - same fixed relative position get_verify_scores() relies on in
+        # report_utils.py (dat_verify[i+4])
+        for suf_key in ('No PFI','PFI'):
+            warnings_dict[f'cluster_test_failed_{suf_key}'] = False
+        if pred_type == 'reg' and dat_verify:
+            error_keyword = 'RMSE'
+            active_suffix = None
+            for i,line in enumerate(dat_verify):
+                if '------- ' in line and '(No PFI)' in line:
+                    active_suffix = 'No PFI'
+                elif '------- ' in line and 'with PFI' in line:
+                    active_suffix = 'PFI'
+                if active_suffix and f"Original {error_keyword} (" in line and i+4 < len(dat_verify):
+                    cluster_line = dat_verify[i+4]
+                    if 'cluster' in cluster_line and 'FAILED' in cluster_line:
+                        warnings_dict[f'cluster_test_failed_{active_suffix}'] = True
+
+        return warnings_dict
 
 
     def print_line_warning(self,message,style_lines,color,space):
@@ -697,66 +954,76 @@ class report:
         {space}{message}</p>'''
 
 
+    # (min_score, phrase, color_key) bands, checked highest-first, score on a 0-10 scale
+    INTERP_BANDS = [
+        (9, 'The model seems reliable to explain trends in the current prediction range', 'blue'),
+        (7, 'Decent model, but it has limitations to explain trends in the current prediction range', 'yellow'),
+        (5, 'Moderate model, with important limitations to explain trends in the current prediction range', 'yellow'),
+        (3, 'Weak model, unable to explain trends in the current prediction range', 'red'),
+        (0, 'Very weak model, completely unable to explain trends in the current prediction range', 'red'),
+    ]
+    EXTRAP_BANDS = [
+        (9, 'The model seems reliable outside the current prediction range of Y values', 'blue'),
+        (7, 'Decent model, but it has limitations outside the current prediction range of Y values', 'yellow'),
+        (5, 'Moderate model, with important limitations outside the current prediction range of Y values', 'yellow'),
+        (3, 'Weak model, unable to explain trends outside the current prediction range of Y values', 'red'),
+        (0, 'Very weak model, completely unable to explain trends outside the current prediction range of Y values', 'red'),
+    ]
+
+    def _pick_band(self,score,bands):
+        '''Returns (phrase,color_key) for the highest band whose min_score the score clears'''
+        for min_score,phrase,color_key in bands:
+            if score >= min_score:
+                return phrase,color_key
+        return bands[-1][1],bands[-1][2]
+
     def print_assessment(self,space,suffix,data_score,style_lines,warnings_dict,color_dict,pred_type):
         '''
-        Add overall assessment to the ROBERT score section. For regression, Interpolation and
-        Boundary robustness (each max 10) are independent scores, so the assessment uses
-        whichever fraction is worse (a model that isn't robust at the boundaries is unreliable
-        even if it interpolates well). Boundary robustness isn't defined for classification (see
-        print_score()), so the assessment there is based on Interpolation alone.
+        Add overall assessment to the ROBERT score section: one phrase for Interpolation and
+        (regression only) one phrase for Boundary robustness/extrapolation, each picked
+        independently from its own 5-tier band (see INTERP_BANDS/EXTRAP_BANDS above).
+        Classification has no Boundary robustness score (see print_score()), so only the
+        Interpolation phrase is shown there.
         '''
 
         assessment_print = f'''
-<p style="margin-bottom: -10px; margin-top: 20px;"><strong>{space}Overall assessment</strong></p>'''
+<p style="margin: 6px 0 3px 0;"><strong>{space}Overall assessment</strong></p>'''
 
         # the verdict below leans on interp_score/extrap_score, which fold in the (unavailable)
         # test-set score component - see print_score() for how score_available is derived
         if not data_score.get(f'score_available_{suffix}', True):
+            reason = data_score.get(f'score_unavailable_reason_{suffix}')
+            reason_txt = 'non-standard CV' if reason == 'cv' else 'no standard test set'
             assessment_print += self.print_line_warning(
-                'Not available (no standard test set)',
+                f'Not available ({reason_txt})',
                 style_lines,color_dict['blue'],space)
             return assessment_print
 
-        interp_score = data_score.get(f'interp_score_{suffix}', 0)
-        interp_max = 10
-        interp_pct = interp_score / interp_max
-
-        if pred_type == 'reg':
-            bound_score = data_score.get(f'extrap_score_{suffix}', 0)
-            bound_max = 10
-            bound_pct = bound_score / bound_max
-            overall_pct = min(interp_pct,bound_pct)
-        else:
-            overall_pct = interp_pct
-
-        if len(warnings_dict[f'severe_warnings_{suffix}']) > 0 or overall_pct < 0.5:
+        if len(warnings_dict[f'severe_warnings_{suffix}']) > 0:
             assessment_print += self.print_line_warning(
                 'The model is unreliable',
                 style_lines,color_dict['red'],space)
+            return assessment_print
 
-        elif overall_pct >= 0.9:
-            if pred_type == 'reg' and len(warnings_dict[f'moderate_warnings_{suffix}']) >= 3:
-                assessment_print += self.print_line_warning(
-                    'Reliable model, but examine warnings',
-                    style_lines,color_dict['yellow'],space)
-            elif pred_type == 'clas' and len(warnings_dict[f'moderate_warnings_{suffix}']) >= 2:
-                assessment_print += self.print_line_warning(
-                    'Reliable model, but examine warnings',
-                    style_lines,color_dict['yellow'],space)
-            else:
-                assessment_print += self.print_line_warning(
-                    f'The model seems reliable',
-                    style_lines,color_dict['blue'],space)
+        interp_score = data_score.get(f'interp_score_{suffix}', 0)
+        interp_phrase,interp_color = self._pick_band(interp_score,self.INTERP_BANDS)
 
-        elif overall_pct >= 0.7:
+        # top-tier interpolation score but still plenty of moderate warnings - flag it instead
+        # of giving a clean bill of health (same nuance as before, now scoped to interpolation
+        # specifically rather than the old combined min(interp,bound) verdict)
+        n_moderate = len(warnings_dict[f'moderate_warnings_{suffix}'])
+        moderate_threshold = 3 if pred_type == 'reg' else 2
+        if interp_score >= 9 and n_moderate >= moderate_threshold:
+            interp_phrase,interp_color = 'Reliable model, but examine warnings','yellow'
+
+        assessment_print += self.print_line_warning(
+            interp_phrase,style_lines,color_dict[interp_color],space)
+
+        if pred_type == 'reg':
+            extrap_score = data_score.get(f'extrap_score_{suffix}', 0)
+            extrap_phrase,extrap_color = self._pick_band(extrap_score,self.EXTRAP_BANDS)
             assessment_print += self.print_line_warning(
-                'Decent model, but it has limitations',
-                style_lines,color_dict['yellow'],space)
-
-        elif overall_pct >= 0.5:
-            assessment_print += self.print_line_warning(
-                'Moderate model, with important limitations',
-                style_lines,color_dict['yellow'],space)
+                extrap_phrase,style_lines,color_dict[extrap_color],space)
 
         return assessment_print
 
@@ -766,14 +1033,16 @@ class report:
         Generates the advanced score analysis section (left = Interpolation, right = Boundary robustness)
         """
 
-        # Section B is entirely a breakdown of the score computed in Section A - skip it the
-        # same way when there's no standard test set to base that score on (see print_score())
-        if not data_score.get(f'score_available_{suffix}', True):
-            return ''
-
         adv_score_dat = ''
 
         adv_score_dat += self.module_lines('adv_anal',adv_score_dat,pred_type=pred_type)
+
+        # Section B is a breakdown of the score computed in Section A - when there's no standard
+        # CV/test split to calibrate it (already noted in Section A, no need to repeat it here),
+        # each sub-metric badge below shows a grayed-out "N/A" version instead of a colored 0-2
+        # bar (see score_badge_2() in report_utils.py), but the real underlying metrics, graphs
+        # and any warnings they trigger (see analyze_warnings(), not gated on score_available)
+        # are still shown as usual
 
         # Text sub-metrics pair up row by row via combine_cols (proven fine for text
         # everywhere else in the report). Images are NOT put in flex/table columns - they use
@@ -1233,6 +1502,14 @@ class report:
         <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">How to cite:</span> {citation_main}</p>
         <p style="text-align: justify; margin-top: 0px;"><span style="font-weight:bold;">Low data regimes:</span> {citation_lowdata}</p>"""
 
+        # QDESCP's own validation paper - only relevant when AQME generated the descriptors
+        # (command_line already has the full "python -m robert ..." line at this point, so the
+        # --aqme flag is checked here directly instead of waiting for aqme_workflow below)
+        if '--aqme' in command_line:
+            qdescp_citation = "Dalmau, D.; Jacot-Descombes, L.; Kalikadien, A.; Manzanilla, B.; Pidko, E. A.; Jorner, K.; Sigman, M. S.; Alegre-Requena, J. V. ACS Catal. 2026, 16, 12565-12574."
+            citation_dat += f"""
+        <p style="text-align: justify; margin-top: 0px;"><span style="font-weight:bold;">QDESCP descriptors:</span> {qdescp_citation}</p>"""
+
         aqme_workflow,aqme_updated = False,True
         crest_workflow = False
         if '--aqme' in command_line:
@@ -1484,14 +1761,21 @@ class report:
             return ''
 
 
-    def module_lines(self,module,module_data,pred_type='reg',eval_only=False):
+    def module_lines(self,module,module_data,pred_type='reg',eval_only=False,explain_override=None):
         """
-        Returns the line with icon and module for section titles
+        Returns the line with icon and module for section titles. explain_override replaces the
+        standing intro paragraph with different text in the exact same slot (only used for
+        'score', when the score isn't calibrated for this run - print_score() passes a shorter
+        "Score not available" notice instead, so the Interpolation/Boundary robustness columns
+        right below keep their normal spacing instead of sitting under a separately-appended
+        paragraph)
         """
 
         if module == 'score':
             module_name = 'Section A. ROBERT Score'
-            if pred_type == 'clas':
+            if explain_override is not None:
+                section_explain = explain_override
+            elif pred_type == 'clas':
                 # Boundary robustness isn't defined for classification (see print_score())
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on.</i>'
             else:

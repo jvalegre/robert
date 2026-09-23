@@ -101,6 +101,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -365,6 +366,131 @@ class NoScrollComboBox(QComboBox):
             super().wheelEvent(event)
         else:
             event.ignore()
+
+class SegmentedButtonGroup(QWidget):
+    """
+    A grid of mutually-exclusive checkable buttons, used instead of a QComboBox dropdown
+    for choices that should always be visible at a glance (a dropdown hides every option but
+    the current one behind a click, which is easy to miss or mis-select).
+
+    Exposes the same currentText()/setCurrentText() surface a QComboBox does, so it's a
+    drop-in replacement for call sites that only ever read/set the selection as a string -
+    the widget itself doesn't need to know about them.
+    """
+
+    def __init__(self, options, columns=3, parent=None):
+        super().__init__(parent)
+
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+        self._buttons = {}
+
+        layout = QGridLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        # the checked state uses a neutral light-gray highlight (not the purple "Run ROBERT"
+        # uses) so this selection marker doesn't visually compete with that actual action button
+        button_style = """
+            QPushButton {
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                padding: 3px 2px;
+                font-size: 12px;
+                background: palette(base);
+            }
+            QPushButton:hover {
+                background: palette(light);
+            }
+            QPushButton:checked {
+                background-color: #D6D6D6;
+                color: palette(text);
+                font-weight: bold;
+                border: 1px solid #999999;
+            }
+            """
+
+        for i, option in enumerate(options):
+            button = QPushButton(option)
+            button.setCheckable(True)
+            button.setFixedHeight(26)
+            button.setStyleSheet(button_style)
+            self._group.addButton(button)
+            self._buttons[option] = button
+            row, col = divmod(i, columns)
+            layout.addWidget(button, row, col)
+
+        if options:
+            self._buttons[options[0]].setChecked(True)
+
+    def currentText(self):
+        checked = self._group.checkedButton()
+        return checked.text() if checked else ""
+
+    def setCurrentText(self, text):
+        button = self._buttons.get(text)
+        if button is not None:
+            button.setChecked(True)
+
+class YesNoToggle(QWidget):
+    """
+    An explicit "No"/"Yes" segmented pair for a boolean choice, used instead of a single
+    checkable button whose on/off state isn't obvious at a glance (is it a toggle? does
+    clicking it run something right away?). Exposes the same isChecked()/setChecked() surface
+    a QCheckBox/checkable QPushButton does, plus a toggled(bool) signal, so it's a drop-in
+    replacement for call sites built around that API.
+    """
+
+    toggled = Signal(bool)
+
+    def __init__(self, checked=False, parent=None):
+        super().__init__(parent)
+
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        button_style = """
+            QPushButton {
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                padding: 3px 2px;
+                font-size: 12px;
+                background: palette(base);
+            }
+            QPushButton:hover {
+                background: palette(light);
+            }
+            QPushButton:checked {
+                background-color: #D6D6D6;
+                color: palette(text);
+                font-weight: bold;
+                border: 1px solid #999999;
+            }
+            """
+
+        self._no_button = QPushButton("No")
+        self._yes_button = QPushButton("Yes")
+        for button in (self._no_button, self._yes_button):
+            button.setCheckable(True)
+            button.setFixedHeight(26)
+            button.setStyleSheet(button_style)
+            self._group.addButton(button)
+            layout.addWidget(button)
+
+        self._no_button.setChecked(not checked)
+        self._yes_button.setChecked(checked)
+        self._yes_button.toggled.connect(self.toggled.emit)
+
+    def isChecked(self):
+        return self._yes_button.isChecked()
+
+    def setChecked(self, checked):
+        self._yes_button.setChecked(checked)
+        self._no_button.setChecked(not checked)
 
 class AssetPath:
     """Resolve asset paths both in development and in frozen distributions."""

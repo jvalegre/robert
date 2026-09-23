@@ -479,3 +479,70 @@ def test_AQME(test_job):
     ]:
         if os.path.exists(f"{path_main}/{file_discard}"):
             os.remove(f"{path_main}/{file_discard}")
+
+
+def test_aqme_multismiles_denovo_n_full_columns():
+    """
+    Regression test for ROBERT's own multi-SMILES-column stitching logic
+    (robert.aqme.aqme.run_csearch_qdescp), covering the 'denovo' and 'full' descriptor
+    levels. The slow, real test_AQME[2smiles_columns] test above only exercises the
+    'interpret' level (AQME's default) through a full xtb-based workflow - this test locks in
+    that smiles_sub/smiles_solvent survive the other two levels too, without paying for real
+    xtb/CSEARCH calculations for every level: what's actually being tested here is ROBERT's
+    own merge/suffix/concat logic that stitches the per-SMILES-column AQME outputs back
+    together, not AQME's own descriptor generation (already covered elsewhere).
+
+    Uses its own scratch subfolder (cleaned up at the end) instead of pytest's tmp_path
+    fixture, matching the rest of this file's convention of working relative to path_main.
+    """
+    import robert.aqme as robert_aqme_mod
+
+    work_dir = os.path.join(path_main, "_multismiles_scratch")
+    if os.path.exists(work_dir):
+        shutil.rmtree(work_dir)
+    os.makedirs(work_dir)
+
+    csv_path = os.path.join(work_dir, "multismiles.csv")
+    pd.DataFrame({
+        "code_name": ["mol_1", "mol_2"],
+        "solub": [0.5, 0.7],
+        "smiles_sub": ["CCO", "CCC"],
+        "smiles_solvent": ["O", "CCO"],
+    }).to_csv(csv_path, index=False)
+
+    def fake_run_aqme(self, command, extra_keywords):
+        # stands in for the real AQME subprocess call (which would run CSEARCH + xTB) -
+        # fabricates the per-SMILES-column QDESCP output (code_name, SMILES, one descriptor)
+        # that a real run would produce for a standard single-SMILES-column CSV
+        input_idx = command.index("--input")
+        input_csv = command[input_idx + 1]
+        input_df = pd.read_csv(input_csv)
+        basename = os.path.splitext(input_csv)[0]
+        out = input_df[["code_name", "SMILES"]].copy()
+        out["HOMO"] = [1.0, 2.0][: len(out)]
+        for level in ("full", "denovo", "interpret"):
+            out.to_csv(f"AQME-ROBERT_{level}_{basename}.csv", index=False)
+
+    orig_run_aqme = robert_aqme_mod.aqme.run_aqme
+    orig_init_aqme = robert_aqme_mod.aqme.init_aqme
+    robert_aqme_mod.aqme.run_aqme = fake_run_aqme
+    robert_aqme_mod.aqme.init_aqme = lambda self: None  # skip the "is AQME installed" check
+    try:
+        os.chdir(work_dir)
+        for descp_lvl in ("denovo", "full"):
+            robert_aqme_mod.aqme(
+                y="solub", names="code_name", csv_name="multismiles.csv",
+                descp_lvl=descp_lvl, nprocs=2,
+            )
+            final_path = os.path.join(work_dir, f"AQME-ROBERT_{descp_lvl}_multismiles.csv")
+            assert os.path.exists(final_path)
+            df_final = pd.read_csv(final_path)
+            assert "smiles_sub" in df_final.columns
+            assert "smiles_solvent" in df_final.columns
+            assert "HOMO_sub" in df_final.columns
+            assert "HOMO_solvent" in df_final.columns
+    finally:
+        os.chdir(path_main)
+        robert_aqme_mod.aqme.run_aqme = orig_run_aqme
+        robert_aqme_mod.aqme.init_aqme = orig_init_aqme
+        shutil.rmtree(work_dir, ignore_errors=True)

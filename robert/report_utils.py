@@ -4,6 +4,7 @@
 
 import os
 import sys
+import re
 import glob
 import pandas as pd
 import numpy as np
@@ -420,7 +421,12 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
 
     score_key = 'interp_score' if col == 'interpolation' else 'extrap_score'
     score_val = data_score.get(f'{score_key}_{suffix}', 0)
-    score_title = f'''&nbsp;&nbsp;·&nbsp;&nbsp;Score  {score_val}'''
+    # the number itself is uncalibrated for a non-standard CV/test split (see score_available_
+    # {suffix} in calc_score()) just like the bar/tier label below it (see score_gray_N.jpg in
+    # print_score()) - shown as N/A instead of a real-looking number that could be misread as a
+    # trustworthy score
+    score_display = score_val if data_score.get(f'score_available_{suffix}', True) else 'N/A'
+    score_title = f'''&nbsp;&nbsp;·&nbsp;&nbsp;Score  {score_display}'''
 
     if col == 'interpolation':
         caption = f'{spacing}Interpolation{score_title}'
@@ -464,6 +470,22 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
     return column
 
 
+def score_badge_2(self,data_score,suffix,score_val):
+    '''
+    Returns (label, icon_path) for a 0-2 Section B sub-metric badge - the real score and its
+    colored bar normally, or "N/A" with a grayscale version of that SAME real bar (score_val
+    still picks which of the 3 fill patterns - 0, 1 or 2 - score_w_2_gray_N.jpg to use) when this
+    run's score isn't calibrated for (non-standard CV/test split - see score_available_{suffix}
+    in calc_score()). The underlying metric (Scaled RMSE, R2, etc.) is still real and shown
+    either way - only the 0-2 conversion's colored/labeled presentation is grayed out here, since
+    its thresholds assume the standard 10x repeated 5-fold CV / ~20% test split
+    '''
+
+    if not data_score.get(f'score_available_{suffix}', True):
+        return 'N/A',f'{self._posix_uri(self.args.path_icons)}/score_w_2_gray_{score_val}.jpg'
+    return f'{score_val} / 2',f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_val}.jpg'
+
+
 def adv_flawed(suffix,data_score,spacing,pred_type):
     """
     Gather the advanced analysis of flawed models
@@ -503,7 +525,7 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
     cv_type = data_score.get(f"cv_type_{suffix}", "10x 5-fold CV")
 
     if pred_type == 'reg':
-        predict_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_predict}.jpg'
+        score_label,predict_image = score_badge_2(self,data_score,suffix,score_predict)
         metric_type = ['Scaled RMSE','R<sup>2</sup>']
         scaled_rmse_cv = data_score.get(f'scaled_rmse_cv_{suffix}', 0)
         r2_cv = data_score.get(f'r2_cv_{suffix}', 0)
@@ -514,7 +536,7 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
         thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
         init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
         score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_predict} / 2 &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
+        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_label} &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
         {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
         """
         return column
@@ -525,14 +547,14 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
         mcc_cv = data_score.get(f'r2_cv_{suffix}', 0)
         display_score = score_predict
 
-        predict_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{display_score}.jpg'
+        score_label,predict_image = score_badge_2(self,data_score,suffix,display_score)
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} ({cv_type}) = {mcc_cv}.'
         thres_line = "MCC >0.6: +2; 0.3-0.6: +1"
 
         init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
         score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({display_score} / 2 &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
+        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_label} &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
         {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
         """
         return column
@@ -546,14 +568,14 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
     score_test = data_score.get(f'test_score_combined_{suffix}', 0)
 
     if pred_type == 'reg':
-        test_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_test}.jpg'
+        score_label,test_image = score_badge_2(self,data_score,suffix,score_test)
         metric_type = ['Scaled RMSE','R<sup>2</sup>']
         predict_result = f'{metric_type[0]} (test set) = {data_score.get(f"scaled_rmse_test_{suffix}", 0)}%.'
         predict_result += f'<br>{spacing}{metric_type[1]} (test set) = {data_score.get(f"r2_test_{suffix}", 0)}.'
         thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
         thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
         score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({score_test} / 2 &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
+        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({score_label} &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
         {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
         """
         return column
@@ -564,13 +586,13 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
         test_mcc = data_score.get(f"r2_test_{suffix}", 0)
         display_score = score_test
 
-        test_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{display_score}.jpg'
+        score_label,test_image = score_badge_2(self,data_score,suffix,display_score)
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} (test set) = {test_mcc}.'
         thres_line = ('MCC >0.6: +2; 0.3-0.6: +1')
 
         score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({display_score} / 2 &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
+        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({score_label} &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
         {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
         """
         return column
@@ -581,12 +603,12 @@ def adv_diff_test(self,suffix,data_score,spacing,pred_type):
     Gather the advanced analysis of difference in model performance between CV and test set.
     For regression, we compare scaled RMSE. For classification, we compare Δ MCC.
     """
-    
+
     if pred_type == 'reg':
         # Regression: use diff_scaled_rmse_score
         score_diff_test = data_score.get(f'diff_scaled_rmse_score_{suffix}', 0)
-        diff_test_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_diff_test}.jpg'
-        
+        score_label,diff_test_image = score_badge_2(self,data_score,suffix,score_diff_test)
+
         diff_result = f'RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)}*scaled RMSE (CV).'
         
         thres_line = 'Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV): +2.'
@@ -594,19 +616,19 @@ def adv_diff_test(self,suffix,data_score,spacing,pred_type):
     else:
         # Classification: use diff_mcc_score instead
         score_diff_test = data_score.get(f'diff_mcc_score_{suffix}', 0)
-        diff_test_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_diff_test}.jpg'
-        
+        score_label,diff_test_image = score_badge_2(self,data_score,suffix,score_diff_test)
+
         # Calculate the absolute difference between CV MCC and test MCC
         mcc_cv = data_score.get(f'r2_cv_{suffix}', 0)
         mcc_test = data_score.get(f'r2_test_{suffix}', 0)
         diff_mcc = round(abs(mcc_test - mcc_cv), 2)
-        
+
         diff_result = f'The ΔMCC between CV and test is {diff_mcc}.'
-        
+
         thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
 
     score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. CV vs test consistency</span> &nbsp;({score_diff_test} / 2 &nbsp;<img src="file:///{diff_test_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. CV vs test consistency</span> &nbsp;({score_label} &nbsp;<img src="file:///{diff_test_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_diff}<i>Relative differences in values from sections 2 and 3.</i><br>
     {spacing}{diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
@@ -634,7 +656,7 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
     """
 
     score_cv_sd = data_score[f'cv_sd_score_{suffix}']
-    cv_r2_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_cv_sd}.jpg'
+    score_label,cv_r2_image = score_badge_2(self,data_score,suffix,score_cv_sd)
 
     if pred_type == 'reg':
         y_range_covered = round(data_score.get(f"cv_range_cov_{suffix}",0)*100)
@@ -662,7 +684,7 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
         thres_line = '(a)/(b)/(c) ≤15%/≤25%. Avg., rounded.'
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">6. Prediction stability</span> &nbsp;({score_cv_sd} / 2 &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">6. Prediction stability</span> &nbsp;({score_label} &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_pred}{cv_sd_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
 
@@ -681,7 +703,7 @@ def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
     """
 
     score_gap = data_score.get(f'train_val_gap_score_{suffix}', 0)
-    gap_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_gap}.jpg'
+    score_label,gap_image = score_badge_2(self,data_score,suffix,score_gap)
 
     if pred_type == 'reg':
         scaled_trainfit = data_score.get(f'scaled_rmse_trainfit_{suffix}')
@@ -705,7 +727,7 @@ def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
         thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
 
     score_adv_gap = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Train vs validation gap</span> &nbsp;({score_gap} / 2 &nbsp;<img src="file:///{gap_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Train vs validation gap</span> &nbsp;({score_label} &nbsp;<img src="file:///{gap_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_gap}{gap_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
 
@@ -718,12 +740,12 @@ def adv_sorted_cv_high(self,suffix,data_score,spacing):
     """
 
     score_high = data_score.get(f'sorted_cv_high_score_{suffix}', 0)
-    high_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_high}.jpg'
+    score_label,high_image = score_badge_2(self,data_score,suffix,score_high)
     scaled_high = data_score.get(f'scaled_rmse_high_{suffix}', 0)
     crossing_high = data_score.get(f'crossing_high_{suffix}', 0)
 
     score_adv_high = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Sorted CV, top 20% (High)</span> &nbsp;({score_high} / 2 &nbsp;<img src="file:///{high_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Sorted CV, top 20% (High)</span> &nbsp;({score_label} &nbsp;<img src="file:///{high_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_high}Scaled RMSE (High, sorted CV) = {scaled_high}%.<br>{spacing}Beyond training range (High) = {round(crossing_high*100)}%.<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.<br>{spacing}Crossing < 50%: -1, < 20%: -2.</p>
     """
 
@@ -736,12 +758,12 @@ def adv_sorted_cv_low(self,suffix,data_score,spacing):
     """
 
     score_low = data_score.get(f'sorted_cv_low_score_{suffix}', 0)
-    low_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_low}.jpg'
+    score_label,low_image = score_badge_2(self,data_score,suffix,score_low)
     scaled_low = data_score.get(f'scaled_rmse_low_{suffix}', 0)
     crossing_low = data_score.get(f'crossing_low_{suffix}', 0)
 
     score_adv_low = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">2. Sorted CV, bottom 20% (Low)</span> &nbsp;({score_low} / 2 &nbsp;<img src="file:///{low_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">2. Sorted CV, bottom 20% (Low)</span> &nbsp;({score_label} &nbsp;<img src="file:///{low_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_low}Scaled RMSE (Low, sorted CV) = {scaled_low}%.<br>{spacing}Beyond training range (Low) = {round(crossing_low*100)}%.<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.<br>{spacing}Crossing < 50%: -1, < 20%: -2.</p>
     """
 
@@ -759,7 +781,7 @@ def adv_spearman(self,suffix,data_score,spacing):
     """
 
     score_spearman = data_score.get(f'spearman_score_{suffix}', 0)
-    spearman_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_spearman}.jpg'
+    score_label,spearman_image = score_badge_2(self,data_score,suffix,score_spearman)
     spearman_low = data_score.get(f'spearman_low_{suffix}')
     spearman_high = data_score.get(f'spearman_high_{suffix}')
 
@@ -769,7 +791,7 @@ def adv_spearman(self,suffix,data_score,spacing):
         spearman_result = f'Spearman rank : Low = {spearman_low}, High = {spearman_high}.'
 
     score_adv_spearman = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Spearman rank</span> &nbsp;({score_spearman} / 2 &nbsp;<img src="file:///{spearman_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Spearman rank</span> &nbsp;({score_label} &nbsp;<img src="file:///{spearman_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_spearman}{spearman_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≥ 0.5: +1. High ≥ 0.5: +1.</p>
     """
 
@@ -786,7 +808,7 @@ def adv_bound_sd(self,suffix,data_score,spacing):
     """
 
     degradation_score = data_score.get(f'degradation_score_{suffix}', 0)
-    degradation_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{degradation_score}.jpg'
+    score_label,degradation_image = score_badge_2(self,data_score,suffix,degradation_score)
     ratio_high = data_score.get(f'degradation_ratio_high_{suffix}')
     ratio_low = data_score.get(f'degradation_ratio_low_{suffix}')
 
@@ -796,7 +818,7 @@ def adv_bound_sd(self,suffix,data_score,spacing):
         degradation_result = f'Degradation vs 80% RMSE: High {round(ratio_high,2)}x, Low {round(ratio_low,2)}x.'
 
     score_adv_degradation = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Degradation ratio</span> &nbsp;({degradation_score} / 2 &nbsp;<img src="file:///{degradation_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Degradation ratio</span> &nbsp;({score_label} &nbsp;<img src="file:///{degradation_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_degradation}{degradation_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≤ 1.5x: +1. High ≤ 1.5x: +1.</p>
     """
 
@@ -812,7 +834,7 @@ def adv_applicability_domain(self,suffix,data_score,spacing):
     """
 
     score_ad = data_score.get(f'applicability_domain_score_{suffix}', 0)
-    ad_image = f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_ad}.jpg'
+    score_label,ad_image = score_badge_2(self,data_score,suffix,score_ad)
     scaled_rmse_ad = data_score.get(f'scaled_rmse_ad_{suffix}')
 
     if scaled_rmse_ad is None:
@@ -821,7 +843,7 @@ def adv_applicability_domain(self,suffix,data_score,spacing):
         ad_result = f'Scaled RMSE (high-leverage 20%) = {scaled_rmse_ad}%.'
 
     score_adv_ad = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. Applicability domain (leverage)</span> &nbsp;({score_ad} / 2 &nbsp;<img src="file:///{ad_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. Applicability domain (leverage)</span> &nbsp;({score_label} &nbsp;<img src="file:///{ad_image}" alt="ROBERT Score" style="width: 13%">)</p>
     {score_adv_ad}{ad_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.</p>
     """
 
@@ -1202,7 +1224,28 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     n_test = int(n_test_str)
                     expected_test_pts = max(round(0.2 * data_score[f'total_points_{suffix}']), 4)
                     data_score[f'n_test_{suffix}'] = n_test
-                    data_score[f'score_available_{suffix}'] = (n_test == expected_test_pts)
+                    score_available = (n_test == expected_test_pts)
+                    unavailable_reason = None if score_available else 'test_set'
+
+                    # same reasoning, for the other half of "standard conditions" the score was
+                    # calibrated for: a 10x repeated 5-fold CV (ROBERT's kfold/repeat_kfolds
+                    # defaults). A custom --kfold/--repeat_kfolds (common with EVALUATE, where a
+                    # user brings their own settings) makes the CV estimate noisier or more
+                    # optimistic than what the score's thresholds assume, so it's hidden the
+                    # same way a non-standard test split is. The "Nx M-fold CV" line has the
+                    # same prefix for regression and classification (see predict_utils.py's
+                    # shared CV_type string), so this one regex covers both
+                    cv_type_match = re.search(r'(\d+)x (\d+)-fold CV', dat_predict[i+5])
+                    if cv_type_match:
+                        actual_repeat_kfolds, actual_kfold = int(cv_type_match.group(1)), int(cv_type_match.group(2))
+                        if actual_repeat_kfolds != 10 or actual_kfold != 5:
+                            score_available = False
+                            # a bad test split is the more fundamental issue when both happen at
+                            # once, so it takes priority in the message
+                            unavailable_reason = unavailable_reason or 'cv'
+
+                    data_score[f'score_available_{suffix}'] = score_available
+                    data_score[f'score_unavailable_reason_{suffix}'] = unavailable_reason
 
                 # scaled RMSE/MCC from test (if any) or validation
                 if pred_type == 'reg':
@@ -1347,6 +1390,12 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # Extract MCC from the CV line (generic match, since the fold count is a
                     # user-settable option via --kfold and isn't always 5)
                     if '-fold CV :' in dat_predict[i+5]:
+                        # same "10x 5-fold CV" text the regression branch above already
+                        # captures (identical line prefix, see predict_utils.py's shared
+                        # CV_type string) - without this, the PDF text kept showing the
+                        # hardcoded "10x 5-fold CV" default label even when
+                        # --kfold/--repeat_kfolds were customized
+                        data_score[f"cv_type_{suffix}"] = ' '.join([ele for ele in dat_predict[i+5].split()[1:4]])
                         parts = dat_predict[i+5].split(',')
                         mcc_cv = None
                         for part in parts:

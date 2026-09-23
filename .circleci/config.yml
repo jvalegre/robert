@@ -191,6 +191,7 @@ jobs:
             # ------------------------------------------------------------------
             python -m pytest \
               -v \
+              --durations=20 \
               --ignore=tests/test_easyrob.py \
               --cov=robert \
               --cov-report=
@@ -216,6 +217,7 @@ jobs:
             xvfb-run -s "-screen 0 1920x1080x24" \
               python -m pytest \
                 -vv \
+                --durations=20 \
                 --cov=robert \
                 --cov-append \
                 --cov-report= \
@@ -299,7 +301,7 @@ jobs:
             pip uninstall -y robert
             pip install pytest
             pip install pytest-cov
-            python -m pytest -v --cov=robert --cov-report=xml --cov-report=term
+            python -m pytest -v --durations=20 --cov=robert --cov-report=xml --cov-report=term
 
   # the codecov orb doesn't work with the miniconda docker, so the coverage report
   # needs to be stored and loaded in a new job using a python docker

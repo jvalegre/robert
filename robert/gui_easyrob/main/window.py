@@ -61,6 +61,8 @@ AssetLibrary = utils_gui.AssetLibrary
 Chem = utils_gui.Chem
 DropLabel = utils_gui.DropLabel
 NoScrollComboBox = utils_gui.NoScrollComboBox
+SegmentedButtonGroup = utils_gui.SegmentedButtonGroup
+YesNoToggle = utils_gui.YesNoToggle
 Path = utils_gui.Path
 QApplication = utils_gui.QApplication
 QCheckBox = utils_gui.QCheckBox
@@ -441,7 +443,22 @@ class EasyROB(QMainWindow):
 
         # --- Add All to Main Layout ---
         main_layout.addLayout(csv_layout)
-   
+
+        # --- AQME workflow toggle --- placed right after loading the CSV (moved up from
+        # further down the panel) since it's one of the first real decisions a user makes -
+        # it determines whether descriptors get calculated from SMILES before anything else,
+        # which can change what columns are even available to pick below. An explicit No/Yes
+        # choice (defaulting to No, same as the old checkbox's unchecked default) instead of a
+        # single checkable button, whose "click to toggle" behavior wasn't obvious at a glance
+        self.aqme_workflow_label = QLabel("Start by calculating descriptors from SMILES? (AQME)")
+        self.aqme_workflow_label.setStyleSheet("font-size:13px;")
+        main_layout.addWidget(self.aqme_workflow_label)
+
+        self.aqme_workflow = YesNoToggle(checked=False)
+        self.aqme_workflow.toggled.connect(self.check_aqme_workflow)
+        main_layout.addWidget(self.aqme_workflow)
+        main_layout.addSpacing(10)
+
         # --- Select column for --y ---
         self.y_label = QLabel("Select Target Column (y)")
         self.y_label.setStyleSheet("font-size:13px;")
@@ -534,33 +551,29 @@ class EasyROB(QMainWindow):
         main_layout.addWidget(column_container)
         main_layout.addSpacing(10)
 
-        # AQME Workflow Checkbox
-        self.aqme_workflow = QCheckBox("Enable AQME Workflow") 
-        self.aqme_workflow.setStyleSheet("font-weight: bold; font-size: 14px;")
-        self.aqme_workflow.stateChanged.connect(self.check_aqme_workflow)
-        main_layout.addWidget(self.aqme_workflow)
-        main_layout.addSpacing(10)  
+        # Workflow selection - segmented buttons instead of a dropdown: every option stays
+        # visible at a glance, instead of being hidden behind a click (a dropdown here was easy
+        # to misuse - see run() call sites, which all just read workflow_selector.currentText())
+        self.workflow_selector_label = QLabel("What do you want to run?")
+        self.workflow_selector_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        main_layout.addWidget(self.workflow_selector_label)
 
-        # Workflow selection dropdown
-        self.workflow_selector = NoScrollComboBox()
-        self.workflow_selector.setStyleSheet("font-weight: bold; font-size: 14px;")
-
-        # Add options
-        self.workflow_selector.addItems([
+        self.workflow_selector = SegmentedButtonGroup([
             "Full Workflow",
             "CURATE",
             "GENERATE",
             "PREDICT",
             "VERIFY",
             "REPORT"
-        ])
+        ], columns=3)
 
         # Set default selection
         self.workflow_selector.setCurrentText("Full Workflow")
 
-        # Add to layout
+        # Add to layout - extra spacing (vs. the 10px used elsewhere) so this doesn't visually
+        # crowd the Run/Stop buttons right below it
         main_layout.addWidget(self.workflow_selector)
-        main_layout.addSpacing(10)
+        main_layout.addSpacing(20)
 
         # --- Run button ---
         self.run_button = QPushButton(" Run ROBERT")

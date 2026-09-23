@@ -298,7 +298,10 @@ o Other common options:
     after the correlation filter)
 
 * Affecting model screening in GENERATE:
-  --model "[MODEL1,MODEL2,etc]" (default=["RF","GB","NN","MVL"]) : ML models to use in the ML scan (i.e., "[RF,GB]"). Options: 'RF', 'MVL', 'GB', 'NN', 'GP', 'AdaB', 'RIDGE' (regression only), 'LOGISTIC' (classification only)
+  --model "[MODEL1,MODEL2,etc]" (default=["RF","GB","NN","MVL"]) : ML models to use in the ML scan. To scan a custom subset instead of the default four, list only those (i.e., --model "[RF,GB]" scans just RF and GB). Options:
+    - Regression and classification: 'RF', 'GB', 'NN', 'GP', 'AdaB'
+    - Regression only: 'MVL', 'RIDGE'
+    - Classification only: 'LOGISTIC'
   --type "reg" or "clas" (default="reg") : regression or classification models
   --pfi_max INT (default=0) : number of features to keep in the PFI models
 
@@ -1109,7 +1112,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
         # arbitrary scikit-learn model instead, see evaluate.py's resolve_eval_model()
         using_custom_model = bool(self.model_obj is not None or self.model_file or self.model_params)
         if not using_custom_model and self.eval_model.lower() not in ['mvl']:
-            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL', or provide model_obj/model_file/model_params for an arbitrary scikit-learn model")
+            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL', or provide model_obj/model_file/model_params for an arbitrary scikit-learn model (i.e., --model_file model.pkl or --model_params model_params.csv)")
             curate_valid = False
 
         if self.type.lower() not in ['reg','clas']:
@@ -2041,7 +2044,7 @@ def model_adjust_params(self,model_name,params):
                 import inspect
                 if 'random_state' in inspect.signature(model_cls.__init__).parameters:
                     params['random_state'] = self.args.seed
-                    self.args.log.write(f"\no  No random_state was specified for {model_name} - using --seed ({self.args.seed}) as the model's random_state.")
+                    self.args.log.write(f"\no  The custom {model_name} parameters didn't include a random_state - using --seed ({self.args.seed}, always defined, default 0) as its random_state instead.")
 
     return params
 
@@ -2442,7 +2445,19 @@ def kfold_cv(y_global,y_pred_global,
         X_train, X_valid = X_init[train_outer_ix, :], X_init[test_outer_ix, :]
         y_train, y_valid = y_init[train_outer_ix], y_init[test_outer_ix]
 
-        fit = loaded_model.fit(X_train, y_train)
+        try:
+            fit = loaded_model.fit(X_train, y_train)
+        except ValueError as error:
+            if 'worse than random' not in str(error).lower():
+                raise
+            # AdaBoost (and similar boosting ensembles) raise this when the base estimator's
+            # weighted training error exceeds 0.5 on its very first (unweighted) iteration -
+            # expected on VERIFY's y-shuffle test, which deliberately randomizes labels, and
+            # occasionally on small/near-balanced real splits too. A fit that can't even beat
+            # random guessing IS the worst-case result these tests are meant to surface, so
+            # fall back to a majority-class prediction instead of crashing the whole report
+            from sklearn.dummy import DummyClassifier
+            fit = DummyClassifier(strategy='most_frequent').fit(X_train, y_train)
         y_pred_valid = fit.predict(X_valid)
         if not BO_opt:
             y_pred_test = fit.predict(X_test) if has_test else np.array([])
@@ -3700,6 +3715,25 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
             print_distrib += f"\n      x  WARNING! Your data is slightly not uniform (Q{quartile_min_idx+1} has {min(quartile_pops)} points while Q{quartile_max_idx+1} has {max(quartile_pops)})"
         else:
             print_distrib += f"\n      o  Your data seems quite uniform"
+
+        # bimodality heuristic: a single large gap in the sorted y-values that splits the
+        # dataset into two sizeable groups can mean the response is really two distinct
+        # populations (e.g. "active"/"inactive") rather than one continuous variable - a cheap
+        # largest-gap proxy (not a rigorous dip/KDE test) good enough to flag for a closer look.
+        # Logged as its own marker line so report.py's warning box can pick it up (see
+        # get_warning_lines() in report.py)
+        sorted_y = sorted(y_combined)
+        n_points_y = len(sorted_y)
+        y_span = sorted_y[-1] - sorted_y[0]
+        if n_points_y >= 8 and y_span > 0:
+            gaps = [sorted_y[i+1] - sorted_y[i] for i in range(n_points_y - 1)]
+            max_gap = max(gaps)
+            max_gap_idx = gaps.index(max_gap)
+            left_count = max_gap_idx + 1
+            right_count = n_points_y - left_count
+            min_side = max(2, round(0.2 * n_points_y))
+            if max_gap > 0.25 * y_span and left_count >= min_side and right_count >= min_side:
+                print_distrib += f"\n      x  WARNING! Your data seems to have two separate y-value groups, split by a gap of {max_gap:.2} ({round(100*max_gap/y_span)}% of the y-range) between {sorted_y[max_gap_idx]:.2} and {sorted_y[max_gap_idx+1]:.2}"
 
     elif params_dict['type'].lower() == 'clas':
         n_classes = len(y_dist_dict['count_labels'])

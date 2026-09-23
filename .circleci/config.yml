@@ -10,12 +10,15 @@ orbs:
   # so you dont have to copy and paste it everywhere.
   # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/python
   python: circleci/python@2.1.1
-  codecov: codecov/codecov@3.2.4
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
   build-and-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
+    # Split across 4 containers (below, via `circleci tests split`) so the suite - which now
+    # includes several real, slow AQME/xtb-based tests - fits within the per-job time limit
+    # instead of timing out running everything sequentially in one container
+    parallelism: 4
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
     # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
@@ -187,14 +190,21 @@ jobs:
             set +e
 
             # ------------------------------------------------------------------
-            # Run core (non-GUI) tests first
+            # Run core (non-GUI) tests first - split across this job's 4 parallel
+            # containers by past timing data (falls back to a balanced guess on the
+            # first run, before any timing history exists for this test suite)
             # ------------------------------------------------------------------
+            mkdir -p test-results
+            CORE_TESTS=$(circleci tests glob "tests/*.py" | grep -v test_easyrob.py | circleci tests split --split-by=timings)
+            echo "[CI] Core tests assigned to node $CIRCLE_NODE_INDEX: $CORE_TESTS"
+
             python -m pytest \
               -v \
               --durations=20 \
-              --ignore=tests/test_easyrob.py \
               --cov=robert \
-              --cov-report=
+              --cov-report= \
+              --junitxml=test-results/core-test-results.xml \
+              $CORE_TESTS
 
             CORE_EXIT_CODE=$?
             if [ "$CORE_EXIT_CODE" -ne 0 ]; then
@@ -203,28 +213,31 @@ jobs:
             fi
 
             # ------------------------------------------------------------------
-            # Configure Qt/QtWebEngine for headless execution under Xvfb
+            # GUI tests (tests/test_easyrob.py) only run once, on node 0 - it's a
+            # single file/suite under Xvfb that doesn't split well across containers,
+            # and Qt/Xvfb resources aren't safely shared between parallel containers
             # ------------------------------------------------------------------
-            export QT_QPA_PLATFORM=offscreen
-            export QT_OPENGL=software
-            export QT_RHI=software
-            export QTWEBENGINE_DISABLE_SANDBOX=1
-            export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+            if [ "$CIRCLE_NODE_INDEX" = "0" ]; then
+              export QT_QPA_PLATFORM=offscreen
+              export QT_OPENGL=software
+              export QT_RHI=software
+              export QTWEBENGINE_DISABLE_SANDBOX=1
+              export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
 
-            # ------------------------------------------------------------------
-            # Run GUI tests under Xvfb, capturing the exit code
-            # ------------------------------------------------------------------
-            xvfb-run -s "-screen 0 1920x1080x24" \
-              python -m pytest \
-                -vv \
-                --durations=20 \
-                --cov=robert \
-                --cov-append \
-                --cov-report= \
-                --junitxml=gui-test-results.xml \
-                tests/test_easyrob.py \
-              2>&1 | tee gui-pytest.log
-            GUI_EXIT_CODE=${PIPESTATUS[0]}
+              xvfb-run -s "-screen 0 1920x1080x24" \
+                python -m pytest \
+                  -vv \
+                  --durations=20 \
+                  --cov=robert \
+                  --cov-append \
+                  --cov-report= \
+                  --junitxml=test-results/gui-test-results.xml \
+                  tests/test_easyrob.py \
+                2>&1 | tee gui-pytest.log
+              GUI_EXIT_CODE=${PIPESTATUS[0]}
+            else
+              GUI_EXIT_CODE=0
+            fi
 
             # Re-enable 'exit on error' for any subsequent commands.
             set -e
@@ -232,12 +245,12 @@ jobs:
             # PySide6/Qt sometimes causes a segmentation fault (exit code 139/134)
             # on interpreter shutdown after all tests have passed.
             if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
-              if [ ! -f gui-test-results.xml ]; then
+              if [ ! -f test-results/gui-test-results.xml ]; then
                 echo "[CI] GUI tests crashed with exit code $GUI_EXIT_CODE and did not generate gui-test-results.xml"
                 exit "$GUI_EXIT_CODE"
               fi
 
-              python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('gui-test-results.xml').getroot(); suites = [root] if root.tag == 'testsuite' else root.findall('testsuite'); tests = sum(int(s.attrib.get('tests', 0)) for s in suites); failures = sum(int(s.attrib.get('failures', 0)) for s in suites); errors = sum(int(s.attrib.get('errors', 0)) for s in suites); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
+              python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('test-results/gui-test-results.xml').getroot(); suites = [root] if root.tag == 'testsuite' else root.findall('testsuite'); tests = sum(int(s.attrib.get('tests', 0)) for s in suites); failures = sum(int(s.attrib.get('failures', 0)) for s in suites); errors = sum(int(s.attrib.get('errors', 0)) for s in suites); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
               GUI_XML_EXIT_CODE=$?
               if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
                 exit "$GUI_XML_EXIT_CODE"
@@ -255,25 +268,24 @@ jobs:
               exit "$GUI_EXIT_CODE"
             fi
 
-            # Generate a single combined XML report after both pytest runs
+            # Generate this node's own coverage report (core test subset + GUI on node 0)
             coverage xml
 
             # ------------------------------------------------------------------
-            # Save coverage and workspace artifacts (only if tests were successful)
+            # Upload this node's coverage directly - Codecov merges multiple uploads
+            # for the same commit automatically, so with parallelism each of the 4
+            # nodes just uploads its own slice instead of combining them into one
+            # file first (the codecov orb doesn't work with this miniconda docker
+            # image, hence the plain uploader script instead of codecov/upload)
             # ------------------------------------------------------------------
-            rm -r /tmp/*
-            cp coverage.xml /tmp/
-            cp -r robert /tmp/
-
-      # Persist coverage report and source tree for the Codecov job
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - coverage.xml
-            - robert
+            curl -Os https://uploader.codecov.io/latest/linux/codecov
+            chmod +x codecov
+            ./codecov -t "$CODECOV_TOKEN" -f coverage.xml -F "node-${CIRCLE_NODE_INDEX}"
+      - store_test_results:
+          path: test-results
 
   # Same dependency stack and pytest suite as build-and-test, on Windows (win-64).
-  # No workspace: codecov stays on the Linux job only.
+  # Coverage isn't uploaded from here - codecov stays on the Linux job only.
   build-and-test-windows:
     machine:
       image: windows-server-2022-gui:current
@@ -303,29 +315,7 @@ jobs:
             pip install pytest-cov
             python -m pytest -v --durations=20 --cov=robert --cov-report=xml --cov-report=term
 
-  # the codecov orb doesn't work with the miniconda docker, so the coverage report
-  # needs to be stored and loaded in a new job using a python docker
-
-  codecov-coverage:
-    docker:
-      - image: cimg/python:3.12
-    steps:
-      # Attach artifacts from the previous job workspace
-      - attach_workspace:
-          at: /tmp
-
-      # Checkout is required so Codecov can correctly map coverage to the repo
-      - checkout
-
-      # Upload the coverage report generated in the build-and-test job
-      - codecov/upload:
-          file: /tmp/coverage.xml
-          token: CODECOV_TOKEN
-
 workflows:
   sample:
     jobs:
       - build-and-test
-      - codecov-coverage:
-          requires:
-            - build-and-test

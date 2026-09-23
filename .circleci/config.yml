@@ -190,12 +190,28 @@ jobs:
             set +e
 
             # ------------------------------------------------------------------
-            # Run core (non-GUI) tests first - split across this job's 4 parallel
-            # containers by past timing data (falls back to a balanced guess on the
+            # Run core (non-GUI) tests. test_1curate -> test_2generate ->
+            # test_3verify -> test_4predict share state through the working
+            # directory (each depends on folders the previous one left behind - see
+            # test_4predict.py renaming a GENERATE folder that only test_2generate.py
+            # creates), so that chain always runs together, in order, on node 0 - it
+            # is NEVER split across containers. Every other core test file resets/
+            # builds its own state from scratch, so those are safe to split across
+            # all 4 nodes by past timing data (falls back to a balanced guess on the
             # first run, before any timing history exists for this test suite)
             # ------------------------------------------------------------------
             mkdir -p test-results
-            CORE_TESTS=$(circleci tests glob "tests/*.py" | grep -v test_easyrob.py | circleci tests split --split-by=timings)
+            PIPELINE_TESTS="tests/test_1curate.py tests/test_2generate.py tests/test_3verify.py tests/test_4predict.py"
+            INDEPENDENT_TESTS=$(circleci tests glob "tests/*.py" \
+              | grep -v -e test_easyrob.py -e conftest.py \
+                        -e test_1curate.py -e test_2generate.py -e test_3verify.py -e test_4predict.py \
+              | circleci tests split --split-by=timings)
+
+            if [ "$CIRCLE_NODE_INDEX" = "0" ]; then
+              CORE_TESTS="$PIPELINE_TESTS $INDEPENDENT_TESTS"
+            else
+              CORE_TESTS="$INDEPENDENT_TESTS"
+            fi
             echo "[CI] Core tests assigned to node $CIRCLE_NODE_INDEX: $CORE_TESTS"
 
             python -m pytest \

@@ -157,14 +157,16 @@ commands:
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
   build-and-test-core: # core (non-GUI) tests - see build-and-test-gui for the Xvfb/Qt suite
-    # Split across 6 containers so the suite - which now includes several real, slow
+    # Split across 5 containers so the suite - which now includes several real, slow
     # AQME/xtb-based tests - fits within the per-job time limit instead of timing out
-    # running everything sequentially. Node 0 gets the test_1curate->test_4predict
-    # pipeline chain; nodes 1-2 each get one of the two other slow, real-pipeline files
-    # (test_5aqme_n_full.py / test_6evaluate.py), pinned individually rather than left
-    # to timing-based splitting (see below); nodes 3-5 share what's left (see the case
-    # statement below for the exact assignment)
-    parallelism: 6
+    # running everything sequentially. Every test file is pinned to a fixed node (see
+    # the case statement below) - no `circleci tests split`/timing-based splitting at
+    # all, since that returned an empty test list on at least one real run, which made
+    # pytest silently fall back to auto-discovering (and running) the ENTIRE tests/
+    # directory - including the 1h+ GUI suite that has its own dedicated job. A fully
+    # static assignment can't do that: every node's test list is a literal, non-empty
+    # string baked into the config
+    parallelism: 5
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
     # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
@@ -216,22 +218,20 @@ jobs:
             # runs together, in order, on node 0 - it is NEVER split across
             # containers.
             #
-            # test_5aqme_n_full.py and test_6evaluate.py are each pinned to their own
-            # node instead of being split by `circleci tests split --split-by=timings`:
-            # they're the slowest individual files (each runs one or more full, real
-            # CURATE->GENERATE->VERIFY->PREDICT(->REPORT) pipelines), and
-            # --split-by=timings only balances well once a PREVIOUS run has completed
-            # far enough to reach store_test_results below - while this suite kept
-            # timing out/failing before that point, the split never had real timing
-            # data and kept guessing by name, occasionally piling multiple slow files
-            # onto the same node. (test_8report.py used to be pinned here too, doing
-            # its own separate CURATE->GENERATE->VERIFY->PREDICT->REPORT run - it's
-            # gone now, folded into test_5aqme_n_full.py's full_workflow/full_clas
-            # cases, which call report() again in-process right after their own
-            # subprocess run instead of rebuilding the same pipeline from scratch a
-            # second time.) Only the remaining, genuinely fast/self-contained files
-            # (test_7api.py, test_split_selection.py) are left to the timing-based
-            # split, across whatever nodes are left over.
+            # Every core test file is pinned to a fixed node below - no
+            # `circleci tests split --split-by=timings` at all. That was tried first,
+            # but on at least one real run it returned an empty list for a node (most
+            # likely because it needs a PREVIOUS run's stored timing data - see
+            # store_test_results below - to split reliably, and this suite kept
+            # timing out/failing before ever reaching that step), and an empty test
+            # list makes the pytest call below fall back to auto-discovering the
+            # entire tests/ directory - which is exactly the 1h+ bloat this was meant
+            # to fix. A fully static list can't come back empty. (test_8report.py
+            # used to be pinned here too, doing its own separate CURATE->GENERATE->
+            # VERIFY->PREDICT->REPORT run - it's gone now, folded into
+            # test_5aqme_n_full.py's full_workflow/full_clas cases, which call
+            # report() again in-process right after their own subprocess run instead
+            # of rebuilding the same pipeline from scratch a second time.)
             # ------------------------------------------------------------------
             mkdir -p test-results
             PIPELINE_TESTS="tests/test_1curate.py tests/test_2generate.py tests/test_3verify.py tests/test_4predict.py"
@@ -246,15 +246,29 @@ jobs:
               2)
                 CORE_TESTS="tests/test_6evaluate.py"
                 ;;
+              3)
+                CORE_TESTS="tests/test_7api.py"
+                ;;
+              4)
+                CORE_TESTS="tests/test_split_selection.py"
+                ;;
               *)
-                CORE_TESTS=$(circleci tests glob "tests/*.py" \
-                  | grep -v -e test_easyrob.py -e conftest.py \
-                            -e test_1curate.py -e test_2generate.py -e test_3verify.py -e test_4predict.py \
-                            -e test_5aqme_n_full.py -e test_6evaluate.py \
-                  | circleci tests split --split-by=timings)
+                CORE_TESTS=""
                 ;;
             esac
             echo "[CI] Core tests assigned to node $CIRCLE_NODE_INDEX: $CORE_TESTS"
+
+            # Safety net: with parallelism set to exactly the number of case branches above,
+            # this should never trigger - but if parallelism is ever bumped without adding a
+            # matching branch, a node would fall into the empty `*)` case and $CORE_TESTS
+            # being empty would make the pytest call below run with NO file arguments at all,
+            # which falls back to pytest's own default discovery of the ENTIRE tests/
+            # directory - silently pulling in test_easyrob.py (a 1h+ GUI suite that has its
+            # own dedicated job and was never meant to run here). Bail out loudly instead.
+            if [ -z "$CORE_TESTS" ]; then
+              echo "[CI] ERROR: no tests were assigned to node $CIRCLE_NODE_INDEX (circleci tests split returned nothing) - refusing to fall back to pytest's full auto-discovery"
+              exit 1
+            fi
 
             python -m pytest \
               -v \

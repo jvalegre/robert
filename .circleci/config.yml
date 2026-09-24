@@ -3,7 +3,7 @@
 version: 2.1
 
 # Orbs are reusable packages of CircleCI configuration that you may share across projects, enabling you to create encapsulated, parameterized commands, jobs, and executors that can be used across multiple projects.
-# See: https://circleci.com/docs/2.0/orb-intro/ 
+# See: https://circleci.com/docs/2.0/orb-intro/
 orbs:
   # The python orb contains a set of prepackaged CircleCI configuration you can use repeatedly in your configuration files
   # Orb commands and jobs help you with common scripting around a language/tool
@@ -11,39 +11,13 @@ orbs:
   # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/python
   python: circleci/python@2.1.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
-jobs:
-  build-and-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
-    # Split across 6 containers so the suite - which now includes several real, slow
-    # AQME/xtb-based tests - fits within the per-job time limit instead of timing out
-    # running everything sequentially. Node 0 gets the test_1curate->test_4predict
-    # pipeline chain + GUI tests; nodes 1-3 each get one of the three other slow, real-
-    # pipeline files (test_5aqme_n_full.py / test_6evaluate.py / test_8report.py),
-    # pinned individually rather than left to timing-based splitting (see below); nodes
-    # 4-5 share what's left (see the case statement below for the exact assignment)
-    parallelism: 6
-    # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
-    # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
-    # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
-    # The executor is the environment in which the steps below will be executed - below will use a python 3.10.2 container
-    # Change the version below to your required version of python
-    docker:
-      - image: continuumio/miniconda3
-    # working_directory: /root/project
-    # Checkout the code as the first step. This is a dedicated CircleCI step.
-    # The python orb's install-packages step will install the dependencies from a Pipfile via Pipenv by default.
-    # Here we're making sure we use just use the system-wide pip. By default it uses the project root's requirements.txt.
-    # Then run your tests!
-    # CircleCI will report the results back to your VCS provider.
+# Reusable step sequences (CircleCI 2.1 "commands") shared between build-and-test-core and
+# build-and-test-gui, which used to be a single job - split into two so GUI tests (Xvfb/Qt)
+# and core tests each get their own independent ~1h max job runtime instead of sharing one,
+# and so they run concurrently instead of GUI only starting after core tests finish
+commands:
+  install_system_deps:
     steps:
-      - checkout
-      - python/install-packages:
-          pkg-manager: pip
-          # app-dir: ~/project/package-directory/  # If your requirements.txt isn't in the root directory.
-          # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
-
-     # Install system-level dependencies required by Qt/PySide6 and WeasyPrint
       - run:
           name: Install system dependencies for Qt/PySide6 and WeasyPrint
           command: |
@@ -122,9 +96,10 @@ jobs:
             apt-get install -y libicu70 || \
             apt-get install -y libicu67 || true
 
-      # Create conda environment, install ROBERT/easyROB + test stack, run tests & generate coverage
+  setup_conda_env:
+    steps:
       - run:
-          name: Run core and GUI tests with combined coverage
+          name: Create conda env, install ROBERT/AQME/GUI/test dependencies
           command: |
             # ------------------------------------------------------------------
             # Proper conda initialization (non-interactive shell)
@@ -178,6 +153,46 @@ jobs:
             # ------------------------------------------------------------------
             pip install pytest pytest-cov pytest-qt
 
+# Define a job to be invoked later in a workflow.
+# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+jobs:
+  build-and-test-core: # core (non-GUI) tests - see build-and-test-gui for the Xvfb/Qt suite
+    # Split across 6 containers so the suite - which now includes several real, slow
+    # AQME/xtb-based tests - fits within the per-job time limit instead of timing out
+    # running everything sequentially. Node 0 gets the test_1curate->test_4predict
+    # pipeline chain; nodes 1-2 each get one of the two other slow, real-pipeline files
+    # (test_5aqme_n_full.py / test_6evaluate.py), pinned individually rather than left
+    # to timing-based splitting (see below); nodes 3-5 share what's left (see the case
+    # statement below for the exact assignment)
+    parallelism: 6
+    # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
+    # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
+    # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
+    # The executor is the environment in which the steps below will be executed - below will use a python 3.10.2 container
+    # Change the version below to your required version of python
+    docker:
+      - image: continuumio/miniconda3
+    # working_directory: /root/project
+    # Checkout the code as the first step. This is a dedicated CircleCI step.
+    # The python orb's install-packages step will install the dependencies from a Pipfile via Pipenv by default.
+    # Here we're making sure we use just use the system-wide pip. By default it uses the project root's requirements.txt.
+    # Then run your tests!
+    # CircleCI will report the results back to your VCS provider.
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+          # app-dir: ~/project/package-directory/  # If your requirements.txt isn't in the root directory.
+          # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
+      - install_system_deps
+      - setup_conda_env
+      - run:
+          name: Run core tests with coverage
+          command: |
+            eval "$(conda shell.bash hook)"
+            conda activate cheminf
+            export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH}"
+
             # ------------------------------------------------------------------
             # Focused AQME-only diagnostic flow kept here as commented reference
             # ------------------------------------------------------------------
@@ -190,17 +205,16 @@ jobs:
 
             # IMPORTANT:
             # CircleCI executes 'run' steps with 'set -e' (exit on first non-zero code).
-            # We temporarily disable it so we can inspect pytest/xvfb-run exit codes
-            # and treat the known Qt segfault (139/134) as a special case.
+            # We temporarily disable it so we can inspect pytest's exit code.
             set +e
 
             # ------------------------------------------------------------------
-            # Run core (non-GUI) tests. test_1curate -> test_2generate ->
-            # test_3verify -> test_4predict share state through the working
-            # directory (each depends on folders the previous one left behind - see
-            # test_4predict.py renaming a GENERATE folder that only test_2generate.py
-            # creates), so that chain always runs together, in order, on node 0 - it
-            # is NEVER split across containers.
+            # test_1curate -> test_2generate -> test_3verify -> test_4predict share
+            # state through the working directory (each depends on folders the
+            # previous one left behind - see test_4predict.py renaming a GENERATE
+            # folder that only test_2generate.py creates), so that chain always
+            # runs together, in order, on node 0 - it is NEVER split across
+            # containers.
             #
             # test_5aqme_n_full.py and test_6evaluate.py are each pinned to their own
             # node instead of being split by `circleci tests split --split-by=timings`:
@@ -251,37 +265,75 @@ jobs:
               $CORE_TESTS
 
             CORE_EXIT_CODE=$?
+
+            # Re-enable 'exit on error' for any subsequent commands.
+            set -e
+
             if [ "$CORE_EXIT_CODE" -ne 0 ]; then
               echo "[CI] Core tests failed with exit code $CORE_EXIT_CODE"
               exit "$CORE_EXIT_CODE"
             fi
 
-            # ------------------------------------------------------------------
-            # GUI tests (tests/test_easyrob.py) only run once, on node 0 - it's a
-            # single file/suite under Xvfb that doesn't split well across containers,
-            # and Qt/Xvfb resources aren't safely shared between parallel containers
-            # ------------------------------------------------------------------
-            if [ "$CIRCLE_NODE_INDEX" = "0" ]; then
-              export QT_QPA_PLATFORM=offscreen
-              export QT_OPENGL=software
-              export QT_RHI=software
-              export QTWEBENGINE_DISABLE_SANDBOX=1
-              export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+            coverage xml
 
-              xvfb-run -s "-screen 0 1920x1080x24" \
-                python -m pytest \
-                  -vv \
-                  --durations=20 \
-                  --cov=robert \
-                  --cov-append \
-                  --cov-report= \
-                  --junitxml=test-results/gui-test-results.xml \
-                  tests/test_easyrob.py \
-                2>&1 | tee gui-pytest.log
-              GUI_EXIT_CODE=${PIPESTATUS[0]}
-            else
-              GUI_EXIT_CODE=0
-            fi
+            # ------------------------------------------------------------------
+            # Upload this node's coverage directly - Codecov merges multiple uploads
+            # for the same commit automatically, so with parallelism each node just
+            # uploads its own slice instead of combining them into one file first
+            # (the codecov orb doesn't work with this miniconda docker image, hence
+            # the plain uploader script instead of codecov/upload)
+            # ------------------------------------------------------------------
+            curl -Os https://cli.codecov.io/latest/linux/codecov
+            chmod +x codecov
+            ./codecov upload-process --disable-search --fail-on-error \
+              -t "$CODECOV_TOKEN" -f coverage.xml -F "core-node-${CIRCLE_NODE_INDEX}"
+      - store_test_results:
+          path: test-results
+
+  build-and-test-gui: # GUI tests (tests/test_easyrob.py) under Xvfb - split out from core
+    # tests into its own job (see build-and-test-core) so it gets its own independent
+    # ~1h max job runtime and runs concurrently with core tests instead of only starting
+    # after they finish. A single file/suite under Xvfb doesn't split well across
+    # containers and Qt/Xvfb resources aren't safely shared between them, so no
+    # parallelism here - just one container.
+    docker:
+      - image: continuumio/miniconda3
+    steps:
+      - checkout
+      - python/install-packages:
+          pkg-manager: pip
+      - install_system_deps
+      - setup_conda_env
+      - run:
+          name: Run GUI tests under Xvfb with coverage
+          command: |
+            eval "$(conda shell.bash hook)"
+            conda activate cheminf
+            export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH}"
+
+            mkdir -p test-results
+
+            # IMPORTANT: CircleCI executes 'run' steps with 'set -e'. Temporarily
+            # disabled so we can inspect xvfb-run/pytest's exit code and treat the
+            # known Qt segfault (139/134) as a special case.
+            set +e
+
+            export QT_QPA_PLATFORM=offscreen
+            export QT_OPENGL=software
+            export QT_RHI=software
+            export QTWEBENGINE_DISABLE_SANDBOX=1
+            export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
+
+            xvfb-run -s "-screen 0 1920x1080x24" \
+              python -m pytest \
+                -vv \
+                --durations=20 \
+                --cov=robert \
+                --cov-report= \
+                --junitxml=test-results/gui-test-results.xml \
+                tests/test_easyrob.py \
+              2>&1 | tee gui-pytest.log
+            GUI_EXIT_CODE=${PIPESTATUS[0]}
 
             # Re-enable 'exit on error' for any subsequent commands.
             set -e
@@ -312,25 +364,17 @@ jobs:
               exit "$GUI_EXIT_CODE"
             fi
 
-            # Generate this node's own coverage report (core test subset + GUI on node 0)
             coverage xml
 
-            # ------------------------------------------------------------------
-            # Upload this node's coverage directly - Codecov merges multiple uploads
-            # for the same commit automatically, so with parallelism each node just
-            # uploads its own slice instead of combining them into one file first
-            # (the codecov orb doesn't work with this miniconda docker image, hence
-            # the plain uploader script instead of codecov/upload)
-            # ------------------------------------------------------------------
             curl -Os https://cli.codecov.io/latest/linux/codecov
             chmod +x codecov
             ./codecov upload-process --disable-search --fail-on-error \
-              -t "$CODECOV_TOKEN" -f coverage.xml -F "node-${CIRCLE_NODE_INDEX}"
+              -t "$CODECOV_TOKEN" -f coverage.xml -F "gui"
       - store_test_results:
           path: test-results
 
-  # Same dependency stack and pytest suite as build-and-test, on Windows (win-64).
-  # Coverage isn't uploaded from here - codecov stays on the Linux job only.
+  # Same dependency stack and pytest suite as build-and-test-core, on Windows (win-64).
+  # Coverage isn't uploaded from here - codecov stays on the Linux jobs only.
   build-and-test-windows:
     machine:
       image: windows-server-2022-gui:current
@@ -363,4 +407,5 @@ jobs:
 workflows:
   sample:
     jobs:
-      - build-and-test
+      - build-and-test-core
+      - build-and-test-gui

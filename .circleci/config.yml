@@ -15,13 +15,13 @@ orbs:
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
   build-and-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
-    # Split across 6 containers (below, via `circleci tests split`) so the suite - which now
-    # includes several real, slow AQME/xtb-based tests - fits within the per-job time limit
-    # instead of timing out running everything sequentially in one container. The
-    # test_1curate->test_4predict pipeline chain and GUI tests are still pinned to node 0
-    # (see below), so this mainly helps by spreading the independent test files (including
-    # the slow real ones in test_5aqme_n_full.py/test_6evaluate.py/test_8report.py) thinner
-    # across the other 5 nodes
+    # Split across 6 containers so the suite - which now includes several real, slow
+    # AQME/xtb-based tests - fits within the per-job time limit instead of timing out
+    # running everything sequentially. Node 0 gets the test_1curate->test_4predict
+    # pipeline chain + GUI tests; nodes 1-3 each get one of the three other slow, real-
+    # pipeline files (test_5aqme_n_full.py / test_6evaluate.py / test_8report.py),
+    # pinned individually rather than left to timing-based splitting (see below); nodes
+    # 4-5 share what's left (see the case statement below for the exact assignment)
     parallelism: 6
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
@@ -200,23 +200,46 @@ jobs:
             # directory (each depends on folders the previous one left behind - see
             # test_4predict.py renaming a GENERATE folder that only test_2generate.py
             # creates), so that chain always runs together, in order, on node 0 - it
-            # is NEVER split across containers. Every other core test file resets/
-            # builds its own state from scratch, so those are safe to split across
-            # all 4 nodes by past timing data (falls back to a balanced guess on the
-            # first run, before any timing history exists for this test suite)
+            # is NEVER split across containers.
+            #
+            # test_5aqme_n_full.py and test_6evaluate.py are each pinned to their own
+            # node instead of being split by `circleci tests split --split-by=timings`:
+            # they're the slowest individual files (each runs one or more full, real
+            # CURATE->GENERATE->VERIFY->PREDICT(->REPORT) pipelines), and
+            # --split-by=timings only balances well once a PREVIOUS run has completed
+            # far enough to reach store_test_results below - while this suite kept
+            # timing out/failing before that point, the split never had real timing
+            # data and kept guessing by name, occasionally piling multiple slow files
+            # onto the same node. (test_8report.py used to be pinned here too, doing
+            # its own separate CURATE->GENERATE->VERIFY->PREDICT->REPORT run - it's
+            # gone now, folded into test_5aqme_n_full.py's full_workflow/full_clas
+            # cases, which call report() again in-process right after their own
+            # subprocess run instead of rebuilding the same pipeline from scratch a
+            # second time.) Only the remaining, genuinely fast/self-contained files
+            # (test_7api.py, test_split_selection.py) are left to the timing-based
+            # split, across whatever nodes are left over.
             # ------------------------------------------------------------------
             mkdir -p test-results
             PIPELINE_TESTS="tests/test_1curate.py tests/test_2generate.py tests/test_3verify.py tests/test_4predict.py"
-            INDEPENDENT_TESTS=$(circleci tests glob "tests/*.py" \
-              | grep -v -e test_easyrob.py -e conftest.py \
-                        -e test_1curate.py -e test_2generate.py -e test_3verify.py -e test_4predict.py \
-              | circleci tests split --split-by=timings)
 
-            if [ "$CIRCLE_NODE_INDEX" = "0" ]; then
-              CORE_TESTS="$PIPELINE_TESTS $INDEPENDENT_TESTS"
-            else
-              CORE_TESTS="$INDEPENDENT_TESTS"
-            fi
+            case "$CIRCLE_NODE_INDEX" in
+              0)
+                CORE_TESTS="$PIPELINE_TESTS"
+                ;;
+              1)
+                CORE_TESTS="tests/test_5aqme_n_full.py"
+                ;;
+              2)
+                CORE_TESTS="tests/test_6evaluate.py"
+                ;;
+              *)
+                CORE_TESTS=$(circleci tests glob "tests/*.py" \
+                  | grep -v -e test_easyrob.py -e conftest.py \
+                            -e test_1curate.py -e test_2generate.py -e test_3verify.py -e test_4predict.py \
+                            -e test_5aqme_n_full.py -e test_6evaluate.py \
+                  | circleci tests split --split-by=timings)
+                ;;
+            esac
             echo "[CI] Core tests assigned to node $CIRCLE_NODE_INDEX: $CORE_TESTS"
 
             python -m pytest \

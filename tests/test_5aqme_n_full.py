@@ -17,6 +17,60 @@ path_main = os.getcwd()
 path_aqme = os.path.join(path_main, "AQME")
 
 
+def _regenerate_report_and_check(test_job):
+    """
+    Deletes the PDF/debug report artifacts the subprocess run above already left behind and
+    regenerates them by calling report() directly, in-process - a subprocess isn't visible to
+    coverage tools, so this is what actually exercises report.py/report_utils.py for coverage,
+    while reusing the CURATE/GENERATE/VERIFY/PREDICT folders the subprocess run already built
+    (no need to rebuild the whole pipeline a second time just to test report() - this replaces
+    the old, separate test_8report.py, which did exactly that from scratch for the same two
+    datasets/configs already covered here by full_workflow/full_clas)
+    """
+    from robert.report import report
+
+    for report_file in [
+        "ROBERT_report_No_PFI.pdf",
+        "ROBERT_report_PFI.pdf",
+        "report_debug_No_PFI.txt",
+        "report_debug_PFI.txt",
+    ]:
+        file_path = os.path.join(path_main, report_file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    report(debug_report=True)
+
+    assert os.path.exists(os.path.join(path_main, "ROBERT_report_No_PFI.pdf"))
+    assert os.path.exists(os.path.join(path_main, "ROBERT_report_PFI.pdf"))
+
+    with open(os.path.join(path_main, "report_debug_No_PFI.txt"), "r", encoding="utf-8") as f:
+        debug_lines = f.readlines()
+    debug_text = "".join(debug_lines)
+
+    assert "Section A. ROBERT Score" in debug_text
+
+    # score images ("report/score_N.jpg") are the Interpolation/Boundary robustness score bars
+    # in Section A - classification only ever gets one (Interpolation), since Boundary
+    # robustness isn't defined for it (see docs/Report/score.rst); the right-hand column shows
+    # a short "disabled" note instead (see print_score() in report.py) rather than being left
+    # empty or stretching Interpolation to full width
+    score_imgs = [line for line in debug_lines if "report/score_" in line and "report/score_w" not in line]
+    if test_job == "full_clas":
+        assert len(score_imgs) == 1
+        assert "Boundary robustness" in debug_text
+        assert "Disabled in classification problems" in debug_text
+        assert "1. Consistency (sorted CV)" not in debug_text
+        assert (
+            "Interpolation measures how reliably the model predicts within the range "
+            "of data it was trained on.</i>" in debug_text
+        )
+    else:
+        assert len(score_imgs) == 2
+        assert "Boundary robustness" in debug_text
+        assert "1. Sorted CV, top 20% (High)" in debug_text
+
+
 # AQME and full workflow tests
 @pytest.mark.parametrize(
     "test_job",
@@ -407,6 +461,8 @@ def test_AQME(test_job):
             assert find_moder_y_dist or find_moder_truncated
             assert find_assess_red
 
+            _regenerate_report_and_check(test_job)
+
         elif test_job == "full_clas":
             # model summary, robert score, predict graphs and model metrics
             # (see the NOTE above the full_workflow block: report_debug_{suffix}.txt now
@@ -446,6 +502,8 @@ def test_AQME(test_job):
             assert find_severe_red
             assert find_moder_correl or find_moder_truncated
             assert find_assess_red
+
+            _regenerate_report_and_check(test_job)
 
     if test_job in ["full_workflow", "full_workflow_test", "aqme", "2smiles_columns"]:
         assert find_outliers > 0

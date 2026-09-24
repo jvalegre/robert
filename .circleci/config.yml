@@ -156,8 +156,11 @@ commands:
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  build-and-test-core: # core (non-GUI) tests - see build-and-test-gui for the Xvfb/Qt suite
-    # Split across 5 containers so the suite - which now includes several real, slow
+  build-and-test-core: # the test_1curate->test_4predict pipeline + the other two slow,
+    # real-pipeline files - see build-and-test-gui for everything else (GUI tests, plus
+    # test_7api.py/test_split_selection.py, which moved there since it already finishes
+    # in a few minutes and had room to spare, rather than giving them their own nodes here)
+    # Split across 3 containers so the suite - which now includes several real, slow
     # AQME/xtb-based tests - fits within the per-job time limit instead of timing out
     # running everything sequentially. Every test file is pinned to a fixed node (see
     # the case statement below) - no `circleci tests split`/timing-based splitting at
@@ -166,7 +169,7 @@ jobs:
     # directory - including the 1h+ GUI suite that has its own dedicated job. A fully
     # static assignment can't do that: every node's test list is a literal, non-empty
     # string baked into the config
-    parallelism: 5
+    parallelism: 3
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
     # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
@@ -246,12 +249,6 @@ jobs:
               2)
                 CORE_TESTS="tests/test_6evaluate.py"
                 ;;
-              3)
-                CORE_TESTS="tests/test_7api.py"
-                ;;
-              4)
-                CORE_TESTS="tests/test_split_selection.py"
-                ;;
               *)
                 CORE_TESTS=""
                 ;;
@@ -304,12 +301,15 @@ jobs:
       - store_test_results:
           path: test-results
 
-  build-and-test-gui: # GUI tests (tests/test_easyrob.py) under Xvfb - split out from core
-    # tests into its own job (see build-and-test-core) so it gets its own independent
-    # ~1h max job runtime and runs concurrently with core tests instead of only starting
-    # after they finish. A single file/suite under Xvfb doesn't split well across
-    # containers and Qt/Xvfb resources aren't safely shared between them, so no
-    # parallelism here - just one container.
+  build-and-test-gui: # GUI tests (tests/test_easyrob.py) under Xvfb, plus test_7api.py and
+    # test_split_selection.py - split out from core tests into its own job (see
+    # build-and-test-core) so it gets its own independent ~1h max job runtime and runs
+    # concurrently with core tests instead of only starting after they finish.
+    # test_7api.py/test_split_selection.py moved here (rather than getting their own
+    # dedicated nodes in build-and-test-core) because this whole job finishes in a few
+    # minutes on its own - there's plenty of room to spare. A single GUI file/suite
+    # under Xvfb doesn't split well across containers and Qt/Xvfb resources aren't
+    # safely shared between them, so no parallelism here - just one container.
     docker:
       - image: continuumio/miniconda3
     steps:
@@ -319,7 +319,7 @@ jobs:
       - install_system_deps
       - setup_conda_env
       - run:
-          name: Run GUI tests under Xvfb with coverage
+          name: Run API/other fast tests, then GUI tests under Xvfb, with combined coverage
           command: |
             eval "$(conda shell.bash hook)"
             conda activate cheminf
@@ -328,9 +328,26 @@ jobs:
             mkdir -p test-results
 
             # IMPORTANT: CircleCI executes 'run' steps with 'set -e'. Temporarily
-            # disabled so we can inspect xvfb-run/pytest's exit code and treat the
+            # disabled so we can inspect pytest/xvfb-run's exit code and treat the
             # known Qt segfault (139/134) as a special case.
             set +e
+
+            # ------------------------------------------------------------------
+            # Fast, self-contained, non-GUI files first - no Xvfb needed for these
+            # ------------------------------------------------------------------
+            python -m pytest \
+              -v \
+              --durations=20 \
+              --cov=robert \
+              --cov-report= \
+              --junitxml=test-results/fast-test-results.xml \
+              tests/test_7api.py tests/test_split_selection.py
+
+            FAST_EXIT_CODE=$?
+            if [ "$FAST_EXIT_CODE" -ne 0 ]; then
+              echo "[CI] test_7api.py/test_split_selection.py failed with exit code $FAST_EXIT_CODE"
+              exit "$FAST_EXIT_CODE"
+            fi
 
             export QT_QPA_PLATFORM=offscreen
             export QT_OPENGL=software
@@ -343,6 +360,7 @@ jobs:
                 -vv \
                 --durations=20 \
                 --cov=robert \
+                --cov-append \
                 --cov-report= \
                 --junitxml=test-results/gui-test-results.xml \
                 tests/test_easyrob.py \

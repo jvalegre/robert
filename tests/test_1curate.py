@@ -101,17 +101,20 @@ def test_CURATE(test_job):
             # check that descriptors are removed correctly
             model_dict = {
                 "RF": {
-                    "accepted_vars": ["x10", "x2", "x5", "x7", "x9"],
-                    "discarded_vars": [
+                    "accepted_vars": [
                         "Csub-Csub",
                         "Csub-H",
                         "H-O",
+                        "x10",
                         "x11",
+                        "x2",
+                        "x5",
+                        "x7",
                         "x8",
+                        "x9",
                         "ynoise",
-                        "x4",
-                        "xtest",
                     ],
+                    "discarded_vars": ["x4", "xtest"],
                 },
                 "GB": {
                     "accepted_vars": [
@@ -124,9 +127,10 @@ def test_CURATE(test_job):
                         "x5",
                         "x7",
                         "x8",
+                        "x9",
                         "ynoise",
                     ],
-                    "discarded_vars": ["x9", "x4", "xtest"],
+                    "discarded_vars": ["x4", "xtest"],
                 },
                 "NN": {
                     "accepted_vars": [

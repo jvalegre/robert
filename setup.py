@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.1.2"
+version = "2.2.0"
 
 setup(
     name="robert",
@@ -8,7 +8,6 @@ setup(
     packages=find_packages(exclude=["tests"]),
     package_data={
         "robert": [
-            "model_params/*",
             "report/*",
             "icons/*",
         ],
@@ -38,23 +37,21 @@ setup(
         "Intended Audience :: Developers", # Define that your audience are developers
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.11", # Specify which python versions you want to support
-        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.12", # scipy==1.18.0 needs >=3.12, PySide6==6.9.2 needs <3.14
         "Programming Language :: Python :: 3.13",
-        "Programming Language :: Python :: 3.14",
     ],
     install_requires=[
         "PyYAML==6.0.3",
-        "matplotlib==3.10.0",
+        "matplotlib==3.11.1",
         "pandas==2.3.3",
         "numpy==2.3.4",
         "progress==1.6.1",
         "seaborn==0.13.2",
-        "scipy==1.15.0",
-        "scikit-learn==1.7.2",
-        "bayesian-optimization==3.1.0",
-        "numba==0.62.1",
-        "shap==0.49.1",
+        "scipy==1.18.0",
+        "scikit-learn==1.9.0",
+        "bayesian-optimization==3.3.0",
+        "numba==0.66.0",
+        "shap==0.52.0",
         "weasyprint==63.1",
         "PySide6==6.9.2",
         "PyMuPDF",
@@ -62,10 +59,10 @@ setup(
         "openpyxl",
         "ansi2html",
         "rdkit==2025.9.1",
-        "psutil==7.0.0",
-        "requests==2.32.5",
+        "psutil==7.2.2",
+        "requests==2.34.2",
     ],
-    python_requires=">=3.11",
+    python_requires=">=3.12,<3.14",
     include_package_data=True,
     entry_points={
         "console_scripts": [

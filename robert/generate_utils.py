@@ -17,6 +17,18 @@ from robert.utils import (
     model_adjust_params
     )
 
+# ROBERT's own short codes for the models GENERATE can use, case-insensitive (normalized to
+# upper, e.g. 'rf' -> 'RF')
+KNOWN_MODEL_CODES = ['RF','MVL','GB','GP','ADAB','NN','RIDGE','LOGISTIC']
+
+
+def normalize_model_name(model_name):
+    '''
+    Normalizes one of ROBERT's own short model codes to uppercase (case-insensitive).
+    '''
+
+    return model_name.upper() if model_name.upper() in KNOWN_MODEL_CODES else model_name
+
 
 # hyperopt workflow
 def BO_workflow(self, Xy_data, csv_df, ML_model):
@@ -24,7 +36,9 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     Load hyperparameter space and perform a Bayesian optimization
     '''
 
-    bo_data = {'model': ML_model.upper(),
+    model_key = normalize_model_name(ML_model)
+
+    bo_data = {'model': model_key,
                 'type': self.args.type.lower(),
                 'kfold': self.args.kfold,
                 'repeat_kfolds': self.args.repeat_kfolds,
@@ -39,7 +53,7 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
         bo_data['params'] = model_adjust_params(self, bo_data['model'], bo_data['params'])
 
     else:
-        bo_data['params'] = {} # no need to format params
+        bo_data['params'] = {}
         bo_data = BO_metrics(self, bo_data, Xy_data)
         metric_combined = bo_data[f"combined_{bo_data['error_type']}"]
         self.args.log.write(f"   o Combined {bo_data['error_type'].upper()} for {bo_data['model']} (no BO needed) (no PFI filter): {metric_combined:.2}")
@@ -47,9 +61,10 @@ def BO_workflow(self, Xy_data, csv_df, ML_model):
     # include the Set column to differentiate between train and test sets (and external test, if any)
     csv_df = set_sets(csv_df,Xy_data)
 
-    # save csv files with model params and with Xy datapoints
-    db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model}_db")
-    params_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{ML_model.upper()}")
+    # save csv files with model params and with Xy datapoints - both filenames must use the
+    # same case (model_key) or PFI_workflow() can't find the params file it just wrote back
+    db_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{model_key}_db")
+    params_name = self.args.destination.joinpath(f"Raw_data/No_PFI/{model_key}")
     _ = csv_df.to_csv(f'{db_name}.csv', index = None, header=True)
     
     # Convert params dict to string to avoid serialization issues
@@ -198,6 +213,7 @@ def detect_best(folder):
     # detect files
     file_list = glob.glob(f'{folder}/*.csv')
     errors = []
+    results_model = None
     for file in file_list:
         if '_db' not in file:
             results_model = pd.read_csv(f'{file}', encoding='utf-8')
@@ -205,6 +221,11 @@ def detect_best(folder):
             errors.append(training_error)
         else:
             errors.append(np.nan)
+
+    # no valid model results in this folder (e.g. every model's BO search failed), nothing to select
+    if results_model is None or all(pd.isna(e) for e in errors):
+        return
+
     # detect best result and copy files to the Best_model folder
     if results_model['error_type'][0].lower() in ['mae','rmse']:
         min_idx = errors.index(np.nanmin(errors))
@@ -215,6 +236,32 @@ def detect_best(folder):
 
     shutil.copyfile(f'{best_name}', f'{best_name}'.replace('Raw_data','Best_model'))
     shutil.copyfile(f'{best_db}', f'{best_db}'.replace('Raw_data','Best_model'))
+
+
+def stage_all_models(folder):
+    '''
+    Copies every model's parameter+database CSV pair from Raw_data into its own per-model
+    subfolder under All_models/ (same idea as detect_best()'s Best_model/ folder, but keeping
+    every model instead of just the best one). Each model needs its own dedicated folder since
+    load_dfs() scans a folder for exactly one non-"_db" CSV (the params) plus its "_db" pair
+    (the database) - a folder with several models' files mixed together would be ambiguous.
+    Used when --all_models is active, so VERIFY/PREDICT/REPORT can loop over every model.
+    '''
+
+    file_list = glob.glob(f'{folder}/*.csv')
+    for file in file_list:
+        if '_db' not in file:
+            file_stem = os.path.basename(file).split('.csv')[0]
+            db_file = f'{os.path.dirname(file)}/{file_stem}_db.csv'
+            # PFI params files are already named e.g. "RF_PFI" (see save_pfi_csv()) - strip
+            # that suffix for the destination folder name, so it stays just the model name
+            # ("RF") regardless of PFI/No_PFI, matching build_params_dirs()'s own "_PFI"
+            # suffix it appends when building suffix_titles (avoids a doubled "_PFI_PFI")
+            model_name = file_stem[:-len('_PFI')] if file_stem.endswith('_PFI') else file_stem
+            dest_dir = f'{folder}/{model_name}'.replace('Raw_data','All_models')
+            os.makedirs(dest_dir, exist_ok=True)
+            shutil.copyfile(file, f'{dest_dir}/{os.path.basename(file)}')
+            shutil.copyfile(db_file, f'{dest_dir}/{os.path.basename(db_file)}')
 
 
 def heatmap_workflow(self,folder_hm):
@@ -238,7 +285,16 @@ def heatmap_workflow(self,folder_hm):
     # sort columns in the same order as the optimization
     df_cols = []
     for model in self.args.model:
-        df_cols.append(model.upper())
+        df_cols.append(normalize_model_name(model))
+
+    # a model missing from csv_data means its CSV wasn't found under Raw_data/{folder_hm} (BO/PFI
+    # step failed to produce one, or a partial run was resumed) - reindexing on the full model
+    # list would otherwise raise a bare KeyError instead of pointing at the actual missing model
+    missing_models = [model for model in df_cols if model not in csv_data]
+    if missing_models:
+        self.args.log.write(f"\nx  WARNING! No results were found for these models, they will be skipped in the heatmap: {missing_models}")
+        df_cols = [model for model in df_cols if model not in missing_models]
+
     csv_df = csv_df[df_cols]
 
     # plot heatmap

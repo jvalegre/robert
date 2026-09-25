@@ -121,7 +121,7 @@ class aqme:
                     csv_temp.to_csv('AQME_indiv.csv', index=False)
                     aqme_indv_name = 'AQME_indiv'
                 else:
-                    smi_suffix = column.split("_")[1]
+                    smi_suffix = column.split("_", 1)[1]
                     csv_temp['code_name'] = csv_temp['code_name'].astype(str) + '_' + smi_suffix
                     csv_temp.to_csv(f'AQME_indiv_{smi_suffix}.csv', index=False)
                     aqme_indv_name = f'AQME_indiv_{smi_suffix}'
@@ -144,7 +144,11 @@ class aqme:
                     # Check if there are missing rows in the AQME-ROBERT_{aqme_indv_name}.csv
                     if len(df_temp) < len(csv_temp):
                         missing_rows = csv_temp.loc[~csv_temp['code_name'].isin(df_temp['code_name'])]
-                        missing_rows[['code_name', 'SMILES']].to_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', mode='a', header=False, index=False)
+                        # match df_temp's actual column set/order instead of assuming code_name/SMILES
+                        # are the first two columns - AQME's output column order isn't guaranteed, and
+                        # appending by raw position would silently misalign values into other columns
+                        missing_full = missing_rows[['code_name', 'SMILES']].reindex(columns=df_temp.columns)
+                        missing_full.to_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{aqme_indv_name}.csv', mode='a', header=False, index=False)
 
                     # Get the order of code_name in aqme_indv_name
                     order = csv_temp['code_name'].tolist()
@@ -163,7 +167,7 @@ class aqme:
                     for sdf_file in glob.glob(f'{path_sdf}/*.sdf'):
                         new_sdf = Path(f'{os.getcwd()}/CSEARCH').joinpath(os.path.basename(sdf_file))
                         shutil.move(sdf_file, new_sdf)
-                        shutil.rmtree(path_sdf)
+                    shutil.rmtree(path_sdf)
 
         # if AQME-ROBERT_AQME_indiv_n.csv >0 in folder:
         if len(glob.glob(f'AQME-ROBERT_{self.args.descp_lvl}_AQME_indiv*.csv')) > 0:
@@ -238,7 +242,10 @@ def filter_atom_prop(aqme_db, csv_df):
             aqme_df = aqme_df.drop(column, axis=1)
         # remove lists of atomic properties (skip columns from AQME arguments)
         elif aqme_df[column].dtype == object and column.lower() not in aqme_args:
-            if '[' in aqme_df[column][0] and column not in csv_df.columns:
+            # use the first non-missing value instead of row 0, since AQME can fail for the
+            # first molecule specifically and leave a NaN there (not iterable, unlike a string)
+            first_valid = aqme_df[column].dropna()
+            if not first_valid.empty and '[' in str(first_valid.iloc[0]) and column not in csv_df.columns:
                 aqme_df = aqme_df.drop(column, axis=1)
     os.remove(aqme_db)
     _ = aqme_df.to_csv(f'{aqme_db}', index=None, header=True)
@@ -265,7 +272,7 @@ def move_aqme():
     for file in glob.glob(f'*'):
         if 'CSEARCH' in file or 'QDESCP' in file:
             if os.path.exists(f'AQME/{file}'):
-                if len(os.path.basename(Path(file)).split('.')) == 1:
+                if os.path.isdir(f'AQME/{file}'):
                     shutil.rmtree(f'AQME/{file}')
                 else:
                     os.remove(f'AQME/{file}')

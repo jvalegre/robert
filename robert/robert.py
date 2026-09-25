@@ -43,6 +43,17 @@ def main(exe_type='command',sys_args=None):
     Main function of ROBERT, acts as the starting point when the program is run through a terminal
     """
 
+    # ensure console output can print non-ASCII characters (e.g. Greek letters in descriptor
+    # names, such as mu in Sterimol-derived columns) - Windows terminals often report a legacy
+    # codepage (e.g. cp1252) as sys.stdout's encoding even when the terminal itself renders
+    # UTF-8 fine, which crashes print() with UnicodeEncodeError on unsupported characters
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            try:
+                stream.reconfigure(encoding='utf-8', errors='replace')
+            except Exception:
+                pass
+
     # load user-defined arguments from command line
     args = command_line_args(exe_type,sys_args)
     args.command_line = True

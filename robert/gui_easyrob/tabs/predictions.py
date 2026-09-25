@@ -52,8 +52,8 @@ try:
         PredictionDashboardPanel,
         StatsHeader,
         evaluate_predictions_for_model,
-        extract_extrapolation_fragment,
-        extract_extrapolation_scores,
+        extract_boundary_fragment,
+        extract_boundary_scores,
         extract_robert_fragment_image,
         find_external_test_pixmaps,
         find_prediction_csvs,
@@ -86,8 +86,8 @@ except ImportError as e:
         PredictionDashboardPanel,
         StatsHeader,
         evaluate_predictions_for_model,
-        extract_extrapolation_fragment,
-        extract_extrapolation_scores,
+        extract_boundary_fragment,
+        extract_boundary_scores,
         extract_robert_fragment_image,
         find_external_test_pixmaps,
         find_prediction_csvs,
@@ -235,8 +235,8 @@ class PredictionsTab(QWidget):
         )
 
         # Extract fragment image
-        pdf_path = get_robert_report_path(self._base_path)
-        pdf_image = extract_robert_fragment_image(pdf_path, key)
+        pdf_path = get_robert_report_path(self._base_path, key)
+        pdf_image = extract_robert_fragment_image(pdf_path)
 
         widget = self._create_table_with_stats(df, info, pdf_image)
         tab_name = key.replace("_", " ")
@@ -312,9 +312,10 @@ class PredictionsTab(QWidget):
         pdf_path = info["pdf_path"]
         model_key = info["model"]  # "PFI" or "No_PFI"
 
-        # Extrapolation data
-        extrap_scores = extract_extrapolation_scores(pdf_path)
-        extrap_pixmap = extract_extrapolation_fragment(pdf_path, model_key)
+        # Boundary robustness data (regression only - None for classification, see
+        # extract_boundary_scores())
+        bound_score = extract_boundary_scores(pdf_path)
+        bound_pixmap = extract_boundary_fragment(pdf_path)
 
         # External validation plot
         external_pixmaps = find_external_test_pixmaps(self._base_path)
@@ -323,8 +324,8 @@ class PredictionsTab(QWidget):
         side_panel = PredictionDashboardPanel(
             scenario=info["scenario"],
             pdf_image=pdf_image,
-            extrapolation_score=extrap_scores.get(model_key),
-            extrapolation_image=extrap_pixmap,
+            boundary_score=bound_score,
+            boundary_image=bound_pixmap,
             external_plot=external_pixmap
         )
 

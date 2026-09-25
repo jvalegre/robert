@@ -39,13 +39,13 @@ try:
 
     from version import SOFTWARE_VERSIONS
     from utils import utils_gui, molssi_utils
-    from tabs import predictions, aqme, advanced_options, molssi, results, images
+    from tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate
 
 except ImportError as e:
 
     from robert.gui_easyrob.version import SOFTWARE_VERSIONS
     from robert.gui_easyrob.utils import utils_gui, molssi_utils
-    from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images
+    from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate
 
 
 # ------------------------------------------------------------
@@ -61,6 +61,8 @@ AssetLibrary = utils_gui.AssetLibrary
 Chem = utils_gui.Chem
 DropLabel = utils_gui.DropLabel
 NoScrollComboBox = utils_gui.NoScrollComboBox
+SegmentedButtonGroup = utils_gui.SegmentedButtonGroup
+YesNoToggle = utils_gui.YesNoToggle
 Path = utils_gui.Path
 QApplication = utils_gui.QApplication
 QCheckBox = utils_gui.QCheckBox
@@ -113,6 +115,7 @@ AdvancedOptionsTab = advanced_options.AdvancedOptionsTab
 MolSSIDatabasesTab = molssi.MolSSIDatabasesTab
 ResultsTab = results.ResultsTab
 ImagesTab = images.ImagesTab
+EvaluateTab = evaluate.EvaluateTab
 
 # ------------------------------------------------------------
 # Base directory (used for assets, tutorials, etc.)
@@ -440,7 +443,22 @@ class EasyROB(QMainWindow):
 
         # --- Add All to Main Layout ---
         main_layout.addLayout(csv_layout)
-   
+
+        # --- AQME workflow toggle --- placed right after loading the CSV (moved up from
+        # further down the panel) since it's one of the first real decisions a user makes -
+        # it determines whether descriptors get calculated from SMILES before anything else,
+        # which can change what columns are even available to pick below. An explicit No/Yes
+        # choice (defaulting to No, same as the old checkbox's unchecked default) instead of a
+        # single checkable button, whose "click to toggle" behavior wasn't obvious at a glance
+        self.aqme_workflow_label = QLabel("Start by calculating descriptors from SMILES? (AQME)")
+        self.aqme_workflow_label.setStyleSheet("font-size:13px;")
+        main_layout.addWidget(self.aqme_workflow_label)
+
+        self.aqme_workflow = YesNoToggle(checked=False)
+        self.aqme_workflow.toggled.connect(self.check_aqme_workflow)
+        main_layout.addWidget(self.aqme_workflow)
+        main_layout.addSpacing(10)
+
         # --- Select column for --y ---
         self.y_label = QLabel("Select Target Column (y)")
         self.y_label.setStyleSheet("font-size:13px;")
@@ -533,33 +551,29 @@ class EasyROB(QMainWindow):
         main_layout.addWidget(column_container)
         main_layout.addSpacing(10)
 
-        # AQME Workflow Checkbox
-        self.aqme_workflow = QCheckBox("Enable AQME Workflow") 
-        self.aqme_workflow.setStyleSheet("font-weight: bold; font-size: 14px;")
-        self.aqme_workflow.stateChanged.connect(self.check_aqme_workflow)
-        main_layout.addWidget(self.aqme_workflow)
-        main_layout.addSpacing(10)  
+        # Workflow selection - segmented buttons instead of a dropdown: every option stays
+        # visible at a glance, instead of being hidden behind a click (a dropdown here was easy
+        # to misuse - see run() call sites, which all just read workflow_selector.currentText())
+        self.workflow_selector_label = QLabel("What do you want to run?")
+        self.workflow_selector_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        main_layout.addWidget(self.workflow_selector_label)
 
-        # Workflow selection dropdown
-        self.workflow_selector = NoScrollComboBox()
-        self.workflow_selector.setStyleSheet("font-weight: bold; font-size: 14px;")
-
-        # Add options
-        self.workflow_selector.addItems([
+        self.workflow_selector = SegmentedButtonGroup([
             "Full Workflow",
             "CURATE",
             "GENERATE",
             "PREDICT",
             "VERIFY",
             "REPORT"
-        ])
+        ], columns=3)
 
         # Set default selection
         self.workflow_selector.setCurrentText("Full Workflow")
 
-        # Add to layout
+        # Add to layout - extra spacing (vs. the 10px used elsewhere) so this doesn't visually
+        # crowd the Run/Stop buttons right below it
         main_layout.addWidget(self.workflow_selector)
-        main_layout.addSpacing(10)
+        main_layout.addSpacing(20)
 
         # --- Run button ---
         self.run_button = QPushButton(" Run ROBERT")
@@ -775,6 +789,9 @@ class EasyROB(QMainWindow):
         # Predictions tab
         self.predictions_tab = PredictionsTab(self.tab_widget)
 
+        # Evaluate tab (self-contained: doesn't depend on a prior run)
+        self.evaluate_tab = EvaluateTab(self.tab_widget)
+
         # ===============================
         # Add Tabs to Tab Widget (Display order)
         # ===============================
@@ -793,6 +810,8 @@ class EasyROB(QMainWindow):
         self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.images_tab), False)
 
         self.tab_widget.addTab(self.predictions_tab, "Predictions")
+
+        self.tab_widget.addTab(self.evaluate_tab, "Evaluate")
 
         # Start disabled
         self.tab_widget.setTabEnabled(
@@ -2097,7 +2116,7 @@ class EasyROB(QMainWindow):
             "<pre style='color:white; background-color:black; font-family:monospace;'></pre>"
         )
 
-        # Path to run directory 
+        # Path to run directory
         if self.file_path:
             run_dir = os.path.dirname(self.file_path)
         elif self.csv_test_path:
@@ -2158,6 +2177,8 @@ class EasyROB(QMainWindow):
         wf_predict = self.workflow_selector.currentText()
         if wf_predict == "Full Workflow" or wf_predict == "REPORT":
             self.rename_existing_pdf("ROBERT_report.pdf", run_dir)
+            self.rename_existing_pdf("ROBERT_report_No_PFI.pdf", run_dir)
+            self.rename_existing_pdf("ROBERT_report_PFI.pdf", run_dir)
 
         # ==================================================
         # Cache mapped CSVs (TRAIN + TEST)
@@ -2592,6 +2613,9 @@ class EasyROB(QMainWindow):
         if self.corr_filter_y_value:
             command += ' --corr_filter_y True'
 
+        if not self.rfecv_filter_value:
+            command += ' --rfecv_filter False'
+
         if self.desc_thres_value:
             command += f' --desc_thres {self.desc_thres_value}'
 
@@ -2666,6 +2690,7 @@ class EasyROB(QMainWindow):
         self.categorical_value = self.options_tab.categoricalstr.currentText().strip()
         self.corr_filter_x_value = self.options_tab.corr_filter_xbool.isChecked()
         self.corr_filter_y_value = self.options_tab.corr_filter_ybool.isChecked()
+        self.rfecv_filter_value = self.options_tab.rfecv_filterbool.isChecked()
         self.desc_thres_value = self.options_tab.desc_thresfloat.text().strip()
         self.thres_x_value = self.options_tab.thres_xfloat.text().strip()
         self.thres_y_value = self.options_tab.thres_yfloat.text().strip()
@@ -3508,7 +3533,7 @@ class EasyROB(QMainWindow):
         # Full workflow / REPORT
         # ------------------------
         if not self.manual_stop and (workflow == "Full Workflow" or workflow == "REPORT"):
-            if exit_code == 0 and "ROBERT_report.pdf was created successfully" in output_text:
+            if exit_code == 0 and "ROBERT_report_No_PFI.pdf was created successfully" in output_text:
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Information)
                 msg_box.setWindowTitle("Success!")

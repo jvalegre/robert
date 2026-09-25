@@ -198,6 +198,17 @@ jobs:
             conda activate cheminf
             export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH}"
 
+            # CircleCI containers report the HOST's full core count (not what's actually
+            # allocated to the container), so OpenMP/BLAS-threaded libraries (numpy/scipy/
+            # scikit-learn here, xtb in the AQME tests) oversubscribe threads and badly
+            # thrash/slow down instead of speeding up. Pinning to 1 thread per process fixed
+            # this dramatically for AQME's own xtb calls (~10min instead of hanging/timing
+            # out) - applying the same fix here since GENERATE's BO search and VERIFY/
+            # PREDICT's repeated CV are just as numpy/scikit-learn-heavy
+            export OMP_NUM_THREADS=1
+            export OPENBLAS_NUM_THREADS=1
+            export MKL_NUM_THREADS=1
+
             # ------------------------------------------------------------------
             # Focused AQME-only diagnostic flow kept here as commented reference
             # ------------------------------------------------------------------
@@ -324,6 +335,12 @@ jobs:
             eval "$(conda shell.bash hook)"
             conda activate cheminf
             export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH}"
+
+            # see the matching comment in build-and-test-core - CircleCI containers
+            # oversubscribe OpenMP/BLAS threads otherwise (test_7api.py fits real models too)
+            export OMP_NUM_THREADS=1
+            export OPENBLAS_NUM_THREADS=1
+            export MKL_NUM_THREADS=1
 
             mkdir -p test-results
 

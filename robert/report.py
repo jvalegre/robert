@@ -1500,7 +1500,7 @@ class report:
         # get their own row (still 2 lines total, same as before) instead of one long paragraph
         citation_dat += f"""<p style="text-align: justify; margin-top: -9px;"><br>{version_n_date}</p>
         <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">How to cite:</span> {citation_main}</p>
-        <p style="text-align: justify; margin-top: 0px;"><span style="font-weight:bold;">Low data regimes:</span> {citation_lowdata}</p>"""
+        <p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;"><span style="font-weight:bold;">Low data regimes:</span> {citation_lowdata}</p>"""
 
         # QDESCP's own validation paper - only relevant when AQME generated the descriptors
         # (command_line already has the full "python -m robert ..." line at this point, so the

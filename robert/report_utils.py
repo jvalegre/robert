@@ -694,9 +694,9 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
 
 def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
     """
-    Interpolation sub-metric 4: gap between out-of-fold validation error and the same fold's
-    own in-fold training fit (a large gap indicates the model memorizes each fold's training
-    split instead of generalizing to its own held-out validation split).
+    Interpolation sub-metric 4: gap between the out-of-fold validation error and the in-fold
+    training fit, both averaged over all the folds and repeats of the CV (a large gap indicates
+    the model memorizes its training splits instead of generalizing to held-out points).
 
     Classification uses the same ΔMCC-based comparison as item 5's CV-vs-test consistency
     check (see adv_diff_test()), applied to train-infold vs CV instead of CV vs test.
@@ -1160,9 +1160,9 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                         # silently score 0/2 regardless of the actual ratios
                         scaled_rmse_bottom80 = data_score.get(f'scaled_rmse_bottom80_{suffix}')
                         scaled_rmse_top80 = data_score.get(f'scaled_rmse_top80_{suffix}')
-                        if scaled_rmse_bottom80 and scaled_rmse_top80:
-                            data_score[f'degradation_ratio_high_{suffix}'] = scaled_high / scaled_rmse_bottom80
-                            data_score[f'degradation_ratio_low_{suffix}'] = scaled_low / scaled_rmse_top80
+                        if scaled_rmse_bottom80 is not None and scaled_rmse_top80 is not None:
+                            data_score[f'degradation_ratio_high_{suffix}'] = safe_ratio(scaled_high,scaled_rmse_bottom80)
+                            data_score[f'degradation_ratio_low_{suffix}'] = safe_ratio(scaled_low,scaled_rmse_top80)
                             data_score[f'degradation_score_{suffix}'] = int(data_score[f'degradation_ratio_low_{suffix}'] <= 1.5) + int(data_score[f'degradation_ratio_high_{suffix}'] <= 1.5)
 
     # stores data
@@ -1278,13 +1278,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                         data_score[f'test_score_combined_{suffix}'] = 0
 
                     diff_score = 0
-                    # relative difference between RMSE from test and CV (guarded the same way
-                    # as factor_trainfit below: a near-perfect CV fit can round its scaled RMSE
-                    # to 0.00, which would otherwise raise ZeroDivisionError here)
-                    if data_score[f'scaled_rmse_cv_{suffix}'] > 0:
-                        data_score[f'factor_scaled_rmse_{suffix}'] = data_score[f'scaled_rmse_test_{suffix}'] / data_score[f'scaled_rmse_cv_{suffix}']
-                    else:
-                        data_score[f'factor_scaled_rmse_{suffix}'] = 0
+                    # relative difference between RMSE from test and CV (a near-perfect CV fit can
+                    # round its scaled RMSE to 0.00 - see safe_ratio())
+                    data_score[f'factor_scaled_rmse_{suffix}'] = safe_ratio(data_score[f'scaled_rmse_test_{suffix}'],data_score[f'scaled_rmse_cv_{suffix}'])
                     if data_score[f'factor_scaled_rmse_{suffix}'] <= 1.25:
                         diff_score += 2
                     elif data_score[f'factor_scaled_rmse_{suffix}'] <= 1.5:
@@ -1292,16 +1288,14 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     data_score[f'diff_scaled_rmse_score_{suffix}'] = diff_score
 
                     # train-vs-validation gap (interpolation): how much worse out-of-fold
-                    # validation RMSE is compared to the same fold's own in-fold training fit
+                    # validation RMSE is compared to the in-fold training fit (both global, i.e.
+                    # over every fold and repeat of the CV, not fold by fold)
                     data_score[f'train_val_gap_score_{suffix}'] = 0
                     for j in range(i,i+12):
                         if 'Train fit (in-fold)' in dat_predict[j]:
                             rmse_trainfit = float(dat_predict[j].split('RMSE = ')[-1].strip())
                             data_score[f'scaled_rmse_trainfit_{suffix}'] = round((rmse_trainfit/data_score[f'y_range_{suffix}'])*100,2)
-                            if data_score[f'scaled_rmse_trainfit_{suffix}'] > 0:
-                                factor_trainfit = data_score[f'scaled_rmse_cv_{suffix}'] / data_score[f'scaled_rmse_trainfit_{suffix}']
-                            else:
-                                factor_trainfit = 0
+                            factor_trainfit = safe_ratio(data_score[f'scaled_rmse_cv_{suffix}'],data_score[f'scaled_rmse_trainfit_{suffix}'])
                             data_score[f'factor_trainfit_{suffix}'] = factor_trainfit
                             train_val_gap_score = 0
                             if factor_trainfit <= 1.25:
@@ -1581,6 +1575,18 @@ def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
             r2_mcc_score += 1
 
     return r2_mcc_score
+
+
+def safe_ratio(numerator,denominator):
+    '''
+    Ratio between two errors that can round to exactly 0 (near-perfect fits): 0/0 means no
+    difference between them (0), while a nonzero error over a zero baseline is an unbounded
+    degradation (inf), never the best-case ratio
+    '''
+
+    if denominator > 0:
+        return numerator / denominator
+    return 0 if numerator == 0 else float('inf')
 
 
 def calc_penalty_r2(r2_val):

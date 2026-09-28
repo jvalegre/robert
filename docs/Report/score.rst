@@ -179,9 +179,9 @@ Points        R\ :sup:`2` (penalty)
 
 **Regression**
 
-Compares each fold's out-of-fold validation RMSE with that same fold's own in-fold training RMSE, to
-catch a model that fits its training folds much better than it generalizes to their held-out validation
-fold — a classic sign of overfitting that the CV-average metrics in B.2 can otherwise hide.
+Compares the out-of-fold validation RMSE with the in-fold training RMSE, both averaged over all the folds
+and repeats of the CV, to catch a model that fits its training data much better than it generalizes to
+held-out points — a classic sign of overfitting that the CV-average metrics in B.2 can otherwise hide.
 
 ============== ======================================================
 Points         Scaled RMSE ratio
@@ -323,8 +323,7 @@ below come from these two extreme folds; the fifth uses a different, X-descripto
 |sorted_lh|
 
 *Not statistical outliers — simply the most extreme 20% of real values in the dataset. Sub-metrics 1-4*
-*below all follow this Low/High fold pattern; sub-metric 5 breaks it on purpose (more on that when we*
-*get there).*
+*below all follow this Low/High fold pattern; sub-metric 5 breaks it on purpose (see* |u| 5. Applicability domain (leverage) |/u| *below).*
 
 |u| 1-2. Low / High — scaled RMSE (2 points each) |/u|
 

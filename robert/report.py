@@ -195,7 +195,7 @@ class report:
 
         # detects whether EVALUATE evaluated a model with user-supplied hyperparameters
         # (model_obj/model_file/model_params) rather than the trivial 'MVL' default - only
-        # those carry the data-leakage risk flagged in print_warnings() below, since 'MVL'
+        # those carry the optimistic-scores risk flagged in print_warnings() below, since 'MVL'
         # has no hyperparameters that could have been tuned on data ROBERT now scores against.
         # The model name is read off the actual GENERATE output (not re-derived from CLI args,
         # which aren't available here) - EVALUATE always narrows GENERATE to a single model, so
@@ -462,6 +462,14 @@ class report:
         data_score = {}
         data_score = calc_score(dat_files,suffix,pred_type,data_score)
 
+        # a test set picked by the user (EVALUATE's 'Set' column) is never the systematic split
+        # the score was calibrated for, even if it happens to have ~20% of the points (in which
+        # case the size check in calc_score() alone would still give a score)
+        path_eval_log = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
+        if path_eval_log.exists() and "Using the 'Set' column" in path_eval_log.read_text(encoding='utf-8'):
+            data_score[f'score_available_{suffix}'] = False
+            data_score[f'score_unavailable_reason_{suffix}'] = 'user_set'
+
         # the score's thresholds were calibrated assuming the standard test_set=0.2 split (see
         # calc_score()/get_predict_scores() for how score_available is derived, and the note in
         # score.rst) - with a non-standard internal split (including 0, i.e. no held-out test
@@ -487,6 +495,8 @@ class report:
             if reason == 'cv':
                 cv_type = data_score.get(f'cv_type_{suffix}', '')
                 reason_txt = f"this model used {cv_type} instead of the standard 10x repeated 5-fold CV the ROBERT score was calibrated for. If you want a score, use the default --kfold 5 --repeat_kfolds 10"
+            elif reason == 'user_set':
+                reason_txt = "the test set was chosen by the user (Set column) instead of ROBERT's systematic ~20% split the ROBERT score was calibrated for. If you want a score, remove the Set column"
             else:
                 n_test = data_score.get(f'n_test_{suffix}')
                 reason_txt = f"this model's test set has {n_test} point(s), not the standard ~20% split the ROBERT score was calibrated for. If you want a score, use the default --test_set 0.2"
@@ -657,7 +667,7 @@ class report:
         if getattr(self,'custom_model_used',False):
             warning_print += f'''
         <div style="width:100%; box-sizing:border-box; background-color:{color_dict['red']}; padding:8px; margin-top:2px; margin-bottom:10px; text-align:center;">
-        <span style="font-size:17px; font-weight:bold; color:white;">&#9888; POSSIBLE DATA LEAKAGE: externally-tuned hyperparameters</span><br>
+        <span style="font-size:17px; font-weight:bold; color:white;">&#9888; SCORES MAY BE OPTIMISTIC: user-provided hyperparameters</span><br>
         <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (EVALUATE), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
         </div>'''
 
@@ -1693,6 +1703,14 @@ class report:
 
         # set the parameters for the ML model
         params_dir = f'{self.args.params_dir}/{"_".join(suffix.split())}'
+
+        # --all_models: each model's PDF shows its own parameters (from the per-model folders
+        # staged by GENERATE), not the ones from the best model in Best_model
+        model_name = getattr(self,'model_suffix','')[1:]
+        if getattr(self.args,'all_models',False) and model_name:
+            params_dir_model = f'{self.args.params_dir.replace("Best_model","All_models")}/{"_".join(suffix.split())}/{model_name}'
+            if os.path.isdir(params_dir_model):
+                params_dir = params_dir_model
         files_param = glob.glob(f'{params_dir}/*.csv')
         for file_param in files_param:
             if '_db' not in file_param:

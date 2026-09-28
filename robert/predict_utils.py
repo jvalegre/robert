@@ -282,8 +282,12 @@ def print_predict(self,Xy_data,model_data,suffix_title):
                 repeat_mccs = [mcc_scorer_clf(y_train_actual,y_pred_train_all[:,i]) for i in range(y_pred_train_all.shape[1])]
                 if np.mean(repeat_mccs) != 0:
                     mcc_cv_pct = 100*np.std(repeat_mccs,ddof=1)/abs(np.mean(repeat_mccs))
-                else:
+                elif np.std(repeat_mccs,ddof=1) == 0:
                     mcc_cv_pct = 0
+                else:
+                    # MCCs that vary but average exactly 0 (i.e., positive and negative repeats
+                    # cancel out) are the least stable case, not the most stable one
+                    mcc_cv_pct = float('inf')
                 print_results += f"\n      -  MCC coefficient of variation (10 repeats) = {mcc_cv_pct:.1f}"
 
         if 'acc_external' in Xy_data:

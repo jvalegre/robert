@@ -295,6 +295,11 @@ def heatmap_workflow(self,folder_hm):
         self.args.log.write(f"\nx  WARNING! No results were found for these models, they will be skipped in the heatmap: {missing_models}")
         df_cols = [model for model in df_cols if model not in missing_models]
 
+    # nothing to plot if every model failed (seaborn can't draw an empty matrix)
+    if not df_cols:
+        self.args.log.write(f"\nx  WARNING! No model produced results, so the heatmap was not generated.")
+        return
+
     csv_df = csv_df[df_cols]
 
     # plot heatmap

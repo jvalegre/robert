@@ -51,12 +51,6 @@ def test_EVALUATE():
         "--y", "Target_values",
         "--names", "Name",
         "--csv_name", "tests/Evaluate_train.csv",
-        # EVALUATE calls load_database() with print_info=False, which skips sanity_checks()
-        # entirely - that's the only place the "auto" split default gets resolved into a real
-        # split method (even/stratified), so the default "auto" currently reaches test_select() as a
-        # literal, unhandled string there. Passing an explicit split avoids that (separate,
-        # pre-existing bug, not touched here).
-        "--split", "even",
         "--debug_report", "True",
     ]
 
@@ -95,10 +89,8 @@ def test_EVALUATE_module():
     a subprocess is invisible to coverage tools, so this is what actually exercises
     evaluate.py (and the REPORT/VERIFY/PREDICT chain it drives) under coverage.
 
-    Only regression is covered here: EVALUATE currently rejects type="clas" outright (see the
-    "not valid in EVALUATE... 'clas' option will be added soon" check in utils.py) and its only
-    supported eval_model (MVL/LinearRegression) is regression-only, so a classification variant
-    of this test isn't possible until that support is added to the module itself.
+    This one covers regression with the default MVL model, and the classification variant is
+    test_EVALUATE_classification() below.
     """
     _clean_evaluate_run()
 
@@ -106,15 +98,14 @@ def test_EVALUATE_module():
         y="Target_values",
         names="Name",
         csv_name="tests/Evaluate_train.csv",
-        # see the comment on the "--split" cmd arg above: sidesteps the same pre-existing
-        # "auto" split resolution bug, not touched here
-        split="even",
     )
 
     # EVALUATE only builds the GENERATE/Best_model files - it doesn't run VERIFY/PREDICT/REPORT
     # itself. "python -m robert --evaluate" chains those afterward (see the "EVALUATE, only
     # evaluates models" branch in robert.py's main()); replicate that same chain here, calling
-    # each module directly like the "--evaluate" CLI path does
+    # each module directly like the "--evaluate" CLI path does. The whole chain is needed
+    # because the assertions below check the final report (score, warnings, banners), which
+    # only exists once REPORT has run on top of VERIFY and PREDICT
     curate(y="Target_values", names="Name", csv_name="tests/Evaluate_train.csv")
     verify(ignore=["Set"])
     predict(ignore=["Set"])
@@ -153,9 +144,9 @@ def test_EVALUATE_module():
     ]
     assert len(score_imgs) == 2  # Interpolation + Boundary robustness
 
-    # plain 'MVL' has no user-tunable hyperparameters, so the data-leakage banner (only
+    # plain 'MVL' has no user-tunable hyperparameters, so the optimistic-scores banner (only
     # relevant when the user supplied their own hyperparameters) must NOT appear here
-    assert "POSSIBLE DATA LEAKAGE" not in debug_content
+    assert "SCORES MAY BE OPTIMISTIC" not in debug_content
 
     # the test set was picked by ROBERT's own systematic split, so the score is calibrated
     # and must be calculated normally
@@ -189,6 +180,8 @@ def test_EVALUATE_custom_sklearn_model_and_user_split():
     )
 
     try:
+        # same EVALUATE -> CURATE -> VERIFY -> PREDICT -> REPORT chain as test_EVALUATE_module():
+        # the assertions below inspect the final report, which needs the whole chain
         evaluate(y="Target_values", names="Name", csv_name=combined_path, model_params=model_params_path)
         curate(y="Target_values", names="Name", csv_name=combined_path)
         verify(ignore=["Set"])
@@ -215,16 +208,16 @@ def test_EVALUATE_custom_sklearn_model_and_user_split():
         assert "sklearn model: Ridge" in debug_content
         assert "alpha: 0.5" in debug_content
 
-        # a user-supplied model (Ridge, via model_params) DOES carry the data-leakage risk:
+        # a user-supplied model (Ridge, via model_params) DOES carry the optimistic-scores risk:
         # its hyperparameters weren't derived from ROBERT's own held-out split, so the big
         # warning banner in Section A must appear (see print_warnings() in report.py)
-        assert "POSSIBLE DATA LEAKAGE" in debug_content
+        assert "SCORES MAY BE OPTIMISTIC" in debug_content
         assert "both the CV and Test scores below" in debug_content
 
         # the user forced the test set (15 points instead of ROBERT's systematic ~20% split),
         # so the score isn't calibrated for this run and must NOT be calculated
         assert "Score not available" in debug_content
-        assert "test set has 15 point(s)" in debug_content
+        assert "chosen by the user (Set column)" in debug_content
     finally:
         for path in (combined_path, model_params_path):
             if os.path.exists(path):
@@ -253,6 +246,8 @@ def test_EVALUATE_classification():
     ).to_csv(model_params_path, index=False)
 
     try:
+        # same EVALUATE -> CURATE -> VERIFY -> PREDICT -> REPORT chain as test_EVALUATE_module():
+        # the assertions below inspect the final report, which needs the whole chain
         evaluate(
             y="Target_values", names="Name", csv_name=combined_path,
             model_params=model_params_path, type="clas",
@@ -291,14 +286,67 @@ def test_EVALUATE_classification():
             if "report/score_" in line and "report/score_w" not in line
         ]
         assert len(score_imgs) == 1  # Interpolation only - no Boundary robustness score bar/image
-        # RandomForestClassifier's hyperparameters came from the user, same leakage risk as
+        # RandomForestClassifier's hyperparameters came from the user, same optimistic-scores risk as
         # the regression case above - the banner isn't regression-specific
-        assert "POSSIBLE DATA LEAKAGE" in debug_content
+        assert "SCORES MAY BE OPTIMISTIC" in debug_content
         # same for the user-forced test set (15 points): no calibrated score
         assert "Score not available" in debug_content
-        assert "test set has 15 point(s)" in debug_content
+        assert "chosen by the user (Set column)" in debug_content
     finally:
         for path in (combined_path, model_params_path):
             if os.path.exists(path):
                 os.remove(path)
         _clean_evaluate_run()
+
+
+def test_EVALUATE_user_set_of_standard_size_has_no_score():
+    """
+    A test set chosen by the user through the 'Set' column never gets a score, not even when it
+    happens to have the standard ~20% size (7 of the 37 points) that would otherwise pass the
+    test-set size check - it isn't ROBERT's own systematic split the score was calibrated for.
+    """
+    _clean_evaluate_run()
+
+    combined = pd.concat(
+        [pd.read_csv("tests/Evaluate_train.csv"), pd.read_csv("tests/Evaluate_valid.csv")],
+        ignore_index=True,
+    )
+    combined["Set"] = ["Training"] * (len(combined) - 7) + ["Test"] * 7
+    combined_path = os.path.join(path_main, "test_evaluate_std_set.csv")
+    combined.to_csv(combined_path, index=False)
+
+    try:
+        # same EVALUATE -> CURATE -> VERIFY -> PREDICT -> REPORT chain as test_EVALUATE_module():
+        # the assertions below inspect the final report, which needs the whole chain
+        evaluate(y="Target_values", names="Name", csv_name=combined_path)
+        curate(y="Target_values", names="Name", csv_name=combined_path)
+        verify(ignore=["Set"])
+        predict(ignore=["Set"])
+        report(ignore=["Set"], debug_report=True)
+
+        with open(os.path.join(path_main, "PREDICT", "PREDICT_data.dat"), encoding="utf-8") as f:
+            assert "- Test points: 7" in f.read()
+
+        with open(os.path.join(path_main, "report_debug_No_PFI.txt"), "r", encoding="utf-8") as f:
+            debug_content = f.read()
+        assert "Score not available" in debug_content
+        assert "chosen by the user (Set column)" in debug_content
+    finally:
+        if os.path.exists(combined_path):
+            os.remove(combined_path)
+        _clean_evaluate_run()
+
+
+def test_score_ratio_with_zero_error_baseline():
+    """
+    A near-perfect fit can round an error to exactly 0.00. A nonzero error over that zero
+    baseline must be an unbounded ratio (worst case, never the best-case 0), and only 0/0
+    means "no difference" - used by the CV-vs-test, train-vs-validation and degradation scores.
+    """
+    from robert.report_utils import safe_ratio
+
+    assert safe_ratio(3.0, 2.0) == 1.5
+    assert safe_ratio(0, 0) == 0
+    assert safe_ratio(1.2, 0) == float("inf")
+    # the resulting ratio falls in the worst scoring tier (> 1.5x) instead of the best (<= 1.25x)
+    assert not safe_ratio(1.2, 0) <= 1.5

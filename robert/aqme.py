@@ -31,7 +31,8 @@ from pathlib import Path
 import pandas as pd
 from robert.utils import (load_variables,
     finish_print,
-    load_database
+    load_database,
+    is_smiles_column
     )
 
 # list of potential arguments from CSV inputs in AQME
@@ -108,7 +109,7 @@ class aqme:
 
         # find if there is more than one SMILES column in the CSV file
         for column in csv_df.columns:
-            if "SMILES" == column.upper() or "SMILES_" in column.upper():
+            if is_smiles_column(column):
                 
                 self.args.ignore.append(column)
 

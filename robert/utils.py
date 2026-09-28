@@ -104,6 +104,27 @@ def _integer_like_class_values(values):
     )
 
 
+def is_smiles_column(column):
+    """
+    AQME workflows read SMILES from a column named SMILES, or SMILES_suffix when there are
+    several of them (i.e. SMILES_1 and SMILES_2, each one gets its own AQME run - see aqme.py).
+    Case-insensitive.
+    """
+
+    return "SMILES" == str(column).upper() or "SMILES_" in str(column).upper()
+
+
+def _csv_row_numbers_txt(mask,max_rows=10):
+    """
+    Row numbers (as they appear in Excel or a text editor: +2 since the header is line 1 and
+    counting starts at 1) of the rows flagged in a boolean mask, capped to max_rows
+    """
+
+    rows = [int(idx) + 2 for idx in mask[mask].index]
+    txt = ', '.join(str(row) for row in rows[:max_rows])
+    return txt + (', ...' if len(rows) > max_rows else '')
+
+
 def _classification_vote(values):
     """
     Combine repeated classification predictions with majority voting.
@@ -1362,15 +1383,44 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     # Missing data handling: robust strategy for columns and rows (optional KNN imputer)
     target_col = self.args.y
 
-    # Missing target (y) values crash later steps (e.g. data splitting), so remove them upfront
-    # and warn the user instead of letting the program fail. External test sets are skipped since
-    # their target column is often unknown on purpose (that's what's being predicted)
+    csv_name_load = os.path.basename(csv_load)
+
+    # Missing target (y) values can't be predicted or imputed and crash later steps (e.g. data
+    # splitting) in cryptic ways, and silently dropping those rows would hide a data-entry
+    # mistake the user almost certainly wants to know about - so stop with a message pointing
+    # to the offending rows instead. External test sets are skipped since their target column
+    # is often unknown on purpose (that's what's being predicted)
     if not external_test and target_col in csv_df.columns:
-        rows_missing_y = csv_df[target_col].isna()
+        y_values = csv_df[target_col]
+
+        rows_missing_y = y_values.isna()
         if rows_missing_y.any():
-            n_missing_y = int(rows_missing_y.sum())
-            csv_df = csv_df[~rows_missing_y].reset_index(drop=True)
-            self.args.log.write(f'\nx  WARNING! {n_missing_y} row(s) had missing values in the target column ({target_col}) and were removed, since the target value cannot be predicted or imputed. Please fill in these values manually (or with a reasonable value, e.g. 0) if you want to keep them in the database.\n')
+            self.args.log.write(f'\nx  The target column ({target_col}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_y)} of {csv_name_load}! Missing target values can not be predicted or imputed, please fill them in (or remove those rows) and run ROBERT again.')
+            self.args.log.finalize()
+            sys.exit()
+
+        # a column mixing numbers and text (i.e. a stray "N/A" or ">10" in a regression y) is read
+        # by pandas as all-text, so every value is tried as a number instead: all convert = numeric
+        # column, none convert = text class labels (valid in classification), only some = mixed
+        rows_non_numeric_y = pd.to_numeric(y_values, errors='coerce').isna()
+        if rows_non_numeric_y.any() and not rows_non_numeric_y.all():
+            offending_values = ', '.join(f'"{val}"' for val in y_values[rows_non_numeric_y].unique()[:5])
+            self.args.log.write(f'\nx  The target column ({target_col}) mixes numbers and text! Row(s) {_csv_row_numbers_txt(rows_non_numeric_y)} of {csv_name_load} contain non-numeric values ({offending_values}) while the rest of the column is numeric. Please fix these values (or remove those rows) and run ROBERT again.')
+            self.args.log.finalize()
+            sys.exit()
+
+    # AQME workflows calculate descriptors from SMILES, so every row needs one: a missing SMILES
+    # would either crash CSEARCH/QDESCP later or, when several are missing, get the whole SMILES
+    # column silently dropped by the missing-data filters below. Includes the external test set
+    # (csv_test), where the target is optional but the SMILES are not
+    if module.lower() in ['aqme','aqme_test']:
+        for column in csv_df.columns:
+            if is_smiles_column(column) and column not in self.args.discard:
+                rows_missing_smiles = csv_df[column].isna() | csv_df[column].astype(str).str.strip().eq('')
+                if rows_missing_smiles.any():
+                    self.args.log.write(f'\nx  The SMILES column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_smiles)} of {csv_name_load}! Descriptors can not be calculated without a SMILES, please fill them in (or remove those rows) and run ROBERT again.')
+                    self.args.log.finalize()
+                    sys.exit()
 
     descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
     min_count = int(0.9 * len(csv_df))

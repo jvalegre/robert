@@ -467,3 +467,46 @@ def test_CURATE(test_job):
         accepted_vars = ["V_Bur", "dist", "rando1", "rando2", "rando3", "rando4"]
         for var in accepted_vars:
             assert var in db_final.columns
+
+
+# tests that CURATE stops (instead of failing later or silently dropping rows) if the y column has
+# invalid values. They run in a scratch folder to avoid touching the CURATE folder used by other tests
+@pytest.mark.parametrize(
+    "test_job, y_values, expected_msg",
+    [
+        # empty y value (row 4 of the CSV: header is line 1)
+        ("y_empty", ["1.5", "2.5", "", "4.5", "5.5", "6.5"], "empty values in row(s) 4"),
+        # y mixing numbers and text (row 3 of the CSV)
+        ("y_mixed", ["1.5", "2.5", "abc", "4.5", "5.5", "6.5"], "mixes numbers and text"),
+    ],
+)
+def test_CURATE_invalid_y(test_job, y_values, expected_msg):
+    path_scratch = os.path.join(os.getcwd(), f"scratch_{test_job}")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    path_original = os.getcwd()
+    try:
+        df = pd.DataFrame(
+            {
+                "Name": range(1, len(y_values) + 1),
+                "y": y_values,
+                "x1": [1.0, 2.1, 2.9, 4.2, 5.1, 5.8],
+                "x2": [6.0, 5.2, 4.1, 3.3, 2.0, 1.4],
+            }
+        )
+        csv_path = os.path.join(path_scratch, "invalid_y.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+        with pytest.raises(SystemExit):
+            curate(y="y", csv_name="invalid_y.csv", names="Name")
+
+        # the program must stop with a clear message and without creating any output
+        with open(glob.glob(f"{path_scratch}/**/CURATE_data.dat", recursive=True)[0], "r") as datfile:
+            assert expected_msg in datfile.read()
+        assert len(glob.glob(f"{path_scratch}/**/*_CURATE*.csv", recursive=True)) == 0
+    finally:
+        os.chdir(path_original)
+        shutil.rmtree(path_scratch, ignore_errors=True)

@@ -600,7 +600,7 @@ def test_aqme_multismiles_denovo_n_full_columns():
     robert_aqme_mod.aqme.init_aqme = lambda self: None  # skip the "is AQME installed" check
     try:
         os.chdir(work_dir)
-        for descp_lvl in ("denovo", "full"):
+        for descp_lvl in ("denovo", "interpret", "full"):
             robert_aqme_mod.aqme(
                 y="solub", names="code_name", csv_name="multismiles.csv",
                 descp_lvl=descp_lvl, nprocs=2,
@@ -608,6 +608,7 @@ def test_aqme_multismiles_denovo_n_full_columns():
             final_path = os.path.join(work_dir, f"AQME-ROBERT_{descp_lvl}_multismiles.csv")
             assert os.path.exists(final_path)
             df_final = pd.read_csv(final_path)
+            assert "solub" in df_final.columns
             assert "smiles_sub" in df_final.columns
             assert "smiles_solvent" in df_final.columns
             assert "HOMO_sub" in df_final.columns
@@ -617,3 +618,29 @@ def test_aqme_multismiles_denovo_n_full_columns():
         robert_aqme_mod.aqme.run_aqme = orig_run_aqme
         robert_aqme_mod.aqme.init_aqme = orig_init_aqme
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def test_AQME_missing_smiles():
+    # the program must stop before running any AQME job if a SMILES is missing
+    from robert.aqme import aqme
+
+    path_scratch = os.path.join(path_main, "scratch_missing_smiles")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    try:
+        df = pd.read_csv(f"{path_main}/tests/solubility.csv")
+        df.loc[2, "smiles"] = None  # row 4 of the CSV (header is line 1)
+        df.to_csv(os.path.join(path_scratch, "solubility_missing.csv"), index=False)
+
+        os.chdir(path_scratch)
+        with pytest.raises(SystemExit):
+            aqme(csv_name="solubility_missing.csv", y="solub")
+
+        with open(glob.glob(f"{path_scratch}/**/AQME_data.dat", recursive=True)[0], "r") as datfile:
+            assert "empty values in row(s) 4" in datfile.read()
+        assert len(glob.glob(f"{path_scratch}/**/*.sdf", recursive=True)) == 0
+    finally:
+        os.chdir(path_main)
+        shutil.rmtree(path_scratch, ignore_errors=True)

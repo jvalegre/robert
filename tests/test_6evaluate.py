@@ -157,6 +157,10 @@ def test_EVALUATE_module():
     # relevant when the user supplied their own hyperparameters) must NOT appear here
     assert "POSSIBLE DATA LEAKAGE" not in debug_content
 
+    # the test set was picked by ROBERT's own systematic split, so the score is calibrated
+    # and must be calculated normally
+    assert "Score not available" not in debug_content
+
     # leave the folders as they were at the end of the test
     _clean_evaluate_run()
 
@@ -216,6 +220,11 @@ def test_EVALUATE_custom_sklearn_model_and_user_split():
         # warning banner in Section A must appear (see print_warnings() in report.py)
         assert "POSSIBLE DATA LEAKAGE" in debug_content
         assert "both the CV and Test scores below" in debug_content
+
+        # the user forced the test set (15 points instead of ROBERT's systematic ~20% split),
+        # so the score isn't calibrated for this run and must NOT be calculated
+        assert "Score not available" in debug_content
+        assert "test set has 15 point(s)" in debug_content
     finally:
         for path in (combined_path, model_params_path):
             if os.path.exists(path):
@@ -285,6 +294,9 @@ def test_EVALUATE_classification():
         # RandomForestClassifier's hyperparameters came from the user, same leakage risk as
         # the regression case above - the banner isn't regression-specific
         assert "POSSIBLE DATA LEAKAGE" in debug_content
+        # same for the user-forced test set (15 points): no calibrated score
+        assert "Score not available" in debug_content
+        assert "test set has 15 point(s)" in debug_content
     finally:
         for path in (combined_path, model_params_path):
             if os.path.exists(path):

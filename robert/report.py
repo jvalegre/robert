@@ -235,6 +235,7 @@ class report:
         # (print_score()), so this duplicates a bit of parsing, but keeps the heatmap logic
         # independent of the (already long) main loop
         model_scores = {'No PFI': {}, 'PFI': {}}
+        self.all_models_clas = False
 
         if getattr(self.args, 'all_models', False) and model_names != [None]:
             for score_model_name in model_names:
@@ -247,6 +248,7 @@ class report:
 
                     _, params_df_pre = self.get_transparency(suffix)
                     pred_type_pre = params_df_pre['type'][0].lower()
+                    self.all_models_clas = pred_type_pre == 'clas'
                     data_score_pre = calc_score(dat_files_pre, suffix, pred_type_pre, {})
                     # rmse_bound: average of the Low/High sorted-CV scaled RMSEs (regression
                     # only) - used only as the 3rd tie-break criterion for best_models_text()
@@ -414,7 +416,8 @@ class report:
             return
 
         best_interp_pdf = self._pick_best_model(candidates,1,2,3)[0]
-        best_bound_pdf = self._pick_best_model(candidates,2,1,4)[0]
+        # Boundary robustness isn't defined in classification, so Interpolation decides alone
+        best_bound_pdf = best_interp_pdf if self.all_models_clas else self._pick_best_model(candidates,2,1,4)[0]
 
         dest_dir = Path('REPORT_models')
         dest_dir.mkdir(exist_ok=True)
@@ -425,7 +428,9 @@ class report:
             shutil.copy(str(dest_dir / best_pdf), best_pdf)
 
         print(f'\no  All {len(candidates)} model PDFs were moved to REPORT_models/')
-        if best_interp_pdf == best_bound_pdf:
+        if self.all_models_clas:
+            print(f'o  {best_interp_pdf} (best for Interpolation) was kept in the working directory')
+        elif best_interp_pdf == best_bound_pdf:
             print(f'o  {best_interp_pdf} (best for both Interpolation and Boundary robustness) was kept in the working directory')
         else:
             print(f'o  {best_interp_pdf} (best for Interpolation) and {best_bound_pdf} (best for Boundary robustness) were kept in the working directory')
@@ -1370,6 +1375,8 @@ class report:
                 bound_path = self.find_img('ScoreHeatmapBound','GENERATE',suffix_title)
                 interp_tag = f'<img src="file:///{self._posix_uri(interp_path)}" style="margin: 0; width: {img_w}px;"/>' if interp_path else ''
                 bound_tag = f'<img src="file:///{self._posix_uri(bound_path)}" style="margin: 0; width: {img_w}px;"/>' if bound_path else ''
+                if self.all_models_clas:
+                    bound_tag = f'<span style="display: inline-block; width: {img_w}px; text-align: center; color: #808080; font-size: 12px;">Disabled in classification problems.</span>'
 
                 interp_cap = f'<span style="display: inline-block; width: {img_w}px; text-align: center; font-weight:bold;">Interpolation</span>'
                 bound_cap = f'<span style="display: inline-block; width: {img_w}px; text-align: center; font-weight:bold;">Boundary robustness</span>'
@@ -1445,6 +1452,12 @@ class report:
         # index arguments there instead of a second hand-shifted copy
         items = [(model,vals[0],vals[1],vals[2],vals[3]) for model,vals in scores.items()]
 
+        # Boundary robustness isn't defined in classification, so only Interpolation is ranked
+        if self.all_models_clas:
+            interp_model = self._pick_best_model(items,1,2,3)[0]
+            return (f'<p style="margin-top: 10px; margin-bottom: 0px; font-size: 12.5px;"><i>'
+                    f'Best for Interpolation: <b>{interp_model}</b></i></p>')
+
         interp_best = self._pick_best_model(items,1,2,3)
         bound_best = self._pick_best_model(items,2,1,4)
         interp_model,interp_vals = interp_best[0],interp_best[1:]
@@ -1476,6 +1489,9 @@ class report:
         suffix_title = '_'.join(suffix.split())
 
         for score_idx,(label,file_name) in enumerate([('Interpolation','ScoreHeatmapInterp'),('Boundary robustness','ScoreHeatmapBound')]):
+            # Boundary robustness isn't defined in classification (always 0), so no heatmap
+            if score_idx == 1 and self.all_models_clas:
+                continue
             csv_df = pd.DataFrame(
                 {model: [model_scores_suffix[model][score_idx]] for model in model_cols},
                 index=[label],

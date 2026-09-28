@@ -13,6 +13,7 @@ This module:
 
 import os
 import sys
+import json
 import time
 import shutil
 from pathlib import Path
@@ -2083,3 +2084,62 @@ def test_aqme_atom_selection_generates_mapped_smiles(
     # There should be mapping numbers in the SMILES (e.g. [Cl:1])
     for s in mapped_df["SMILES"]:
         assert s is None or ":" in s, "Expected atom mapping numbers in mapped SMILES"
+
+
+def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot, monkeypatch):
+    """
+    Same scenario as test_EVALUATE_custom_sklearn_model_and_user_split (test_6evaluate.py) but
+    driven through the EVALUATE tab like a real user: loads the CSV (with its own 'Set'
+    column), picks a scikit-learn model in the dropdown, types its hyperparameters in the
+    form fields and clicks "Run EVALUATE", which launches the real ROBERT subprocess.
+    """
+    install_message_box_stubs(monkeypatch)
+    tab = easyrob_window.evaluate_tab
+
+    work_dir = Path(__file__).resolve().parent / "test-easyrob-evaluate-output"
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True)
+
+    try:
+        # train + valid rows in one CSV, relabeling the valid rows 'Test' (user-defined split)
+        tests_dir = Path(__file__).resolve().parent
+        combined = pd.concat(
+            [pd.read_csv(tests_dir / "Evaluate_train.csv"),
+             pd.read_csv(tests_dir / "Evaluate_valid.csv").assign(Set="Test")],
+            ignore_index=True,
+        )
+        csv_path = work_dir / "evaluate_combined.csv"
+        combined.to_csv(csv_path, index=False)
+
+        # what a user does: load the CSV, pick y/names, pick the model source, model and
+        # hyperparameters (blank fields keep scikit-learn's defaults)
+        tab.set_csv_path(str(csv_path))
+        tab.y_dropdown.setCurrentText("Target_values")
+        tab.names_dropdown.setCurrentText("Name")
+        tab.model_source_dropdown.setCurrentIndex(1)
+        tab.sklearn_model_dropdown.setCurrentText("Ridge")
+        tab.sklearn_param_fields["alpha"].setText("0.5")
+        tab.sklearn_param_fields["random_state"].setText("0")
+
+        qtbot.mouseClick(tab.run_button, Qt.LeftButton)
+        assert not tab.run_button.isEnabled()
+        qtbot.waitUntil(lambda: tab.run_button.isEnabled(), timeout=int(WORKFLOW_MAX_WAIT_S * 1000))
+        console_text = tab.console_output.toPlainText()
+        assert "EVALUATE finished successfully" in console_text, console_text
+
+        # the model picked in the GUI (not the default MVL) with the typed hyperparameters
+        params_csv = work_dir / "GENERATE" / "Best_model" / "No_PFI" / "Ridge.csv"
+        assert params_csv.is_file()
+        params_row = pd.read_csv(params_csv).iloc[0]
+        assert params_row["model"] == "Ridge"
+        assert json.loads(params_row["params"])["alpha"] == 0.5
+
+        # the 'Set' column was honored: 22 Training rows, 15 relabeled Test rows
+        predict_content = (work_dir / "PREDICT" / "PREDICT_data.dat").read_text(encoding="utf-8")
+        assert "- Training points: 22" in predict_content
+        assert "- Test points: 15" in predict_content
+
+        assert (work_dir / "ROBERT_report_No_PFI.pdf").is_file()
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)

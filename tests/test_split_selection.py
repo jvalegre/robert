@@ -17,6 +17,14 @@ import pandas as pd
 from robert.utils import test_select as _test_select
 
 
+def _select_test_points(X, y, pred_type, split):
+    """Runs test_select() with a 20% test set and checks the expected number of points"""
+    args = SimpleNamespace(test_set=0.2, type=pred_type, split=split, seed=42)
+    test_points = _test_select(SimpleNamespace(args=args), X, y)
+    assert len(test_points) == max(round(0.2 * len(y)), 4)
+    return test_points
+
+
 def test_split_even_regression_spreads_test_points_across_y_range():
     """EVEN should pick one point per quantile bin of the sorted y-range, not points bunched
     in a single region of it."""
@@ -25,19 +33,13 @@ def test_split_even_regression_spreads_test_points_across_y_range():
     y = pd.Series(rng.uniform(0, 100, n))
     X = pd.DataFrame({"x1": rng.uniform(0, 1, n)})
 
-    args = SimpleNamespace(test_set=0.2, type="reg", split="EVEN", seed=42)
-    runner = SimpleNamespace(args=args)
-
-    test_points = _test_select(runner, X, y)
-
-    expected_size = max(round(0.2 * n), 4)
-    assert len(test_points) == expected_size
+    test_points = _select_test_points(X, y, "reg", "EVEN")
 
     # split the full sorted range into as many contiguous chunks as there are test points -
     # every chunk should have contributed at least one selected point, otherwise some region
     # of the y-range was skipped entirely
     sorted_idx = y.sort_values().index.tolist()
-    chunks = np.array_split(sorted_idx, expected_size)
+    chunks = np.array_split(sorted_idx, len(test_points))
     for chunk in chunks:
         assert any(idx in test_points for idx in chunk), (
             "EVEN split left a region of the y-range with no test point"
@@ -51,18 +53,10 @@ def test_split_stratified_classification_preserves_class_balance():
     y = pd.Series([0] * n_class0 + [1] * n_class1)
     X = pd.DataFrame({"x1": np.arange(n_class0 + n_class1, dtype=float)})
 
-    args = SimpleNamespace(test_set=0.2, type="clas", split="STRATIFIED", seed=42)
-    runner = SimpleNamespace(args=args)
-
-    test_points = _test_select(runner, X, y)
-
-    expected_size = max(round(0.2 * len(y)), 4)
-    assert len(test_points) == expected_size
+    test_points = _select_test_points(X, y, "clas", "STRATIFIED")
 
     test_labels = y.loc[test_points]
-    full_frac_class1 = (y == 1).mean()
-    test_frac_class1 = (test_labels == 1).mean()
-    assert abs(test_frac_class1 - full_frac_class1) <= 0.10
+    assert abs((test_labels == 1).mean() - (y == 1).mean()) <= 0.10
 
     # both classes must actually appear in the test set - a real regression here would be
     # e.g. RND accidentally being used instead of STRATIFIED, which could by chance leave a

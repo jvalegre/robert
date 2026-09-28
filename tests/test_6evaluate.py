@@ -350,3 +350,34 @@ def test_score_ratio_with_zero_error_baseline():
     assert safe_ratio(1.2, 0) == float("inf")
     # the resulting ratio falls in the worst scoring tier (> 1.5x) instead of the best (<= 1.25x)
     assert not safe_ratio(1.2, 0) <= 1.5
+
+
+def test_EVALUATE_text_descriptor_column():
+    """
+    EVALUATE doesn't one-hot encode (unlike CURATE), so a text descriptor column (i.e. SMILES)
+    must stop the program with a clear message instead of failing later inside scikit-learn.
+    Ignoring that column lets it run normally.
+    """
+    import pytest
+
+    _clean_evaluate_run()
+
+    df = pd.read_csv("tests/Evaluate_train.csv")
+    df["smiles"] = ["C"] * len(df)
+    csv_path = os.path.join(path_main, "test_evaluate_text_col.csv")
+    df.to_csv(csv_path, index=False)
+
+    try:
+        with pytest.raises(SystemExit):
+            evaluate(y="Target_values", names="Name", csv_name=csv_path)
+        with open(os.path.join(path_main, "EVALUATE", "EVALUATE_data.dat"), encoding="utf-8") as f:
+            assert "contain text" in f.read()
+        assert not os.path.exists(os.path.join(path_main, "GENERATE"))
+
+        _clean_evaluate_run()
+        evaluate(y="Target_values", names="Name", csv_name=csv_path, ignore=["smiles"])
+        assert os.path.exists(os.path.join(path_main, "GENERATE", "Best_model", "No_PFI", "MVL.csv"))
+    finally:
+        if os.path.exists(csv_path):
+            os.remove(csv_path)
+        _clean_evaluate_run()

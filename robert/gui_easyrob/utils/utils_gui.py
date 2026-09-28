@@ -116,6 +116,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -346,6 +347,22 @@ class RobertWorker(QThread):
                     pass
         except Exception as exc:
             self.error_received.emit(f"Error stopping process: {exc}")
+
+def warn_if_csv_name_has_spaces(parent, file_path, what="CSV", title="WARNING!"):
+    """ROBERT can't use CSV files with spaces in their name (spaces in the folders are fine) and
+    it exits with code 0 when it stops for that reason, so the user is warned as soon as the file
+    is picked. Returns True if the name has spaces."""
+    file_name = os.path.basename(file_path)
+    if " " not in file_name:
+        return False
+    QMessageBox.warning(
+        parent, title,
+        f"The {what} file name contains spaces:\n{file_name}\n\n"
+        "ROBERT can't use CSV files with spaces in their name. Please rename it "
+        "(i.e., 'my_data.csv' instead of 'my data.csv') and select it again."
+    )
+    return True
+
 
 def smart_read_csv(filepath):
     """Read a CSV file with automatic delimiter detection."""

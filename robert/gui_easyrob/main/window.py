@@ -1209,6 +1209,10 @@ class EasyROB(QMainWindow):
         Sets the path for the input CSV file and updates the interface.
         Reloads if the file path changed OR the file was modified (mtime) OR force=True.
         """
+        if utils_gui.warn_if_csv_name_has_spaces(self, file_path, "input CSV"):
+            self.file_label.setText("\u26a0 Rename the file (no spaces) and select it again")
+            return
+
         p = Path(file_path)
         current_path = getattr(self, 'file_path', None)
         current_mtime = getattr(self, '_file_mtime', None)
@@ -1256,6 +1260,9 @@ class EasyROB(QMainWindow):
     def set_csv_test_path(self, file_path):
 
         """Sets the path for the test CSV file and updates the label."""
+        if utils_gui.warn_if_csv_name_has_spaces(self, file_path, "external test CSV"):
+            self.csv_test_label.setText("\u26a0 Rename the file (no spaces) and select it again")
+            return
         self.csv_test_path = file_path
         file_name = Path(file_path).name
         self.csv_test_label.setText(f"Selected: {file_name}")

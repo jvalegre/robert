@@ -2143,3 +2143,62 @@ def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot,
         assert (work_dir / "ROBERT_report_No_PFI.pdf").is_file()
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def test_evaluate_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monkeypatch):
+    """
+    EVALUATE tab: text columns (i.e. SMILES) start checked in the ignore list and are sent through
+    --ignore, and a CSV whose name has spaces is refused with a warning as soon as it is loaded.
+    """
+    calls = install_message_box_stubs(monkeypatch)
+    tab = easyrob_window.evaluate_tab
+
+    work_dir = Path(__file__).resolve().parent / "test-easyrob-evaluate-ignore"
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True)
+
+    try:
+        df = pd.read_csv(Path(__file__).resolve().parent / "Evaluate_train.csv")
+        df["smiles"] = ["C"] * len(df)
+        good_csv = work_dir / "with_smiles.csv"
+        df.to_csv(good_csv, index=False)
+        bad_csv = work_dir / "with spaces.csv"
+        df.to_csv(bad_csv, index=False)
+
+        # name with spaces: warning right away, nothing loaded, and the run can't start
+        tab.set_csv_path(str(bad_csv))
+        assert tab.csv_path is None
+        assert any("contains spaces" in text for _, text in calls["info"])
+        tab.run_evaluate()
+        assert tab.worker is None
+
+        # normal CSV: the text column is pre-checked in the ignore list and goes into --ignore
+        tab.set_csv_path(str(good_csv))
+        tab.y_dropdown.setCurrentText("Target_values")
+        tab.names_dropdown.setCurrentText("Name")
+        assert tab.get_ignored_columns() == ["smiles"]
+        assert "--ignore \"['smiles']\"" in tab._build_command()
+
+        # unchecking it removes the option
+        tab.ignore_list.findItems("smiles", Qt.MatchExactly)[0].setCheckState(Qt.Unchecked)
+        assert "--ignore" not in tab._build_command()
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def test_main_window_rejects_csv_names_with_spaces(easyrob_window, monkeypatch):
+    """
+    Main tab: a training or test CSV whose name has spaces is refused with a warning as soon as
+    it is picked (ROBERT can't use it and exits with code 0, so the run would look successful).
+    """
+    calls = install_message_box_stubs(monkeypatch)
+    window = easyrob_window
+
+    window.set_file_path("some folder/my training data.csv")
+    assert not getattr(window, "file_path", None)
+    assert any("contains spaces" in text and "input CSV" in text for _, text in calls["info"])
+
+    window.set_csv_test_path("some folder/my test data.csv")
+    assert not window.csv_test_path
+    assert any("contains spaces" in text and "external test CSV" in text for _, text in calls["info"])

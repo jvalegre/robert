@@ -35,6 +35,8 @@ try:
         QIcon,
         QLabel,
         QLineEdit,
+        QListWidget,
+        QListWidgetItem,
         QMessageBox,
         QProgressBar,
         QPushButton,
@@ -46,6 +48,7 @@ try:
         Qt,
         RobertWorker,
         smart_read_csv,
+        warn_if_csv_name_has_spaces,
     )
 except ImportError:
     from robert.gui_easyrob.utils.utils_gui import (
@@ -59,6 +62,8 @@ except ImportError:
         QIcon,
         QLabel,
         QLineEdit,
+        QListWidget,
+        QListWidgetItem,
         QMessageBox,
         QProgressBar,
         QPushButton,
@@ -70,9 +75,11 @@ except ImportError:
         Qt,
         RobertWorker,
         smart_read_csv,
+        warn_if_csv_name_has_spaces,
     )
 
 import csv
+import pandas as pd
 import inspect
 import os
 import sys
@@ -188,6 +195,8 @@ class EvaluateTab(QWidget):
         self.worker = None
         self.csv_path = None
         self.csv_test_path = None
+        self.csv_columns = []
+        self.text_columns = []
         self.model_params_path = None
         self.model_file_path = None
         self.manual_stop = False
@@ -296,6 +305,23 @@ class EvaluateTab(QWidget):
         row1.addLayout(type_col)
 
         input_layout.addLayout(row1)
+
+        # columns to ignore (--ignore): EVALUATE evaluates the model on the descriptors exactly as
+        # they are in the CSV (no one-hot encoding, unlike CURATE), so text columns such as SMILES
+        # must be ignored. They get pre-checked when the CSV is loaded
+        ignore_label = QLabel("Columns to ignore (not used as descriptors) - text columns such as SMILES must be ignored")
+        ignore_label.setStyleSheet("font-size: 12px;")
+        input_layout.addWidget(ignore_label)
+        self.ignore_list = QListWidget()
+        self.ignore_list.setMaximumHeight(90)
+        self.ignore_list.setFlow(QListWidget.LeftToRight)
+        self.ignore_list.setWrapping(True)
+        self.ignore_list.setResizeMode(QListWidget.Adjust)
+        self.ignore_list.setSpacing(2)
+        input_layout.addWidget(self.ignore_list)
+        self.y_dropdown.currentTextChanged.connect(self._refresh_ignore_list)
+        self.names_dropdown.currentTextChanged.connect(self._refresh_ignore_list)
+
         outer.addWidget(input_box)
 
         # --- Model source group ---
@@ -469,7 +495,16 @@ class EvaluateTab(QWidget):
     # ------------------------------------------------------------------
     # Input handling
     # ------------------------------------------------------------------
+    def _warn_if_spaces(self, file_path, what="CSV"):
+        """ROBERT rejects CSV file names with spaces (the folders can have them), so warn as soon
+        as the file is picked instead of letting the run fail. Returns True if there are spaces."""
+        return warn_if_csv_name_has_spaces(self, file_path, what, "EVALUATE")
+
     def set_csv_path(self, file_path):
+        self.csv_path = None
+        if self._warn_if_spaces(file_path, "input CSV"):
+            self.csv_label.setText("\u26a0 Rename the file (no spaces) and select it again")
+            return
         self.csv_path = file_path
 
         df = smart_read_csv(file_path)
@@ -487,7 +522,39 @@ class EvaluateTab(QWidget):
         if "code_name" in lower_map:
             self.names_dropdown.setCurrentText(lower_map["code_name"])
 
+        # text (non-numeric) columns can't be used as descriptors in EVALUATE, so they start
+        # checked in the ignore list (SMILES, names, categories...)
+        self.csv_columns = columns
+        self.text_columns = [col for col in columns if col != "Set" and not pd.api.types.is_numeric_dtype(df[col])]
+        self._refresh_ignore_list(preselect=True)
+
+    def _refresh_ignore_list(self, *_args, preselect=False):
+        """Rebuilds the ignore list (every column except y and names, which ROBERT already handles),
+        keeping the user's checks. preselect=True checks the text columns (new CSV loaded)."""
+        checked = set(self.text_columns) if preselect else set(self.get_ignored_columns())
+        # 'Set' (user-defined test set) is handled by EVALUATE itself, so it's never ignored
+        skip = {self.y_dropdown.currentText(), self.names_dropdown.currentText(), "Set"}
+        self.ignore_list.clear()
+        for col in self.csv_columns:
+            if col in skip:
+                continue
+            item = QListWidgetItem(col)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if col in checked else Qt.Unchecked)
+            self.ignore_list.addItem(item)
+
+    def get_ignored_columns(self):
+        return [
+            self.ignore_list.item(i).text()
+            for i in range(self.ignore_list.count())
+            if self.ignore_list.item(i).checkState() == Qt.Checked
+        ]
+
     def set_csv_test_path(self, file_path):
+        self.csv_test_path = None
+        if self._warn_if_spaces(file_path, "external test CSV"):
+            self.csv_test_label.setText("\u26a0 Rename the file (no spaces) and select it again")
+            return
         self.csv_test_path = file_path
 
     def set_model_params_path(self, file_path):
@@ -570,7 +637,7 @@ class EvaluateTab(QWidget):
     # ------------------------------------------------------------------
     def _validate(self):
         if not self.csv_path:
-            QMessageBox.warning(self, "EVALUATE", "Please select an input CSV file.")
+            QMessageBox.warning(self, "EVALUATE", "Please select an input CSV file (its name can't contain spaces).")
             return False
 
         if not self.y_dropdown.currentText():
@@ -627,6 +694,11 @@ class EvaluateTab(QWidget):
 
         if self.type_dropdown.currentText() == "Classification":
             command += ' --type "clas"'
+
+        ignored_columns = self.get_ignored_columns()
+        if ignored_columns:
+            formatted_columns = [f"'{col}'" for col in ignored_columns]
+            command += f' --ignore "[{", ".join(formatted_columns)}]"'
 
         if self.csv_test_path:
             command += f' --csv_test "{self.csv_test_path}"'
@@ -695,7 +767,16 @@ class EvaluateTab(QWidget):
 
         self._reset_ui_after_process()
 
-        if exit_code == 0:
+        # ROBERT also exits with code 0 when it stops on a bad input (i.e. an invalid option or a
+        # CSV name with spaces), so success also needs the report the run is supposed to produce
+        run_dir = os.path.dirname(self.csv_path) if self.csv_path else ""
+        report_created = os.path.exists(os.path.join(run_dir, "ROBERT_report_No_PFI.pdf"))
+        if exit_code == 0 and not report_created:
+            self.console_output.append(
+                "<b><span style='color:red;'>EVALUATE stopped before creating the report. "
+                "Check the messages above.</span></b>"
+            )
+        elif exit_code == 0:
             self.console_output.append(
                 "<b><span style='color:green;'>EVALUATE finished successfully.</span></b>"
             )

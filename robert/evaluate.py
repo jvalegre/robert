@@ -92,6 +92,15 @@ class evaluate:
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
 
+        # EVALUATE scores the model on the descriptors exactly as they are in the CSV (unlike
+        # CURATE, there is no one-hot encoding of categorical variables), so text columns such
+        # as SMILES can't be used as descriptors
+        text_columns = [col for col in csv_X.columns if not pd.api.types.is_numeric_dtype(csv_X[col])]
+        if text_columns:
+            self.args.log.write(f"\nx  The columns {text_columns} contain text, and EVALUATE does not convert categorical variables (no one-hot encoding), so they can't be used as descriptors! Ignore them (i.e., --ignore \"[{','.join(text_columns)}]\") or convert them to numbers in the CSV.")
+            self.args.log.finalize()
+            sys.exit()
+
         # adjust options of classification problems and detects whether the right type of problem was used
         self = check_clas_problem(self,csv_df)
         # check_clas_problem() converts csv_df's y column to integer class codes in place;

@@ -467,6 +467,20 @@ def load_variables(kwargs, robert_module):
     if self.varfile is not None:
         self, txt_yaml = load_from_yaml(self)
 
+    # EVALUATE always scores exactly one, user-provided model - GENERATE never runs for it, so
+    # it never stages a GENERATE/All_models folder (see stage_all_models() in
+    # generate_utils.py). CURATE/VERIFY/PREDICT/REPORT chained after EVALUATE (the same
+    # EVALUATE/EVALUATE_data.dat marker report.py's eval_only uses) would otherwise keep
+    # all_models's True default, have build_params_dirs() look for that folder, find nothing,
+    # and silently skip every check instead of evaluating the model. Forced off unconditionally
+    # (not just when unset by the caller) since even an explicit all_models=True can't do
+    # anything useful here - the underlying per-model data simply doesn't exist.
+    # robert_module=='evaluate' is excluded so this never touches EVALUATE's own (unused)
+    # self.all_models: at that point EVALUATE_data.dat doesn't exist yet anyway (this call is
+    # what's about to create it) - only the modules chained AFTER it are affected
+    if robert_module.lower() != 'evaluate' and os.path.exists(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat'):
+        self.all_models = False
+
     # check if user used .csv in csv_name
     if not os.path.exists(f"{self.csv_name}") and os.path.exists(f'{self.csv_name}.csv'):
         self.csv_name = f'{self.csv_name}.csv'

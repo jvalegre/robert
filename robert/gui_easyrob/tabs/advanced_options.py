@@ -280,6 +280,10 @@ class AdvancedOptionsTab(QWidget):
         self.type.currentIndexChanged.connect(update_model_options)
         update_model_options()  # Initialize with correct models
 
+        # all_models (whether every selected model above gets its own full PDF, instead of
+        # just the best one) lives on the main screen, next to the workflow selector - it's an
+        # impactful choice (run time), not an advanced detail - see window.py's all_models_toggle
+
         # Error type selection that changes dynamically but is also user-selectable
         self.error_type = QComboBox()
         layout.addRow(QLabel("error_type:"), self.error_type)

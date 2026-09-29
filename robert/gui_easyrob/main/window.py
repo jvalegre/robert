@@ -570,9 +570,23 @@ class EasyROB(QMainWindow):
         # Set default selection
         self.workflow_selector.setCurrentText("Full Workflow")
 
-        # Add to layout - extra spacing (vs. the 10px used elsewhere) so this doesn't visually
-        # crowd the Run/Stop buttons right below it
         main_layout.addWidget(self.workflow_selector)
+        main_layout.addSpacing(10)
+
+        # --- all_models toggle --- an impactful choice (multiplies run time by the number of
+        # selected models, see the "Models" checkboxes in Advanced Options), not an advanced
+        # detail, so it sits here next to the workflow choice instead of in Advanced Options.
+        # Checked by default to match the CLI default (--all_models True): every selected model
+        # gets its own full VERIFY/PREDICT/REPORT pass and its own PDF, not just the best one
+        self.all_models_label = QLabel("Generate a full PDF report for every selected model? (slower)")
+        self.all_models_label.setStyleSheet("font-size:13px;")
+        main_layout.addWidget(self.all_models_label)
+
+        self.all_models_toggle = YesNoToggle(checked=True)
+        main_layout.addWidget(self.all_models_toggle)
+
+        # extra spacing (vs. the 10px used elsewhere) so this doesn't visually crowd the
+        # Run/Stop buttons right below it
         main_layout.addSpacing(20)
 
         # --- Run button ---
@@ -2651,6 +2665,9 @@ class EasyROB(QMainWindow):
         if not self.pfi_filter_value:
             command += " --pfi_filter False"
 
+        if not self.all_models_value:
+            command += " --all_models False"
+
         if self.pfi_epochs_value:
             command += f' --pfi_epochs {self.pfi_epochs_value}'
 
@@ -2723,6 +2740,7 @@ class EasyROB(QMainWindow):
         self.n_iter_value = self.options_tab.n_iter.text().strip()
         self.expect_improv_value = self.options_tab.expect_improv.text().strip()
         self.pfi_filter_value = self.options_tab.pfi_filter.isChecked()
+        self.all_models_value = self.all_models_toggle.isChecked()
         self.pfi_epochs_value = self.options_tab.pfi_epochs.text().strip()
         self.pfi_threshold_value = self.options_tab.pfi_threshold.text().strip()
         self.pfi_max_value = self.options_tab.pfi_max.text().strip()
@@ -3540,7 +3558,14 @@ class EasyROB(QMainWindow):
         # Full workflow / REPORT
         # ------------------------
         if not self.manual_stop and (workflow == "Full Workflow" or workflow == "REPORT"):
-            if exit_code == 0 and "ROBERT_report_No_PFI.pdf was created successfully" in output_text:
+            # with all_models on, the kept PDF(s) are named after their model (e.g.
+            # "ROBERT_report_RF_No_PFI.pdf") instead of the generic "ROBERT_report_No_PFI.pdf" -
+            # match any report PDF's creation line instead of that one exact filename
+            report_pdf_created = (
+                "ROBERT_report_" in output_text
+                and "was created successfully in the working directory" in output_text
+            )
+            if exit_code == 0 and report_pdf_created:
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Information)
                 msg_box.setWindowTitle("Success!")

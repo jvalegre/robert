@@ -1001,24 +1001,25 @@ class report:
         Interpolation phrase is shown there.
         '''
 
-        assessment_print = f'''
-<p style="margin: 6px 0 3px 0;"><strong>{space}Overall assessment</strong></p>'''
+        # title and its first (always-present) verdict share one row - title on the left,
+        # colored bullet + phrase on the right - instead of the title sitting on its own line
+        # above the bullet, like the Severe/Moderate warning lists above it do
+        def title_row(message,color):
+            return f'''
+<p style="margin: 6px 0 3px 0; display: flex; justify-content: space-between; align-items: baseline;">
+<strong>{space}Overall assessment</strong>
+<span style="font-size: 11px; text-align: right;"><span style='font-size:15px; color: {color};'>&#9673;</span>{space}{message}</span>
+</p>'''
 
         # the verdict below leans on interp_score/extrap_score, which fold in the (unavailable)
         # test-set score component - see print_score() for how score_available is derived
         if not data_score.get(f'score_available_{suffix}', True):
             reason = data_score.get(f'score_unavailable_reason_{suffix}')
             reason_txt = 'non-standard CV' if reason == 'cv' else 'no standard test set'
-            assessment_print += self.print_line_warning(
-                f'Not available ({reason_txt})',
-                style_lines,color_dict['blue'],space)
-            return assessment_print
+            return title_row(f'Not available ({reason_txt})',color_dict['blue'])
 
         if len(warnings_dict[f'severe_warnings_{suffix}']) > 0:
-            assessment_print += self.print_line_warning(
-                'The model is unreliable',
-                style_lines,color_dict['red'],space)
-            return assessment_print
+            return title_row('The model is unreliable',color_dict['red'])
 
         interp_score = data_score.get(f'interp_score_{suffix}', 0)
         interp_phrase,interp_color = self._pick_band(interp_score,self.INTERP_BANDS)
@@ -1031,8 +1032,7 @@ class report:
         if interp_score >= 9 and n_moderate >= moderate_threshold:
             interp_phrase,interp_color = 'Reliable model, but examine warnings','yellow'
 
-        assessment_print += self.print_line_warning(
-            interp_phrase,style_lines,color_dict[interp_color],space)
+        assessment_print = title_row(interp_phrase,color_dict[interp_color])
 
         if pred_type == 'reg':
             extrap_score = data_score.get(f'extrap_score_{suffix}', 0)

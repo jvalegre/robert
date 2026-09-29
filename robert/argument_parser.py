@@ -56,7 +56,7 @@ var_dict = {
     "repeat_kfolds" : 10,
     "alpha" : 0.05,
     "params_dir" : '',
-    "all_models" : False,
+    "all_models" : True,
     "t_value" : 2,
     "shap_show" : 10,
     "pfi_show" : 10,

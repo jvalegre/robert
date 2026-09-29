@@ -65,7 +65,7 @@ import ast
 import pandas as pd
 from pathlib import Path
 from robert.utils import (load_variables, finish_print, load_database, prepare_sets,
-    check_clas_problem, resolve_sklearn_estimator, model_adjust_params)
+    check_clas_problem, resolve_sklearn_estimator, model_adjust_params, _csv_row_numbers_txt)
 from robert.generate_utils import set_sets
 
 
@@ -91,6 +91,24 @@ class evaluate:
 
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
+
+        # unlike the normal ROBERT pipeline (where CURATE explicitly fills in or removes
+        # missing data before GENERATE ever sees it), EVALUATE calls load_database() directly,
+        # and a descriptor with missing values would otherwise be silently dropped or imputed
+        # with zero warning - quietly changing which descriptors the model is evaluated on.
+        # Checked on the raw CSV (not csv_X, which load_database() may have already cleaned up
+        # by this point) so this always catches it, regardless of --auto_fill
+        raw_df = pd.read_csv(self.args.csv_name, encoding='utf-8')
+        expected_descriptors = [
+            col for col in raw_df.columns
+            if col not in self.args.ignore + self.args.discard + [self.args.y, self.args.names, 'Set']
+        ]
+        for column in expected_descriptors:
+            rows_missing_x = raw_df[column].isna()
+            if rows_missing_x.any():
+                self.args.log.write(f"\nx  The descriptor column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_x)} of {os.path.basename(self.args.csv_name)}! EVALUATE does not fill in missing descriptors automatically (unlike CURATE in the full ROBERT workflow), please fill them in (or remove those rows, or use --ignore/--discard to exclude that column) and run ROBERT again.")
+                self.args.log.finalize()
+                sys.exit()
 
         # EVALUATE scores the model on the descriptors exactly as they are in the CSV (unlike
         # CURATE, there is no one-hot encoding of categorical variables), so text columns such

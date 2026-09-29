@@ -308,6 +308,11 @@ def easyrob_window(qtbot, monkeypatch):
     monkeypatch.setattr(window, "check_for_images", lambda *args, **kwargs: None)
     monkeypatch.setattr(window, "check_aqme_workflow", lambda *args, **kwargs: None)
 
+    # all_models is checked by default (matches the CLI default), but these tests assert
+    # against the generic ROBERT_report_No_PFI.pdf/PFI.pdf filenames, not the per-model ones
+    # all_models produces - unchecked here so existing scenarios keep testing what they tested
+    window.all_models_toggle.setChecked(False)
+
     return window
 
 

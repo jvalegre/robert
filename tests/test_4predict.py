@@ -63,12 +63,20 @@ def test_PREDICT(test_job):
             "-m",
             "robert",
             "--predict",
+            # all_models defaults to True now (see the design discussion in generate.py) -
+            # this test asserts against the single-best-model PREDICT files, not per-model
+            # ones, so it's pinned to the old behavior
+            "--all_models",
+            "False",
         ]
 
         subprocess.run(cmd_robert)
 
     else:
-        predict_kwargs = {}
+        # all_models defaults to True now (see the design discussion in generate.py) - this
+        # test asserts against the single-best-model PREDICT files, not per-model ones, so
+        # it's pinned to the old behavior
+        predict_kwargs = {"all_models": False}
 
         if test_job == "t_value":
             predict_kwargs["t_value"] = 4

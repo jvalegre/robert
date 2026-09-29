@@ -30,9 +30,15 @@ Parameters
         7. 'RIDGE' (Ridge regression, regression only)
         8. 'LOGISTIC' (Logistic regression, classification only)
     type : str, default='reg'
-        Type of the pedictions. Options: 
+        Type of the pedictions. Options:
         1. 'reg' (Regressor)
         2. 'clas' (Classifier)
+    all_models : bool, default=True
+        Runs the full VERIFY/PREDICT/REPORT pipeline for every screened model (from the 'model'
+        option), each producing its own PDF report - instead of only the single best one. All
+        the PDFs are moved into a REPORT_models folder, keeping only the best model(s) for
+        Interpolation and Boundary robustness in the working directory. Set to False to only
+        run the single best model, like ROBERT did before this option existed (faster).
     seed : int, default=0
         Random seed used in the ML predictor models and other protocols.
     error_type : str, default: rmse (regression), mcc (classification)

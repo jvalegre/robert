@@ -381,3 +381,37 @@ def test_EVALUATE_text_descriptor_column():
         if os.path.exists(csv_path):
             os.remove(csv_path)
         _clean_evaluate_run()
+
+
+def test_EVALUATE_missing_descriptor_value():
+    """
+    Unlike the full ROBERT pipeline (where CURATE fills in or removes missing data before
+    GENERATE ever sees it), EVALUATE calls load_database() directly, which would otherwise
+    silently drop/impute a descriptor with missing values with zero warning. This must stop
+    the program instead, always (regardless of --auto_fill - see the design discussion in
+    evaluate.py). Ignoring that column lets it run normally.
+    """
+    import pytest
+
+    _clean_evaluate_run()
+
+    df = pd.read_csv("tests/Evaluate_train.csv")
+    df.loc[2, "x2"] = None
+    csv_path = os.path.join(path_main, "test_evaluate_missing_x.csv")
+    df.to_csv(csv_path, index=False)
+
+    try:
+        with pytest.raises(SystemExit):
+            evaluate(y="Target_values", names="Name", csv_name=csv_path, auto_fill=True)
+        with open(os.path.join(path_main, "EVALUATE", "EVALUATE_data.dat"), encoding="utf-8") as f:
+            debug_content = f.read()
+        assert "descriptor column (x2) has empty values in row(s) 4" in debug_content
+        assert not os.path.exists(os.path.join(path_main, "GENERATE"))
+
+        _clean_evaluate_run()
+        evaluate(y="Target_values", names="Name", csv_name=csv_path, ignore=["x2"])
+        assert os.path.exists(os.path.join(path_main, "GENERATE", "Best_model", "No_PFI", "MVL.csv"))
+    finally:
+        if os.path.exists(csv_path):
+            os.remove(csv_path)
+        _clean_evaluate_run()

@@ -39,7 +39,10 @@ def _regenerate_report_and_check(test_job):
         if os.path.exists(file_path):
             os.remove(file_path)
 
-    report(debug_report=True)
+    # all_models defaults to True now, but the VERIFY/PREDICT folders being reused here were
+    # built by the subprocess run with --all_models False (see cmd_robert above), so this must
+    # match or REPORT would look for per-model VERIFY_{model}_data.dat files that don't exist
+    report(debug_report=True, all_models=False)
 
     assert os.path.exists(os.path.join(path_main, "ROBERT_report_No_PFI.pdf"))
     assert os.path.exists(os.path.join(path_main, "ROBERT_report_PFI.pdf"))
@@ -154,6 +157,12 @@ def test_AQME(test_job):
         "1",
         "--debug_report",
         "True",
+        # all_models defaults to True now (see the design discussion in generate.py) - these
+        # tests assert against the generic ROBERT_report_No_PFI.pdf/PFI.pdf filenames, not the
+        # per-model ones all_models produces (ROBERT_report_RF_No_PFI.pdf, ...), so it's
+        # pinned to the old single-best-model behavior
+        "--all_models",
+        "False",
     ]
 
     if test_job in [
@@ -407,10 +416,10 @@ def test_AQME(test_job):
                 and "color: #c5c57d" in outlines[i - 1]
             ):
                 find_moder_truncated = True
-            if (
-                "The model is unreliable" in line
-                and "color: #c56666" in outlines[i - 1]
-            ):
+            # unlike the Severe/Moderate warning list items above (still print_line_warning(),
+            # unchanged), the Overall assessment title and its verdict now share a single row
+            # (see title_row() in report.py) - color and message are on the SAME line
+            if "The model is unreliable" in line and "color: #c56666" in line:
                 find_assess_red = True
             if "How to predict new values with these models?" in line:
                 break

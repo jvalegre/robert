@@ -61,12 +61,17 @@ def test_VERIFY(test_job):
             "-m",
             "robert",
             "--verify",
+            # all_models defaults to True now (see the design discussion in generate.py) -
+            # this test asserts against the single-best-model VERIFY_data.dat, not per-model
+            # files, so it's pinned to the old behavior
+            "--all_models",
+            "False",
         ]
 
         subprocess.run(cmd_robert)
 
     else:
-        verify_kwargs = {}
+        verify_kwargs = {"all_models": False}
 
         verify(**verify_kwargs)
 

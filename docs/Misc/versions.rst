@@ -11,8 +11,9 @@ Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
    Interpolation, several of its sub-metrics were redesigned for statistical robustness,
    Interpolation gained a new overfitting-focused item, a long-standing bias in VERIFY's
    one-hot test was fixed, VERIFY gained a new cluster-based flawed-model test, a new
-   --all_models option runs the full VERIFY/PREDICT/REPORT pipeline for every screened model
-   instead of just the best one, and the Bayesian Optimization hyperparameter search space was
+   --all_models option (now the default) runs the full VERIFY/PREDICT/REPORT pipeline for
+   every screened model instead of just the best one, and the Bayesian Optimization
+   hyperparameter search space was
    revised for ROBERT's typical (small) dataset sizes.*
 
    **Interpolation and Boundary robustness are now independent scores**
@@ -153,8 +154,9 @@ Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
 
    **New --all_models option: full VERIFY/PREDICT/REPORT for every screened model**
    -  GENERATE already fits all 4 models (RF/GB/NN/MVL) during hyperparameter screening, but
-      VERIFY/PREDICT/REPORT only ever ran on the single best one. With ``--all_models True``,
-      every model GENERATE screened gets its own full VERIFY -> PREDICT -> REPORT pass and its
+      VERIFY/PREDICT/REPORT only ever ran on the single best one. With ``--all_models`` (the
+      default - set to ``False`` for the old, faster single-best-model behavior), every model
+      GENERATE screened gets its own full VERIFY -> PREDICT -> REPORT pass and its
       own PDF (e.g. ``ROBERT_report_RF_No_PFI.pdf``, ``ROBERT_report_NN_PFI.pdf``, ...), so the
       user can compare and pick a model manually instead of only ever seeing the
       auto-selected best one. Only this VERIFY/PREDICT/REPORT tail runs once per model - the

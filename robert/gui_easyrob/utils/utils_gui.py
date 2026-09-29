@@ -265,6 +265,15 @@ class RobertWorker(QThread):
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
+                    # text=True without an explicit encoding decodes with the OS default
+                    # (cp1252/"charmap" on Windows), which raises UnicodeDecodeError on any
+                    # byte outside that codepage (e.g. from AQME/xtb output). That exception
+                    # kills the reader thread mid-stream; if the child keeps writing, the now
+                    # unread pipe fills up, the child blocks on its own write, and the whole
+                    # GUI hangs waiting on process.wait(). errors="replace" guarantees decoding
+                    # never raises, so the reader threads always keep draining the pipes
+                    encoding="utf-8",
+                    errors="replace",
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
                 )
             else:
@@ -276,6 +285,8 @@ class RobertWorker(QThread):
                     text=True,
                     bufsize=1,
                     universal_newlines=True,
+                    encoding="utf-8",
+                    errors="replace",
                     preexec_fn=os.setsid,
                 )
 

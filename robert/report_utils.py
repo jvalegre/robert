@@ -655,7 +655,14 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
     (c) coefficient of variation of the per-repeat MCC (instead of per-repeat RMSE)
     """
 
-    score_cv_sd = data_score[f'cv_sd_score_{suffix}']
+    # cv_sd_score_{suffix} is only set once the "MCC/RMSE coefficient of variation" line is
+    # found in PREDICT's log (see get_predict_scores() above), which itself only prints when
+    # there's more than one CV repeat (shape[1] > 1 in predict_utils.py) - a non-standard
+    # --repeat_kfolds 1 run (already flagged elsewhere as score_available=False, but Section B
+    # still renders the real underlying metrics regardless - see print_score()) would otherwise
+    # never populate this key and crash here instead of falling back like every other facet
+    # ((a)/(b) below already use .get(...,0))
+    score_cv_sd = data_score.get(f'cv_sd_score_{suffix}', 0)
     score_label,cv_r2_image = score_badge_2(self,data_score,suffix,score_cv_sd)
 
     if pred_type == 'reg':

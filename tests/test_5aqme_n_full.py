@@ -653,3 +653,60 @@ def test_AQME_missing_smiles():
     finally:
         os.chdir(path_main)
         shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def test_REPORT_classification_single_repeat_kfold():
+    """
+    Regression test for a crash (KeyError: 'cv_sd_score_No PFI') in adv_cv_sd() when building
+    Section B's "Prediction stability" item. In classification, cv_sd_score_{suffix} is only
+    populated once the "MCC coefficient of variation (10 repeats)" line is found in PREDICT's
+    log, which itself is only printed when there's more than one CV repeat (see predict_utils.py:
+    y_pred_train_all.shape[1] > 1). --repeat_kfolds 1 (a non-standard CV setup, already flagged
+    elsewhere as score_available=False) never prints that line, so the key was never set - and
+    the one place reading it used a raw dict access instead of the .get(...,0) fallback every
+    other facet in that same function already uses. Section B still renders its real metrics
+    even when the overall score isn't available (see print_score()), so REPORT must not crash.
+    """
+    import numpy as np
+
+    path_scratch = os.path.join(path_main, "scratch_clas_single_repeat")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    try:
+        rng = np.random.default_rng(0)
+        n = 40
+        df = pd.DataFrame({
+            "Name": [f"m{i}" for i in range(n)],
+            "y": [0, 1] * (n // 2),
+        })
+        for i in range(6):
+            df[f"x{i}"] = rng.normal(size=n)
+        csv_path = os.path.join(path_scratch, "clas.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+        from robert.curate import curate
+        from robert.generate import generate
+        from robert.verify import verify
+        from robert.predict import predict
+        from robert.report import report
+
+        curate(y="y", names="Name", csv_name="clas.csv", type="clas")
+        generate(
+            y="y", names="Name", csv_name="clas.csv", type="clas", model=["RF"],
+            repeat_kfolds=1, init_points=1, n_iter=1, pfi_epochs=1, all_models=False,
+        )
+        verify(all_models=False)
+        predict(all_models=False)
+        report(debug_report=True, all_models=False)  # must not raise
+
+        assert os.path.exists(os.path.join(path_scratch, "ROBERT_report_No_PFI.pdf"))
+        with open(os.path.join(path_scratch, "report_debug_No_PFI.txt"), encoding="utf-8") as f:
+            debug_content = f.read()
+        assert "Traceback (most recent call last)" not in debug_content
+        assert "6. Prediction stability" in debug_content
+    finally:
+        os.chdir(path_main)
+        shutil.rmtree(path_scratch, ignore_errors=True)

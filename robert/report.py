@@ -636,11 +636,13 @@ class report:
         # score display) is always about the same height, so the box gets a fixed line budget
         # and severe warnings (always shown in full) eat into it first - whatever's left goes
         # to moderate warnings, truncated with "..." if there isn't room for all of them.
-        # TOTAL_LINE_BUDGET=6 (severe + moderate shown + "..." + the always-shown Overall
-        # assessment line, combined) was measured directly against a real worst-case report
-        # (AQME citation line + a fully populated score display), where the box needed ~18.6pt
-        # per line and only ~183pt was left above the page-1 boundary - about 6 lines' worth
-        TOTAL_LINE_BUDGET = 5
+        # TOTAL_LINE_BUDGET=5 was measured directly against a real worst-case report (AQME
+        # citation line + a fully populated score display), where the box needed ~18.6pt per
+        # line and only ~183pt was left above the page-1 boundary - about 6 lines' worth, minus
+        # the Overall assessment title, which back then sat on its own line above its verdict
+        # (2 rendered lines total). Now that title+verdict share a single row (see title_row()
+        # above), that's only 1 rendered line - one more line fits, so the budget goes up by 1
+        TOTAL_LINE_BUDGET = 6
         moderate_budget = max(0, TOTAL_LINE_BUDGET - len(severe_list) - 1)  # -1 reserves the Overall assessment line
         if len(moderate_list) <= moderate_budget:
             moderate_shown = moderate_list
@@ -1006,9 +1008,9 @@ class report:
         # above the bullet, like the Severe/Moderate warning lists above it do
         def title_row(message,color):
             return f'''
-<p style="margin: 6px 0 3px 0; display: flex; justify-content: space-between; align-items: baseline;">
+<p style="margin: 6px 0 3px 0; display: flex; align-items: baseline;">
 <strong>{space}Overall assessment</strong>
-<span style="font-size: 11px; text-align: right;"><span style='font-size:15px; color: {color};'>&#9673;</span>{space}{message}</span>
+<span style="font-size: 11px; margin-left: 12px;"><span style='font-size:15px; color: {color};'>&#9673;</span>{space}{message}</span>
 </p>'''
 
         # the verdict below leans on interp_score/extrap_score, which fold in the (unavailable)

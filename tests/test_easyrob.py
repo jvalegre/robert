@@ -322,6 +322,7 @@ def easyrob_window(qapp, monkeypatch):
 
     yield window
     if shiboken6.isValid(window):
+        window.results_tab.shared_pool.waitForDone()
         qapp.removeEventFilter(window)
         window.hide()
         window.deleteLater()

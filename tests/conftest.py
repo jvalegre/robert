@@ -95,7 +95,7 @@ def small_test_gif(tmp_path_factory):
 
 @pytest.fixture
 def disposed_easyrob_window(qapp):
-    """Create an EasyROB window and remove its Qt event filter during teardown."""
+    """Create an EasyROB window and stop its background PDF work during teardown."""
     from PySide6.QtCore import QCoreApplication, QEvent
     import shiboken6
 
@@ -105,6 +105,7 @@ def disposed_easyrob_window(qapp):
     yield window
 
     if shiboken6.isValid(window):
+        window.results_tab.shared_pool.waitForDone()
         qapp.removeEventFilter(window)
         window.hide()
         window.deleteLater()

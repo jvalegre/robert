@@ -374,9 +374,9 @@ jobs:
                 --cov-append \
                 --cov-report= \
                 --junitxml=test-results/gui-test-results.xml \
-                tests/test_easyrob.py \
                 tests/test_bot_compact_core.py \
                 tests/test_bot_compact_gui.py \
+                tests/test_easyrob.py \
               2>&1 | tee gui-pytest.log
             GUI_EXIT_CODE=${PIPESTATUS[0]}
 

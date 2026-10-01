@@ -36,7 +36,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import pandas as pd
 import pytest
 from PySide6.QtCore import Qt, QCoreApplication, QEvent
-from PySide6.QtGui import QPixmapCache
+from PySide6.QtGui import QMovie, QPixmapCache
 from PySide6.QtWidgets import (
     QApplication,
     QListWidgetItem,
@@ -370,6 +370,8 @@ def test_all_tabs_created(easyrob_window):
     assert "MolSSI Databases" in tab_names
     assert "Check model" in tab_names
     assert "Results" in tab_names
+    assert window.bot_panel.api_setup_movie.parent() is window.bot_panel.api_setup_gif_label
+    assert window.bot_panel.api_setup_movie.state() == QMovie.NotRunning
 
 
 def test_dropdowns_populated(easyrob_window):

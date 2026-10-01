@@ -66,9 +66,21 @@ class _AnimatedGifLabel(QLabel):
         self.setAlignment(Qt.AlignCenter)
 
     def set_movie(self, movie: QMovie) -> None:
+        movie.setParent(self)
         self._movie = movie
         movie.frameChanged.connect(self._update_frame)
         self._update_frame()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self._movie is not None and self._movie.isValid():
+            if self._movie.state() != QMovie.Running:
+                self._movie.start()
+
+    def hideEvent(self, event) -> None:
+        if self._movie is not None and self._movie.state() == QMovie.Running:
+            self._movie.stop()
+        super().hideEvent(event)
 
     def _update_frame(self, _frame_number: int = -1) -> None:
         if self._movie is None:
@@ -926,7 +938,7 @@ class BotPanel(QFrame):
         self.api_setup_gif_label.setHidden(not is_cloud)
         self.api_setup_open_button.setHidden(not is_cloud)
         self.api_setup_open_button.setEnabled(not self._busy and self.api_setup_movie.isValid())
-        if is_cloud and self.api_setup_movie.isValid():
+        if is_cloud and self.api_setup_movie.isValid() and self.api_setup_gif_label.isVisible():
             if self.api_setup_movie.state() != QMovie.Running:
                 self.api_setup_movie.start()
         elif self.api_setup_movie.state() == QMovie.Running:

@@ -139,9 +139,10 @@ def disposed_easyrob_window(qapp):
 
 @pytest.fixture(autouse=True)
 def use_small_gif_in_bot_gui_tests(request, small_test_gif, monkeypatch):
-    """Keep bot GUI tests independent of the large tutorial animation."""
+    """Keep GUI tests independent of the large tutorial animation."""
     if Path(request.node.path).name not in {
         "test_bot_compact_gui.py",
+        "test_easyrob.py",
     }:
         return
 

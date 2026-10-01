@@ -1092,7 +1092,7 @@ class EasyROB(QMainWindow):
         self.workflow_result_store = WorkflowResultStore()
         self.workflow_result_snapshot = None
         self._result_view_source_path = ""
-        self.bot_window = BotWindow()
+        self.bot_window = BotWindow(self)
         self.bot_panel = self.bot_window.panel
         self.bot_window.hide()
         self.bot_window.visibility_changed.connect(self._sync_bot_toggle)

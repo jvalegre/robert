@@ -370,6 +370,7 @@ def test_all_tabs_created(easyrob_window):
     assert "MolSSI Databases" in tab_names
     assert "Check model" in tab_names
     assert "Results" in tab_names
+    assert window.bot_window.parent() is window
     assert window.bot_panel.api_setup_movie.parent() is window.bot_panel.api_setup_gif_label
     assert window.bot_panel.api_setup_movie.state() == QMovie.NotRunning
 

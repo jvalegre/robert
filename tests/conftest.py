@@ -93,6 +93,24 @@ def small_test_gif(tmp_path_factory):
     return path
 
 
+@pytest.fixture
+def disposed_easyrob_window(qapp):
+    """Create an EasyROB window and remove its Qt event filter during teardown."""
+    from PySide6.QtCore import QCoreApplication, QEvent
+    import shiboken6
+
+    from gui_easyrob.main.window import EasyROB
+
+    window = EasyROB()
+    yield window
+
+    if shiboken6.isValid(window):
+        qapp.removeEventFilter(window)
+        window.hide()
+        window.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 @pytest.fixture(autouse=True)
 def use_small_gif_in_bot_gui_tests(request, small_test_gif, monkeypatch):
     """Keep bot GUI tests independent of the large tutorial animation."""

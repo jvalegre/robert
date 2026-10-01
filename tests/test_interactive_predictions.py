@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from matplotlib.figure import Figure
-from PySide6.QtWidgets import QApplication, QTabWidget
+from PySide6.QtWidgets import QTabWidget
 
 from gui_easyrob.tabs.interactive_predictions import (
     _source_frames,
@@ -95,8 +95,7 @@ def test_all_models_external_molecule_uses_its_model_log(tmp_path):
     assert result["smiles"] == ["CC(=O)O"]
 
 
-def test_nonbest_model_plot_uses_its_own_cv_metadata(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_nonbest_model_plot_uses_its_own_cv_metadata(tmp_path, qapp):
     predict = tmp_path / "PREDICT"
     predict.mkdir()
     csv_path = predict / "MVL_No_PFI.csv"
@@ -142,8 +141,7 @@ def test_outlier_scores_use_internal_cv_reference_for_external_csv():
     assert data["outlier_score"][0] == 4 / (8 / 3) ** 0.5
 
 
-def test_prediction_chart_uses_cv_regression_instead_of_identity_line():
-    app = QApplication.instance() or QApplication([])
+def test_prediction_chart_uses_cv_regression_instead_of_identity_line(qapp):
     frame = pd.DataFrame({
         "target": list(range(12)),
         "target_pred": [2 * value + 1 for value in range(12)],
@@ -162,27 +160,25 @@ def test_prediction_chart_uses_cv_regression_instead_of_identity_line():
     assert abs((y[-1] - y[0]) / (x[-1] - x[0]) - 2) < 0.01
 
 
-def test_molecule_preview_keeps_its_size_on_repeated_hover():
-    app = QApplication.instance() or QApplication([])
+def test_molecule_preview_keeps_its_size_on_repeated_hover(qapp):
     frame = pd.DataFrame({"code_name": [1], "SMILES": ["CCO"],
                           "target": [1.0], "target_pred": [1.5]})
     panel = InteractivePredictions()
     panel.data = prepare_prediction_data(frame, [])
     panel.resize(900, 650)
     panel.show()
-    app.processEvents()
+    qapp.processEvents()
 
     sizes = []
     for _ in range(6):
         panel._show_point(0)
-        app.processEvents()
+        qapp.processEvents()
         sizes.append((panel.structure.width(), panel.structure.height()))
 
     assert len(set(sizes)) == 1
 
 
-def test_interactive_charts_use_one_view_selector_instead_of_nested_tabs():
-    app = QApplication.instance() or QApplication([])
+def test_interactive_charts_use_one_view_selector_instead_of_nested_tabs(qapp):
     panel = InteractivePredictions()
 
     assert not isinstance(panel.charts, QTabWidget)
@@ -192,8 +188,7 @@ def test_interactive_charts_use_one_view_selector_instead_of_nested_tabs():
     ]
 
 
-def test_images_navigation_contains_only_image_views(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_images_navigation_contains_only_image_views(tmp_path, qapp):
     predict = tmp_path / "PREDICT"
     predict.mkdir()
     (predict / "GB_No_PFI.csv").write_text("target,target_pred\n1,2\n")
@@ -231,8 +226,7 @@ def test_williams_generator_exports_exact_plot_coordinates(tmp_path):
     assert sidecar["predicted"].tolist() == [2.0, 1.5, -0.4]
 
 
-def test_williams_view_uses_matching_model_sidecar_and_falls_back_to_png(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_williams_view_uses_matching_model_sidecar_and_falls_back_to_png(tmp_path, qapp):
     predict = tmp_path / "PREDICT"
     predict.mkdir()
     paths = [predict / "GB_No_PFI.csv", predict / "RF_No_PFI.csv"]
@@ -259,8 +253,7 @@ def test_williams_view_uses_matching_model_sidecar_and_falls_back_to_png(tmp_pat
     assert "interactive data unavailable" in panel.canvases[2].figure.axes[0].get_title().lower()
 
 
-def test_williams_model_variant_and_external_selection_share_matching_sidecar(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_williams_model_variant_and_external_selection_share_matching_sidecar(tmp_path, qapp):
     predict = tmp_path / "PREDICT"
     external = predict / "csv_test"
     external.mkdir(parents=True)

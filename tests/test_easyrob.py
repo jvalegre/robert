@@ -322,6 +322,7 @@ def easyrob_window(qapp, monkeypatch):
 
     yield window
     if shiboken6.isValid(window):
+        qapp.removeEventFilter(window)
         window.hide()
         window.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
@@ -1059,9 +1060,8 @@ def test_predictions_filter_dataframe_keeps_example_csv_columns(descriptors):
     pd.testing.assert_frame_equal(displayed[source.columns], source)
 
 
-def test_predictions_table_is_compact_searchable_and_resizable(monkeypatch):
+def test_predictions_table_is_compact_searchable_and_resizable(monkeypatch, qapp):
     """A text-only prediction table gives the data space and filters by identifier."""
-    app = QApplication.instance() or QApplication([])
     tab = predictions_module.PredictionsTab()
     tab._base_path = "demo.csv"
     monkeypatch.setattr(tab, "_extract_names_column_from_predict", lambda: "code_name")
@@ -1084,12 +1084,11 @@ def test_predictions_table_is_compact_searchable_and_resizable(monkeypatch):
     search.setText("mol2")
     assert table.model().rowCount() == 1
     assert table.model().data(table.model().index(0, 0)) == "mol2"
-    assert app is not None
+    assert qapp is not None
 
 
-def test_predictions_dashboard_releases_splitter_space_on_every_collapse(monkeypatch):
+def test_predictions_dashboard_releases_splitter_space_on_every_collapse(monkeypatch, qapp):
     """Repeated toggles give table space back instead of leaving an empty sidebar."""
-    app = QApplication.instance() or QApplication([])
     tab = predictions_module.PredictionsTab()
     tab._base_path = "demo.csv"
     monkeypatch.setattr(tab, "_extract_names_column_from_predict", lambda: "code_name")
@@ -1101,20 +1100,20 @@ def test_predictions_dashboard_releases_splitter_space_on_every_collapse(monkeyp
     view = tab._create_table_with_stats(frame, info, None)
     view.resize(1000, 700)
     view.show()
-    app.processEvents()
+    qapp.processEvents()
     splitter = view.findChild(QSplitter)
     panel = splitter.widget(1)
     expanded_width = splitter.sizes()[1]
 
     for _ in range(4):
         panel.toggle_btn.click()
-        app.processEvents()
+        qapp.processEvents()
         assert splitter.sizes()[1] <= panel.collapsed_width + 2
         assert splitter.sizes()[0] > 1000 - expanded_width
         panel.toggle_btn.click()
-        app.processEvents()
+        qapp.processEvents()
         assert abs(splitter.sizes()[1] - expanded_width) <= 2
-    assert app is not None
+    assert qapp is not None
 
 
 def test_rename_existing_pdf_preserves_report_variant(tmp_path):
@@ -1156,9 +1155,8 @@ def test_predictions_extract_names_column_from_predict(tmp_path, names_argument,
     assert tab._extract_names_column_from_predict() == expected_column
 
 
-def test_predictions_search_uses_configured_identifier_column(tmp_path, monkeypatch):
+def test_predictions_search_uses_configured_identifier_column(tmp_path, monkeypatch, qapp):
     """Search targets the names column even when another CSV column appears first."""
-    app = QApplication.instance() or QApplication([])
     (tmp_path / "PREDICT").mkdir()
     (tmp_path / "PREDICT" / "PREDICT_data.dat").write_text(
         "python -m robert --names molecule_id\n", encoding="utf-8"
@@ -1180,12 +1178,11 @@ def test_predictions_search_uses_configured_identifier_column(tmp_path, monkeypa
     search.setText("mol2")
     assert table.model().rowCount() == 1
     assert table.model().data(table.model().index(0, 1)) == "mol2"
-    assert app is not None
+    assert qapp is not None
 
 
-def test_predictions_search_disables_when_identifier_is_missing(tmp_path, monkeypatch):
+def test_predictions_search_disables_when_identifier_is_missing(tmp_path, monkeypatch, qapp):
     """The search does not silently use a descriptor in place of molecule names."""
-    app = QApplication.instance() or QApplication([])
     (tmp_path / "PREDICT").mkdir()
     (tmp_path / "PREDICT" / "PREDICT_data.dat").write_text(
         "python -m robert --names molecule_id\n", encoding="utf-8"
@@ -1204,7 +1201,7 @@ def test_predictions_search_disables_when_identifier_is_missing(tmp_path, monkey
     search = view.findChild(QLineEdit, "predictionSearch")
     assert not search.isEnabled()
     assert search.placeholderText() == "Identifier unavailable"
-    assert app is not None
+    assert qapp is not None
 
 
 def test_results_tab_detects_and_refreshes_pdf_tabs(tmp_path, monkeypatch):

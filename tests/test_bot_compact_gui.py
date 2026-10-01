@@ -357,21 +357,13 @@ if __name__ == '__main__':
 
 # Selected checks from test_bot_results_workspace.py
 _load_case_group('results_workspace', """\"\"\"Navigation and availability checks for the consolidated Results view.\"\"\"
-from PySide6.QtWidgets import QApplication, QStackedWidget, QWidget
-from gui_easyrob.tabs.results_workspace import ResultsWorkspace
 from gui_easyrob.bot.bot_context import GuiSnapshot
 from gui_easyrob.bot.heuristics import diagnose_snapshot
 
-def make_workspace():
-    app = QApplication.instance() or QApplication([])
-    report, predictions, images, plots = (QWidget(), QWidget(), QWidget(), QWidget())
-    workspace = ResultsWorkspace(report, predictions, images, plots)
-    return (workspace, report, predictions, images, plots)
-
-def test_main_window_has_one_results_tab_with_existing_views(tmp_path):
-    app = QApplication.instance() or QApplication([])
-    from gui_easyrob.main.window import EasyROB
-    window = EasyROB()
+def test_main_window_has_one_results_tab_with_existing_views(
+    tmp_path, disposed_easyrob_window,
+):
+    window = disposed_easyrob_window
     try:
         names = [window.tab_widget.tabText(index) for index in range(window.tab_widget.count())]
         assert 'Results' in names
@@ -421,11 +413,11 @@ def test_main_window_has_one_results_tab_with_existing_views(tmp_path):
         window.check_for_images(str(source))
         assert not window.tab_widget.isTabEnabled(results_index)
     finally:
-        window.close()
+        window.hide()
 
-def test_changing_run_keeps_results_open_when_another_view_is_available(tmp_path):
-    app = QApplication.instance() or QApplication([])
-    from gui_easyrob.main.window import EasyROB
+def test_changing_run_keeps_results_open_when_another_view_is_available(
+    tmp_path, disposed_easyrob_window,
+):
     report_run = tmp_path / 'report_run'
     image_run = tmp_path / 'image_run'
     report_run.mkdir()
@@ -437,7 +429,7 @@ def test_changing_run_keeps_results_open_when_another_view_is_available(tmp_path
     (report_run / 'ROBERT_report_No_PFI.pdf').write_bytes(b'placeholder')
     (image_run / 'PREDICT').mkdir()
     (image_run / 'PREDICT' / 'figure.png').write_bytes(b'placeholder')
-    window = EasyROB()
+    window = disposed_easyrob_window
     try:
         window._pending_refresh_path = str(report_source)
         window._execute_refresh_tabs()
@@ -448,17 +440,17 @@ def test_changing_run_keeps_results_open_when_another_view_is_available(tmp_path
         assert window.tab_widget.currentWidget() is window.results_workspace
         assert window.results_workspace.content.currentWidget() is window.images_tab
     finally:
-        window.close()
+        window.hide()
 
-def test_prediction_csv_enables_interactive_plots_without_external_predictions(tmp_path):
-    app = QApplication.instance() or QApplication([])
-    from gui_easyrob.main.window import EasyROB
+def test_prediction_csv_enables_interactive_plots_without_external_predictions(
+    tmp_path, disposed_easyrob_window,
+):
     selected = tmp_path / 'input.csv'
     selected.write_text('target\\n1\\n')
     predict = tmp_path / 'PREDICT'
     predict.mkdir()
     (predict / 'GB_No_PFI.csv').write_text('target,target_pred\\n1,2\\n')
-    window = EasyROB()
+    window = disposed_easyrob_window
     try:
         window._pending_refresh_path = str(selected)
         window._execute_refresh_tabs()
@@ -473,4 +465,4 @@ def test_prediction_csv_enables_interactive_plots_without_external_predictions(t
         assert not window.results_workspace.buttons['Interactive plots'].isEnabled()
         assert not window.tab_widget.isTabEnabled(window.tab_widget.indexOf(window.results_workspace))
     finally:
-        window.close()""", ('test_main_window_has_one_results_tab_with_existing_views', 'test_changing_run_keeps_results_open_when_another_view_is_available', 'test_prediction_csv_enables_interactive_plots_without_external_predictions'), ())
+        window.hide()""", ('test_main_window_has_one_results_tab_with_existing_views', 'test_changing_run_keeps_results_open_when_another_view_is_available', 'test_prediction_csv_enables_interactive_plots_without_external_predictions'), ())

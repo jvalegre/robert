@@ -24,9 +24,9 @@ o ROBERT_report_RF_No_PFI.pdf (best for Interpolation) and ROBERT_report_GB_No_P
     ],
 )
 def test_report_completion_dialog_requires_finished_report_run(
-    monkeypatch, qapp, output, exit_code, expected_success,
+    disposed_easyrob_window, monkeypatch, output, exit_code, expected_success,
 ):
-    window = window_module.EasyROB()
+    window = disposed_easyrob_window
     dialogs = []
     warnings = []
 
@@ -73,4 +73,4 @@ def test_report_completion_dialog_requires_finished_report_run(
         if expected_success:
             assert dialogs == [("Success!", "ROBERT has completed successfully.")]
     finally:
-        window.close()
+        window.hide()

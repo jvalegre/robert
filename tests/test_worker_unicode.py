@@ -5,12 +5,10 @@ import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
-
 from gui_easyrob.utils.utils_gui import RobertWorker
 
 
-def test_worker_streams_unicode_from_python_subprocess(tmp_path, monkeypatch):
+def test_worker_streams_unicode_from_python_subprocess(tmp_path, monkeypatch, qapp):
     script = tmp_path / "emit_unicode.py"
     script.write_text(
         'import sys\nprint("start \\u2192 done")\nprint("warning \\u2192 done", file=sys.stderr)\n',
@@ -28,8 +26,7 @@ def test_worker_streams_unicode_from_python_subprocess(tmp_path, monkeypatch):
     worker.process_finished.connect(exit_codes.append)
 
     worker.run()
-    app = QApplication.instance() or QApplication([])
-    app.processEvents()
+    qapp.processEvents()
 
     assert exit_codes == [0]
     assert stdout_lines == ['<span style="color:white;">start → done</span>']

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QTableView, QWidget
+from PySide6.QtWidgets import QTableView, QWidget
 import shiboken6
 
 from gui_easyrob.tabs.result_catalog import ResultCatalog
@@ -64,12 +64,11 @@ def test_catalog_defaults_to_best_variant_models_and_can_select_another_model(tm
     assert catalog.include_image(tmp_path / "PREDICT" / "Results_MVL_No_PFI.png", "MVL")
 
 
-def test_results_model_selector_updates_all_views_without_extra_tabs(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_results_model_selector_updates_all_views_without_extra_tabs(
+    tmp_path, disposed_easyrob_window, qapp,
+):
     source = make_all_models_run(tmp_path)
-    from gui_easyrob.main.window import EasyROB
-
-    window = EasyROB()
+    window = disposed_easyrob_window
     try:
         window._pending_refresh_path = str(source)
         window._execute_refresh_tabs()
@@ -105,7 +104,7 @@ def test_results_model_selector_updates_all_views_without_extra_tabs(tmp_path):
         }
         assert window.predictions_tab.subtabs.count() == 2
         for _ in range(100):
-            app.processEvents()
+            qapp.processEvents()
             if all(
                 window.predictions_tab.subtabs.widget(index).findChild(QTableView)
                 for index in range(2)
@@ -125,20 +124,19 @@ def test_results_model_selector_updates_all_views_without_extra_tabs(tmp_path):
         assert not window.results_workspace.buttons["Predictions"].isEnabled()
         assert window.results_workspace.buttons["Report"].isEnabled()
     finally:
-        window.close()
+        window.hide()
 
 
-def test_switching_runs_resets_model_choice_and_hides_unused_selector(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_switching_runs_resets_model_choice_and_hides_unused_selector(
+    tmp_path, disposed_easyrob_window,
+):
     source = make_all_models_run(tmp_path / "all")
     ordinary = tmp_path / "ordinary"
     ordinary.mkdir()
     ordinary_source = ordinary / "input.csv"
     ordinary_source.write_text("target\n1\n")
     (ordinary / "ROBERT_report_No_PFI.pdf").write_bytes(b"pdf")
-    from gui_easyrob.main.window import EasyROB
-
-    window = EasyROB()
+    window = disposed_easyrob_window
     try:
         window._pending_refresh_path = str(source)
         window._execute_refresh_tabs()
@@ -153,15 +151,14 @@ def test_switching_runs_resets_model_choice_and_hides_unused_selector(tmp_path):
         window._execute_refresh_tabs()
         assert window.results_workspace.model_selector.currentText() == "Best models"
     finally:
-        window.close()
+        window.hide()
 
 
-def test_switching_models_releases_old_pdf_viewers(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_switching_models_releases_old_pdf_viewers(
+    tmp_path, disposed_easyrob_window, qapp,
+):
     source = make_all_models_run(tmp_path)
-    from gui_easyrob.main.window import EasyROB
-
-    window = EasyROB()
+    window = disposed_easyrob_window
     def viewer_count():
         return sum(
             child.__class__.__name__ == "PDFViewer"
@@ -177,17 +174,16 @@ def test_switching_models_releases_old_pdf_viewers(tmp_path):
         viewer_counts = []
         for model in ("GB", "MVL", "RF", "GB", "MVL"):
             selector.setCurrentText(model)
-            app.processEvents()
+            qapp.processEvents()
             viewer_counts.append(viewer_count())
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
         assert max(viewer_counts) >= 1
         assert viewer_count() <= 2
     finally:
-        window.close()
+        window.hide()
 
 
-def test_predictions_refresh_releases_old_table_pages(tmp_path):
-    app = QApplication.instance() or QApplication([])
+def test_predictions_refresh_releases_old_table_pages(tmp_path, qapp):
     from gui_easyrob.tabs.predictions import PredictionsTab
 
     predictions = PredictionsTab()

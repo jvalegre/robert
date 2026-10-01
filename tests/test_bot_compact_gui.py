@@ -355,118 +355,23 @@ class TestMainWindowBotWindow(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()""", ('TestMainWindowBotWindow',), ())
 
-# Selected checks from test_bot_results_workspace.py
-_load_case_group('results_workspace', """\"\"\"Navigation and availability checks for the consolidated Results view.\"\"\"
-from gui_easyrob.bot.bot_context import GuiSnapshot
-from gui_easyrob.bot.heuristics import diagnose_snapshot
-from gui_easyrob.tabs import results as results_module
-from PySide6.QtWidgets import QWidget
+# Selected result navigation policy checks from test_bot_results_workspace.py
+_load_case_group('results_workspace', """\"\"\"Pure result-view selection policy checks.\"\"\"
+from gui_easyrob.result_navigation import choose_available_result_view
 
-def test_main_window_has_one_results_tab_with_existing_views(
-    tmp_path, disposed_easyrob_window, tiny_test_pdf_bytes, tiny_test_png_bytes, monkeypatch,
-):
-    monkeypatch.setattr(results_module, 'PDFViewer', lambda path, thread_pool: QWidget())
-    window = disposed_easyrob_window
-    try:
-        names = [window.tab_widget.tabText(index) for index in range(window.tab_widget.count())]
-        assert 'Results' in names
-        assert 'Check model' in names
-        assert 'Evaluate' not in names
-        assert names.index('Check model') + 1 == names.index('Results')
-        assert window.tab_widget.widget(names.index('Check model')) is window.evaluate_tab
-        assert 'Reports' not in names
-        assert 'Predictions' not in names
-        assert 'Images' not in names
-        assert window.results_workspace.content.widget(0) is window.results_tab
-        assert window.results_workspace.content.widget(1) is window.predictions_tab
-        assert window.results_workspace.content.widget(2) is window.images_tab
-        assert window.results_workspace.content.widget(3) is window.interactive_plots
-        results_index = window.tab_widget.indexOf(window.results_workspace)
-        assert not window.tab_widget.isTabEnabled(results_index)
-        window.predictions_tab.availabilityChanged.emit(True)
-        assert window.results_workspace.buttons['Predictions'].isEnabled()
-        assert window.tab_widget.isTabEnabled(results_index)
-        window.predictions_tab.availabilityChanged.emit(False)
-        assert not window.tab_widget.isTabEnabled(results_index)
-        source = tmp_path / 'input.csv'
-        source.write_text('target\\n1\\n')
-        report = tmp_path / 'ROBERT_report_No_PFI.pdf'
-        report.write_bytes(tiny_test_pdf_bytes)
-        predict_dir = tmp_path / 'PREDICT'
-        predict_dir.mkdir()
-        (predict_dir / 'figure.png').write_bytes(tiny_test_png_bytes)
-        window.file_path = str(source)
-        window.check_for_pdfs(str(source))
-        window.check_for_images(str(source))
-        assert window.results_workspace.buttons['Report'].isEnabled()
-        assert window.results_workspace.buttons['Images'].isEnabled()
-        window.show_result_view('Report')
-        assert window.tab_widget.currentWidget() is window.results_workspace
-        assert window.results_workspace.content.currentWidget() is window.results_tab
-        from gui_easyrob.bot.bot_context import build_gui_snapshot
-        window._result_view_source_path = str(source)
-        snapshot = build_gui_snapshot(window)
-        assert snapshot.active_tab == 'Results'
-        assert snapshot.main_csv_path == str(source)
-        report.unlink()
-        window.check_for_pdfs(str(source))
-        assert window.results_workspace.content.currentWidget() is window.images_tab
-        (predict_dir / 'figure.png').unlink()
-        predict_dir.rmdir()
-        window.check_for_images(str(source))
-        assert not window.tab_widget.isTabEnabled(results_index)
-    finally:
-        window.hide()
+def test_unavailable_current_view_falls_back_to_first_available():
+    availability = {'Report': False, 'Predictions': False, 'Images': True}
+    assert choose_available_result_view(availability, 'Report', True) == 'Images'
 
-def test_changing_run_keeps_results_open_when_another_view_is_available(
-    tmp_path, disposed_easyrob_window, tiny_test_pdf_bytes, tiny_test_png_bytes, monkeypatch,
-):
-    monkeypatch.setattr(results_module, 'PDFViewer', lambda path, thread_pool: QWidget())
-    report_run = tmp_path / 'report_run'
-    image_run = tmp_path / 'image_run'
-    report_run.mkdir()
-    image_run.mkdir()
-    report_source = report_run / 'input.csv'
-    image_source = image_run / 'input.csv'
-    report_source.write_text('target\\n1\\n')
-    image_source.write_text('target\\n1\\n')
-    (report_run / 'ROBERT_report_No_PFI.pdf').write_bytes(tiny_test_pdf_bytes)
-    (image_run / 'PREDICT').mkdir()
-    (image_run / 'PREDICT' / 'figure.png').write_bytes(tiny_test_png_bytes)
-    window = disposed_easyrob_window
-    try:
-        window._pending_refresh_path = str(report_source)
-        window._execute_refresh_tabs()
-        window.tab_widget.setCurrentWidget(window.results_workspace)
-        assert window.results_workspace.content.currentWidget() is window.results_tab
-        window._pending_refresh_path = str(image_source)
-        window._execute_refresh_tabs()
-        assert window.tab_widget.currentWidget() is window.results_workspace
-        assert window.results_workspace.content.currentWidget() is window.images_tab
-    finally:
-        window.hide()
+def test_available_current_view_is_retained_when_run_changes():
+    availability = {'Report': False, 'Predictions': True, 'Images': True}
+    assert choose_available_result_view(availability, 'Images', True) == 'Images'
 
-def test_prediction_csv_enables_interactive_plots_without_external_predictions(
-    tmp_path, disposed_easyrob_window,
-):
-    selected = tmp_path / 'input.csv'
-    selected.write_text('target\\n1\\n')
-    predict = tmp_path / 'PREDICT'
-    predict.mkdir()
-    (predict / 'GB_No_PFI.csv').write_text('target,target_pred\\n1,2\\n')
-    window = disposed_easyrob_window
-    try:
-        window._pending_refresh_path = str(selected)
-        window._execute_refresh_tabs()
-        assert window.results_workspace.buttons['Interactive plots'].isEnabled()
-        assert not window.results_workspace.buttons['Predictions'].isEnabled()
-        assert not window.results_workspace.buttons['Images'].isEnabled()
-        assert window.tab_widget.isTabEnabled(window.tab_widget.indexOf(window.results_workspace))
-        assert window.results_workspace.show_view('Interactive plots')
-        assert window.results_workspace.content.currentWidget() is window.interactive_plots
-        (predict / 'GB_No_PFI.csv').unlink()
-        window._execute_refresh_tabs()
-        assert not window.results_workspace.buttons['Interactive plots'].isEnabled()
-        assert not window.tab_widget.isTabEnabled(window.tab_widget.indexOf(window.results_workspace))
-    finally:
-        window.hide()""", ('test_main_window_has_one_results_tab_with_existing_views', 'test_changing_run_keeps_results_open_when_another_view_is_available', 'test_prediction_csv_enables_interactive_plots_without_external_predictions'), ())
+def test_missing_selection_uses_first_available_view():
+    availability = {'Report': False, 'Predictions': True, 'Images': True}
+    assert choose_available_result_view(availability, 'Report', False) == 'Predictions'
+
+def test_no_available_view_returns_none():
+    availability = {'Report': False, 'Predictions': False, 'Images': False}
+    assert choose_available_result_view(availability, 'Report', True) is None
+""", ('test_unavailable_current_view_falls_back_to_first_available', 'test_available_current_view_is_retained_when_run_changes', 'test_missing_selection_uses_first_available_view', 'test_no_available_view_returns_none'), ())

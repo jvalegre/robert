@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
     QVBoxLayout, QWidget,
 )
+from gui_easyrob.result_navigation import choose_available_result_view
 
 
 class ResultsWorkspace(QWidget):
@@ -90,18 +91,16 @@ class ResultsWorkspace(QWidget):
         self._available[view] = available
         button.setEnabled(available)
         selected_name = tuple(self.buttons)[self.content.currentIndex()]
-        if not self._available[selected_name] or not any(
-            candidate.isChecked() for candidate in self.buttons.values()
-        ):
-            first_available = next(
-                (name for name in self.buttons if self._available[name]),
-                None,
-            )
-            if first_available is not None:
-                self.show_view(first_available)
-            else:
-                for candidate in self.buttons.values():
-                    candidate.setChecked(False)
+        next_view = choose_available_result_view(
+            self._available,
+            selected_name,
+            any(candidate.isChecked() for candidate in self.buttons.values()),
+        )
+        if next_view is not None:
+            self.show_view(next_view)
+        else:
+            for candidate in self.buttons.values():
+                candidate.setChecked(False)
         self.availabilityChanged.emit(self.has_available_views())
 
     def show_view(self, view):

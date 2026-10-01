@@ -32,10 +32,12 @@ try:
         QHBoxLayout,
         QHeaderView,
         QLabel,
+        QLineEdit,
         QMenu,
         QMessageBox,
         QSize,
         QSizePolicy,
+        QSplitter,
         QTabWidget,
         QTableView,
         QThreadPool,
@@ -66,10 +68,12 @@ except ImportError as e:
         QHBoxLayout,
         QHeaderView,
         QLabel,
+        QLineEdit,
         QMenu,
         QMessageBox,
         QSize,
         QSizePolicy,
+        QSplitter,
         QTabWidget,
         QTableView,
         QThreadPool,
@@ -110,6 +114,12 @@ class PredictionsTab(QWidget):
         super().__init__(parent)
 
         self._thread_pool = QThreadPool.globalInstance()
+        self._load_generation = 0
+        self._pending_csv_signals = {}
+        self._catalog = None
+        self._selected_model = None
+        self.csv_paths = {}
+        self._report_paths = {}
 
         layout = QVBoxLayout(self)
 
@@ -142,19 +152,18 @@ class PredictionsTab(QWidget):
         with open(dat_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        match = re.search(r'--names\s+"([^"]+)"', content)
+        match = re.search(
+            r"""(?<!\S)--names(?:\s+|=)(?:"([^"]+)"|'([^']+)'|(\S+))""",
+            content,
+        )
         if match:
-            return match.group(1)
+            return next(value for value in match.groups() if value is not None)
 
         return None
     
     def _filter_prediction_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Keeps and orders columns as:
-        1. names column (if available)
-        2. SMILES / smiles (if available)
-        3. *_pred
-        4. *_pred_sd
+        Prioritize identifying and prediction columns without dropping CSV data.
         """
 
         names_col = self._extract_names_column_from_predict()
@@ -189,19 +198,40 @@ class PredictionsTab(QWidget):
 
         df = df.copy()
 
-        if smiles_cols:
+        if smiles_cols and "Image" not in df.columns:
             df.insert(0, "Image", df[smiles_cols[0]])
 
+        ordered_columns.extend(col for col in df.columns if col not in ordered_columns)
         return df[ordered_columns]
     
-    def refresh_with_new_path(self, selected_file_path: str):
+    def refresh_with_new_path(self, selected_file_path: str, catalog=None, model=None):
         """Refreshes the predictions tab with new data from the selected file path."""
         # This is the ONLY base path used by PredictionsTab
         self._base_path = selected_file_path
+        self._catalog = catalog
+        self._selected_model = model
+        self._load_generation += 1
+        generation = self._load_generation
+        self._pending_csv_signals.clear()
 
-        csvs = find_prediction_csvs(selected_file_path)
+        csvs = (
+            catalog.external_predictions(model)
+            if catalog is not None and catalog.is_all_models
+            else find_prediction_csvs(selected_file_path)
+        )
+        self.csv_paths = csvs
+        self._report_paths = {}
+        if catalog is not None and catalog.is_all_models:
+            for variant, name in catalog.selected_variants(model).items():
+                self._report_paths[variant] = (
+                    catalog.root / "REPORT_models"
+                    / f"ROBERT_report_{name}_{variant}.pdf"
+                )
 
-        self.subtabs.clear()
+        while self.subtabs.count():
+            page = self.subtabs.widget(0)
+            self.subtabs.removeTab(0)
+            page.deleteLater()
 
         if not csvs:
             self.subtabs.hide()
@@ -215,27 +245,41 @@ class PredictionsTab(QWidget):
             self.subtabs.addTab(container, key.replace("_", " "))
 
             task = LoadCsvTask(key, path)
-            task.signals.done.connect(self._add_loaded_df)
+            task_signals = task.signals
+            signal_key = (generation, key)
+            self._pending_csv_signals[signal_key] = task_signals
+            task_signals.done.connect(
+                lambda loaded_key, frame, run=generation, pending=signal_key:
+                self._finish_csv_load(loaded_key, frame, run, pending)
+            )
             self._thread_pool.start(task)
 
         self.placeholder.hide()
         self.subtabs.show()
         self.availabilityChanged.emit(True)
 
-    def _add_loaded_df(self, key: str, df: pd.DataFrame):
+    def _finish_csv_load(self, key, frame, generation, signal_key):
+        """Keep task signals alive until their CSV has reached the GUI thread."""
+        self._pending_csv_signals.pop(signal_key, None)
+        self._add_loaded_df(key, frame, generation)
+
+    def _add_loaded_df(self, key: str, df: pd.DataFrame, generation=None):
         """Adds a dataframe to the predictions tab."""
+        if generation is not None and generation != self._load_generation:
+            return
 
         # Filter dataframe columns
         df = self._filter_prediction_dataframe(df)
 
+        pdf_path = self._report_paths.get(key) or get_robert_report_path(self._base_path, key)
         info = evaluate_predictions_for_model(
             self._base_path,
             df,
-            key # "PFI" or "No_PFI"
+            key,
+            report_path=pdf_path,
         )
 
         # Extract fragment image
-        pdf_path = get_robert_report_path(self._base_path, key)
         pdf_image = extract_robert_fragment_image(pdf_path)
 
         widget = self._create_table_with_stats(df, info, pdf_image)
@@ -243,8 +287,10 @@ class PredictionsTab(QWidget):
 
         for i in range(self.subtabs.count()):
             if self.subtabs.tabText(i) == tab_name:
+                old_page = self.subtabs.widget(i)
                 self.subtabs.removeTab(i)
                 self.subtabs.insertTab(i, widget, tab_name)
+                old_page.deleteLater()
                 break
 
     # --------------------------------------------------
@@ -271,23 +317,47 @@ class PredictionsTab(QWidget):
     def _create_table_with_stats(self, df, info, pdf_image):
         """Creates the main table view with the predictions and the side dashboard with stats and diagnostics."""
 
-        # ---- Container ----        
         container = QWidget()
         container.setStyleSheet("background: palette(window);")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
+        toolbar = QHBoxLayout()
+        summary = QLabel(f"{info['model'].replace('_', ' ')}  ·  {len(df)} predictions  ·  {len(df.columns)} columns")
+        summary.setStyleSheet("font-size: 13px; font-weight: 600; padding: 4px;")
+        toolbar.addWidget(summary)
+        toolbar.addStretch()
 
-        # ---- Table ----
+        search_column = self._extract_names_column_from_predict()
+        if search_column not in df.columns:
+            search_column = None
+        search = QLineEdit()
+        search.setObjectName("predictionSearch")
+        search.setPlaceholderText(f"Search {search_column}" if search_column else "Identifier unavailable")
+        search.setClearButtonEnabled(True)
+        search.setFixedWidth(220)
+        search.setEnabled(search_column is not None)
+        toolbar.addWidget(search)
+        layout.addLayout(toolbar)
+
         table = QTableView()
 
         base_model = PandasTableModel(df)
         proxy = NumericSortProxy()
         proxy.setSourceModel(base_model)
+        if search_column is not None:
+            proxy.setFilterKeyColumn(df.columns.get_loc(search_column))
+            proxy.setFilterCaseSensitivity(Qt.CaseInsensitive)
+            search.textChanged.connect(proxy.setFilterFixedString)
         table.setModel(proxy)
 
-        table.verticalHeader().setDefaultSectionSize(130)
-        table.setIconSize(QSize(120, 120))
+        has_images = "Image" in df.columns
+        table.verticalHeader().setDefaultSectionSize(130 if has_images else 34)
+        if has_images:
+            table.setIconSize(QSize(120, 120))
+        table.setAlternatingRowColors(True)
+        table.setWordWrap(False)
         table.setSortingEnabled(True)
         table.setSelectionBehavior(QTableView.SelectItems)
         table.setSelectionMode(QTableView.ExtendedSelection)
@@ -318,7 +388,11 @@ class PredictionsTab(QWidget):
         bound_pixmap = extract_boundary_fragment(pdf_path)
 
         # External validation plot
-        external_pixmaps = find_external_test_pixmaps(self._base_path)
+        external_pixmaps = find_external_test_pixmaps(
+            self._base_path,
+            (lambda path: self._catalog.include_image(path, self._selected_model))
+            if self._catalog is not None and self._catalog.is_all_models else None,
+        )
         external_pixmap = external_pixmaps.get(model_key)
 
         side_panel = PredictionDashboardPanel(
@@ -329,15 +403,13 @@ class PredictionsTab(QWidget):
             external_plot=external_pixmap
         )
 
-        # ---- Separator ----
-        separator = QFrame()
-        separator.setFixedWidth(1)
-        separator.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
-        separator.setStyleSheet("background-color: palette(mid);")
-
-        layout.addWidget(table, stretch=3)
-        layout.addWidget(separator)
-        layout.addWidget(side_panel, stretch=1)
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(table)
+        splitter.addWidget(side_panel)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes([800, 360])
+        layout.addWidget(splitter)
 
         return container
 

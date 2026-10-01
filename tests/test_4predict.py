@@ -177,7 +177,19 @@ def test_PREDICT(test_job):
         assert len(glob.glob(os.path.join(path_predict, "csv_test", "*.csv"))) == 2
 
     assert len(glob.glob(os.path.join(path_predict, "*.dat"))) == 1
-    assert len(glob.glob(os.path.join(path_predict, "*.csv"))) == 2
+    all_csvs = glob.glob(os.path.join(path_predict, "*.csv"))
+    prediction_csvs = [
+        path for path in all_csvs
+        if not os.path.basename(path).startswith("Results_boundary_williams_")
+    ]
+    assert len(prediction_csvs) == 2
+    assert any(path.endswith("_No_PFI.csv") for path in prediction_csvs)
+    assert any(path.endswith("_PFI.csv") and not path.endswith("_No_PFI.csv") for path in prediction_csvs)
+    williams_csvs = glob.glob(
+        os.path.join(path_predict, "Results_boundary_williams_*.csv")
+    )
+    assert len(williams_csvs) == (0 if test_job == "clas" else 2)
+    assert len(all_csvs) == len(prediction_csvs) + len(williams_csvs)
 
     if test_job == "clas":  # rename folders back to their original names
         # rename the classification GENERATE folder

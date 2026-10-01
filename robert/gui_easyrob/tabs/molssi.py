@@ -229,17 +229,27 @@ class MolSSIDatabasesTab(QWidget):
         self.current_download_context = "active"
 
         if ctx != "molssi_test":
-            reply = QMessageBox.question(
-                self,
-                "Convert Excel to CSV",
+            prompt = (
                 "The Excel file has been downloaded successfully.\n\n"
                 "This file contains chemical descriptors and molecular identifiers.\n"
                 "Converting it to CSV will create a simpler, universal file format that can be loaded in easyROB later.\n\n"
                 "Note: If you plan to build predictive models, you will need to include a target "
                 "(for example, an experimental property or value you want to predict).\n\n"
-                "Do you want to convert this Excel file to CSV now?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes
+                "Do you want to convert this Excel file to CSV now?"
+            )
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Question)
+            msg.setWindowTitle("Convert Excel to CSV")
+            msg.setText(prompt)
+            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg.setDefaultButton(QMessageBox.Yes)
+            reply = self._exec_tracked_message_box(
+                msg,
+                title="Convert Excel to CSV",
+                text=prompt,
+                buttons=["Yes", "No"],
+                kind="question",
+                source="molssi_conversion_prompt",
             )
 
             if reply != QMessageBox.Yes:
@@ -260,12 +270,24 @@ class MolSSIDatabasesTab(QWidget):
         popup.setText("Converting Excel to CSV…\n\nPlease wait.")
         popup.setStandardButtons(QMessageBox.NoButton)
         popup.setModal(False)
+        main_window = self.window()
+        popup_state = None
+        if hasattr(main_window, "_track_open_popup"):
+            popup_state = main_window._track_open_popup(
+                title="Converting file",
+                text="Converting Excel to CSV…\n\nPlease wait.",
+                buttons=[],
+                kind="info",
+                source="molssi_conversion_progress",
+            )
         popup.show()
 
         worker = ExcelToCSVWorker(path)
         self._excel_worker = worker
 
         def finished(csv_path):
+            if hasattr(main_window, "_clear_active_popup"):
+                main_window._clear_active_popup(popup_state)
             popup.close()
             popup.deleteLater()
 
@@ -273,16 +295,46 @@ class MolSSIDatabasesTab(QWidget):
                 self.load_test_molssi(csv_path, source=path)
                 return
 
-            QMessageBox.information(
-                self,
-                "Conversion completed",
-                "Excel converted to CSV successfully."
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Information)
+            msg.setWindowTitle("Conversion completed")
+            msg.setText("Excel converted to CSV successfully.")
+            msg.setStandardButtons(QMessageBox.Ok)
+            self._exec_tracked_message_box(
+                msg,
+                title="Conversion completed",
+                text="Excel converted to CSV successfully.",
+                buttons=["OK"],
+                kind="info",
+                source="molssi_conversion_completed",
             )
 
         def error(msg):
+            if hasattr(main_window, "_clear_active_popup"):
+                main_window._clear_active_popup(popup_state)
             popup.close()
             popup.deleteLater()
-            QMessageBox.warning(self, "Conversion failed", msg)
+            if hasattr(main_window, "_remember_popup"):
+                main_window._remember_popup(
+                    title="Conversion failed",
+                    text=msg,
+                    buttons=["OK"],
+                    kind="warning",
+                    source="molssi_conversion",
+                )
+            warning = QMessageBox(self)
+            warning.setIcon(QMessageBox.Warning)
+            warning.setWindowTitle("Conversion failed")
+            warning.setText(msg)
+            warning.setStandardButtons(QMessageBox.Ok)
+            self._exec_tracked_message_box(
+                warning,
+                title="Conversion failed",
+                text=msg,
+                buttons=["OK"],
+                kind="warning",
+                source="molssi_conversion",
+            )
 
         worker.finished.connect(finished)
         worker.error.connect(error)
@@ -305,8 +357,45 @@ class MolSSIDatabasesTab(QWidget):
         )
         popup.setStandardButtons(QMessageBox.Ok)
         popup.setModal(False)
+        main_window = self.window()
+        popup_state = None
+        if hasattr(main_window, "_track_open_popup"):
+            popup_state = main_window._track_open_popup(
+                title="Downloading file",
+                text=(
+                    "Downloading file…\n\n"
+                    "You can close this window.\n"
+                    "The download will continue in the background."
+                ),
+                buttons=["OK"],
+                kind="info",
+                source="molssi_download",
+            )
+            popup.destroyed.connect(lambda *_: main_window._clear_active_popup(popup_state))
         popup.show()
         return popup
+
+    def _exec_tracked_message_box(
+        self,
+        message_box,
+        *,
+        title: str,
+        text: str,
+        buttons: list[str] | None = None,
+        kind: str = "",
+        source: str = "",
+    ):
+        main_window = self.window()
+        if hasattr(main_window, "_exec_tracked_message_box"):
+            return main_window._exec_tracked_message_box(
+                message_box,
+                title=title,
+                text=text,
+                buttons=buttons,
+                kind=kind,
+                source=source,
+            )
+        return message_box.exec()
     
     def load_test_molssi(self, csv_path, source=None):
         """
@@ -326,7 +415,14 @@ class MolSSIDatabasesTab(QWidget):
             "The MolSSI database has been successfully loaded as a test dataset.\n\n"
         )
         msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec()
+        self._exec_tracked_message_box(
+            msg,
+            title="MolSSI test dataset loaded",
+            text="The MolSSI database has been successfully loaded as a test dataset.\n\n",
+            buttons=["OK"],
+            kind="info",
+            source="molssi_test_dataset_loaded",
+        )
 
         # -------------------
         # Cleanup raw Excel

@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.2.0"
+version = "2.2.1"
 
 setup(
     name="robert",
@@ -12,8 +12,13 @@ setup(
             "icons/*",
         ],
         "robert.gui_easyrob": [
+            "assets/*.gif",
             "tutorials/*.md",
             "tutorials/tutorial_images/*/*.png",
+        ],
+        "robert.gui_easyrob.bot": [
+            "knowledge/*.json",
+            "knowledge_sources/*.json",
         ],
     },
     license="MIT",

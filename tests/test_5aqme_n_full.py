@@ -10,14 +10,38 @@ import glob
 import pytest
 import shutil
 import subprocess
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
 import pandas as pd
 
 # saves the working directory
 path_main = os.getcwd()
 path_aqme = os.path.join(path_main, "AQME")
+test_data = Path(__file__).resolve().parent
+repository_root = test_data.parent
 
 
-def _regenerate_report_and_check(test_job):
+@contextmanager
+def aqme_test_workspace():
+    """Run an integration case under tests and remove its outputs on exit."""
+    previous_directory = Path.cwd()
+    with tempfile.TemporaryDirectory(prefix="aqme-workflow-", dir=test_data) as directory:
+        workspace = Path(directory)
+        try:
+            os.chdir(workspace)
+            yield workspace
+        finally:
+            os.chdir(previous_directory)
+
+
+@pytest.fixture
+def aqme_workspace():
+    with aqme_test_workspace() as workspace:
+        yield workspace
+
+
+def _regenerate_report_and_check(test_job, path_main):
     """
     Deletes the PDF/debug report artifacts the subprocess run above already left behind and
     regenerates them by calling report() directly, in-process - a subprocess isn't visible to
@@ -86,56 +110,31 @@ def _regenerate_report_and_check(test_job):
         ("2smiles_columns"),  # test for a full workflow with 2 columns for SMILES
     ],
 )
-def test_AQME(test_job):
-    # reset the folders (to avoid interferences with previous failed tests)
-    folders = [
-        "CURATE",
-        "GENERATE",
-        "GENERATE_reg",
-        "GENERATE_clas",
-        "PREDICT",
-        "VERIFY",
-        "AQME",
-    ]
-    for folder in folders:
-        if os.path.exists(f"{path_main}/{folder}"):
-            shutil.rmtree(f"{path_main}/{folder}")
-    for file in [
-        "report_debug_No_PFI.txt",
-        "report_debug_PFI.txt",
-        "ROBERT_report_No_PFI.pdf",
-        "ROBERT_report_PFI.pdf",
-        "AQME-ROBERT_solubility.csv",
-        "AQME-ROBERT_Robert_example_2smiles.csv",
-        "AQME-ROBERT_solubility_solvent.csv",
-        "Robert_example.csv",
-        "solubility.csv",
-        "solubility_solvent.csv",
-    ]:
-        if os.path.exists(f"{path_main}/{file}"):
-            os.remove(f"{path_main}/{file}")
+def test_AQME(test_job, aqme_workspace):
+    path_main = str(aqme_workspace)
+    path_aqme = os.path.join(path_main, "AQME")
 
     # runs the program with the different tests
     if test_job in ["full_workflow", "full_workflow_test"]:
         y_var = "Target_values"
-        csv_var = "tests/Robert_example.csv"
+        csv_var = str(test_data / "Robert_example.csv")
 
     elif test_job in ["full_clas", "full_clas_test"]:
         y_var = "Target_values"
-        csv_var = "tests/Robert_example_clas.csv"
+        csv_var = str(test_data / "Robert_example_clas.csv")
 
     elif test_job == "aqme":
         y_var = "solub"
         # for AQME-ROBERT workflows, the CSV file must be in the working dir
-        shutil.copy(f"{path_main}/tests/solubility.csv", f"{path_main}/solubility.csv")
+        shutil.copy(test_data / "solubility.csv", aqme_workspace / "solubility.csv")
         csv_var = "solubility.csv"
 
     elif test_job == "2smiles_columns":
         y_var = "solub"
         # for AQME-ROBERT workflows, the CSV file must be in the working dir
         shutil.copy(
-            f"{path_main}/tests/solubility_solvent.csv",
-            f"{path_main}/solubility_solvent.csv",
+            test_data / "solubility_solvent.csv",
+            aqme_workspace / "solubility_solvent.csv",
         )
         csv_var = "solubility_solvent.csv"
 
@@ -177,10 +176,10 @@ def test_AQME(test_job):
         cmd_robert = cmd_robert + ["--discard", "['xtest']"]
 
     if test_job == "full_workflow_test":
-        cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_test.csv"]
+        cmd_robert = cmd_robert + ["--csv_test", str(test_data / "Robert_example_test.csv")]
 
     if test_job == "full_clas_test":
-        cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_clas_test.csv"]
+        cmd_robert = cmd_robert + ["--csv_test", str(test_data / "Robert_example_clas_test.csv")]
 
     if test_job in ["full_clas", "full_clas_test"]:
         cmd_robert = cmd_robert + ["--type", "clas"]
@@ -197,7 +196,13 @@ def test_AQME(test_job):
     if test_job == "2smiles_columns":
         cmd_robert = cmd_robert + ["--aqme", "--alpha", "0.5"]
 
-    subprocess.run(cmd_robert)
+    subprocess_environment = os.environ.copy()
+    subprocess_environment["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(repository_root), subprocess_environment.get("PYTHONPATH", "")])
+    )
+    subprocess.run(
+        cmd_robert, cwd=aqme_workspace, env=subprocess_environment, check=True
+    )
 
     # check that all the plots, CSV and DAT files are created
     # find ROBERT_report_No_PFI.pdf and ROBERT_report_PFI.pdf
@@ -246,7 +251,15 @@ def test_AQME(test_job):
             len(glob.glob(f"{path_main}/PREDICT/csv_test/*.png")) == 2
         )  # 2 extra PNG for predictions ± SD
     else:
-        assert len(glob.glob(f"{path_main}/PREDICT/*.csv")) == 2
+        prediction_csvs = [
+            path for path in glob.glob(f"{path_main}/PREDICT/*.csv")
+            if not os.path.basename(path).startswith("Results_boundary_williams_")
+        ]
+        williams_csvs = glob.glob(
+            f"{path_main}/PREDICT/Results_boundary_williams_*.csv"
+        )
+        assert len(prediction_csvs) == 2
+        assert len(williams_csvs) == (0 if test_job in ["full_clas", "full_clas_test"] else 2)
 
     if test_job == "aqme":
         assert os.path.exists(f"{path_main}/AQME-ROBERT_interpret_solubility.csv")
@@ -470,7 +483,7 @@ def test_AQME(test_job):
             assert find_moder_y_dist or find_moder_truncated
             assert find_assess_red
 
-            _regenerate_report_and_check(test_job)
+            _regenerate_report_and_check(test_job, path_main)
 
         elif test_job == "full_clas":
             # model summary, robert score, predict graphs and model metrics
@@ -512,7 +525,7 @@ def test_AQME(test_job):
             assert find_moder_correl or find_moder_truncated
             assert find_assess_red
 
-            _regenerate_report_and_check(test_job)
+            _regenerate_report_and_check(test_job, path_main)
 
     if test_job in ["full_workflow", "full_workflow_test", "aqme", "2smiles_columns"]:
         assert find_outliers > 0
@@ -540,25 +553,6 @@ def test_AQME(test_job):
     assert find_shap > 0
     assert find_pfi > 0
 
-    # reset the folder
-    folders = ["CURATE", "GENERATE", "PREDICT", "VERIFY", "AQME"]
-    for folder in folders:
-        if os.path.exists(f"{path_main}/{folder}"):
-            shutil.rmtree(f"{path_main}/{folder}")
-    for file_discard in [
-        "report_debug_No_PFI.txt",
-        "report_debug_PFI.txt",
-        "ROBERT_report_No_PFI.pdf",
-        "ROBERT_report_PFI.pdf",
-        "AQME-ROBERT_interpret_solubility.csv",
-        "AQME-ROBERT_interpret_Robert_example_2smiles.csv",
-        "AQME-ROBERT_interpret_solubility_solvent.csv",
-        "Robert_example.csv",
-        "solubility.csv",
-        "solubility_solvent.csv",
-    ]:
-        if os.path.exists(f"{path_main}/{file_discard}"):
-            os.remove(f"{path_main}/{file_discard}")
 
 
 def test_aqme_multismiles_denovo_n_full_columns():

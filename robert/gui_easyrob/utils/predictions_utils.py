@@ -37,7 +37,7 @@ import re
 import numpy as np
 import pandas as pd
 
-import fitz
+import pymupdf as fitz
 import pdfplumber
 
 from rdkit import Chem
@@ -66,6 +66,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSplitter,
     QStyle,
     QStyleOptionHeader,
     QVBoxLayout,
@@ -97,7 +98,7 @@ def get_robert_report_path(selected_file_path: str | Path, model_key: str) -> Pa
     single combined report, so the path must depend on which tab/model is being displayed."""
     return Path(selected_file_path).parent / f"ROBERT_report_{model_key}.pdf"
 
-def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
+def find_external_test_pixmaps(base_path: str | Path, include_path=None) -> dict[str, QPixmap]:
     """Search for external test images in the PREDICT/csv_test directory related to the selected file."""
     base_path = Path(base_path)
     if base_path.is_file():
@@ -109,6 +110,8 @@ def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
 
     results: dict[str, QPixmap] = {}
     for path in csv_test_dir.glob("*.png"):
+        if include_path is not None and not include_path(path):
+            continue
         name = path.name
         pixmap = QPixmap(str(path))
         if pixmap.isNull():
@@ -483,9 +486,12 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     return result
 
-def evaluate_predictions_for_model(selected_file_path: str | Path, df: pd.DataFrame, model_key: str) -> dict:
+def evaluate_predictions_for_model(
+    selected_file_path: str | Path, df: pd.DataFrame, model_key: str,
+    report_path: Path | None = None,
+) -> dict:
     """Evaluate predictions for a specific model."""
-    pdf_path = get_robert_report_path(selected_file_path, model_key)
+    pdf_path = report_path or get_robert_report_path(selected_file_path, model_key)
     details = extract_scores_from_robert_report(pdf_path)
     score = details.get("score") if details else None
     prediction_info = extract_prediction_info(df)
@@ -510,8 +516,12 @@ class PredictionDashboardPanel(QWidget):
         self._boundary_image = boundary_image
         self._external_plot = external_plot
         self.setObjectName("PredictionDashboard")
-        self.expanded_width = 500
-        self.collapsed_width = 40
+        self.setStyleSheet(
+            "QWidget#PredictionDashboard { background: palette(base); "
+            "border-left: 1px solid palette(mid); }"
+        )
+        self.expanded_width = 360
+        self.collapsed_width = 48
         self._expanded = True
 
         state_colors = {
@@ -528,29 +538,28 @@ class PredictionDashboardPanel(QWidget):
     def _apply_initial_state(self):
         """Apply the initial state based on the expansion status."""
         if self._expanded:
-            self.main_layout.setContentsMargins(10, 8, 10, 8)
-            self.setMinimumWidth(self.expanded_width)
-            self.setMaximumWidth(self.expanded_width)
-            self.content.setVisible(True)
-            self.toggle_btn.setText("Hide Info ❯")
-            self.toggle_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            self.toggle_btn.setFixedHeight(32)
-            self.toggle_btn.setStyleSheet(
-                "QPushButton { background: transparent; border-radius: 4px; font-size: 12px; padding: 4px 8px; }"
-                "QPushButton:hover { background: rgba(0,0,0,0.05); }"
-            )
+            self.main_layout.setContentsMargins(12, 10, 12, 10)
+            self.setMinimumWidth(260)
+            self.setMaximumWidth(16777215)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+            self.title_label.show()
+            self.scroll.show()
+            self.collapse_spacer.hide()
+            self.toggle_btn.setText("Hide info  ›")
+            self.toggle_btn.setFixedWidth(96)
+            self.toggle_btn.setToolTip("Hide model insights")
+            self.toggle_btn.setAccessibleName("Hide model insights")
         else:
-            self.main_layout.setContentsMargins(0, 0, 0, 0)
+            self.main_layout.setContentsMargins(6, 10, 6, 10)
             self.setMinimumWidth(self.collapsed_width)
             self.setMaximumWidth(self.collapsed_width)
-            self.content.setVisible(False)
-            self.toggle_btn.setText("❮\nMore\nInfo")
-            self.toggle_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            self.toggle_btn.setMinimumHeight(100)
-            self.toggle_btn.setStyleSheet(
-                "QPushButton { background: transparent; font-size: 11px; padding: 2px; }"
-                "QPushButton:hover { background: rgba(0,0,0,0.05); }"
-            )
+            self.title_label.hide()
+            self.scroll.hide()
+            self.collapse_spacer.show()
+            self.toggle_btn.setText("‹")
+            self.toggle_btn.setFixedWidth(34)
+            self.toggle_btn.setToolTip("More info: show model insights")
+            self.toggle_btn.setAccessibleName("Show model insights")
 
     def _build_ui(self, scenario):
         """Build the user interface."""
@@ -558,13 +567,34 @@ class PredictionDashboardPanel(QWidget):
         self.main_layout.setContentsMargins(10, 8, 10, 8)
         self.main_layout.setSpacing(12)
 
+        header_widget = QWidget()
+        header_widget.setFixedHeight(32)
+        header = QHBoxLayout(header_widget)
+        header.setContentsMargins(0, 0, 0, 0)
+        self.title_label = QLabel("Model insights")
+        self.title_label.setStyleSheet("font-size: 14px; font-weight: 600;")
+        header.addWidget(self.title_label)
+        header.addStretch()
+
         self.toggle_btn = QPushButton()
+        self.toggle_btn.setObjectName("insightsToggle")
+        self.toggle_btn.setFixedHeight(32)
+        self.toggle_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.toggle_btn.setStyleSheet(
+            "QPushButton#insightsToggle { background: palette(highlight); "
+            "color: palette(highlighted-text); border: none; "
+            "border-radius: 16px; padding: 5px 10px; font-weight: 600; }"
+            "QPushButton#insightsToggle:hover { border: 1px solid palette(mid); }"
+        )
         self.toggle_btn.clicked.connect(self.toggle)
-        self.main_layout.addWidget(self.toggle_btn)
+        header.addWidget(self.toggle_btn)
+        self.main_layout.addWidget(header_widget)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.scroll = scroll
 
         self.content = QWidget()
         content_layout = QVBoxLayout(self.content)
@@ -578,6 +608,9 @@ class PredictionDashboardPanel(QWidget):
 
         scroll.setWidget(self.content)
         self.main_layout.addWidget(scroll)
+        self.collapse_spacer = QWidget()
+        self.collapse_spacer.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.main_layout.addWidget(self.collapse_spacer)
 
     def _build_status_block(self, layout, scenario):
         """Build the status block with messages and recommendations."""
@@ -604,7 +637,7 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet("QWidget#dashboardBlock { background: palette(window); border: 1px solid palette(mid); border-radius: 10px; }")
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -615,7 +648,7 @@ class PredictionDashboardPanel(QWidget):
 
         image_frame = QWidget()
         image_frame.setObjectName("imageFrame")
-        image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+        image_frame.setStyleSheet("QWidget#imageFrame { border: none; background: transparent; }")
         image_layout = QVBoxLayout(image_frame)
         image_layout.setContentsMargins(6, 6, 6, 6)
 
@@ -634,7 +667,7 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet("QWidget#dashboardBlock { background: palette(window); border: 1px solid palette(mid); border-radius: 10px; }")
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -651,7 +684,7 @@ class PredictionDashboardPanel(QWidget):
         if pixmap:
             image_frame = QWidget()
             image_frame.setObjectName("imageFrame")
-            image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+            image_frame.setStyleSheet("QWidget#imageFrame { border: none; background: transparent; }")
             image_layout = QVBoxLayout(image_frame)
             image_layout.setContentsMargins(6, 6, 6, 6)
             image_label = QLabel()
@@ -707,7 +740,7 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet("QWidget#dashboardBlock { background: palette(window); border: 1px solid palette(mid); border-radius: 10px; }")
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -723,7 +756,7 @@ class PredictionDashboardPanel(QWidget):
 
         image_frame = QWidget()
         image_frame.setObjectName("imageFrame")
-        image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+        image_frame.setStyleSheet("QWidget#imageFrame { border: none; background: transparent; }")
         image_layout = QVBoxLayout(image_frame)
         image_layout.setContentsMargins(6, 6, 6, 6)
         image_label = QLabel()
@@ -744,8 +777,25 @@ class PredictionDashboardPanel(QWidget):
         layout.addWidget(container)
 
     def toggle(self):
+        if self._expanded:
+            self._last_expanded_width = self.width()
         self._expanded = not self._expanded
         self._apply_initial_state()
+        target_width = (
+            max(260, getattr(self, "_last_expanded_width", 260))
+            if self._expanded else self.collapsed_width
+        )
+        splitter = self.parentWidget()
+        if isinstance(splitter, QSplitter):
+            sizes = splitter.sizes()
+            index = splitter.indexOf(self)
+            if len(sizes) == 2 and index in (0, 1):
+                total = sum(sizes)
+                sizes[index] = min(target_width, total - 1)
+                sizes[1 - index] = total - sizes[index]
+                splitter.setSizes(sizes)
+        elif self._expanded:
+            self.resize(target_width, self.height())
 
 
 class PandasTableModel(QAbstractTableModel):

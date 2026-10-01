@@ -52,7 +52,7 @@ from importlib.resources import as_file, files
 import pandas as pd
 import matplotlib.pyplot as plt
 import psutil
-import fitz
+import pymupdf as fitz
 
 import rdkit
 from rdkit import Chem
@@ -119,12 +119,13 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
-    QMessageBox,
+    QMessageBox as QtMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QSlider,
+    QSplitter,
     QSpinBox,
     QStackedWidget,
     QStatusBar,
@@ -139,6 +140,105 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+class QMessageBox(QtMessageBox):
+    """Window-modal message box wrapper so floating helper windows stay usable."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setWindowModality(Qt.WindowModal)
+
+    @classmethod
+    def _build_box(
+        cls,
+        parent,
+        icon,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        box = cls(parent)
+        box.setIcon(icon)
+        box.setWindowTitle(str(title or ""))
+        box.setText(str(text or ""))
+        box.setStandardButtons(buttons)
+        if default_button != QtMessageBox.NoButton:
+            box.setDefaultButton(default_button)
+        return box
+
+    @classmethod
+    def information(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Information,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
+
+    @classmethod
+    def warning(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Warning,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
+
+    @classmethod
+    def critical(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Critical,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
+
+    @classmethod
+    def question(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.StandardButton.Yes | QtMessageBox.StandardButton.No,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Question,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
 
 class DropLabel(QFrame):
     """Frame-based drop target with an optional file dialog button."""
@@ -256,26 +356,32 @@ class RobertWorker(QThread):
     def run(self):
         """Run the subprocess and stream output in real-time."""
         try:
+            process_env = os.environ.copy()
+            process_env["PYTHONIOENCODING"] = "utf-8"
             if self.is_windows:
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+
                 self.process = subprocess.Popen(
                     shlex.split(self.command),
                     cwd=self.working_dir,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    bufsize=1,
-                    universal_newlines=True,
-                    # text=True without an explicit encoding decodes with the OS default
-                    # (cp1252/"charmap" on Windows), which raises UnicodeDecodeError on any
-                    # byte outside that codepage (e.g. from AQME/xtb output). That exception
-                    # kills the reader thread mid-stream; if the child keeps writing, the now
-                    # unread pipe fills up, the child blocks on its own write, and the whole
-                    # GUI hangs waiting on process.wait(). errors="replace" guarantees decoding
-                    # never raises, so the reader threads always keep draining the pipes
+                    # Keep both reader threads alive when child output contains invalid bytes.
                     encoding="utf-8",
                     errors="replace",
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
+                    env=process_env,
+                    bufsize=1,
+                    universal_newlines=True,
+                    startupinfo=startupinfo,
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP
+                        | subprocess.CREATE_NEW_CONSOLE
+                    ),
                 )
+
             else:
                 self.process = subprocess.Popen(
                     shlex.split(self.command),
@@ -283,10 +389,11 @@ class RobertWorker(QThread):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    bufsize=1,
-                    universal_newlines=True,
                     encoding="utf-8",
                     errors="replace",
+                    env=process_env,
+                    bufsize=1,
+                    universal_newlines=True,
                     preexec_fn=os.setsid,
                 )
 
@@ -358,6 +465,67 @@ class RobertWorker(QThread):
                     pass
         except Exception as exc:
             self.error_received.emit(f"Error stopping process: {exc}")
+
+
+class CSVPreflightWorker(QThread):
+    """QThread that validates CSV accessibility before launching ROBERT."""
+
+    validation_finished = Signal(dict)
+
+    def __init__(self, csv_entries):
+        super().__init__()
+        self.csv_entries = list(csv_entries or [])
+
+    @staticmethod
+    def _resolve_path(path_value: str) -> str:
+        try:
+            return str(Path(path_value).expanduser().resolve(strict=False))
+        except OSError:
+            return os.path.abspath(path_value)
+
+    def run(self):
+        """Check CSV paths for long-path and permission-denied conditions."""
+        for csv_label, csv_path in self.csv_entries:
+            if not csv_path:
+                continue
+
+            resolved_path = self._resolve_path(csv_path)
+
+            if len(resolved_path) > 200:
+                self.validation_finished.emit(
+                    {
+                        "ok": False,
+                        "title": "WARNING!",
+                        "message": (
+                            f"The path of your {csv_label} is longer than 200 characters:\n\n"
+                            f"{resolved_path}\n\n"
+                            "To avoid problems in the workflow, move the file to a shorter path and try again."
+                        ),
+                    }
+                )
+                return
+
+            try:
+                with open(resolved_path, "r", encoding="utf-8"):
+                    pass
+            except PermissionError:
+                self.validation_finished.emit(
+                    {
+                        "ok": False,
+                        "title": "WARNING!",
+                        "message": (
+                            f"ROBERT could not access your {csv_label}:\n\n"
+                            f"{resolved_path}\n\n"
+                            "Close the CSV file, pause OneDrive, or close any app that might be using the file, and try again."
+                        ),
+                    }
+                )
+                return
+            except OSError:
+                continue
+
+        self.validation_finished.emit({"ok": True})
+
 
 def warn_if_csv_name_has_spaces(parent, file_path, what="CSV", title="WARNING!"):
     """ROBERT can't use CSV files with spaces in their name (spaces in the folders are fine) and

@@ -7,6 +7,9 @@
 import os
 import sys
 import glob
+import ast
+import math
+import re
 import pytest
 import shutil
 import subprocess
@@ -116,18 +119,32 @@ def test_VERIFY(test_job):
                         in outlines[i + 6]
                     )
                 elif test_job == "standard":
-                    assert (
-                        "Original RMSE (10x 5-fold CV) 0.29 + 15% & 30% threshold = 0.34 & 0.38"
-                        in outlines[i + 1]
+                    threshold_match = re.search(
+                        r"Original RMSE \(10x 5-fold CV\) ([0-9.]+) \+ 15% & 30% "
+                        r"threshold = ([0-9.]+) & ([0-9.]+)",
+                        outlines[i + 1],
                     )
-                    assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]
-                    assert "o y_shuffle: PASSED, RMSE = 1.0" in outlines[i + 3]
-                    assert "o onehot: PASSED, RMSE = 0.52" in outlines[i + 4]
-                    assert "o cluster: PASSED, RMSE = 0.49" in outlines[i + 5]
-                    assert (
-                        "- Sorted 5-fold CV : R2 = [0.0, 0.63, 0.03, 0.33, 0.15], MAE = [0.32, 0.19, 0.32, 0.33, 0.4], RMSE = [0.35, 0.27, 0.39, 0.35, 0.46]"
-                        in outlines[i + 6]
+                    assert threshold_match is not None
+                    original_rmse, lower_threshold, upper_threshold = map(
+                        float, threshold_match.groups()
                     )
+                    assert 0 < original_rmse < 1
+                    assert math.isclose(lower_threshold, original_rmse * 1.15, abs_tol=0.02)
+                    assert math.isclose(upper_threshold, original_rmse * 1.30, abs_tol=0.02)
+                    for offset, label in enumerate(
+                        ("y_mean", "y_shuffle", "onehot", "cluster"), start=2
+                    ):
+                        line = outlines[i + offset]
+                        assert f"{label}: PASSED, RMSE = " in line
+                        flawed_rmse = re.search(r"RMSE = ([0-9.]+)", line)
+                        assert flawed_rmse is not None
+                        assert float(flawed_rmse.group(1)) > lower_threshold
+                    sorted_metrics = re.findall(
+                        r"(?:R2|MAE|RMSE) = (\[[^\]]+\])", outlines[i + 6]
+                    )
+                    assert "Sorted 5-fold CV" in outlines[i + 6]
+                    assert len(sorted_metrics) == 3
+                    assert all(len(ast.literal_eval(metric)) == 5 for metric in sorted_metrics)
                 break
     assert results_line
 

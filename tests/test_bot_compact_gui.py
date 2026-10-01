@@ -359,10 +359,13 @@ if __name__ == '__main__':
 _load_case_group('results_workspace', """\"\"\"Navigation and availability checks for the consolidated Results view.\"\"\"
 from gui_easyrob.bot.bot_context import GuiSnapshot
 from gui_easyrob.bot.heuristics import diagnose_snapshot
+from gui_easyrob.tabs import results as results_module
+from PySide6.QtWidgets import QWidget
 
 def test_main_window_has_one_results_tab_with_existing_views(
-    tmp_path, disposed_easyrob_window,
+    tmp_path, disposed_easyrob_window, tiny_test_pdf_bytes, tiny_test_png_bytes, monkeypatch,
 ):
+    monkeypatch.setattr(results_module, 'PDFViewer', lambda path, thread_pool: QWidget())
     window = disposed_easyrob_window
     try:
         names = [window.tab_widget.tabText(index) for index in range(window.tab_widget.count())]
@@ -388,10 +391,10 @@ def test_main_window_has_one_results_tab_with_existing_views(
         source = tmp_path / 'input.csv'
         source.write_text('target\\n1\\n')
         report = tmp_path / 'ROBERT_report_No_PFI.pdf'
-        report.write_bytes(b'placeholder')
+        report.write_bytes(tiny_test_pdf_bytes)
         predict_dir = tmp_path / 'PREDICT'
         predict_dir.mkdir()
-        (predict_dir / 'figure.png').write_bytes(b'placeholder')
+        (predict_dir / 'figure.png').write_bytes(tiny_test_png_bytes)
         window.file_path = str(source)
         window.check_for_pdfs(str(source))
         window.check_for_images(str(source))
@@ -416,8 +419,9 @@ def test_main_window_has_one_results_tab_with_existing_views(
         window.hide()
 
 def test_changing_run_keeps_results_open_when_another_view_is_available(
-    tmp_path, disposed_easyrob_window,
+    tmp_path, disposed_easyrob_window, tiny_test_pdf_bytes, tiny_test_png_bytes, monkeypatch,
 ):
+    monkeypatch.setattr(results_module, 'PDFViewer', lambda path, thread_pool: QWidget())
     report_run = tmp_path / 'report_run'
     image_run = tmp_path / 'image_run'
     report_run.mkdir()
@@ -426,9 +430,9 @@ def test_changing_run_keeps_results_open_when_another_view_is_available(
     image_source = image_run / 'input.csv'
     report_source.write_text('target\\n1\\n')
     image_source.write_text('target\\n1\\n')
-    (report_run / 'ROBERT_report_No_PFI.pdf').write_bytes(b'placeholder')
+    (report_run / 'ROBERT_report_No_PFI.pdf').write_bytes(tiny_test_pdf_bytes)
     (image_run / 'PREDICT').mkdir()
-    (image_run / 'PREDICT' / 'figure.png').write_bytes(b'placeholder')
+    (image_run / 'PREDICT' / 'figure.png').write_bytes(tiny_test_png_bytes)
     window = disposed_easyrob_window
     try:
         window._pending_refresh_path = str(report_source)

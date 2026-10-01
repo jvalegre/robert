@@ -10,7 +10,7 @@ import shiboken6
 from gui_easyrob.tabs.result_catalog import ResultCatalog
 
 
-def make_all_models_run(tmp_path):
+def make_all_models_run(tmp_path, pdf_bytes, png_bytes):
     tmp_path.mkdir(parents=True, exist_ok=True)
     source = tmp_path / "input.csv"
     source.write_text("target\n1\n")
@@ -28,9 +28,9 @@ def make_all_models_run(tmp_path):
             (external / f"test_{model}_{suffix}.csv").write_text(
                 "target,target_pred\n1,2\n"
             )
-            (reports / f"ROBERT_report_{model}_{suffix}.pdf").write_bytes(b"pdf")
-            (predict / f"Results_{model}_{suffix}.png").write_bytes(b"image")
-            (external / f"Results_{model}_{suffix}_external.png").write_bytes(b"image")
+            (reports / f"ROBERT_report_{model}_{suffix}.pdf").write_bytes(pdf_bytes)
+            (predict / f"Results_{model}_{suffix}.png").write_bytes(png_bytes)
+            (external / f"Results_{model}_{suffix}_external.png").write_bytes(png_bytes)
     best_root = tmp_path / "GENERATE" / "Best_model"
     for suffix, filename in (("No_PFI", "GB.csv"), ("PFI", "RF_PFI.csv")):
         folder = best_root / suffix
@@ -39,8 +39,10 @@ def make_all_models_run(tmp_path):
     return source
 
 
-def test_catalog_defaults_to_best_variant_models_and_can_select_another_model(tmp_path):
-    make_all_models_run(tmp_path)
+def test_catalog_defaults_to_best_variant_models_and_can_select_another_model(
+    tmp_path, tiny_test_pdf_bytes, tiny_test_png_bytes,
+):
+    make_all_models_run(tmp_path, tiny_test_pdf_bytes, tiny_test_png_bytes)
 
     catalog = ResultCatalog.discover(tmp_path)
 
@@ -65,9 +67,9 @@ def test_catalog_defaults_to_best_variant_models_and_can_select_another_model(tm
 
 
 def test_results_model_selector_updates_all_views_without_extra_tabs(
-    tmp_path, disposed_easyrob_window, qapp,
+    tmp_path, disposed_easyrob_window, qapp, tiny_test_pdf_bytes, tiny_test_png_bytes,
 ):
-    source = make_all_models_run(tmp_path)
+    source = make_all_models_run(tmp_path, tiny_test_pdf_bytes, tiny_test_png_bytes)
     window = disposed_easyrob_window
     try:
         window._pending_refresh_path = str(source)
@@ -128,14 +130,16 @@ def test_results_model_selector_updates_all_views_without_extra_tabs(
 
 
 def test_switching_runs_resets_model_choice_and_hides_unused_selector(
-    tmp_path, disposed_easyrob_window,
+    tmp_path, disposed_easyrob_window, tiny_test_pdf_bytes, tiny_test_png_bytes,
 ):
-    source = make_all_models_run(tmp_path / "all")
+    source = make_all_models_run(
+        tmp_path / "all", tiny_test_pdf_bytes, tiny_test_png_bytes,
+    )
     ordinary = tmp_path / "ordinary"
     ordinary.mkdir()
     ordinary_source = ordinary / "input.csv"
     ordinary_source.write_text("target\n1\n")
-    (ordinary / "ROBERT_report_No_PFI.pdf").write_bytes(b"pdf")
+    (ordinary / "ROBERT_report_No_PFI.pdf").write_bytes(tiny_test_pdf_bytes)
     window = disposed_easyrob_window
     try:
         window._pending_refresh_path = str(source)
@@ -155,9 +159,9 @@ def test_switching_runs_resets_model_choice_and_hides_unused_selector(
 
 
 def test_switching_models_releases_old_pdf_viewers(
-    tmp_path, disposed_easyrob_window, qapp,
+    tmp_path, disposed_easyrob_window, qapp, tiny_test_pdf_bytes, tiny_test_png_bytes,
 ):
-    source = make_all_models_run(tmp_path)
+    source = make_all_models_run(tmp_path, tiny_test_pdf_bytes, tiny_test_png_bytes)
     window = disposed_easyrob_window
     def viewer_count():
         return sum(

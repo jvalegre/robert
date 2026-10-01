@@ -188,7 +188,7 @@ def test_interactive_charts_use_one_view_selector_instead_of_nested_tabs(qapp):
     ]
 
 
-def test_images_navigation_contains_only_image_views(tmp_path, qapp):
+def test_images_navigation_contains_only_image_views(tmp_path, qapp, tiny_test_png_bytes):
     predict = tmp_path / "PREDICT"
     predict.mkdir()
     (predict / "GB_No_PFI.csv").write_text("target,target_pred\n1,2\n")
@@ -199,7 +199,7 @@ def test_images_navigation_contains_only_image_views(tmp_path, qapp):
 
     assert not isinstance(tab.folder_tabs, QTabWidget)
     assert tab.view_selector.count() == 0
-    (predict / "figure.png").write_bytes(b"placeholder")
+    (predict / "figure.png").write_bytes(tiny_test_png_bytes)
     tab.refresh_with_new_path(str(selected))
     assert [tab.view_selector.itemText(i) for i in range(tab.view_selector.count())] == ["PREDICT"]
     tab.refresh_with_new_path(str(selected))

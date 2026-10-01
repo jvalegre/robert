@@ -93,9 +93,33 @@ def small_test_gif(tmp_path_factory):
     return path
 
 
+@pytest.fixture(scope="session")
+def tiny_test_pdf_bytes():
+    """Provide a valid one-page PDF for GUI tests that inspect reports."""
+    import fitz
+
+    document = fitz.open()
+    document.new_page()
+    contents = document.tobytes()
+    document.close()
+    return contents
+
+
+@pytest.fixture(scope="session")
+def tiny_test_png_bytes(tmp_path_factory):
+    """Provide a valid one-pixel PNG for GUI image-loading tests."""
+    from PySide6.QtGui import QImage
+
+    path = tmp_path_factory.mktemp("gui_image") / "pixel.png"
+    image = QImage(1, 1, QImage.Format.Format_RGB32)
+    image.fill(0xFFFFFFFF)
+    assert image.save(str(path), "PNG")
+    return path.read_bytes()
+
+
 @pytest.fixture
 def disposed_easyrob_window(qapp):
-    """Create an EasyROB window and stop its background PDF work during teardown."""
+    """Create an EasyROB window and stop its background result work during teardown."""
     from PySide6.QtCore import QCoreApplication, QEvent
     import shiboken6
 
@@ -106,6 +130,7 @@ def disposed_easyrob_window(qapp):
 
     if shiboken6.isValid(window):
         window.results_tab.shared_pool.waitForDone()
+        window.predictions_tab._thread_pool.waitForDone()
         qapp.removeEventFilter(window)
         window.hide()
         window.deleteLater()

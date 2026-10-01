@@ -1,7 +1,6 @@
 """Completion messages for standard and all-model ROBERT reports."""
 
 import pytest
-from PySide6.QtWidgets import QApplication
 
 from gui_easyrob.main import window as window_module
 
@@ -25,9 +24,8 @@ o ROBERT_report_RF_No_PFI.pdf (best for Interpolation) and ROBERT_report_GB_No_P
     ],
 )
 def test_report_completion_dialog_requires_finished_report_run(
-    monkeypatch, output, exit_code, expected_success,
+    monkeypatch, qapp, output, exit_code, expected_success,
 ):
-    app = QApplication.instance() or QApplication([])
     window = window_module.EasyROB()
     dialogs = []
     warnings = []

@@ -35,7 +35,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Third-party imports
 import pandas as pd
 import pytest
-from PySide6.QtCore import Qt, QCoreApplication, QEvent
+from PySide6.QtCore import Qt, QCoreApplication, QEvent, Signal
 from PySide6.QtGui import QMovie, QPixmapCache
 from PySide6.QtWidgets import (
     QApplication,
@@ -49,6 +49,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTableView,
+    QWidget,
 )
 from rdkit import Chem
 
@@ -300,6 +301,36 @@ def test_output_dir():
                     time.sleep(0.2)
 
 
+class _InertDownloadSignal:
+    def connect(self, _callback):
+        pass
+
+
+class _InertWebProfile:
+    downloadRequested = _InertDownloadSignal()
+
+
+class _InertWebPage:
+    def profile(self):
+        return _InertWebProfile()
+
+
+class _InertWebView(QWidget):
+    """Provide the web view interface without starting Chromium in GUI tests."""
+
+    urlChanged = Signal(object)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._url = None
+
+    def setUrl(self, url):
+        self._url = url
+
+    def page(self):
+        return _InertWebPage()
+
+
 @pytest.fixture
 def easyrob_window(qtbot, qapp, monkeypatch):
     """
@@ -307,12 +338,26 @@ def easyrob_window(qtbot, qapp, monkeypatch):
 
     Heavy background checks that are not relevant for tests are patched out.
     """
+    # These tests cover EasyROB and its tab wiring, not Chromium or the remote
+    # MolSSI site. A real QWebEngineView starts a browser for every window.
+    molssi_module = sys.modules[window_module.MolSSIDatabasesTab.__module__]
+    monkeypatch.setattr(molssi_module, "QWebEngineView", _InertWebView)
     window = EasyROB()
 
     def prepare_window_close(widget):
         widget.results_tab.shared_pool.waitForDone()
         widget.predictions_tab._thread_pool.waitForDone()
         qapp.removeEventFilter(widget)
+        worker = getattr(widget, "worker", None)
+        idle = worker is None or not worker.isRunning()
+        if (
+            idle
+            and not any(w.isRunning() for w in widget._molssi_workers)
+            and not widget._running_ai_workers()
+        ):
+            # Closing an idle test window must not schedule a timer that can
+            # outlive it and run during the next test's Qt event processing.
+            widget._shutdown_molssi_async = widget.hide
 
     qtbot.addWidget(window, before_close_func=prepare_window_close)
 
@@ -367,6 +412,7 @@ def test_all_tabs_created(easyrob_window):
     assert "AQME" in tab_names
     assert "Advanced Options" in tab_names
     assert "MolSSI Databases" in tab_names
+    assert isinstance(window.molssi_tab.web_view, _InertWebView)
     assert "Check model" in tab_names
     assert "Results" in tab_names
     assert window.bot_window.parent() is window

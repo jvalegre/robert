@@ -35,7 +35,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Third-party imports
 import pandas as pd
 import pytest
-from PySide6.QtCore import Qt, QCoreApplication, QEvent, Signal
+from PySide6.QtCore import Qt, QCoreApplication, QEvent
 from PySide6.QtGui import QMovie, QPixmapCache
 from PySide6.QtWidgets import (
     QApplication,
@@ -49,10 +49,8 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTableView,
-    QWidget,
 )
 from rdkit import Chem
-import shiboken6
 
 # Local project imports
 from robert.gui_easyrob.main.window import EasyROB
@@ -302,49 +300,21 @@ def test_output_dir():
                     time.sleep(0.2)
 
 
-class _InertDownloadSignal:
-    def connect(self, _handler):
-        pass
-
-
-class _InertWebProfile:
-    def __init__(self):
-        self.downloadRequested = _InertDownloadSignal()
-
-
-class _InertWebPage:
-    def __init__(self):
-        self._profile = _InertWebProfile()
-
-    def profile(self):
-        return self._profile
-
-
-class _InertWebView(QWidget):
-    urlChanged = Signal(object)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._page = _InertWebPage()
-        self._url = None
-
-    def setUrl(self, url):
-        self._url = url
-
-    def page(self):
-        return self._page
-
-
 @pytest.fixture
-def easyrob_window(qapp, monkeypatch):
+def easyrob_window(qtbot, qapp, monkeypatch):
     """
     Create an EasyROB main window for GUI tests.
 
     Heavy background checks that are not relevant for tests are patched out.
     """
-    molssi_module = sys.modules[window_module.MolSSIDatabasesTab.__module__]
-    monkeypatch.setattr(molssi_module, "QWebEngineView", _InertWebView)
     window = EasyROB()
+
+    def prepare_window_close(widget):
+        widget.results_tab.shared_pool.waitForDone()
+        widget.predictions_tab._thread_pool.waitForDone()
+        qapp.removeEventFilter(widget)
+
+    qtbot.addWidget(window, before_close_func=prepare_window_close)
 
     # Avoid slow or environment-dependent checks during tests
     monkeypatch.setattr(window, "check_for_pdfs", lambda *args, **kwargs: None)
@@ -356,14 +326,7 @@ def easyrob_window(qapp, monkeypatch):
     # all_models produces - unchecked here so existing scenarios keep testing what they tested
     window.all_models_toggle.setChecked(False)
 
-    yield window
-    if shiboken6.isValid(window):
-        window.results_tab.shared_pool.waitForDone()
-        window.predictions_tab._thread_pool.waitForDone()
-        qapp.removeEventFilter(window)
-        window.hide()
-        window.deleteLater()
-        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    return window
 
 
 # =====================================================
@@ -404,7 +367,6 @@ def test_all_tabs_created(easyrob_window):
     assert "AQME" in tab_names
     assert "Advanced Options" in tab_names
     assert "MolSSI Databases" in tab_names
-    assert isinstance(window.molssi_tab.web_view, _InertWebView)
     assert "Check model" in tab_names
     assert "Results" in tab_names
     assert window.bot_window.parent() is window

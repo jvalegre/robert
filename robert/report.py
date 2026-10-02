@@ -370,8 +370,9 @@ class report:
                 print(f'\no  {pdf_name} was created successfully in the working directory!')
 
         # --all_models: the working directory would otherwise end up with 8 PDFs (4 models x
-        # 2 PFI variants) - move all of them into REPORT_models/ and copy back only the 2 that
-        # matter most, so the working directory stays uncluttered by default
+        # 2 PFI variants) - move all of them into REPORT_models/ and copy back only the single
+        # overall-best one (see _pick_best_overall()), so the working directory stays
+        # uncluttered by default
         if getattr(self.args, 'all_models', False) and model_names != [None]:
             self.organize_all_models_pdfs()
 

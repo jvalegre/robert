@@ -88,6 +88,7 @@ class ResultsTab(QWidget):
 
         self.main_tab_widget = main_tab_widget
         self.base_path = os.path.dirname(file_path)
+        self.report_paths = None
         self.pdf_tabs = {}        # {pdf_path: PDFViewer|None}  None => placeholder not materialized
         self.title_to_path = {}   # {basename: full path}
 
@@ -108,9 +109,10 @@ class ResultsTab(QWidget):
         self.check_for_pdfs()
 
     # ----------------- Public API -----------------
-    def refresh_with_new_path(self, file_path):
+    def refresh_with_new_path(self, file_path, report_paths=None):
         """Updates the path and reloads PDF tabs."""
         self.base_path = os.path.dirname(file_path)
+        self.report_paths = report_paths
         self.clear_pdf_tabs()
         self.check_for_pdfs()
 
@@ -125,7 +127,9 @@ class ResultsTab(QWidget):
                 else:
                     index = self._index_of_title(os.path.basename(path))
                 if index != -1:
+                    page = self.pdf_tab_widget.widget(index)
                     self.pdf_tab_widget.removeTab(index)
+                    page.deleteLater()
                 del self.pdf_tabs[path]
                 self.title_to_path.pop(os.path.basename(path), None)
         finally:
@@ -133,8 +137,11 @@ class ResultsTab(QWidget):
 
     def check_for_pdfs(self):
         """Checks for new PDFs and updates the UI dynamically (fast path: sync glob)."""
-        pdf_pattern = os.path.join(self.base_path, "ROBERT_report*.pdf")
-        pdf_files = sorted(glob.glob(pdf_pattern))
+        if self.report_paths is None:
+            pdf_pattern = os.path.join(self.base_path, "ROBERT_report*.pdf")
+            pdf_files = sorted(glob.glob(pdf_pattern))
+        else:
+            pdf_files = [str(path) for path in self.report_paths if os.path.isfile(path)]
 
         # Remove missing
         to_remove = [p for p in self.pdf_tabs.keys() if p not in pdf_files]
@@ -148,7 +155,9 @@ class ResultsTab(QWidget):
                     else:
                         idx = self._index_of_title(os.path.basename(pdf))
                     if idx != -1:
+                        page = self.pdf_tab_widget.widget(idx)
                         self.pdf_tab_widget.removeTab(idx)
+                        page.deleteLater()
                     del self.pdf_tabs[pdf]
                     self.title_to_path.pop(os.path.basename(pdf), None)
             finally:
@@ -191,9 +200,13 @@ class ResultsTab(QWidget):
 
     def _materialize_pdf_viewer(self, index: int, pdf_path: str):
         """Materialize a PDF viewer."""
+        if pdf_path not in self.pdf_tabs or self.pdf_tab_widget.tabText(index) != os.path.basename(pdf_path):
+            return
         viewer = PDFViewer(pdf_path, thread_pool=self.shared_pool)
         self.pdf_tabs[pdf_path] = viewer
+        placeholder = self.pdf_tab_widget.widget(index)
         self.pdf_tab_widget.removeTab(index)
+        placeholder.deleteLater()
         self.pdf_tab_widget.insertTab(index, viewer, os.path.basename(pdf_path))
         self.pdf_tab_widget.setCurrentIndex(index)
 

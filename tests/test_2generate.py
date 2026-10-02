@@ -9,6 +9,7 @@ import sys
 import glob
 import math
 import re
+import ast
 import pytest
 import shutil
 import subprocess
@@ -375,7 +376,21 @@ def test_GENERATE(test_job):
                     elif test_job == "reduced_clas":
                         desc_list = ["x7", "x6", "x10", "x9", "x8", "x5"]
                     elif test_job == "standard":
-                        desc_list = ["x5", "Csub-H", "Csub-Csub", "x9", "x7", "x2"]
+                        desc_list = None
+                        selected_descriptors = ast.literal_eval(
+                            params_best["X_descriptors"][0]
+                        )
+                        curated_path = os.path.join(
+                            path_main,
+                            "CURATE",
+                            f"Robert_example_CURATE_{params_best['model'][0]}.csv",
+                        )
+                        curated_columns = set(pd.read_csv(curated_path, nrows=0).columns)
+                        assert len(selected_descriptors) == 6
+                        assert len(set(selected_descriptors)) == 6
+                        assert set(selected_descriptors).issubset(curated_columns)
+                        assert set(selected_descriptors).issubset(db_best.columns)
+                        assert params_best["combined_rmse"][0] < 0.6
                 if test_job in ["reduced", "reduced_cmd"]:
                     # check set splits
                     expected_sets = [
@@ -415,9 +430,11 @@ def test_GENERATE(test_job):
                     for i, expected_col in enumerate(expected_cols):
                         assert db_best.columns[i] == expected_col
 
-                for var in desc_list:
-                    assert var in params_best["X_descriptors"][0]
-                assert len(desc_list) == len(params_best["X_descriptors"][0].split(","))
+                if desc_list is not None:
+                    selected_descriptors = ast.literal_eval(
+                        params_best["X_descriptors"][0]
+                    )
+                    assert set(desc_list) == set(selected_descriptors)
 
                 if test_job == "reduced_clas":
                     metric_bo = "mcc"

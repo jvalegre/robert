@@ -784,8 +784,7 @@ class EvaluateTab(QWidget):
             QMessageBox.information(
                 self, "EVALUATE",
                 "EVALUATE finished successfully.\n\n"
-                "Check the 'Reports' tab for the PDF and the 'Predictions' tab for the "
-                "prediction dashboard."
+                "Check the 'Results' tab for the PDF and prediction dashboard."
             )
         else:
             self.console_output.append(
@@ -796,14 +795,6 @@ class EvaluateTab(QWidget):
     def _refresh_sibling_tabs(self):
         """Refreshes the Reports/Predictions/Images tabs, mirroring the main ROBERT tab."""
         main_window = self.window()
-        run_dir = os.path.dirname(self.csv_path) if self.csv_path else None
-        if not run_dir:
+        if not self.csv_path or not hasattr(main_window, "refresh_tabs"):
             return
-
-        for attr in ("results_tab", "images_tab", "predictions_tab"):
-            tab = getattr(main_window, attr, None)
-            if tab is not None and hasattr(tab, "refresh_with_new_path"):
-                try:
-                    tab.refresh_with_new_path(run_dir)
-                except Exception:
-                    pass
+        main_window.refresh_tabs(self.csv_path)

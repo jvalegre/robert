@@ -326,12 +326,14 @@ def test_CURATE(test_job):
                 "thres_x": 0.999,
                 "corr_filter_y": True,
                 "thres_y": 0.000001,
+                "rfecv_filter": False,
             }
 
         elif test_job == "filter_thres_yaml":
             filter_thres_kwargs = {
                 "varfile": f"{path_tests}/params.yaml",
                 "csv_name": f"{path_tests}/Robert_example.csv",
+                "rfecv_filter": False,
             }
         _ = curate(**filter_thres_kwargs)
 

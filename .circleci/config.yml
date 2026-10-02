@@ -140,7 +140,7 @@ commands:
             export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH}"
 
             # AQME (external dependency used in some workflows)
-            pip install aqme==2.0.0
+            pip install aqme==2.0.1
 
             # Install ROBERT/easyROB from the current repository as a package.
             # This also installs WeasyPrint==63.1 from PyPI via setup.py (install_requires).
@@ -312,15 +312,9 @@ jobs:
       - store_test_results:
           path: test-results
 
-  build-and-test-gui: # GUI tests (tests/test_easyrob.py) under Xvfb, plus test_7api.py and
-    # test_split_selection.py - split out from core tests into its own job (see
-    # build-and-test-core) so it gets its own independent ~1h max job runtime and runs
-    # concurrently with core tests instead of only starting after they finish.
-    # test_7api.py/test_split_selection.py moved here (rather than getting their own
-    # dedicated nodes in build-and-test-core) because this whole job finishes in a few
-    # minutes on its own - there's plenty of room to spare. A single GUI file/suite
-    # under Xvfb doesn't split well across containers and Qt/Xvfb resources aren't
-    # safely shared between them, so no parallelism here - just one container.
+  build-and-test-gui: # Bot and GUI tests under Xvfb, plus test_7api.py and
+    # test_split_selection.py. The GUI suite runs in one container because
+    # Qt/Xvfb resources are not safely shared between parallel nodes.
     docker:
       - image: continuumio/miniconda3
     steps:
@@ -330,7 +324,7 @@ jobs:
       - install_system_deps
       - setup_conda_env
       - run:
-          name: Run API/other fast tests, then GUI tests under Xvfb, with combined coverage
+          name: Run API tests, then bot and GUI tests under Xvfb with combined coverage
           command: |
             eval "$(conda shell.bash hook)"
             conda activate cheminf
@@ -372,46 +366,63 @@ jobs:
             export QTWEBENGINE_DISABLE_SANDBOX=1
             export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu"
 
-            xvfb-run -s "-screen 0 1920x1080x24" \
-              python -m pytest \
-                -vv \
-                --durations=20 \
-                --cov=robert \
-                --cov-append \
-                --cov-report= \
-                --junitxml=test-results/gui-test-results.xml \
-                tests/test_easyrob.py \
-              2>&1 | tee gui-pytest.log
-            GUI_EXIT_CODE=${PIPESTATUS[0]}
+            # Keep the existing GUI suite in a separate Python process. Bot test
+            # collection imports the same Qt modules under additional top-level
+            # names (for example main.window and robert.gui_easyrob.main.window).
+            # Those aliases otherwise remain loaded while test_easyrob.py runs.
+            run_gui_suite() {
+              local suite_name="$1"
+              shift
+              local result_file="test-results/${suite_name}-test-results.xml"
+
+              xvfb-run -s "-screen 0 1920x1080x24" \
+                python -m pytest \
+                  -vv \
+                  --durations=20 \
+                  --cov=robert \
+                  --cov-append \
+                  --cov-report= \
+                  --junitxml="$result_file" \
+                  "$@" \
+                2>&1 | tee "${suite_name}-pytest.log"
+              local suite_exit_code=${PIPESTATUS[0]}
+
+              # A Qt crash is acceptable only after pytest has written a
+              # complete, passing JUnit result for this specific process.
+              if [ "$suite_exit_code" -eq 139 ] || [ "$suite_exit_code" -eq 134 ]; then
+                if [ ! -f "$result_file" ]; then
+                  echo "[CI] ${suite_name} crashed before writing ${result_file}"
+                  return "$suite_exit_code"
+                fi
+
+                python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse(sys.argv[1]).getroot(); suites = [root] if root.tag == 'testsuite' else root.findall('testsuite'); tests = sum(int(s.attrib.get('tests', 0)) for s in suites); failures = sum(int(s.attrib.get('failures', 0)) for s in suites); errors = sum(int(s.attrib.get('errors', 0)) for s in suites); assert tests != 0, '[CI] Qt crashed with no collected tests in JUnit XML'; assert failures == 0 and errors == 0, f'[CI] Qt crashed after pytest failures (tests={tests}, failures={failures}, errors={errors})'; print(f'[CI WARNING] {tests} tests passed; Qt crashed after pytest wrote its JUnit report.')" "$result_file"
+                local xml_exit_code=$?
+                if [ "$xml_exit_code" -ne 0 ]; then
+                  return "$xml_exit_code"
+                fi
+                return 0
+              fi
+
+              if [ "$suite_exit_code" -ne 0 ]; then
+                echo "[CI] ${suite_name} tests failed with exit code $suite_exit_code"
+                return "$suite_exit_code"
+              fi
+            }
+
+            run_gui_suite easyrob tests/test_easyrob.py
+            GUI_EXIT_CODE=$?
+            if [ "$GUI_EXIT_CODE" -ne 0 ]; then
+              exit "$GUI_EXIT_CODE"
+            fi
+
+            run_gui_suite bot tests/test_bot_compact_core.py tests/test_bot_compact_gui.py
+            GUI_EXIT_CODE=$?
+            if [ "$GUI_EXIT_CODE" -ne 0 ]; then
+              exit "$GUI_EXIT_CODE"
+            fi
 
             # Re-enable 'exit on error' for any subsequent commands.
             set -e
-
-            # PySide6/Qt sometimes causes a segmentation fault (exit code 139/134)
-            # on interpreter shutdown after all tests have passed.
-            if [ "$GUI_EXIT_CODE" -eq 139 ] || [ "$GUI_EXIT_CODE" -eq 134 ]; then
-              if [ ! -f test-results/gui-test-results.xml ]; then
-                echo "[CI] GUI tests crashed with exit code $GUI_EXIT_CODE and did not generate gui-test-results.xml"
-                exit "$GUI_EXIT_CODE"
-              fi
-
-              python -c "import sys, xml.etree.ElementTree as ET; root = ET.parse('test-results/gui-test-results.xml').getroot(); suites = [root] if root.tag == 'testsuite' else root.findall('testsuite'); tests = sum(int(s.attrib.get('tests', 0)) for s in suites); failures = sum(int(s.attrib.get('failures', 0)) for s in suites); errors = sum(int(s.attrib.get('errors', 0)) for s in suites); assert tests != 0, '[CI] GUI tests crashed with no collected tests in junit xml'; assert failures == 0 and errors == 0, f'[CI] GUI tests exited with crash code after real pytest failures (tests={tests}, failures={failures}, errors={errors}).'; print(f'[CI WARNING] GUI tests passed but Qt/PySide6 crashed on interpreter shutdown (tests={tests}, exit code preserved outside pytest).')"
-              GUI_XML_EXIT_CODE=$?
-              if [ "$GUI_XML_EXIT_CODE" -ne 0 ]; then
-                exit "$GUI_XML_EXIT_CODE"
-              fi
-
-              echo "[CI WARNING] GUI tests completed, but Qt/PySide6 triggered a crash on interpreter shutdown (exit code $GUI_EXIT_CODE)."
-              echo "[CI WARNING] This is usually caused by threads or Qt resources not being fully cleaned up (e.g., QThread/QThreadPool/QProcess still running)."
-              echo "[CI WARNING] Treating exit code $GUI_EXIT_CODE as success because pytest itself reported no failures."
-              GUI_EXIT_CODE=0
-            fi
-
-            # Any other non-zero exit code is treated as a real failure.
-            if [ "$GUI_EXIT_CODE" -ne 0 ]; then
-              echo "[CI] GUI tests failed with exit code $GUI_EXIT_CODE"
-              exit "$GUI_EXIT_CODE"
-            fi
 
             coverage xml
 

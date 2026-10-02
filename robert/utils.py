@@ -64,7 +64,7 @@ import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.2.0"
+robert_version = "2.2.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733. Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Chem. Sci. 2025, 16, 8555-8560."
 
@@ -958,7 +958,7 @@ def correlation_filter(self, csv_df):
                 txt_corr += f'\n   - {model}: {len(descriptors_used[model])} descriptors selected (using PFI)'
             
             else:
-                # MVL, RF, GB, ADAB: use RFECV with feature importances
+                # Linear models use coefficients; tree models use feature importances.
                 # Set step=1 for most stable/deterministic feature elimination
                 selector = RFECV(estimator, scoring=scoring, min_features_to_select=2, cv=cv_model, step=1, n_jobs=1)
                 selector.fit(X_scaled_df, y_df)
@@ -968,11 +968,14 @@ def correlation_filter(self, csv_df):
                 selected_features_list = list(X_scaled_df.columns[selected_mask])
                 
                 # Get feature importances for selected features only
-                if model.upper() == 'MVL':
-                    # For MVL, use absolute coefficients as importance
-                    feature_importances = np.abs(selector.estimator_.coef_)
+                if model.upper() in ['MVL', 'RIDGE', 'LOGISTIC']:
+                    coefficients = np.asarray(selector.estimator_.coef_)
+                    feature_importances = (
+                        np.abs(coefficients) if coefficients.ndim == 1
+                        else np.linalg.norm(coefficients, axis=0)
+                    )
                 else: 
-                    # RF, GB, ADAB have feature_importances_
+                    # RF, GB and ADAB have feature_importances_.
                     feature_importances = selector.estimator_.feature_importances_
                 
                 # Round importances to reduce floating point variance
@@ -1063,6 +1066,12 @@ def load_minimal_model(model):
         'n_restarts_optimizer': 30,
         },
         'MVL': {
+        },
+        'RIDGE': {
+        'alpha': 1.0
+        },
+        'LOGISTIC': {
+        'C': 1.0
         }
     }
 
@@ -2832,9 +2841,14 @@ def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
     resid_sd = np.std(residuals_all) if np.std(residuals_all) > 0 else 1
     std_resid_train = (y_train_ad-y_pred_train_ad)/resid_sd
     std_resid_test = (y_test_ad-y_pred_test_ad)/resid_sd
+    point_ids = np.concatenate([np.array(Xy_data['names_train']), np.array(Xy_data['names_test'])])
 
     _williams_plot(path_n_suffix,
-        leverage[train_idx],std_resid_train,leverage[test_idx],std_resid_test,h_star)
+        leverage[train_idx],std_resid_train,leverage[test_idx],std_resid_test,h_star,
+        point_ids=np.concatenate([point_ids[train_idx],point_ids[test_idx]]),
+        name_column=model_data['names'],
+        observed=np.concatenate([y_train_ad,y_test_ad]),
+        predicted=np.concatenate([y_pred_train_ad,y_pred_test_ad]))
 
     self.args.log.write(f"      -  Applicability domain (leverage) : RMSE = {rmse_ad:.2}, h* = {h_star:.2}")
 
@@ -2871,7 +2885,8 @@ def _place_legend(ax,all_x,all_y,labels,fontsize=14):
     return legend
 
 
-def _williams_plot(path_n_suffix,leverage_train,resid_train,leverage_test,resid_test,h_star,print_fun=True):
+def _williams_plot(path_n_suffix,leverage_train,resid_train,leverage_test,resid_test,h_star,
+                   print_fun=True,point_ids=None,name_column=None,observed=None,predicted=None):
     '''
     Standard QSAR "Williams plot": leverage (x) vs standardized residual (y), marking the
     warning leverage h* and the +-3 SD bounds that define the applicability domain.
@@ -2919,6 +2934,18 @@ def _williams_plot(path_n_suffix,leverage_train,resid_train,leverage_test,resid_
     williams_plot_file = f'{os.path.dirname(path_n_suffix)}/Results_boundary_williams_{os.path.basename(path_n_suffix)}.png'
     plt.savefig(f'{williams_plot_file}', dpi=300, bbox_inches='tight')
     plt.close()
+    if point_ids is not None:
+        point_count = len(leverage_train) + len(leverage_test)
+        pd.DataFrame({
+            'point_id': point_ids,
+            'name_column': [name_column] * point_count,
+            'group': ['Typical 80%'] * len(leverage_train) + ['High leverage 20%'] * len(leverage_test),
+            'leverage': np.concatenate([leverage_train,leverage_test]),
+            'standardized_residual': np.concatenate([resid_train,resid_test]),
+            'h_star': [h_star] * point_count,
+            'observed': observed,
+            'predicted': predicted,
+        }).to_csv(f'{os.path.splitext(williams_plot_file)[0]}.csv', index=False)
 
 
 def _boundary_scatter(self,model_data,path_n_suffix,file_prefix,y_rest,y_pred_rest,y_extreme,y_pred_extreme,rest_label,extreme_label,title='Boundary robustness (sorted CV)',legend_fontsize=14,print_fun=True):

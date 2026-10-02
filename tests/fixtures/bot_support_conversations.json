@@ -1,0 +1,8 @@
+[
+  {"id":"smiles-start","questions":["how i start a workflow? i have a csv with smiles","Do I need to open AQME first?","And if I only want descriptor files?"],"review":"Give the integrated ROBERT path first; distinguish standalone Run AQME. Use numbered actions, not just a tutorial referral."},
+  {"id":"csv-error","failure":"ValueError: Target column must be numeric","questions":["Why did my workflow fail?","How do I fix it?","How can I verify the fix worked?"],"review":"Use the observed target error. Explain a concrete check without inventing access to CSV contents."},
+  {"id":"metrics","questions":["What does RMSE mean?","Is a lower value always better?","Explain it with a short example."],"review":"Explain units, held-out evaluation and comparison on the same target; avoid asserting model quality without values."},
+  {"id":"spanish","questions":["¿Cómo empiezo con un CSV que tiene SMILES?","¿Y si ya tengo descriptores?","Explícamelo más breve."],"review":"Keep Spanish, preserve exact UI labels, and shorten the final answer."},
+  {"id":"missing-evidence","questions":["Why is my model bad?","Which exact parameter should I change?"],"review":"Ask for the missing metric or evidence; do not invent a diagnosis or guaranteed parameter improvement."},
+  {"id":"code-and-sources","questions":["Show a Python example that checks whether a target column is numeric.","Explain that code step by step."],"review":"Use a fenced code block, retain indentation and escapes, and explain assumptions."}
+]

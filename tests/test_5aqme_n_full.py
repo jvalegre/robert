@@ -739,7 +739,11 @@ def test_REPORT_pfi_filter_false_does_not_crash():
         generate(**kwargs)
         verify(all_models=False)
         predict(all_models=False)
-        report(debug_report=True, all_models=False)  # must not raise
+        # report() builds its own args from these kwargs, independent of the generate() call
+        # above - pfi_filter has to be passed again here too, or self.args.pfi_filter defaults
+        # back to True and skip_pfi never kicks in, silently missing the exact bug this test
+        # is supposed to catch
+        report(debug_report=True, pfi_filter=False, all_models=False)  # must not raise
 
         assert os.path.exists(os.path.join(path_scratch, "ROBERT_report_No_PFI.pdf"))
         assert not os.path.exists(os.path.join(path_scratch, "ROBERT_report_PFI.pdf"))

@@ -43,33 +43,51 @@ class ResultCatalog:
                 model, variant = parsed
                 model_variants.setdefault(model, set()).add(variant)
 
-        best = {}
-        best_root = root / "GENERATE" / "Best_model"
-        for variant in VARIANTS:
-            candidates = sorted(
-                path for path in (best_root / variant).glob("*.csv")
-                if not path.stem.endswith("_db")
-            )
-            if candidates:
-                name = candidates[0].stem
-                best[variant] = name.removesuffix("_PFI") if variant == "PFI" else name
-            else:
-                for path in sorted(root.glob("ROBERT_report_*.pdf")):
-                    parsed = _model_and_variant(path.stem.removeprefix("ROBERT_report_"))
-                    if parsed and parsed[1] == variant:
-                        best[variant] = parsed[0]
-                        break
-            if variant not in best:
-                best[variant] = next(
-                    (model for model in sorted(model_variants)
-                     if variant in model_variants[model]),
-                    "",
-                )
-        best = {variant: model for variant, model in best.items() if model}
         all_models = (
             any((root / "REPORT_models").glob("ROBERT_report_*.pdf"))
             or (root / "GENERATE" / "All_models").is_dir()
         )
+
+        best = {}
+        if all_models:
+            # --all_models: report.py's organize_all_models_pdfs() already picked a single
+            # overall-best (model, variant) combining Interpolation and Boundary robustness
+            # together, and copied only that one PDF back into the working directory - read
+            # that directly instead of re-deriving a pick here. GENERATE/Best_model/{variant}
+            # is a DIFFERENT, older selection (RMSE-only, resolved independently per variant),
+            # which can disagree with the actual kept PDF and even differ between variants -
+            # showing both as "the best" is exactly the confusing, inconsistent result this
+            # replaces
+            for path in sorted(root.glob("ROBERT_report_*.pdf")):
+                parsed = _model_and_variant(path.stem.removeprefix("ROBERT_report_"))
+                if parsed:
+                    model, variant = parsed
+                    best[variant] = model
+        else:
+            # single-model run (no --all_models): both No_PFI and PFI are the same model,
+            # read straight from GENERATE/Best_model/{variant} as before
+            best_root = root / "GENERATE" / "Best_model"
+            for variant in VARIANTS:
+                candidates = sorted(
+                    path for path in (best_root / variant).glob("*.csv")
+                    if not path.stem.endswith("_db")
+                )
+                if candidates:
+                    name = candidates[0].stem
+                    best[variant] = name.removesuffix("_PFI") if variant == "PFI" else name
+                else:
+                    for path in sorted(root.glob("ROBERT_report_*.pdf")):
+                        parsed = _model_and_variant(path.stem.removeprefix("ROBERT_report_"))
+                        if parsed and parsed[1] == variant:
+                            best[variant] = parsed[0]
+                            break
+                if variant not in best:
+                    best[variant] = next(
+                        (model for model in sorted(model_variants)
+                         if variant in model_variants[model]),
+                        "",
+                    )
+        best = {variant: model for variant, model in best.items() if model}
         return cls(root, tuple(sorted(model_variants)), best, all_models)
 
     def selected_variants(self, model=None):

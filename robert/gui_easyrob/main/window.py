@@ -1470,12 +1470,13 @@ class EasyROB(QMainWindow):
         # --- all_models toggle --- an impactful choice (multiplies run time by the number of
         # selected models, see the "Models" checkboxes in Advanced Options), not an advanced
         # detail, so it sits here next to the workflow choice instead of in Advanced Options.
-        # When enabled, every selected model gets its own VERIFY/PREDICT/REPORT pass and PDF.
+        # Checked by default to match the CLI default (--all_models True): every selected model
+        # gets its own full VERIFY/PREDICT/REPORT pass and its own PDF, not just the best one
         self.all_models_label = QLabel("Generate a full PDF report for every selected model? (slower)")
         self.all_models_label.setStyleSheet("font-size:13px;")
         main_layout.addWidget(self.all_models_label)
 
-        self.all_models_toggle = YesNoToggle(checked=False)
+        self.all_models_toggle = YesNoToggle(checked=True)
         main_layout.addWidget(self.all_models_toggle)
 
         # extra spacing (vs. the 10px used elsewhere) so this doesn't visually crowd the

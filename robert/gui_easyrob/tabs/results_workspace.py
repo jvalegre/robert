@@ -5,7 +5,13 @@ from PySide6.QtWidgets import (
     QComboBox, QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
     QVBoxLayout, QWidget,
 )
-from gui_easyrob.result_navigation import choose_available_result_view
+
+# dual execution mode (see main/window.py's own import strategy): local/portable first,
+# installed package as fallback
+try:
+    from result_navigation import choose_available_result_view
+except ImportError:
+    from robert.gui_easyrob.result_navigation import choose_available_result_view
 
 
 class ResultsWorkspace(QWidget):

@@ -691,12 +691,14 @@ class report:
         # scores against (CV folds or the test set), both scores are optimistic to an unknown
         # degree - this can't be detected from the CSV alone, so it's surfaced instead of silently
         # trusted. Doesn't apply to the plain 'MVL' default, which has nothing to tune
-        if getattr(self,'custom_model_used',False):
-            warning_print += f'''
-        <div style="width:100%; box-sizing:border-box; background-color:{color_dict['red']}; padding:8px; margin-top:2px; margin-bottom:10px; text-align:center;">
-        <span style="font-size:17px; font-weight:bold; color:white;">&#9888; SCORES MAY BE OPTIMISTIC: user-provided hyperparameters</span><br>
-        <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (EVALUATE), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
-        </div>'''
+        #
+        # disabled on request - commented out, not removed, so it's easy to bring back
+        # if getattr(self,'custom_model_used',False):
+        #     warning_print += f'''
+        # <div style="width:100%; box-sizing:border-box; background-color:{color_dict['red']}; padding:8px; margin-top:2px; margin-bottom:10px; text-align:center;">
+        # <span style="font-size:17px; font-weight:bold; color:white;">&#9888; SCORES MAY BE OPTIMISTIC: user-provided hyperparameters</span><br>
+        # <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (EVALUATE), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
+        # </div>'''
 
         # add severe warnings
         warning_print += f'''

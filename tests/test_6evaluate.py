@@ -208,11 +208,10 @@ def test_EVALUATE_custom_sklearn_model_and_user_split():
         assert "sklearn model: Ridge" in debug_content
         assert "alpha: 0.5" in debug_content
 
-        # a user-supplied model (Ridge, via model_params) DOES carry the optimistic-scores risk:
-        # its hyperparameters weren't derived from ROBERT's own held-out split, so the big
-        # warning banner in Section A must appear (see print_warnings() in report.py)
-        assert "SCORES MAY BE OPTIMISTIC" in debug_content
-        assert "both the CV and Test scores below" in debug_content
+        # a user-supplied model (Ridge, via model_params) carries the optimistic-scores risk
+        # (its hyperparameters weren't derived from ROBERT's own held-out split), but the big
+        # warning banner in Section A is disabled on request (see print_warnings() in report.py)
+        assert "SCORES MAY BE OPTIMISTIC" not in debug_content
 
         # the user forced the test set (15 points instead of ROBERT's systematic ~20% split),
         # so the score isn't calibrated for this run and must NOT be calculated
@@ -287,8 +286,8 @@ def test_EVALUATE_classification():
         ]
         assert len(score_imgs) == 1  # Interpolation only - no Boundary robustness score bar/image
         # RandomForestClassifier's hyperparameters came from the user, same optimistic-scores risk as
-        # the regression case above - the banner isn't regression-specific
-        assert "SCORES MAY BE OPTIMISTIC" in debug_content
+        # the regression case above, but the banner is disabled on request (see above)
+        assert "SCORES MAY BE OPTIMISTIC" not in debug_content
         # same for the user-forced test set (15 points): no calibrated score
         assert "Score not available" in debug_content
         assert "chosen by the user (Set column)" in debug_content

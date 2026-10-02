@@ -188,7 +188,11 @@ class report:
         # the PFI PDF loop below is skipped whenever EVALUATE was involved
         path_eval = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
         eval_only = os.path.exists(path_eval)
-        skip_pfi = eval_only
+        # with --pfi_filter False, GENERATE never creates a Best_model/PFI (or All_models/.../PFI)
+        # folder, but the suffix loops below unconditionally tried 'PFI' too - get_transparency()
+        # found no CSV there and crashed with UnboundLocalError instead of just skipping it, the
+        # same way it already does for EVALUATE (see eval_only above)
+        skip_pfi = eval_only or not self.args.pfi_filter
         # stored on self too (not just the local var) so module_lines() can add a provenance
         # note to Section A without needing this threaded through print_score()'s own call chain
         self.eval_only = eval_only

@@ -704,3 +704,48 @@ def test_REPORT_classification_single_repeat_kfold():
     finally:
         os.chdir(path_main)
         shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def test_REPORT_pfi_filter_false_does_not_crash():
+    """
+    Regression test for a crash (UnboundLocalError: cannot access local variable 'params_df')
+    when --pfi_filter False is used. GENERATE never creates a Best_model/PFI folder in that
+    case, but REPORT's per-model PDF loop unconditionally tried the 'PFI' suffix too -
+    get_transparency() found no CSV there and crashed instead of skipping it, the same way it
+    already skips PFI for EVALUATE runs (see skip_pfi in report.py).
+    """
+    path_scratch = os.path.join(path_main, "scratch_pfi_filter_false")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    try:
+        df = pd.read_csv("tests/Robert_example.csv")
+        csv_path = os.path.join(path_scratch, "reg.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+        from robert.curate import curate
+        from robert.generate import generate
+        from robert.verify import verify
+        from robert.predict import predict
+        from robert.report import report
+
+        kwargs = dict(
+            y="Target_values", names="Name", csv_name="reg.csv", discard=["xtest"],
+            model=["RF"], init_points=1, n_iter=1, pfi_epochs=1, pfi_filter=False, all_models=False,
+        )
+        curate(**{k: v for k, v in kwargs.items() if k not in ("model","init_points","n_iter","pfi_epochs","pfi_filter","all_models")})
+        generate(**kwargs)
+        verify(all_models=False)
+        predict(all_models=False)
+        report(debug_report=True, all_models=False)  # must not raise
+
+        assert os.path.exists(os.path.join(path_scratch, "ROBERT_report_No_PFI.pdf"))
+        assert not os.path.exists(os.path.join(path_scratch, "ROBERT_report_PFI.pdf"))
+        with open(os.path.join(path_scratch, "report_debug_No_PFI.txt"), encoding="utf-8") as f:
+            debug_content = f.read()
+        assert "Traceback (most recent call last)" not in debug_content
+    finally:
+        os.chdir(path_main)
+        shutil.rmtree(path_scratch, ignore_errors=True)

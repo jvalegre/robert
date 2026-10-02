@@ -25,6 +25,7 @@ Notes:
 try:
     from utils.utils_gui import (
         QApplication,
+        QComboBox,
         QDesktopServices,
         QFileDialog,
         QGridLayout,
@@ -35,7 +36,7 @@ try:
         QPixmap,
         QPushButton,
         QScrollArea,
-        QTabWidget,
+        QStackedWidget,
         QUrl,
         QVBoxLayout,
         QWidget,
@@ -45,6 +46,7 @@ try:
 except ImportError as e:
     from robert.gui_easyrob.utils.utils_gui import (
         QApplication,
+        QComboBox,
         QDesktopServices,
         QFileDialog,
         QGridLayout,
@@ -55,7 +57,7 @@ except ImportError as e:
         QPixmap,
         QPushButton,
         QScrollArea,
-        QTabWidget,
+        QStackedWidget,
         QUrl,
         QVBoxLayout,
         QWidget,
@@ -64,7 +66,20 @@ except ImportError as e:
 
 # ---- Standard library ----
 import os
-import glob
+from pathlib import Path
+
+
+def find_image_files(folder_path):
+    """Return supported image files directly inside a workflow folder."""
+    if not os.path.isdir(folder_path):
+        return []
+    return sorted(
+        os.path.join(folder_path, name)
+        for name in os.listdir(folder_path)
+        if os.path.isfile(os.path.join(folder_path, name))
+        and os.path.splitext(name)[1].lower() in {".png", ".jpg", ".jpeg"}
+    )
+
 
 class ImagesTab(QWidget):
     """Images tab for displaying images from multiple folders as workflow results."""
@@ -76,6 +91,8 @@ class ImagesTab(QWidget):
         self.main_tab_widget = main_tab_widget
         self.image_folders = image_folders
         self.base_path = os.path.dirname(file_path)
+        self.catalog = None
+        self.model = None
         self.folder_widgets = {}
 
         # Main layout
@@ -112,8 +129,16 @@ class ImagesTab(QWidget):
         self.layout.addWidget(title_label)
         self.layout.addLayout(subtitle_row)
 
-        # Tabs area for image folders
-        self.folder_tabs = QTabWidget()
+        # A single view selector keeps Images free of nested tab bars.
+        view_row = QHBoxLayout()
+        view_row.addWidget(QLabel("View"))
+        self.view_selector = QComboBox()
+        self.view_selector.setMaximumWidth(280)
+        view_row.addWidget(self.view_selector)
+        view_row.addStretch()
+        self.layout.addLayout(view_row)
+        self.folder_tabs = QStackedWidget()
+        self.view_selector.currentIndexChanged.connect(self.folder_tabs.setCurrentIndex)
         self.layout.addWidget(self.folder_tabs)
 
         self.setLayout(self.layout)
@@ -132,19 +157,28 @@ class ImagesTab(QWidget):
         )
         msg.exec()
 
-    def refresh_with_new_path(self, file_path):
+    def refresh_with_new_path(self, file_path, catalog=None, model=None):
         """Update image base path and refresh image tabs."""
+        selected_view = self.view_selector.currentText()
         self.base_path = os.path.dirname(file_path)
+        self.catalog = catalog
+        self.model = model
         self.clear_image_tabs()
         self.check_for_images()
+        index = self.view_selector.findText(selected_view)
+        if index >= 0:
+            self.view_selector.setCurrentIndex(index)
 
     def clear_image_tabs(self):
         """Clear all image folders and their widgets."""
-        for i in reversed(range(self.folder_tabs.count())):
-            widget = self.folder_tabs.widget(i)
+        self.view_selector.blockSignals(True)
+        self.view_selector.clear()
+        self.view_selector.blockSignals(False)
+        while self.folder_tabs.count():
+            widget = self.folder_tabs.widget(0)
             if widget:
+                self.folder_tabs.removeWidget(widget)
                 widget.deleteLater()
-            self.folder_tabs.removeTab(i)
         self.folder_widgets.clear()
 
     def check_for_images(self):
@@ -153,19 +187,27 @@ class ImagesTab(QWidget):
             "CURATE": "CURATE",
             "GENERATE/Raw_data": "GENERATE",
             "PREDICT": "PREDICT",
+            "PREDICT/csv_test": "PREDICT / external test",
             "VERIFY": "VERIFY",
         }
 
-        folder_order = ["CURATE", "GENERATE/Raw_data", "PREDICT", "VERIFY"]
+        folder_order = [
+            "CURATE", "GENERATE/Raw_data", "PREDICT", "PREDICT/csv_test", "VERIFY",
+        ]
 
         for folder in folder_order:
             full_folder_path = os.path.join(self.base_path, folder)
             if not os.path.exists(full_folder_path):
                 continue
 
-            image_files = sorted(
-                glob.glob(os.path.join(full_folder_path, "*.[pjg][np][g]"))
-            )
+            image_files = find_image_files(full_folder_path)
+            if self.catalog is not None:
+                image_files = [
+                    path for path in image_files
+                    if self.catalog.include_image(Path(path), self.model)
+                ]
+            if not image_files:
+                continue
 
             if folder not in self.folder_widgets:
                 folder_widget = QWidget()
@@ -183,7 +225,8 @@ class ImagesTab(QWidget):
                 folder_widget.setLayout(folder_layout)
 
                 tab_name = folder_names.get(folder, os.path.basename(folder))
-                self.folder_tabs.addTab(folder_widget, tab_name)
+                self.folder_tabs.addWidget(folder_widget)
+                self.view_selector.addItem(tab_name)
                 self.folder_widgets[folder] = image_grid
 
             image_grid = self.folder_widgets[folder]

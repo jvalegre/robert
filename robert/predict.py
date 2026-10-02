@@ -50,9 +50,14 @@ from robert.utils import (load_variables,
     finish_print,
     print_pfi,
     PFI_plot,
+    linear_equation,
     shap_analysis,
     outlier_plot,
     distribution_plot,
+    boundary_plot,
+    applicability_domain_plot,
+    build_params_dirs,
+    Logger,
 )
 
 class predict:
@@ -73,16 +78,35 @@ class predict:
         self.args = load_variables(kwargs, "predict")
 
         # if params_dir = '', the program performs the tests for the No_PFI and PFI folders
-        if 'GENERATE/Best_model' in self.args.params_dir:
-            params_dirs = [f'{self.args.params_dir}/No_PFI',f'{self.args.params_dir}/PFI']
-            suffixes = ['(with no PFI filter)','(with PFI filter)']
-            suffix_titles = ['No_PFI','PFI']
-        else:
-            params_dirs = [self.args.params_dir]
-            suffix = ['custom']
+        # (or, with --all_models, for every model staged under GENERATE/All_models)
+        params_dirs, suffixes, suffix_titles, model_names = build_params_dirs(self)
 
-        for (params_dir,suffix,suffix_title) in zip(params_dirs,suffixes,suffix_titles):
+        # --all_models: each model gets its own PREDICT_{model}_data.dat instead of merging
+        # every model's output into one shared log, where REPORT would have no reliable way
+        # to tell which lines belong to which model. The original shared log (already holds
+        # the run header from load_variables) is closed right away in that case.
+        default_log = self.args.log
+        if any(m is not None for m in model_names):
+            default_log.finalize()
+
+        # model_names repeats each model once per PFI variant (No_PFI then PFI) - only
+        # open a new Logger when the model actually changes, otherwise the PFI pass would
+        # re-open (and truncate, Logger uses mode 'w') the same file the No_PFI pass just
+        # wrote, silently discarding the No_PFI block
+        current_model = None
+        model_time_start = None
+        model_durations = {}
+        for (params_dir,suffix,suffix_title,model_name) in zip(params_dirs,suffixes,suffix_titles,model_names):
             if os.path.exists(params_dir):
+
+                if model_name is not None and model_name != current_model:
+                    if self.args.log is not default_log:
+                        self.args.log.finalize()
+                    if current_model is not None:
+                        model_durations[current_model] = time.time() - model_time_start
+                    self.args.log = Logger(self.args.destination / f'PREDICT_{model_name}', 'data')
+                    current_model = model_name
+                    model_time_start = time.time()
 
                 _ = print_pfi(self,params_dir)
 
@@ -109,16 +133,36 @@ class predict:
                 colors = plot_predictions(self,model_data,Xy_data,path_n_suffix)
 
                 # print results
-                _ = print_predict(self,Xy_data,model_data,suffix_title)  
+                _ = print_predict(self,Xy_data,model_data,suffix_title)
+
+                # boundary robustness plots (Low/High sorted CV + bias) for the ROBERT report -
+                # logged right after "Summary of results" so report_utils.get_predict_scores()
+                # can find them nearby
+                if model_data['type'].lower() == 'reg':
+                    _ = boundary_plot(self,model_data,Xy_data,path_n_suffix)
+                    _ = applicability_domain_plot(self,model_data,Xy_data,path_n_suffix)
+
+                # fit once and reuse for the linear equation/SHAP/PFI analyses below instead of
+                # each of them independently loading and refitting the same model on the same data
+                fitted_model = load_model(self, model_data['model'], **model_data['params'])
+                fitted_model.fit(Xy_data['X_train_scaled'], Xy_data['y_train'])
+
+                # linear model equation (MVL only) - must be logged before SHAP/PFI,
+                # REPORT's print_features() reads it back out of the log to show it above those plots
+                if model_data['model'].upper() == 'MVL':
+                    _ = linear_equation(self,Xy_data,model_data,fitted_model)
 
                 # SHAP analysis
-                _ = shap_analysis(self,Xy_data,model_data,path_n_suffix)
+                _ = shap_analysis(self,Xy_data,model_data,path_n_suffix,fitted_model)
 
                 # PFI analysis
-                _ = PFI_plot(self,Xy_data,model_data,path_n_suffix)
+                _ = PFI_plot(self,Xy_data,model_data,path_n_suffix,fitted_model)
 
-                # create Pearson heatmap
-                _ = pearson_map_predict(self,Xy_data,params_dir)
+                # create Pearson heatmap - unlike path_n_suffix-based outputs above, this
+                # builds its own filename directly from suffix_title, so the model name has
+                # to be included here explicitly (matches the same f"{model}_{suffix_title}"
+                # convention used everywhere else, e.g. save_predictions())
+                _ = pearson_map_predict(self,Xy_data,params_dir,f"{model_data['model']}_{suffix_title}")
 
                 # Outlier analysis
                 if model_data['type'].lower() == 'reg':
@@ -127,4 +171,21 @@ class predict:
                 # y distribution
                 _ = distribution_plot(self,Xy_data,path_n_suffix,model_data)
 
-        _ = finish_print(self,start_time,'PREDICT')
+        # --all_models: each model gets its own "Time PREDICT" line reflecting only the time
+        # spent processing that model (not the cumulative time for every model), since each
+        # model's own PDF report should show its own PREDICT duration. finish_print() can't be
+        # reused here because it always measures from the original start_time (the whole
+        # multi-model run), and it also only writes into whichever log is CURRENTLY open (the
+        # last model processed) - every other model's log needs its line appended separately
+        # to its own (already-closed) file
+        if current_model is not None:
+            model_durations[current_model] = time.time() - model_time_start
+            for m, duration in model_durations.items():
+                if m == current_model:
+                    continue
+                with open(self.args.destination / f'PREDICT_{m}_data.dat', 'a', encoding='utf-8') as f:
+                    f.write(f"\nTime PREDICT: {round(duration, 2)} seconds\n")
+            self.args.log.write(f"\nTime PREDICT: {round(model_durations[current_model], 2)} seconds\n")
+            self.args.log.finalize()
+        else:
+            _ = finish_print(self,start_time,'PREDICT')

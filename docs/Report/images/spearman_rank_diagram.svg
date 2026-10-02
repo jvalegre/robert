@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 210" role="img" aria-label="Two rank-order diagrams comparing true value ranks to predicted value ranks for five extreme points: one where the connecting lines stay parallel (correct order, high Spearman rank) and one where the lines cross heavily (scrambled order, low Spearman rank).">
+  <rect x="0" y="0" width="640" height="210" fill="#ffffff"/>
+  <g font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+    <text x="150" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="#1f77b4">Order preserved</text>
+    <text x="150" y="42" text-anchor="middle" font-size="11.5" fill="#78766c" font-family="Consolas,monospace">Spearman &#8805; 0.5 &#8594; +1</text>
+    <text x="70" y="62" text-anchor="middle" font-size="11" fill="#78766c" font-family="Consolas,monospace">true rank</text>
+    <text x="230" y="62" text-anchor="middle" font-size="11" fill="#78766c" font-family="Consolas,monospace">predicted rank</text>
+    <g stroke="#1f77b4" stroke-width="1.4" opacity="0.8">
+      <line x1="70" y1="78" x2="230" y2="78"/>
+      <line x1="70" y1="102" x2="230" y2="102"/>
+      <line x1="70" y1="126" x2="230" y2="126"/>
+      <line x1="70" y1="150" x2="230" y2="150"/>
+      <line x1="70" y1="174" x2="230" y2="174"/>
+    </g>
+    <g fill="#555" opacity="0.6">
+      <circle cx="70" cy="78" r="4"/><circle cx="70" cy="102" r="4"/><circle cx="70" cy="126" r="4"/><circle cx="70" cy="150" r="4"/><circle cx="70" cy="174" r="4"/>
+    </g>
+    <g fill="#1f77b4">
+      <circle cx="230" cy="78" r="4.5"/><circle cx="230" cy="102" r="4.5"/><circle cx="230" cy="126" r="4.5"/><circle cx="230" cy="150" r="4.5"/><circle cx="230" cy="174" r="4.5"/>
+    </g>
+
+    <line x1="320" y1="50" x2="320" y2="196" stroke="#888" stroke-opacity="0.25" stroke-width="1"/>
+
+    <g transform="translate(390,0)">
+      <text x="100" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="#e0575a">Order scrambled</text>
+      <text x="100" y="42" text-anchor="middle" font-size="11.5" fill="#78766c" font-family="Consolas,monospace">Spearman &lt; 0.5 &#8594; +0</text>
+      <text x="20" y="62" text-anchor="middle" font-size="11" fill="#78766c" font-family="Consolas,monospace">true rank</text>
+      <text x="180" y="62" text-anchor="middle" font-size="11" fill="#78766c" font-family="Consolas,monospace">predicted rank</text>
+      <g stroke="#e0575a" stroke-width="1.4" opacity="0.8">
+        <line x1="20" y1="78" x2="180" y2="150"/>
+        <line x1="20" y1="102" x2="180" y2="78"/>
+        <line x1="20" y1="126" x2="180" y2="174"/>
+        <line x1="20" y1="150" x2="180" y2="102"/>
+        <line x1="20" y1="174" x2="180" y2="126"/>
+      </g>
+      <g fill="#555" opacity="0.6">
+        <circle cx="20" cy="78" r="4"/><circle cx="20" cy="102" r="4"/><circle cx="20" cy="126" r="4"/><circle cx="20" cy="150" r="4"/><circle cx="20" cy="174" r="4"/>
+      </g>
+      <g fill="#e0575a">
+        <circle cx="180" cy="78" r="4.5"/><circle cx="180" cy="102" r="4.5"/><circle cx="180" cy="126" r="4.5"/><circle cx="180" cy="150" r="4.5"/><circle cx="180" cy="174" r="4.5"/>
+      </g>
+    </g>
+  </g>
+</svg>

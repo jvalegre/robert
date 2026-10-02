@@ -444,7 +444,7 @@ This report provides a complete summary of the machine learning
 
 process, including the selected model, performance metrics,
 
-identified outliers, extrapolation analysis, and statistical
+identified outliers, boundary robustness analysis, and statistical
 
 validation tests.<br><br>
 

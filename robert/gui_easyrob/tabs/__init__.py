@@ -9,6 +9,7 @@ from .aqme import AQMETab
 from .advanced_options import AdvancedOptionsTab
 from .molssi import MolSSIDatabasesTab
 from .results import ResultsTab
+from .results_workspace import ResultsWorkspace
 from .images import ImagesTab
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "AdvancedOptionsTab",
     "MolSSIDatabasesTab",
     "ResultsTab",
+    "ResultsWorkspace",
     "ImagesTab",
 ]

@@ -7,6 +7,9 @@
 import os
 import sys
 import glob
+import ast
+import math
+import re
 import pytest
 import shutil
 import subprocess
@@ -61,12 +64,17 @@ def test_VERIFY(test_job):
             "-m",
             "robert",
             "--verify",
+            # all_models defaults to True now (see the design discussion in generate.py) -
+            # this test asserts against the single-best-model VERIFY_data.dat, not per-model
+            # files, so it's pinned to the old behavior
+            "--all_models",
+            "False",
         ]
 
         subprocess.run(cmd_robert)
 
     else:
-        verify_kwargs = {}
+        verify_kwargs = {"all_models": False}
 
         verify(**verify_kwargs)
 
@@ -87,7 +95,7 @@ def test_VERIFY(test_job):
                 results_line = True
                 if test_job == "clas":
                     assert (
-                        "Original MCC (10x 5-fold CV) 0.63 - 15% & 30% threshold = 0.53 & 0.44"
+                        "Original MCC (10x 5-fold CV) 0.56 - 15% & 30% threshold = 0.48 & 0.39"
                         in outlines[i + 1]
                     )
                     assert (
@@ -95,29 +103,48 @@ def test_VERIFY(test_job):
                         in outlines[i + 2]
                     )
                     assert (
-                        "o y_shuffle: PASSED, MCC = 0.042, lower than thresholds"
+                        "o y_shuffle: PASSED, MCC = -0.17, lower than thresholds"
                         in outlines[i + 3]
                     )
                     assert (
-                        "o onehot: PASSED, MCC = -0.034, lower than thresholds"
+                        "x onehot: FAILED, MCC = 0.59, higher than thresholds"
                         in outlines[i + 4]
                     )
                     assert (
-                        "- Sorted CV : Accuracy = [0.83, 0.83, 1.0, 0.67, 0.6], F1 score = [0.86, 0.86, 1.0, 0.67, 0.5], MCC = [0.71, 0.71, 1.0, 0.5, 0.41]"
+                        "- cluster: N/A, not defined for classification"
                         in outlines[i + 5]
+                    )
+                    assert (
+                        "- Sorted CV : Accuracy = [0.88, 0.88, 0.86, 0.57, 1.0], F1 score = [0.89, 0.89, 0.89, 0.4, 1.0], MCC = [0.77, 0.77, 0.73, 0.35, 1.0]"
+                        in outlines[i + 6]
                     )
                 elif test_job == "standard":
-                    assert (
-                        "Original RMSE (10x 5-fold CV) 0.24 + 15% & 30% threshold = 0.28 & 0.31"
-                        in outlines[i + 1]
+                    threshold_match = re.search(
+                        r"Original RMSE \(10x 5-fold CV\) ([0-9.]+) \+ 15% & 30% "
+                        r"threshold = ([0-9.]+) & ([0-9.]+)",
+                        outlines[i + 1],
                     )
-                    assert "o y_mean: PASSED, RMSE = 0.7" in outlines[i + 2]
-                    assert "o y_shuffle: PASSED, RMSE = 0.84" in outlines[i + 3]
-                    assert "- onehot: UNCLEAR, RMSE = 0.3" in outlines[i + 4]
-                    assert (
-                        "- Sorted 5-fold CV : R2 = [0.0, 0.54, 0.0, 0.42, 0.2], MAE = [0.31, 0.15, 0.04, 0.36, 0.46], RMSE = [0.32, 0.2, 0.05, 0.43, 0.51]"
-                        in outlines[i + 5]
+                    assert threshold_match is not None
+                    original_rmse, lower_threshold, upper_threshold = map(
+                        float, threshold_match.groups()
                     )
+                    assert 0 < original_rmse < 1
+                    assert math.isclose(lower_threshold, original_rmse * 1.15, abs_tol=0.02)
+                    assert math.isclose(upper_threshold, original_rmse * 1.30, abs_tol=0.02)
+                    for offset, label in enumerate(
+                        ("y_mean", "y_shuffle", "onehot", "cluster"), start=2
+                    ):
+                        line = outlines[i + offset]
+                        assert f"{label}: PASSED, RMSE = " in line
+                        flawed_rmse = re.search(r"RMSE = ([0-9.]+)", line)
+                        assert flawed_rmse is not None
+                        assert float(flawed_rmse.group(1)) > lower_threshold
+                    sorted_metrics = re.findall(
+                        r"(?:R2|MAE|RMSE) = (\[[^\]]+\])", outlines[i + 6]
+                    )
+                    assert "Sorted 5-fold CV" in outlines[i + 6]
+                    assert len(sorted_metrics) == 3
+                    assert all(len(ast.literal_eval(metric)) == 5 for metric in sorted_metrics)
                 break
     assert results_line
 

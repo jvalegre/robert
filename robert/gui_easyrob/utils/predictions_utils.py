@@ -37,7 +37,7 @@ import re
 import numpy as np
 import pandas as pd
 
-import fitz
+import pymupdf as fitz
 import pdfplumber
 
 from rdkit import Chem
@@ -66,6 +66,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSplitter,
     QStyle,
     QStyleOptionHeader,
     QVBoxLayout,
@@ -91,11 +92,13 @@ def find_prediction_csvs(selected_file_path: str) -> dict[str, Path]:
             results["PFI"] = path
     return results
 
-def get_robert_report_path(selected_file_path: str | Path) -> Path:
-    """Given the path to a selected file, return the corresponding ROBERT_report.pdf file."""
-    return Path(selected_file_path).parent / "ROBERT_report.pdf"
+def get_robert_report_path(selected_file_path: str | Path, model_key: str) -> Path:
+    """Given the path to a selected file and model key ("No_PFI" or "PFI"), return the
+    corresponding ROBERT report PDF file - v2.2 generates one PDF per suffix instead of a
+    single combined report, so the path must depend on which tab/model is being displayed."""
+    return Path(selected_file_path).parent / f"ROBERT_report_{model_key}.pdf"
 
-def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
+def find_external_test_pixmaps(base_path: str | Path, include_path=None) -> dict[str, QPixmap]:
     """Search for external test images in the PREDICT/csv_test directory related to the selected file."""
     base_path = Path(base_path)
     if base_path.is_file():
@@ -107,6 +110,8 @@ def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
 
     results: dict[str, QPixmap] = {}
     for path in csv_test_dir.glob("*.png"):
+        if include_path is not None and not include_path(path):
+            continue
         name = path.name
         pixmap = QPixmap(str(path))
         if pixmap.isNull():
@@ -119,214 +124,96 @@ def find_external_test_pixmaps(base_path: str | Path) -> dict[str, QPixmap]:
 
     return results
 
-def extract_scores_from_robert_report(pdf_path: Path) -> dict:
-    """Extract scores from the ROBERT report PDF file."""
-    result = {"pdf_found": False, "PFI": None, "No_PFI": None}
-    if not pdf_path.exists():
-        return result
+def extract_scores_from_robert_report(pdf_path: Path) -> dict | None:
+    """Extract the Interpolation score details (the report's headline score) from the ROBERT
+    report PDF file. The file itself is already specific to one model/suffix - see
+    get_robert_report_path() - so there's a single score to extract, not one per model."""
+    return _extract_robert_score_details(pdf_path)
 
-    result["pdf_found"] = True
-    for model_key in ("No_PFI", "PFI"):
-        details = _extract_robert_score_details(pdf_path, model_key)
-        if details and details.get("score") is not None:
-            result[model_key] = details["score"]
-
-    return result
-
-def extract_extrapolation_fragment(pdf_path: Path, model_key: str) -> QPixmap | None:
-    """Render the extrapolation block from parsed ROBERT report data."""
-    details = _extract_extrapolation_details(pdf_path, model_key)
-    if not details:
-        return None
-    return _render_extrapolation_pixmap(details)
-
-def extract_robert_fragment_image(pdf_path: Path, model_key: str) -> QPixmap | None:
-    """Render the ROBERT score block from parsed report data."""
-    details = _extract_robert_score_details(pdf_path, model_key)
+def extract_boundary_fragment(pdf_path: Path) -> QPixmap | None:
+    """Render the boundary robustness block from parsed ROBERT report data (regression only -
+    classification has no Boundary robustness score, see _extract_boundary_details())."""
+    details = _extract_boundary_details(pdf_path)
     if not details:
         return None
     return _render_robert_score_pixmap(details)
 
-def _get_extrapolation_bbox(page, model_key: str):
-    """Return the PDF area containing the extrapolation block for the requested model."""
-    if model_key == "No_PFI":
-        return (0, 0, 300, page.height)
-    if model_key == "PFI":
-        return (300, 0, page.width, page.height)
-    return None
+def extract_robert_fragment_image(pdf_path: Path) -> QPixmap | None:
+    """Render the ROBERT score block from parsed report data."""
+    details = _extract_robert_score_details(pdf_path)
+    if not details:
+        return None
+    return _render_robert_score_pixmap(details)
+
+# v2.2 generates one full-width PDF per model/suffix (see get_robert_report_path()) instead
+# of a single combined report with a No_PFI/PFI side-by-side layout. Section A's own layout
+# now uses that same left/right split for a DIFFERENT pair of columns: Interpolation (the
+# report's headline score) on the left, Boundary robustness on the right (regression only -
+# blank for classification, see docs/Report/score.rst). Model/suffix selection is handled
+# entirely by which PDF gets opened now, so these bboxes are fixed, not model-dependent.
+def _score_bbox(page):
+    """Left half of page 0: the Interpolation score block."""
+    return (0, 0, 300, page.height)
 
 
-def _normalize_extrapolation_lines(text: str) -> list[str]:
+def _boundary_bbox(page):
+    """Right half of page 0: the Boundary robustness score block."""
+    return (300, 0, page.width, page.height)
+
+
+def _normalize_boundary_lines(text: str) -> list[str]:
     """Collapse noisy PDF whitespace while preserving the content of each line."""
     return [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
 
 
-def _parse_extrapolation_block(text: str) -> dict | None:
-    """Parse the extrapolation text block into structured data."""
+def _parse_boundary_block(text: str) -> dict | None:
+    """Parse the Boundary robustness summary block into structured data. Boundary robustness
+    is scored 0-10, the same scale and "Title . Score N" heading as Interpolation (see
+    _parse_robert_score_block()), with two headline metrics instead of the model/points lines
+    - shaped to match that function's output so both scores can share
+    _render_robert_score_pixmap()."""
     if not text:
         return None
 
-    lines = _normalize_extrapolation_lines(text)
-    title_line = next((line for line in lines if "Extrapolation" in line), None)
-    rmse_line = next((line for line in lines if "[" in line and "]" in line and "%" in line), None)
-    scoring_line = next((line for line in lines if "Scoring from" in line), None)
-    rule_line = next((line for line in lines if "Every two folds" in line), None)
-
+    lines = _normalize_boundary_lines(text)
+    title_line = next(
+        (line for line in lines if "Boundary robustness" in line and re.search(r"\bScore\s+\d+\b", line, re.IGNORECASE)),
+        None,
+    )
     if not title_line:
         return None
 
-    score_match = re.search(r"\(\s*(\d+)\s*/\s*(\d+)\s*\)", title_line)
-    obtained = int(score_match.group(1)) if score_match else None
-    maximum = int(score_match.group(2)) if score_match else None
+    score_match = re.search(r"\bScore\s+(\d+)\b", title_line, re.IGNORECASE)
+    if not score_match:
+        return None
 
-    values = []
-    if rmse_line:
-        values_match = re.search(r"\[(.*?)\]", rmse_line)
-        if values_match:
-            values = [value.strip() for value in values_match.group(1).split(",") if value.strip()]
-
-    clean_title = re.sub(r"\(\s*\d+\s*/\s*\d+\s*\)", "", title_line).strip()
+    low_line = next((line for line in lines if "Scaled RMSE (Low" in line), "")
+    high_line = next((line for line in lines if "Scaled RMSE (High" in line), "")
 
     return {
-        "title": clean_title,
-        "obtained": obtained,
-        "maximum": maximum,
-        "rmse_values": values,
-        "rmse_label": "Scaled RMSEs across 5-fold CV:",
-        "scoring_line": scoring_line or "Scoring from 0 to 2",
-        "rule_line": rule_line or "Every two folds with RMSEs <= 1.25*min RMSE: +1.",
+        "title": "Boundary robustness",
+        "score": int(score_match.group(1)),
+        "model_line": low_line,
+        "points_line": high_line,
     }
 
 
-def _extract_extrapolation_details(pdf_path: Path, model_key: str) -> dict | None:
-    """Extract structured extrapolation information for one model from the ROBERT report."""
+def _extract_boundary_details(pdf_path: Path) -> dict | None:
+    """Extract structured boundary robustness information from the ROBERT report. Returns
+    None for classification reports, whose Section A right column has no Boundary robustness
+    block at all (not scored for classification - see docs/Report/score.rst)."""
     if not pdf_path.exists():
         return None
 
     try:
         with pdfplumber.open(pdf_path) as pdf:
-            if len(pdf.pages) <= 2:
+            if not pdf.pages:
                 return None
-            page = pdf.pages[2]
-            bbox = _get_extrapolation_bbox(page, model_key)
-            if bbox is None:
-                return None
-            text = page.within_bbox(bbox).extract_text()
-            return _parse_extrapolation_block(text or "")
+            page = pdf.pages[0]
+            text = page.within_bbox(_boundary_bbox(page)).extract_text()
+            return _parse_boundary_block(text or "")
     except Exception:
         return None
-
-
-def _score_fill_rgb(obtained: int | None, maximum: int | None) -> tuple[float, float, float]:
-    """Return a fill color for the extrapolation score indicator."""
-    if obtained is None or maximum in (None, 0):
-        return (0.78, 0.78, 0.78)
-    ratio = obtained / maximum
-    if ratio <= 0:
-        return (0.82, 0.18, 0.22)
-    if ratio < 1:
-        return (0.88, 0.66, 0.10)
-    return (0.18, 0.56, 0.26)
-
-
-def _render_extrapolation_pixmap(details: dict) -> QPixmap | None:
-    """Render a synthetic extrapolation card for the GUI using parsed PDF data."""
-    width = 620
-    height = 250
-    margin = 24
-    line_gap = 38
-
-    obtained = details.get("obtained")
-    maximum = details.get("maximum")
-    score_fill = _score_fill_rgb(obtained, maximum)
-
-    doc = fitz.open()
-    try:
-        page = doc.new_page(width=width, height=height)
-        page.draw_rect(
-            fitz.Rect(6, 6, width - 6, height - 6),
-            color=(0.72, 0.72, 0.72),
-            fill=(1.0, 1.0, 1.0),
-            width=1.2,
-        )
-        page.draw_rect(
-            fitz.Rect(14, 14, width - 14, height - 14),
-            color=(0.86, 0.86, 0.86),
-            fill=None,
-            width=0.8,
-        )
-
-        title_y = 42
-        page.insert_text(
-            fitz.Point(margin, title_y),
-            details["title"],
-            fontsize=22,
-            fontname="hebo",
-            color=(0.07, 0.16, 0.28),
-        )
-
-        score_rect = fitz.Rect(width - 190, 22, width - margin, 58)
-        page.draw_rect(score_rect, color=(0.65, 0.65, 0.65), fill=(1, 1, 1), width=0.9)
-        if obtained is not None and maximum is not None:
-            page.insert_text(
-                fitz.Point(score_rect.x0 + 12, score_rect.y0 + 24),
-                f"{obtained} / {maximum}",
-                fontsize=20,
-                fontname="hebo",
-                color=(0.10, 0.18, 0.28),
-            )
-            cell_size = 16
-            gap = 6
-            start_x = score_rect.x1 - 14 - ((cell_size + gap) * maximum - gap)
-            for idx in range(maximum):
-                rect = fitz.Rect(
-                    start_x + idx * (cell_size + gap),
-                    score_rect.y0 + 10,
-                    start_x + idx * (cell_size + gap) + cell_size,
-                    score_rect.y0 + 10 + cell_size,
-                )
-                fill = score_fill if idx < obtained else (0.94, 0.94, 0.94)
-                page.draw_rect(rect, color=(0.45, 0.45, 0.45), fill=fill, width=0.8)
-
-        page.insert_text(
-            fitz.Point(margin, title_y + line_gap),
-            details["rmse_label"],
-            fontsize=20,
-            fontname="hebo",
-            color=(0.12, 0.20, 0.30),
-        )
-        rmse_text = f"[{', '.join(details['rmse_values'])}]" if details["rmse_values"] else "[]"
-        values_rect = fitz.Rect(margin - 2, title_y + line_gap + 12, width - margin, title_y + line_gap * 2 + 20)
-        page.draw_rect(values_rect, color=(0.86, 0.86, 0.86), fill=(1, 1, 1), width=0.8)
-        page.insert_text(
-            fitz.Point(margin + 8, title_y + line_gap * 2 + 8),
-            rmse_text,
-            fontsize=20,
-            fontname="hebo",
-            color=(0.05, 0.05, 0.05),
-        )
-        page.insert_text(
-            fitz.Point(margin, title_y + line_gap * 3 + 4),
-            f"- {details['scoring_line']}",
-            fontsize=20,
-            fontname="hebo",
-            color=(0.24, 0.30, 0.36),
-        )
-        page.insert_text(
-            fitz.Point(margin, title_y + line_gap * 4 + 8),
-            details["rule_line"],
-            fontsize=20,
-            fontname="helv",
-            color=(0.05, 0.05, 0.05),
-        )
-
-        pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0), alpha=False)
-        qimg = QImage.fromData(QByteArray(pix.tobytes("png")))
-        return QPixmap.fromImage(qimg)
-    except Exception:
-        return None
-    finally:
-        doc.close()
 
 
 def _parse_robert_score_block(text: str) -> dict | None:
@@ -390,8 +277,9 @@ def _extract_robert_points_line(lines: list[str], title: str) -> str:
     return ""
 
 
-def _extract_robert_score_details(pdf_path: Path, model_key: str) -> dict | None:
-    """Extract structured ROBERT score information for one model from the report."""
+def _extract_robert_score_details(pdf_path: Path) -> dict | None:
+    """Extract structured Interpolation score information (the report's headline score) from
+    the ROBERT report."""
     if not pdf_path.exists():
         return None
 
@@ -400,10 +288,7 @@ def _extract_robert_score_details(pdf_path: Path, model_key: str) -> dict | None
             if not pdf.pages:
                 return None
             page = pdf.pages[0]
-            bbox = _get_extrapolation_bbox(page, model_key)
-            if bbox is None:
-                return None
-            text = page.within_bbox(bbox).extract_text()
+            text = page.within_bbox(_score_bbox(page)).extract_text()
             return _parse_robert_score_block(text or "")
     except Exception:
         return None
@@ -513,21 +398,11 @@ def _render_robert_score_pixmap(details: dict) -> QPixmap | None:
         doc.close()
 
 
-def extract_extrapolation_scores(pdf_path: Path) -> dict:
-    """Extract extrapolation scores from the ROBERT report PDF file."""
-    result = {"PFI": None, "No_PFI": None}
-    if not pdf_path.exists():
-        return result
-
-    for model_key in ("No_PFI", "PFI"):
-        details = _extract_extrapolation_details(pdf_path, model_key)
-        if details and details.get("obtained") is not None and details.get("maximum") is not None:
-            result[model_key] = {
-                "obtained": details["obtained"],
-                "maximum": details["maximum"],
-            }
-
-    return result
+def extract_boundary_scores(pdf_path: Path) -> int | None:
+    """Extract the Boundary robustness score (0-10) from the ROBERT report PDF file.
+    Returns None for classification reports, which have no Boundary robustness score."""
+    details = _extract_boundary_details(pdf_path)
+    return details.get("score") if details else None
 
 def extract_prediction_info(df: pd.DataFrame) -> dict:
     """Extract prediction information from a DataFrame."""
@@ -559,7 +434,7 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if score is None:
         result["messages"].append("No valid ROBERT score was detected. Model reliability cannot be evaluated.")
-        result["recommendations"].append("You may verify that ROBERT_report.pdf was generated correctly.")
+        result["recommendations"].append("You may verify that ROBERT_report_No_PFI.pdf was generated correctly.")
         return result
 
     if predictions_identical is True:
@@ -611,50 +486,42 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     return result
 
-def evaluate_predictions_for_model(selected_file_path: str | Path, df: pd.DataFrame, model_key: str) -> dict:
+def evaluate_predictions_for_model(
+    selected_file_path: str | Path, df: pd.DataFrame, model_key: str,
+    report_path: Path | None = None,
+) -> dict:
     """Evaluate predictions for a specific model."""
-    pdf_path = get_robert_report_path(selected_file_path)
-    scores = extract_scores_from_robert_report(pdf_path)
+    pdf_path = report_path or get_robert_report_path(selected_file_path, model_key)
+    details = extract_scores_from_robert_report(pdf_path)
+    score = details.get("score") if details else None
     prediction_info = extract_prediction_info(df)
     scenario = evaluate_model_scenario(
-        score=scores.get(model_key),
+        score=score,
         predictions_identical=prediction_info["predictions_identical"],
     )
     return {
         "model": model_key,
         "pdf_path": pdf_path,
-        "score": scores.get(model_key),
-        "prediction_info": prediction_info,
-        "scenario": scenario,
-    }
-
-def collect_model_info(selected_file_path: str | Path, df: pd.DataFrame) -> dict:
-    """Collect information for all models."""
-    pdf_path = get_robert_report_path(selected_file_path)
-    score_info = extract_scores_from_robert_report(pdf_path)
-    prediction_info = extract_prediction_info(df)
-    scenario = evaluate_model_scenario(
-        score=score_info["score"],
-        predictions_identical=prediction_info["predictions_identical"],
-    )
-    return {
-        "pdf_path": pdf_path,
-        "score_info": score_info,
+        "score": score,
         "prediction_info": prediction_info,
         "scenario": scenario,
     }
 
 class PredictionDashboardPanel(QWidget):
     """A collapsible dashboard panel to display ROBERT prediction evaluation results and diagnostics."""
-    def __init__(self, scenario: dict, pdf_image=None, extrapolation_score=None, extrapolation_image=None, external_plot=None, parent=None):
+    def __init__(self, scenario: dict, pdf_image=None, boundary_score=None, boundary_image=None, external_plot=None, parent=None):
         super().__init__(parent)
         self._pdf_image = pdf_image
-        self._extrapolation_score = extrapolation_score
-        self._extrapolation_image = extrapolation_image
+        self._boundary_score = boundary_score
+        self._boundary_image = boundary_image
         self._external_plot = external_plot
         self.setObjectName("PredictionDashboard")
-        self.expanded_width = 500
-        self.collapsed_width = 40
+        self.setStyleSheet(
+            "QWidget#PredictionDashboard { background: palette(base); "
+            "border-left: 1px solid palette(mid); }"
+        )
+        self.expanded_width = 360
+        self.collapsed_width = 48
         self._expanded = True
 
         state_colors = {
@@ -671,29 +538,28 @@ class PredictionDashboardPanel(QWidget):
     def _apply_initial_state(self):
         """Apply the initial state based on the expansion status."""
         if self._expanded:
-            self.main_layout.setContentsMargins(10, 8, 10, 8)
-            self.setMinimumWidth(self.expanded_width)
-            self.setMaximumWidth(self.expanded_width)
-            self.content.setVisible(True)
-            self.toggle_btn.setText("Hide Info ❯")
-            self.toggle_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            self.toggle_btn.setFixedHeight(32)
-            self.toggle_btn.setStyleSheet(
-                "QPushButton { background: transparent; border-radius: 4px; font-size: 12px; padding: 4px 8px; }"
-                "QPushButton:hover { background: rgba(0,0,0,0.05); }"
-            )
+            self.main_layout.setContentsMargins(12, 10, 12, 10)
+            self.setMinimumWidth(260)
+            self.setMaximumWidth(16777215)
+            self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+            self.title_label.show()
+            self.scroll.show()
+            self.collapse_spacer.hide()
+            self.toggle_btn.setText("Hide info  ›")
+            self.toggle_btn.setFixedWidth(96)
+            self.toggle_btn.setToolTip("Hide model insights")
+            self.toggle_btn.setAccessibleName("Hide model insights")
         else:
-            self.main_layout.setContentsMargins(0, 0, 0, 0)
+            self.main_layout.setContentsMargins(6, 10, 6, 10)
             self.setMinimumWidth(self.collapsed_width)
             self.setMaximumWidth(self.collapsed_width)
-            self.content.setVisible(False)
-            self.toggle_btn.setText("❮\nMore\nInfo")
-            self.toggle_btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            self.toggle_btn.setMinimumHeight(100)
-            self.toggle_btn.setStyleSheet(
-                "QPushButton { background: transparent; font-size: 11px; padding: 2px; }"
-                "QPushButton:hover { background: rgba(0,0,0,0.05); }"
-            )
+            self.title_label.hide()
+            self.scroll.hide()
+            self.collapse_spacer.show()
+            self.toggle_btn.setText("‹")
+            self.toggle_btn.setFixedWidth(34)
+            self.toggle_btn.setToolTip("More info: show model insights")
+            self.toggle_btn.setAccessibleName("Show model insights")
 
     def _build_ui(self, scenario):
         """Build the user interface."""
@@ -701,13 +567,34 @@ class PredictionDashboardPanel(QWidget):
         self.main_layout.setContentsMargins(10, 8, 10, 8)
         self.main_layout.setSpacing(12)
 
+        header_widget = QWidget()
+        header_widget.setFixedHeight(32)
+        header = QHBoxLayout(header_widget)
+        header.setContentsMargins(0, 0, 0, 0)
+        self.title_label = QLabel("Model insights")
+        self.title_label.setStyleSheet("font-size: 14px; font-weight: 600;")
+        header.addWidget(self.title_label)
+        header.addStretch()
+
         self.toggle_btn = QPushButton()
+        self.toggle_btn.setObjectName("insightsToggle")
+        self.toggle_btn.setFixedHeight(32)
+        self.toggle_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.toggle_btn.setStyleSheet(
+            "QPushButton#insightsToggle { background: palette(highlight); "
+            "color: palette(highlighted-text); border: none; "
+            "border-radius: 16px; padding: 5px 10px; font-weight: 600; }"
+            "QPushButton#insightsToggle:hover { border: 1px solid palette(mid); }"
+        )
         self.toggle_btn.clicked.connect(self.toggle)
-        self.main_layout.addWidget(self.toggle_btn)
+        header.addWidget(self.toggle_btn)
+        self.main_layout.addWidget(header_widget)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.scroll = scroll
 
         self.content = QWidget()
         content_layout = QVBoxLayout(self.content)
@@ -715,12 +602,15 @@ class PredictionDashboardPanel(QWidget):
 
         self._build_status_block(content_layout, scenario)
         self._build_pdf_snapshot_block(content_layout)
-        self._build_extrapolation_block(content_layout, self._extrapolation_score, self._extrapolation_image)
+        self._build_boundary_block(content_layout, self._boundary_score, self._boundary_image)
         self._build_external_validation_block(content_layout, self._external_plot)
         content_layout.addStretch()
 
         scroll.setWidget(self.content)
         self.main_layout.addWidget(scroll)
+        self.collapse_spacer = QWidget()
+        self.collapse_spacer.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.main_layout.addWidget(self.collapse_spacer)
 
     def _build_status_block(self, layout, scenario):
         """Build the status block with messages and recommendations."""
@@ -747,7 +637,7 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet("QWidget#dashboardBlock { background: palette(window); border: 1px solid palette(mid); border-radius: 10px; }")
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -758,7 +648,7 @@ class PredictionDashboardPanel(QWidget):
 
         image_frame = QWidget()
         image_frame.setObjectName("imageFrame")
-        image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+        image_frame.setStyleSheet("QWidget#imageFrame { border: none; background: transparent; }")
         image_layout = QVBoxLayout(image_frame)
         image_layout.setContentsMargins(6, 6, 6, 6)
 
@@ -769,24 +659,24 @@ class PredictionDashboardPanel(QWidget):
         container_layout.addWidget(image_frame)
         layout.addWidget(container)
 
-    def _build_extrapolation_block(self, layout, score, pixmap):
-        """Build the extrapolation block with a score and image."""
+    def _build_boundary_block(self, layout, score, pixmap):
+        """Build the boundary robustness block with a score and image."""
         if score is None and not pixmap:
             return
 
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet("QWidget#dashboardBlock { background: palette(window); border: 1px solid palette(mid); border-radius: 10px; }")
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
 
-        title = QLabel("Extrapolation Capability")
+        title = QLabel("Boundary Robustness")
         title.setStyleSheet("font-weight: bold; font-size: 13px;")
         container_layout.addWidget(title)
 
-        subtitle = QLabel("Assessment of the model's ability to predict beyond the range of the training data.")
+        subtitle = QLabel("Assessment of how well the model holds up at the edges of the training data range and beyond.")
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("font-size: 11px;")
         container_layout.addWidget(subtitle)
@@ -794,7 +684,7 @@ class PredictionDashboardPanel(QWidget):
         if pixmap:
             image_frame = QWidget()
             image_frame.setObjectName("imageFrame")
-            image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+            image_frame.setStyleSheet("QWidget#imageFrame { border: none; background: transparent; }")
             image_layout = QVBoxLayout(image_frame)
             image_layout.setContentsMargins(6, 6, 6, 6)
             image_label = QLabel()
@@ -803,32 +693,34 @@ class PredictionDashboardPanel(QWidget):
             image_layout.addWidget(image_label)
             container_layout.addWidget(image_frame)
 
+        # Boundary robustness is scored 0-10 (regression only), the same scale used for the
+        # main ROBERT score - see _robert_score_style() for the VERY WEAK/WEAK/MODERATE/STRONG
+        # bands it's built from
         if score is not None:
-            obtained = score["obtained"]
-            maximum = score["maximum"]
-            if maximum != 2:
-                raise ValueError(f"Unexpected extrapolation maximum value: {maximum}")
-
-            if obtained == 0:
-                summary, color, explanation = (
-                    "No extrapolation capability",
+            label = _robert_score_style(score)["label"]
+            summary_texts = {
+                "VERY WEAK": (
+                    "No boundary robustness" if score <= 0 else "Very weak boundary robustness",
                     "#b00020",
-                    "The model cannot extrapolate beyond the training domain. Predictions outside the original data range are unreliable.",
-                )
-            elif obtained == 1:
-                summary, color, explanation = (
-                    "Limited extrapolation capability",
+                    "The model is unreliable at the edges of the training range and beyond. Predictions outside the original data range are unreliable.",
+                ),
+                "WEAK": (
+                    "Weak boundary robustness",
                     "#8a6d00",
                     "The model may tolerate slight deviations beyond the training range, but predictions near extremes can become unstable.",
-                )
-            elif obtained == 2:
-                summary, color, explanation = (
-                    "Acceptable extrapolation capability",
+                ),
+                "MODERATE": (
+                    "Moderate boundary robustness",
+                    "#276dd6",
+                    "The model holds up reasonably well at the edges of the training range, although uncertainty increases further from the original data distribution.",
+                ),
+                "STRONG": (
+                    "Strong boundary robustness",
                     "#1b5e20",
-                    "The model can extrapolate moderately beyond the training range, although uncertainty increases further from the original data distribution.",
-                )
-            else:
-                raise ValueError(f"Unexpected extrapolation score: {obtained}")
+                    "The model remains reliable at the edges of the training range and beyond, showing robust predictions even for extreme values.",
+                ),
+            }
+            summary, color, explanation = summary_texts[label]
 
             summary_label = QLabel(summary)
             summary_label.setStyleSheet(f"color: {color}; font-weight: bold;")
@@ -848,7 +740,7 @@ class PredictionDashboardPanel(QWidget):
         layout.addSpacing(15)
         container = QWidget()
         container.setObjectName("dashboardBlock")
-        container.setStyleSheet("QWidget#dashboardBlock { border: 1px solid palette(mid); border-radius: 8px; }")
+        container.setStyleSheet("QWidget#dashboardBlock { background: palette(window); border: 1px solid palette(mid); border-radius: 10px; }")
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(14, 14, 14, 14)
         container_layout.setSpacing(10)
@@ -864,7 +756,7 @@ class PredictionDashboardPanel(QWidget):
 
         image_frame = QWidget()
         image_frame.setObjectName("imageFrame")
-        image_frame.setStyleSheet("QWidget#imageFrame { border: 1px solid palette(mid); border-radius: 6px; }")
+        image_frame.setStyleSheet("QWidget#imageFrame { border: none; background: transparent; }")
         image_layout = QVBoxLayout(image_frame)
         image_layout.setContentsMargins(6, 6, 6, 6)
         image_label = QLabel()
@@ -885,8 +777,25 @@ class PredictionDashboardPanel(QWidget):
         layout.addWidget(container)
 
     def toggle(self):
+        if self._expanded:
+            self._last_expanded_width = self.width()
         self._expanded = not self._expanded
         self._apply_initial_state()
+        target_width = (
+            max(260, getattr(self, "_last_expanded_width", 260))
+            if self._expanded else self.collapsed_width
+        )
+        splitter = self.parentWidget()
+        if isinstance(splitter, QSplitter):
+            sizes = splitter.sizes()
+            index = splitter.indexOf(self)
+            if len(sizes) == 2 and index in (0, 1):
+                total = sum(sizes)
+                sizes[index] = min(target_width, total - 1)
+                sizes[1 - index] = total - sizes[index]
+                splitter.setSizes(sizes)
+        elif self._expanded:
+            self.resize(target_width, self.height())
 
 
 class PandasTableModel(QAbstractTableModel):

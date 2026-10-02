@@ -1,0 +1,31 @@
+{
+  "cases": [
+    {"question": "What is ROBERT used for?", "allowed_ids": ["program-robert"]},
+    {"question": "What is AQME used for?", "allowed_ids": ["program-aqme"]},
+    {"question": "Do I need AQME if my CSV already has descriptors?", "allowed_ids": ["concept-aqme-when-not-needed"]},
+    {"question": "How do I go from SMILES to a ROBERT model?", "allowed_ids": ["workflow-aqme-descriptors-to-robert"]},
+    {"question": "What does the ROBERT tab do?", "allowed_ids": ["tab-robert"]},
+    {"question": "Why is the Reports tab locked?", "allowed_ids": ["tab-reports"]},
+    {"question": "What is the Advanced Options tab?", "allowed_ids": ["tab-advanced-options"]},
+    {"question": "What does Run ROBERT do?", "allowed_ids": ["action-run-robert"]},
+    {"question": "How do I stop a running workflow?", "allowed_ids": ["action-stop-process"]},
+    {"question": "How do I start from a CSV?", "allowed_ids": ["workflow-ui-start-csv", "tutorial-csv"]},
+    {"question": "How do I start from ChemDraw?", "allowed_ids": ["workflow-ui-start-chemdraw", "tutorial-chemdraw"]},
+    {"question": "How do I make predictions for new molecules?", "allowed_ids": ["workflow-ui-new-predictions", "tutorial-predictions"]},
+    {"question": "What does CURATE do?", "allowed_ids": ["module-curate"]},
+    {"question": "What does GENERATE do?", "allowed_ids": ["module-generate"]},
+    {"question": "What does VERIFY do?", "allowed_ids": ["module-verify"]},
+    {"question": "What does PREDICT do?", "allowed_ids": ["module-predict"]},
+    {"question": "What does REPORT do?", "allowed_ids": ["module-report"]},
+    {"question": "What is QDESCP?", "allowed_ids": ["module-aqme-qdescp"]},
+    {"question": "What should I check after a failed run?", "allowed_ids": ["workflow-ui-diagnose-failure"]},
+    {"question": "Where can I find generated plots?", "allowed_ids": ["tab-images", "workflow-ui-inspect-results"]}
+  ],
+  "negative_questions": [
+    "How tall is Mount Kilimanjaro?",
+    "What is the weather on Neptune tomorrow?",
+    "Who is Robert?",
+    "zxqv blorp niffle 8472",
+    "Who composed the Moonlight Sonata?"
+  ]
+}

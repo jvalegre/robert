@@ -31,8 +31,14 @@ Parameters
         of the descriptors with other descriptors (x filter).
     corr_filter_y : bool, default=False
         Activate the correlation filters of descriptors, based on the correlation
-        of the descriptors with the y values (y filter, for noise). This filter is only 
+        of the descriptors with the y values (y filter, for noise). This filter is only
         suggested for MVL.
+    rfecv_filter : bool, default=True
+        Activate RFECV/PFI descriptor selection, used when descriptors still outnumber
+        one-third of the datapoints after the correlation filter(s) above. Runs independently
+        of corr_filter_x/corr_filter_y, so either filter can be used on its own (e.g. disable
+        rfecv_filter to keep only the correlation filter, or disable corr_filter_x/y to rely
+        only on RFECV/PFI).
     desc_thres : float, default=25
         Threshold for the descriptor-to-datapoints ratio to loose the correlation filter. By default,
         the correlation filter is loosen if there are 25 times more datapoints than descriptors.
@@ -124,7 +130,9 @@ class curate:
 
     def dup_filter(self,csv_df_dup):
         '''
-        Removes duplicated datapoints and descriptors
+        Removes duplicated datapoints (rows). Duplicate descriptor columns are not deduplicated
+        here - they're caught separately by the correlation filter (R**2 ~= 1) when
+        corr_filter_x/corr_filter_y are enabled.
         '''
 
         txt_dup = f'\no  Duplication filters activated'
@@ -143,7 +151,7 @@ class curate:
 
         csv_df_dup = csv_df_dup.drop(datapoint_drop, axis=0)
 
-        csv_df_dup.reset_index(drop=True)
+        csv_df_dup = csv_df_dup.reset_index(drop=True)
         self.args.log.write(txt_dup)
 
         return csv_df_dup

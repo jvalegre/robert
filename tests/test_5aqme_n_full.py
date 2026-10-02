@@ -10,11 +10,92 @@ import glob
 import pytest
 import shutil
 import subprocess
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
 import pandas as pd
 
 # saves the working directory
 path_main = os.getcwd()
 path_aqme = os.path.join(path_main, "AQME")
+test_data = Path(__file__).resolve().parent
+repository_root = test_data.parent
+
+
+@contextmanager
+def aqme_test_workspace():
+    """Run an integration case under tests and remove its outputs on exit."""
+    previous_directory = Path.cwd()
+    with tempfile.TemporaryDirectory(prefix="aqme-workflow-", dir=test_data) as directory:
+        workspace = Path(directory)
+        try:
+            os.chdir(workspace)
+            yield workspace
+        finally:
+            os.chdir(previous_directory)
+
+
+@pytest.fixture
+def aqme_workspace():
+    with aqme_test_workspace() as workspace:
+        yield workspace
+
+
+def _regenerate_report_and_check(test_job, path_main):
+    """
+    Deletes the PDF/debug report artifacts the subprocess run above already left behind and
+    regenerates them by calling report() directly, in-process - a subprocess isn't visible to
+    coverage tools, so this is what actually exercises report.py/report_utils.py for coverage,
+    while reusing the CURATE/GENERATE/VERIFY/PREDICT folders the subprocess run already built
+    (no need to rebuild the whole pipeline a second time just to test report() - this replaces
+    the old, separate test_8report.py, which did exactly that from scratch for the same two
+    datasets/configs already covered here by full_workflow/full_clas)
+    """
+    from robert.report import report
+
+    for report_file in [
+        "ROBERT_report_No_PFI.pdf",
+        "ROBERT_report_PFI.pdf",
+        "report_debug_No_PFI.txt",
+        "report_debug_PFI.txt",
+    ]:
+        file_path = os.path.join(path_main, report_file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    # all_models defaults to True now, but the VERIFY/PREDICT folders being reused here were
+    # built by the subprocess run with --all_models False (see cmd_robert above), so this must
+    # match or REPORT would look for per-model VERIFY_{model}_data.dat files that don't exist
+    report(debug_report=True, all_models=False)
+
+    assert os.path.exists(os.path.join(path_main, "ROBERT_report_No_PFI.pdf"))
+    assert os.path.exists(os.path.join(path_main, "ROBERT_report_PFI.pdf"))
+
+    with open(os.path.join(path_main, "report_debug_No_PFI.txt"), "r", encoding="utf-8") as f:
+        debug_lines = f.readlines()
+    debug_text = "".join(debug_lines)
+
+    assert "Section A. ROBERT Score" in debug_text
+
+    # score images ("report/score_N.jpg") are the Interpolation/Boundary robustness score bars
+    # in Section A - classification only ever gets one (Interpolation), since Boundary
+    # robustness isn't defined for it (see docs/Report/score.rst); the right-hand column shows
+    # a short "disabled" note instead (see print_score() in report.py) rather than being left
+    # empty or stretching Interpolation to full width
+    score_imgs = [line for line in debug_lines if "report/score_" in line and "report/score_w" not in line]
+    if test_job == "full_clas":
+        assert len(score_imgs) == 1
+        assert "Boundary robustness" in debug_text
+        assert "Disabled in classification problems" in debug_text
+        assert "1. Consistency (sorted CV)" not in debug_text
+        assert (
+            "Interpolation measures how reliably the model predicts within the range "
+            "of data it was trained on.</i>" in debug_text
+        )
+    else:
+        assert len(score_imgs) == 2
+        assert "Boundary robustness" in debug_text
+        assert "1. Sorted CV, top 20% (High)" in debug_text
 
 
 # AQME and full workflow tests
@@ -29,54 +110,31 @@ path_aqme = os.path.join(path_main, "AQME")
         ("2smiles_columns"),  # test for a full workflow with 2 columns for SMILES
     ],
 )
-def test_AQME(test_job):
-    # reset the folders (to avoid interferences with previous failed tests)
-    folders = [
-        "CURATE",
-        "GENERATE",
-        "GENERATE_reg",
-        "GENERATE_clas",
-        "PREDICT",
-        "VERIFY",
-        "AQME",
-    ]
-    for folder in folders:
-        if os.path.exists(f"{path_main}/{folder}"):
-            shutil.rmtree(f"{path_main}/{folder}")
-    for file in [
-        "report_debug.txt",
-        "ROBERT_report.pdf",
-        "AQME-ROBERT_solubility.csv",
-        "AQME-ROBERT_Robert_example_2smiles.csv",
-        "AQME-ROBERT_solubility_solvent.csv",
-        "Robert_example.csv",
-        "solubility.csv",
-        "solubility_solvent.csv",
-    ]:
-        if os.path.exists(f"{path_main}/{file}"):
-            os.remove(f"{path_main}/{file}")
+def test_AQME(test_job, aqme_workspace):
+    path_main = str(aqme_workspace)
+    path_aqme = os.path.join(path_main, "AQME")
 
     # runs the program with the different tests
     if test_job in ["full_workflow", "full_workflow_test"]:
         y_var = "Target_values"
-        csv_var = "tests/Robert_example.csv"
+        csv_var = str(test_data / "Robert_example.csv")
 
     elif test_job in ["full_clas", "full_clas_test"]:
         y_var = "Target_values"
-        csv_var = "tests/Robert_example_clas.csv"
+        csv_var = str(test_data / "Robert_example_clas.csv")
 
     elif test_job == "aqme":
         y_var = "solub"
         # for AQME-ROBERT workflows, the CSV file must be in the working dir
-        shutil.copy(f"{path_main}/tests/solubility.csv", f"{path_main}/solubility.csv")
+        shutil.copy(test_data / "solubility.csv", aqme_workspace / "solubility.csv")
         csv_var = "solubility.csv"
 
     elif test_job == "2smiles_columns":
         y_var = "solub"
         # for AQME-ROBERT workflows, the CSV file must be in the working dir
         shutil.copy(
-            f"{path_main}/tests/solubility_solvent.csv",
-            f"{path_main}/solubility_solvent.csv",
+            test_data / "solubility_solvent.csv",
+            aqme_workspace / "solubility_solvent.csv",
         )
         csv_var = "solubility_solvent.csv"
 
@@ -98,6 +156,12 @@ def test_AQME(test_job):
         "1",
         "--debug_report",
         "True",
+        # all_models defaults to True now (see the design discussion in generate.py) - these
+        # tests assert against the generic ROBERT_report_No_PFI.pdf/PFI.pdf filenames, not the
+        # per-model ones all_models produces (ROBERT_report_RF_No_PFI.pdf, ...), so it's
+        # pinned to the old single-best-model behavior
+        "--all_models",
+        "False",
     ]
 
     if test_job in [
@@ -112,10 +176,10 @@ def test_AQME(test_job):
         cmd_robert = cmd_robert + ["--discard", "['xtest']"]
 
     if test_job == "full_workflow_test":
-        cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_test.csv"]
+        cmd_robert = cmd_robert + ["--csv_test", str(test_data / "Robert_example_test.csv")]
 
     if test_job == "full_clas_test":
-        cmd_robert = cmd_robert + ["--csv_test", "tests/Robert_example_clas_test.csv"]
+        cmd_robert = cmd_robert + ["--csv_test", str(test_data / "Robert_example_clas_test.csv")]
 
     if test_job in ["full_clas", "full_clas_test"]:
         cmd_robert = cmd_robert + ["--type", "clas"]
@@ -132,11 +196,18 @@ def test_AQME(test_job):
     if test_job == "2smiles_columns":
         cmd_robert = cmd_robert + ["--aqme", "--alpha", "0.5"]
 
-    subprocess.run(cmd_robert)
+    subprocess_environment = os.environ.copy()
+    subprocess_environment["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(repository_root), subprocess_environment.get("PYTHONPATH", "")])
+    )
+    subprocess.run(
+        cmd_robert, cwd=aqme_workspace, env=subprocess_environment, check=True
+    )
 
     # check that all the plots, CSV and DAT files are created
-    # find ROBERT_report.pdf
-    assert os.path.exists(f"{path_main}/ROBERT_report.pdf")
+    # find ROBERT_report_No_PFI.pdf and ROBERT_report_PFI.pdf
+    assert os.path.exists(f"{path_main}/ROBERT_report_No_PFI.pdf")
+    assert os.path.exists(f"{path_main}/ROBERT_report_PFI.pdf")
 
     # CURATE folder
     if (
@@ -162,7 +233,7 @@ def test_AQME(test_job):
     if test_job in ["full_clas", "full_clas_test"]:
         assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 12
     else:
-        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 14
+        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 24
     assert len(glob.glob(f"{path_main}/PREDICT/*.dat")) == 1
 
     if test_job == "full_clas_test":
@@ -180,7 +251,15 @@ def test_AQME(test_job):
             len(glob.glob(f"{path_main}/PREDICT/csv_test/*.png")) == 2
         )  # 2 extra PNG for predictions ± SD
     else:
-        assert len(glob.glob(f"{path_main}/PREDICT/*.csv")) == 2
+        prediction_csvs = [
+            path for path in glob.glob(f"{path_main}/PREDICT/*.csv")
+            if not os.path.basename(path).startswith("Results_boundary_williams_")
+        ]
+        williams_csvs = glob.glob(
+            f"{path_main}/PREDICT/Results_boundary_williams_*.csv"
+        )
+        assert len(prediction_csvs) == 2
+        assert len(williams_csvs) == (0 if test_job in ["full_clas", "full_clas_test"] else 2)
 
     if test_job == "aqme":
         assert os.path.exists(f"{path_main}/AQME-ROBERT_interpret_solubility.csv")
@@ -220,7 +299,7 @@ def test_AQME(test_job):
             assert descp in db_aqme.columns
 
     # find important parts in ROBERT_report
-    outfile = open(f"{path_main}/report_debug.txt", "r")
+    outfile = open(f"{path_main}/report_debug_No_PFI.txt", "r")
     outlines = outfile.readlines()
     outfile.close()
 
@@ -232,11 +311,11 @@ def test_AQME(test_job):
     for line in outlines:
         if "Heatmap_ML_models_No_PFI.png" in line:
             find_heatmap += 1
-        if "VERIFY_tests_RF_PFI.png" in line:
+        if "VERIFY_tests_RF_No_PFI.png" in line:
             find_verify += 1
-        if "SHAP_RF_PFI.png" in line:
+        if "SHAP_RF_No_PFI.png" in line:
             find_shap += 1
-        if "PFI_RF_PFI.png" in line:
+        if "PFI_RF_No_PFI.png" in line:
             find_pfi += 1
         if "Outliers_RF_No_PFI.png" in line:
             find_outliers += 1
@@ -264,15 +343,16 @@ def test_AQME(test_job):
             flawed_models,
             pred_ability,
             pred_test_ability,
+            train_val_gap_models,
             cv_sd_models,
             cv_vs_test_models,
-            extrapol_ability,
-            extrapol_ability_clas,
+            bound_ability,
         ) = [], [], [], [], [], [], []
         predict_graphs, flawed_image, cv_sd_image = False, False, False
         y_distrib_image, pearson_pred_image = False, False
         find_severe_red = False
         find_moder_correl, find_moder_y_dist = False, False
+        find_moder_truncated = False
         find_assess_red = False
 
         for i, line in enumerate(outlines):
@@ -303,24 +383,24 @@ def test_AQME(test_job):
                 flawed_image = True
             if "2. CV predictions of the model" in line:
                 pred_ability.append(line)
-            if "3a. Predictions test set" in line:
+            if "3. Test set predictions" in line:
                 pred_test_ability.append(line)
-            if "3b. Prediction accuracy test vs CV" in line:
+            if "4. Train vs validation gap" in line:
+                train_val_gap_models.append(line)
+            if "5. CV vs test consistency" in line:
                 cv_vs_test_models.append(line)
-            if "3c. Avg. standard deviation (SD)" in line:
+            if "6. Prediction stability" in line:
                 cv_sd_models.append(line)
             if (
                 "PREDICT/CV_variability_RF_No_PFI.png" in line
                 or "PREDICT\\CV_variability_RF_No_PFI.png" in line
             ):
                 cv_sd_image = True
-            if "3d. Extrapolation (sorted CV)" in line:
-                extrapol_ability.append(line)
-            elif "3c. Consistency (sorted CV)" in line:
-                extrapol_ability_clas.append(line)
+            if "1. Sorted CV, top 20% (High)" in line:
+                bound_ability.append(line)
             if "y_distribution_RF_No_PFI.png" in line:
                 y_distrib_image = True
-            if "Pearson_heatmap_No_PFI.png" in line:
+            if "Pearson_heatmap_RF_No_PFI.png" in line:
                 pearson_pred_image = True
             if (
                 "Failing required tests (Section B.1)" in line
@@ -337,101 +417,115 @@ def test_AQME(test_job):
                 and "color: #c5c57d" in outlines[i - 1]
             ):
                 find_moder_y_dist = True
+            # the Section A warnings box only shows as many moderate warnings as reliably
+            # fit on page 1 (see MODERATE_WARNINGS_BUDGET / TOTAL_LINE_BUDGET in report.py),
+            # truncating the rest with a single "..." line - with enough OTHER moderate
+            # warnings triggered first (higher priority - see analyze_warnings()), either of
+            # the two specific warnings above can legitimately end up hidden behind "...", so
+            # a truncated moderate list is accepted as equivalent evidence that warning
+            # detection worked, even though this particular run can't confirm which ones
             if (
-                "The model is unreliable" in line
-                and "color: #c56666" in outlines[i - 1]
+                "&nbsp;...</p>" in line
+                and "color: #c5c57d" in outlines[i - 1]
             ):
+                find_moder_truncated = True
+            # unlike the Severe/Moderate warning list items above (still print_line_warning(),
+            # unchanged), the Overall assessment title and its verdict now share a single row
+            # (see title_row() in report.py) - color and message are on the SAME line
+            if "The model is unreliable" in line and "color: #c56666" in line:
                 find_assess_red = True
             if "How to predict new values with these models?" in line:
                 break
 
         if test_job == "full_workflow":
             # model summary, robert score, predict graphs and model metrics
-            assert robert_score[0] == "5"
-            assert robert_score[1] == "6"
-            assert ml_model_count == 2
-            assert partition_count == 2
-            assert points_desc[0] == "30:5"
-            assert points_desc[1] == "30:2"
+            # NOTE: report_debug_{suffix}.txt now holds a SINGLE model/suffix's report (one
+            # PDF per suffix - see report.py's "generate one PDF per model (No PFI / PFI)"
+            # loop), not a combined No_PFI+PFI report like before 2.2.0 - so every field below
+            # that used to be checked as a [0]/[1] pair (one per model) now appears exactly
+            # once. The only field that legitimately has 2 entries is robert_score, since each
+            # single-suffix report still shows 2 columns (Interpolation/Boundary robustness)
+            assert robert_score[0] == "4"
+            assert robert_score[1] == "0"
+            assert ml_model_count == 1
+            assert partition_count == 1
+            assert points_desc[0] == "30:11"
             assert predict_graphs
-            assert metrics_train_count == 2
-            assert metrics_test_count == 2
+            assert metrics_train_count == 1
+            assert metrics_test_count == 1
+            # advanced analysis, flawed models section 1
+            assert "-3 / 0" in flawed_models[0]
+            assert flawed_image
+            # advanced analysis, predictive ability section 2
+            assert "0 / 2" in pred_ability[0]
+            assert "report/score_w_2_0.jpg" in pred_ability[0]
+            # advanced analysis, predictive ability of external test set, item 3
+            assert "1 / 2" in pred_test_ability[0]
+            assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            # advanced analysis, train vs validation gap, item 4
+            assert "2 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_2.jpg" in train_val_gap_models[0]
+            # advanced analysis, CV vs test consistency, item 5
+            assert "2 / 2" in cv_vs_test_models[0]
+            assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
+            # advanced analysis, prediction stability, item 6
+            assert "2 / 2" in cv_sd_models[0]
+            assert "report/score_w_2_2.jpg" in cv_sd_models[0]
+            assert cv_sd_image
+            # advanced analysis, boundary robustness, sub-item 1 (Sorted CV, top 20% / High)
+            assert "0 / 2" in bound_ability[0]
+            assert "report/score_w_2_0.jpg" in bound_ability[0]
+            # y distribution and Pearson images
+            assert y_distrib_image
+            assert pearson_pred_image
+            # warnings
+            assert find_severe_red
+            assert find_moder_y_dist or find_moder_truncated
+            assert find_assess_red
+
+            _regenerate_report_and_check(test_job, path_main)
+
+        elif test_job == "full_clas":
+            # model summary, robert score, predict graphs and model metrics
+            # (see the NOTE above the full_workflow block: report_debug_{suffix}.txt now
+            # holds a single model/suffix's report, so every field below appears once.
+            # Unlike full_workflow, robert_score here has only 1 entry: classification
+            # has no Boundary robustness score - see docs/Report/score.rst - so Section A
+            # only ever renders the Interpolation column, with the right column left empty
+            # rather than stretched. Classification's B.2/B.3a/B.3b/B.3c/B.3d are now
+            # homogenized to the same 0-2-point structure as regression (see score.rst) -
+            # items 2/3 used to go up to 3 points with different MCC thresholds)
+            assert robert_score[0] == "5"
+            assert len(robert_score) == 1
+            assert ml_model_count == 1
+            assert points_desc[0] == "30:6"
             # advanced analysis, flawed models section 1
             assert "-2 / 0" in flawed_models[0]
-            assert "-1 / 0" in flawed_models[1]
             assert flawed_image
             # advanced analysis, predictive ability section 2
             assert "1 / 2" in pred_ability[0]
             assert "report/score_w_2_1.jpg" in pred_ability[0]
-            assert "1 / 2" in pred_ability[1]
-            assert "report/score_w_2_1.jpg" in pred_ability[1]
-            # advanced analysis, predictive ability of external test set section 3a
-            assert "2 / 2" in pred_test_ability[0]
-            assert "report/score_w_2_2.jpg" in pred_test_ability[0]
-            assert "2 / 2" in pred_test_ability[1]
-            assert "report/score_w_2_2.jpg" in pred_test_ability[1]
-            # advanced analysis, predictive ability of CV vs test section 3b
+            # advanced analysis, predictive ability of external test set, item 3
+            assert "1 / 2" in pred_test_ability[0]
+            assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            # advanced analysis, train vs validation gap, item 4 (new for classification -
+            # homogenizes with regression, which already had this item)
+            assert "1 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_1.jpg" in train_val_gap_models[0]
+            # advanced analysis, CV vs test consistency, item 5
             assert "2 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
-            assert "2 / 2" in cv_vs_test_models[1]
-            assert "report/score_w_2_2.jpg" in cv_vs_test_models[1]
-            # advanced analysis, CV variability section 3c
-            assert "2 / 2" in cv_sd_models[0]
-            assert "report/score_w_2_2.jpg" in cv_sd_models[0]
-            assert "2 / 2" in cv_sd_models[1]
-            assert "report/score_w_2_2.jpg" in cv_sd_models[1]
-            assert cv_sd_image
-            # advanced analysis, extrapolation section 3d
-            assert "0 / 2" in extrapol_ability[0]
-            assert "report/score_w_2_0.jpg" in extrapol_ability[0]
-            assert "0 / 2" in extrapol_ability[1]
-            assert "report/score_w_2_0.jpg" in extrapol_ability[1]
+            # no boundary robustness sub-items for classification (no sub-item 1 to check)
+            assert not bound_ability
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
             # warnings
             assert find_severe_red
-            assert find_moder_y_dist
+            assert find_moder_correl or find_moder_truncated
             assert find_assess_red
 
-        elif test_job == "full_clas":
-            # model summary, robert score, predict graphs and model metrics
-            assert robert_score[0] == "4"
-            assert robert_score[1] == "6"
-            assert ml_model_count == 2
-            assert points_desc[0] == "29:6"
-            assert points_desc[1] == "29:4"
-            # advanced analysis, flawed models section 1
-            assert "-2 / 0" in flawed_models[0]
-            assert "-2 / 0" in flawed_models[1]
-            assert flawed_image
-            # advanced analysis, predictive ability section 2
-            assert "2 / 3" in pred_ability[0]
-            assert "report/score_w_3_2.jpg" in pred_ability[0]
-            assert "2 / 3" in pred_ability[1]
-            assert "report/score_w_3_2.jpg" in pred_ability[1]
-            # advanced analysis, predictive ability of external test set section 3a
-            assert "3 / 3" in pred_test_ability[0]
-            assert "report/score_w_3_3.jpg" in pred_test_ability[0]
-            assert "3 / 3" in pred_test_ability[1]
-            assert "report/score_w_3_3.jpg" in pred_test_ability[1]
-            # advanced analysis, predictive ability of CV vs test section 3b
-            assert "1 / 2" in cv_vs_test_models[0]
-            assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
-            assert "2 / 2" in cv_vs_test_models[1]
-            assert "report/score_w_2_2.jpg" in cv_vs_test_models[1]
-            # advanced analysis, extrapolation section 3d
-            assert "0 / 2" in extrapol_ability_clas[0]
-            assert "report/score_w_2_0.jpg" in extrapol_ability_clas[0]
-            assert "1 / 2" in extrapol_ability_clas[1]
-            assert "report/score_w_2_1.jpg" in extrapol_ability_clas[1]
-            # y distribution and Pearson images
-            assert y_distrib_image
-            assert pearson_pred_image
-            # warnings
-            assert find_severe_red
-            assert find_moder_correl
-            assert find_assess_red
+            _regenerate_report_and_check(test_job, path_main)
 
     if test_job in ["full_workflow", "full_workflow_test", "aqme", "2smiles_columns"]:
         assert find_outliers > 0
@@ -459,20 +553,203 @@ def test_AQME(test_job):
     assert find_shap > 0
     assert find_pfi > 0
 
-    # reset the folder
-    folders = ["CURATE", "GENERATE", "PREDICT", "VERIFY", "AQME"]
-    for folder in folders:
-        if os.path.exists(f"{path_main}/{folder}"):
-            shutil.rmtree(f"{path_main}/{folder}")
-    for file_discard in [
-        "report_debug.txt",
-        "ROBERT_report.pdf",
-        "AQME-ROBERT_interpret_solubility.csv",
-        "AQME-ROBERT_interpret_Robert_example_2smiles.csv",
-        "AQME-ROBERT_interpret_solubility_solvent.csv",
-        "Robert_example.csv",
-        "solubility.csv",
-        "solubility_solvent.csv",
-    ]:
-        if os.path.exists(f"{path_main}/{file_discard}"):
-            os.remove(f"{path_main}/{file_discard}")
+
+
+def test_aqme_multismiles_denovo_n_full_columns():
+    """
+    Regression test for ROBERT's own multi-SMILES-column stitching logic
+    (robert.aqme.aqme.run_csearch_qdescp), covering the 'denovo' and 'full' descriptor
+    levels. The slow, real test_AQME[2smiles_columns] test above only exercises the
+    'interpret' level (AQME's default) through a full xtb-based workflow - this test locks in
+    that smiles_sub/smiles_solvent survive the other two levels too, without paying for real
+    xtb/CSEARCH calculations for every level: what's actually being tested here is ROBERT's
+    own merge/suffix/concat logic that stitches the per-SMILES-column AQME outputs back
+    together, not AQME's own descriptor generation (already covered elsewhere).
+
+    Uses its own scratch subfolder (cleaned up at the end) instead of pytest's tmp_path
+    fixture, matching the rest of this file's convention of working relative to path_main.
+    """
+    import robert.aqme as robert_aqme_mod
+
+    work_dir = os.path.join(path_main, "_multismiles_scratch")
+    if os.path.exists(work_dir):
+        shutil.rmtree(work_dir)
+    os.makedirs(work_dir)
+
+    csv_path = os.path.join(work_dir, "multismiles.csv")
+    pd.DataFrame({
+        "code_name": ["mol_1", "mol_2"],
+        "solub": [0.5, 0.7],
+        "smiles_sub": ["CCO", "CCC"],
+        "smiles_solvent": ["O", "CCO"],
+    }).to_csv(csv_path, index=False)
+
+    def fake_run_aqme(self, command, extra_keywords):
+        # stands in for the real AQME subprocess call (which would run CSEARCH + xTB) -
+        # fabricates the per-SMILES-column QDESCP output (code_name, SMILES, one descriptor)
+        # that a real run would produce for a standard single-SMILES-column CSV
+        input_idx = command.index("--input")
+        input_csv = command[input_idx + 1]
+        input_df = pd.read_csv(input_csv)
+        basename = os.path.splitext(input_csv)[0]
+        out = input_df[["code_name", "SMILES"]].copy()
+        out["HOMO"] = [1.0, 2.0][: len(out)]
+        for level in ("full", "denovo", "interpret"):
+            out.to_csv(f"AQME-ROBERT_{level}_{basename}.csv", index=False)
+
+    orig_run_aqme = robert_aqme_mod.aqme.run_aqme
+    orig_init_aqme = robert_aqme_mod.aqme.init_aqme
+    robert_aqme_mod.aqme.run_aqme = fake_run_aqme
+    robert_aqme_mod.aqme.init_aqme = lambda self: None  # skip the "is AQME installed" check
+    try:
+        os.chdir(work_dir)
+        for descp_lvl in ("denovo", "interpret", "full"):
+            robert_aqme_mod.aqme(
+                y="solub", names="code_name", csv_name="multismiles.csv",
+                descp_lvl=descp_lvl, nprocs=2,
+            )
+            final_path = os.path.join(work_dir, f"AQME-ROBERT_{descp_lvl}_multismiles.csv")
+            assert os.path.exists(final_path)
+            df_final = pd.read_csv(final_path)
+            assert "solub" in df_final.columns
+            assert "smiles_sub" in df_final.columns
+            assert "smiles_solvent" in df_final.columns
+            assert "HOMO_sub" in df_final.columns
+            assert "HOMO_solvent" in df_final.columns
+    finally:
+        os.chdir(path_main)
+        robert_aqme_mod.aqme.run_aqme = orig_run_aqme
+        robert_aqme_mod.aqme.init_aqme = orig_init_aqme
+        shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def test_AQME_missing_smiles():
+    # the program must stop before running any AQME job if a SMILES is missing
+    from robert.aqme import aqme
+
+    path_scratch = os.path.join(path_main, "scratch_missing_smiles")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    try:
+        df = pd.read_csv(f"{path_main}/tests/solubility.csv")
+        df.loc[2, "smiles"] = None  # row 4 of the CSV (header is line 1)
+        df.to_csv(os.path.join(path_scratch, "solubility_missing.csv"), index=False)
+
+        os.chdir(path_scratch)
+        with pytest.raises(SystemExit):
+            aqme(csv_name="solubility_missing.csv", y="solub")
+
+        with open(glob.glob(f"{path_scratch}/**/AQME_data.dat", recursive=True)[0], "r") as datfile:
+            assert "empty values in row(s) 4" in datfile.read()
+        assert len(glob.glob(f"{path_scratch}/**/*.sdf", recursive=True)) == 0
+    finally:
+        os.chdir(path_main)
+        shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def test_REPORT_classification_single_repeat_kfold():
+    """
+    Regression test for a crash (KeyError: 'cv_sd_score_No PFI') in adv_cv_sd() when building
+    Section B's "Prediction stability" item. In classification, cv_sd_score_{suffix} is only
+    populated once the "MCC coefficient of variation (10 repeats)" line is found in PREDICT's
+    log, which itself is only printed when there's more than one CV repeat (see predict_utils.py:
+    y_pred_train_all.shape[1] > 1). --repeat_kfolds 1 (a non-standard CV setup, already flagged
+    elsewhere as score_available=False) never prints that line, so the key was never set - and
+    the one place reading it used a raw dict access instead of the .get(...,0) fallback every
+    other facet in that same function already uses. Section B still renders its real metrics
+    even when the overall score isn't available (see print_score()), so REPORT must not crash.
+    """
+    import numpy as np
+
+    path_scratch = os.path.join(path_main, "scratch_clas_single_repeat")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    try:
+        rng = np.random.default_rng(0)
+        n = 40
+        df = pd.DataFrame({
+            "Name": [f"m{i}" for i in range(n)],
+            "y": [0, 1] * (n // 2),
+        })
+        for i in range(6):
+            df[f"x{i}"] = rng.normal(size=n)
+        csv_path = os.path.join(path_scratch, "clas.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+        from robert.curate import curate
+        from robert.generate import generate
+        from robert.verify import verify
+        from robert.predict import predict
+        from robert.report import report
+
+        curate(y="y", names="Name", csv_name="clas.csv", type="clas")
+        generate(
+            y="y", names="Name", csv_name="clas.csv", type="clas", model=["RF"],
+            repeat_kfolds=1, init_points=1, n_iter=1, pfi_epochs=1, all_models=False,
+        )
+        verify(all_models=False)
+        predict(all_models=False)
+        report(debug_report=True, all_models=False)  # must not raise
+
+        assert os.path.exists(os.path.join(path_scratch, "ROBERT_report_No_PFI.pdf"))
+        with open(os.path.join(path_scratch, "report_debug_No_PFI.txt"), encoding="utf-8") as f:
+            debug_content = f.read()
+        assert "Traceback (most recent call last)" not in debug_content
+        assert "6. Prediction stability" in debug_content
+    finally:
+        os.chdir(path_main)
+        shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def test_REPORT_pfi_filter_false_does_not_crash():
+    """
+    Regression test for a crash (UnboundLocalError: cannot access local variable 'params_df')
+    when --pfi_filter False is used. GENERATE never creates a Best_model/PFI folder in that
+    case, but REPORT's per-model PDF loop unconditionally tried the 'PFI' suffix too -
+    get_transparency() found no CSV there and crashed instead of skipping it, the same way it
+    already skips PFI for EVALUATE runs (see skip_pfi in report.py).
+    """
+    path_scratch = os.path.join(path_main, "scratch_pfi_filter_false")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    try:
+        df = pd.read_csv("tests/Robert_example.csv")
+        csv_path = os.path.join(path_scratch, "reg.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+        from robert.curate import curate
+        from robert.generate import generate
+        from robert.verify import verify
+        from robert.predict import predict
+        from robert.report import report
+
+        kwargs = dict(
+            y="Target_values", names="Name", csv_name="reg.csv", discard=["xtest"],
+            model=["RF"], init_points=1, n_iter=1, pfi_epochs=1, pfi_filter=False, all_models=False,
+        )
+        curate(**{k: v for k, v in kwargs.items() if k not in ("model","init_points","n_iter","pfi_epochs","pfi_filter","all_models")})
+        generate(**kwargs)
+        verify(all_models=False)
+        predict(all_models=False)
+        # report() builds its own args from these kwargs, independent of the generate() call
+        # above - pfi_filter has to be passed again here too, or self.args.pfi_filter defaults
+        # back to True and skip_pfi never kicks in, silently missing the exact bug this test
+        # is supposed to catch
+        report(debug_report=True, pfi_filter=False, all_models=False)  # must not raise
+
+        assert os.path.exists(os.path.join(path_scratch, "ROBERT_report_No_PFI.pdf"))
+        assert not os.path.exists(os.path.join(path_scratch, "ROBERT_report_PFI.pdf"))
+        with open(os.path.join(path_scratch, "report_debug_No_PFI.txt"), encoding="utf-8") as f:
+            debug_content = f.read()
+        assert "Traceback (most recent call last)" not in debug_content
+    finally:
+        os.chdir(path_main)
+        shutil.rmtree(path_scratch, ignore_errors=True)

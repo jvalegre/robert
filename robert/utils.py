@@ -939,8 +939,18 @@ def correlation_filter(self, csv_df):
                 positive_features = [(imp, name) for imp, name in importance_with_names if imp > 0]
                 if len(positive_features) > num_descriptors:
                     descriptors_used[model] = [name for _, name in positive_features[:num_descriptors]]
-                else:
+                elif positive_features:
                     descriptors_used[model] = [name for _, name in positive_features]
+                else:
+                    # no feature had positive importance (plausible on a small/noisy dataset) -
+                    # unlike the RFECV branch below (min_features_to_select=2), this had no
+                    # floor at all, so the model-specific CURATE CSV could end up with ZERO
+                    # descriptor columns, which later crashes GENERATE's StandardScaler with an
+                    # opaque sklearn error ("at least one array or dtype is required") instead
+                    # of a clear message. Fall back to the top-ranked features regardless of
+                    # sign, same floor of 2 (or fewer if there aren't that many to begin with)
+                    min_descriptors = min(2,len(importance_with_names))
+                    descriptors_used[model] = [name for _, name in importance_with_names[:min_descriptors]]
                 
                 # Sort final list alphabetically for consistent ordering in output
                 descriptors_used[model] = sorted(descriptors_used[model])

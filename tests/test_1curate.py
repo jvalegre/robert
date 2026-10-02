@@ -510,3 +510,58 @@ def test_CURATE_invalid_y(test_job, y_values, expected_msg):
     finally:
         os.chdir(path_original)
         shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def test_CURATE_PFI_zero_positive_importance_floor():
+    """
+    Regression test for a real crash: NN/GP's per-model feature selection in
+    correlation_filter() (utils.py) only kept descriptors with POSITIVE permutation importance,
+    with no floor - unlike the RFECV branch used by other models (min_features_to_select=2). If
+    every descriptor happened to have zero/negative importance (plausible on real, noisy data -
+    this is exactly what a user hit), the model-specific CURATE CSV ended up with ZERO
+    descriptor columns, and GENERATE's StandardScaler.fit() later crashed on it with an opaque
+    sklearn error (ValueError: at least one array or dtype is required) instead of a clear one.
+
+    Forces every permutation importance non-positive (monkeypatched, not left to chance) so
+    this doesn't depend on getting unlucky/lucky with random data.
+    """
+    import robert.utils as robert_utils_mod
+
+    path_scratch = os.path.join(os.getcwd(), "scratch_pfi_zero_desc")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    path_original = os.getcwd()
+    try:
+        import numpy as np
+        rng = np.random.default_rng(0)
+        n, p = 15, 6
+        X = rng.normal(size=(n, p))
+        y = rng.normal(size=n)  # pure noise, unrelated to X
+        df = pd.DataFrame(X, columns=[f"d{i}" for i in range(p)])
+        df.insert(0, "y", y)
+        df.insert(0, "Name", [f"m{i}" for i in range(n)])
+        csv_path = os.path.join(path_scratch, "noise.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+
+        class FakePermResult:
+            importances_mean = np.array([-0.01, 0.0, -0.02, -0.005, 0.0, -0.03])
+
+        orig_perm_importance = robert_utils_mod.permutation_importance
+        robert_utils_mod.permutation_importance = lambda *a, **k: FakePermResult()
+        try:
+            curate(y="y", names="Name", csv_name="noise.csv", model=["NN"], rfecv_filter=True)
+        finally:
+            robert_utils_mod.permutation_importance = orig_perm_importance
+
+        nn_csv = glob.glob("CURATE/*_CURATE_NN.csv")
+        assert len(nn_csv) == 1
+        nn_df = pd.read_csv(nn_csv[0])
+        # at least the same floor RFECV uses for the other models (min_features_to_select=2)
+        assert len(nn_df.columns) - 2 >= 2  # minus Name and y
+    finally:
+        os.chdir(path_original)
+        shutil.rmtree(path_scratch, ignore_errors=True)

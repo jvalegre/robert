@@ -391,16 +391,39 @@ class report:
         return sorted(items, key=sort_key)[0]
 
 
+    # a candidate with either score below this is "Very weak" on ROBERT's own scale (see
+    # INTERP_BANDS/EXTRAP_BANDS below) - too weak on that axis to be a sensible "best overall"
+    # pick no matter how good its other axis is
+    OVERALL_FLOOR = 3
+
+    def _pick_best_overall(self,items):
+        """
+        Picks a single overall-best (key, interp, bound, rmse_cv, rmse_bound) candidate,
+        combining Interpolation and Boundary robustness instead of ranking them separately
+        (which could point at two different models/suffixes). A candidate with either score
+        below OVERALL_FLOOR is disqualified first, regardless of how good its other axis is -
+        a model that can't be trusted at all on one axis isn't a safe overall pick just
+        because it excels at the other. Only if NO candidate clears that floor does the floor
+        get dropped entirely and every candidate is ranked by the normal Interpolation-primary
+        cascade (_pick_best_model) - a model that's merely weak on both axes is still a more
+        informative pick than refusing to choose. Classification has no Boundary robustness
+        score at all, so the floor never applies there - callers route that case straight to
+        _pick_best_model() instead of calling this.
+        """
+        survivors = [item for item in items
+                     if item[1] is not None and item[1] >= self.OVERALL_FLOOR
+                     and item[2] is not None and item[2] >= self.OVERALL_FLOOR]
+        pool = survivors if survivors else items
+        return self._pick_best_model(pool,1,2,3)
+
+
     def organize_all_models_pdfs(self):
         """
         Moves every --all_models PDF (one per model x PFI variant) into a REPORT_models/
-        subfolder, then copies back into the working directory only the single best PDF for
-        Interpolation and the single best PDF for Boundary robustness - picked across BOTH
-        models AND PFI variants together (unlike best_models_text(), which picks per suffix),
-        since there should be exactly one "best" PDF per axis in the working directory. Same
-        tie-break cascade as best_models_text(): own score -> other score -> lower RMSE. If
-        the same (model, suffix) wins both axes, only that one PDF ends up back in the
-        working directory
+        subfolder, then copies back into the working directory only the single overall-best
+        PDF - picked across BOTH models AND PFI variants together (unlike best_models_text(),
+        which picks per suffix) via _pick_best_overall(), so there's always exactly one PDF
+        left in the working directory, never two
         """
 
         candidates = []
@@ -415,25 +438,22 @@ class report:
         if not candidates:
             return
 
-        best_interp_pdf = self._pick_best_model(candidates,1,2,3)[0]
         # Boundary robustness isn't defined in classification, so Interpolation decides alone
-        best_bound_pdf = best_interp_pdf if self.all_models_clas else self._pick_best_model(candidates,2,1,4)[0]
+        # (no floor to apply - there's nothing to disqualify a candidate on)
+        if self.all_models_clas:
+            best_pdf = self._pick_best_model(candidates,1,2,3)[0]
+        else:
+            best_pdf = self._pick_best_overall(candidates)[0]
 
         dest_dir = Path('REPORT_models')
         dest_dir.mkdir(exist_ok=True)
         for pdf_name,*_ in candidates:
             shutil.move(pdf_name, str(dest_dir / pdf_name))
 
-        for best_pdf in {best_interp_pdf, best_bound_pdf}:
-            shutil.copy(str(dest_dir / best_pdf), best_pdf)
+        shutil.copy(str(dest_dir / best_pdf), best_pdf)
 
         print(f'\no  All {len(candidates)} model PDFs were moved to REPORT_models/')
-        if self.all_models_clas:
-            print(f'o  {best_interp_pdf} (best for Interpolation) was kept in the working directory')
-        elif best_interp_pdf == best_bound_pdf:
-            print(f'o  {best_interp_pdf} (best for both Interpolation and Boundary robustness) was kept in the working directory')
-        else:
-            print(f'o  {best_interp_pdf} (best for Interpolation) and {best_bound_pdf} (best for Boundary robustness) were kept in the working directory')
+        print(f'o  {best_pdf} (best overall model) was kept in the working directory')
 
 
     def print_header(self,citation_dat):
@@ -1447,11 +1467,9 @@ class report:
     def best_models_text(self,suffix_title):
         """
         Informative-only line (doesn't change which model(s) run through VERIFY/PREDICT/
-        REPORT) showing, for this PFI variant, the best model for Interpolation and the
-        best model for Boundary robustness, picked from the --all_models pre-pass scores
-        collected in self.model_scores (see __init__). Tie-break cascade: own score ->
-        the other score -> lower RMSE (scaled_rmse_cv for Interpolation, average of the
-        Low/High sorted-CV scaled RMSEs for Boundary robustness)
+        REPORT) showing, for this PFI variant, the single overall-best model - same
+        combined-score pick as organize_all_models_pdfs() (see _pick_best_overall()), so this
+        text always names the same model as the PDF that actually gets kept
         """
 
         suffix = suffix_title.replace('_',' ')
@@ -1460,25 +1478,20 @@ class report:
             return ''
 
         # canonical (key, interp, bound, rmse_cv, rmse_bound) shape - same as
-        # organize_all_models_pdfs()'s candidates, so _pick_best_model() can use the exact same
-        # index arguments there instead of a second hand-shifted copy
+        # organize_all_models_pdfs()'s candidates, so _pick_best_model()/_pick_best_overall()
+        # can use the exact same index arguments there instead of a second hand-shifted copy
         items = [(model,vals[0],vals[1],vals[2],vals[3]) for model,vals in scores.items()]
 
         # Boundary robustness isn't defined in classification, so only Interpolation is ranked
         if self.all_models_clas:
-            interp_model = self._pick_best_model(items,1,2,3)[0]
+            best_model = self._pick_best_model(items,1,2,3)[0]
             return (f'<p style="margin-top: 10px; margin-bottom: 0px; font-size: 12.5px;"><i>'
-                    f'Best for Interpolation: <b>{interp_model}</b></i></p>')
+                    f'Best overall model: <b>{best_model}</b></i></p>')
 
-        interp_best = self._pick_best_model(items,1,2,3)
-        bound_best = self._pick_best_model(items,2,1,4)
-        interp_model,interp_vals = interp_best[0],interp_best[1:]
-        bound_model,bound_vals = bound_best[0],bound_best[1:]
+        best_model,interp_val,bound_val,*_ = self._pick_best_overall(items)
 
         return (f'<p style="margin-top: 10px; margin-bottom: 0px; font-size: 12.5px;"><i>'
-                f'Best for Interpolation: <b>{interp_model}</b> (Interpolation {interp_vals[0]}, Boundary robustness {interp_vals[1]})'
-                f'&nbsp;&nbsp;·&nbsp;&nbsp;'
-                f'Best for Boundary robustness: <b>{bound_model}</b> (Boundary robustness {bound_vals[1]}, Interpolation {bound_vals[0]})'
+                f'Best overall model: <b>{best_model}</b> (Interpolation {interp_val}, Boundary robustness {bound_val})'
                 f'</i></p>')
 
 

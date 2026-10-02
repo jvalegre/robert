@@ -341,7 +341,7 @@ class report:
 
                 # create css
                 with open("report.css", "w", encoding="utf-8") as cssfile:
-                    cssfile.write(css_content(csv_name,robert_version))
+                    cssfile.write(css_content(csv_name,robert_version,getattr(self,'eval_only',False)))
 
                 pdf_name = PDF_NAMES[suffix] if model_name is None else f'ROBERT_report_{model_name}_{suffix_title}.pdf'
 
@@ -466,10 +466,15 @@ class report:
         Retrieves the header for the HTML string
         """
 
+        # EVALUATE scores a model the user already chose (not one ROBERT's own Bayesian search
+        # picked), so its reports use the CheckML logo instead of ROBERT's, to visually tell
+        # the two apart at a glance
+        logo_name = 'CheckML_logo.jpg' if getattr(self,'eval_only',False) else 'Robert_logo.jpg'
+
         # combines the top image with the other sections of the header
         header_lines = f"""
             <h1 style="text-align: center; margin-bottom: 0.5em;">
-                <img src="file:///{self._posix_uri(self.args.path_icons)}/Robert_logo.jpg" alt="" style="display: block; margin-left: auto; margin-right: auto; width: 50%; margin-top: -12px;" />
+                <img src="file:///{self._posix_uri(self.args.path_icons)}/{logo_name}" alt="" style="display: block; margin-left: auto; margin-right: auto; width: 50%; margin-top: -12px;" />
                 <span style="font-weight:bold;"></span>
             </h1>
             {citation_dat}

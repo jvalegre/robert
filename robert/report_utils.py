@@ -1707,10 +1707,15 @@ def make_pdf(html, HTML, css_files):
     return htmldoc
 
 
-def css_content(csv_name,robert_version):
+def css_content(csv_name,robert_version,eval_only=False):
     """
-    Obtain ROBERT version and CSV name to use it on top of the PDF report
+    Obtain ROBERT version and CSV name to use it on top of the PDF report. eval_only=True
+    (EVALUATE reports, scoring a model the user already chose) shows "CheckML Report" in the
+    top-left running header instead of "ROBERT Report", matching the CheckML logo used in
+    print_header() for the same reports.
     """
+
+    report_title = 'CheckML Report' if eval_only else 'ROBERT Report'
 
     css_content = f"""
     body {{
@@ -1759,7 +1764,7 @@ def css_content(csv_name,robert_version):
             transform: translateY(40pt);
         }}  
         @top-left {{
-            content: "ROBERT Report";
+            content: "{report_title}";
             font-size: 8pt;
             font-weight:bold;
             position: fixed;

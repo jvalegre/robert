@@ -63,12 +63,20 @@ def test_PREDICT(test_job):
             "-m",
             "robert",
             "--predict",
+            # all_models defaults to True now (see the design discussion in generate.py) -
+            # this test asserts against the single-best-model PREDICT files, not per-model
+            # ones, so it's pinned to the old behavior
+            "--all_models",
+            "False",
         ]
 
         subprocess.run(cmd_robert)
 
     else:
-        predict_kwargs = {}
+        # all_models defaults to True now (see the design discussion in generate.py) - this
+        # test asserts against the single-best-model PREDICT files, not per-model ones, so
+        # it's pinned to the old behavior
+        predict_kwargs = {"all_models": False}
 
         if test_job == "t_value":
             predict_kwargs["t_value"] = 4
@@ -92,7 +100,7 @@ def test_PREDICT(test_job):
         if " - Training points:" in line:
             proportion_found = True
             if test_job == "clas":
-                data_points = [29, 8]
+                data_points = [30, 7]
             else:
                 data_points = [30, 7]
             assert f"- Training points: {data_points[0]}" in line
@@ -163,13 +171,25 @@ def test_PREDICT(test_job):
     if test_job == "clas":
         assert len(glob.glob(os.path.join(path_predict, "*.png"))) == 12
     else:
-        assert len(glob.glob(os.path.join(path_predict, "*.png"))) == 14
+        assert len(glob.glob(os.path.join(path_predict, "*.png"))) == 24
     if test_job == "csv_test":
         assert len(glob.glob(os.path.join(path_predict, "csv_test", "*.png"))) == 2
         assert len(glob.glob(os.path.join(path_predict, "csv_test", "*.csv"))) == 2
 
     assert len(glob.glob(os.path.join(path_predict, "*.dat"))) == 1
-    assert len(glob.glob(os.path.join(path_predict, "*.csv"))) == 2
+    all_csvs = glob.glob(os.path.join(path_predict, "*.csv"))
+    prediction_csvs = [
+        path for path in all_csvs
+        if not os.path.basename(path).startswith("Results_boundary_williams_")
+    ]
+    assert len(prediction_csvs) == 2
+    assert any(path.endswith("_No_PFI.csv") for path in prediction_csvs)
+    assert any(path.endswith("_PFI.csv") and not path.endswith("_No_PFI.csv") for path in prediction_csvs)
+    williams_csvs = glob.glob(
+        os.path.join(path_predict, "Results_boundary_williams_*.csv")
+    )
+    assert len(williams_csvs) == (0 if test_job == "clas" else 2)
+    assert len(all_csvs) == len(prediction_csvs) + len(williams_csvs)
 
     if test_job == "clas":  # rename folders back to their original names
         # rename the classification GENERATE folder

@@ -5,11 +5,8 @@ This module provides a lightweight abstraction to load the GUI entry class
 without triggering Qt initialization at import time.
 
 Execution modes:
-- Portable mode (local execution):
-  The GUI is loaded from the local folder structure (`main.window`).
-- Installed package mode:
-  The GUI is loaded from the installed package
-  (`robert.gui_easyrob.main.window`).
+- Installed package mode loads `robert.gui_easyrob.main.window` first.
+- Portable mode falls back to the local `main.window` module.
 
 Rationale:
 - Keeps GUI imports deferred to avoid issues with QApplication initialization.
@@ -25,8 +22,8 @@ Note:
 def get_main_window_class():
     """Factory function to retrieve the main application window class."""
     try:
-        from main.window import EasyROB
-    except ImportError:
         from robert.gui_easyrob.main.window import EasyROB
+    except ImportError:
+        from main.window import EasyROB
 
     return EasyROB

@@ -1,0 +1,4 @@
+[
+  {"id":"aqme-deep","questions":["How does AQME calculate Boltzmann-averaged QDESCP descriptors? Explain without Python and cite its official documentation.","What is the difference between atomic and molecular descriptors, and when would I use each?"],"review":"Search official AQME Read the Docs, cite actual returned pages, distinguish molecule-level and atom-level properties, explain plainly without inventing GUI controls."},
+  {"id":"robert-deep","questions":["Why does ROBERT use y-shuffle and y-mean in VERIFY? What do failed tests tell me? Cite the official documentation.","¿Cómo funciona la validación cruzada de ROBERT y por qué no basta con mirar el error de entrenamiento?"],"review":"Search official ROBERT Read the Docs; explain validation without code, avoid claiming a diagnosis for this dataset, cite actual sources and keep the final response in Spanish."}
+]

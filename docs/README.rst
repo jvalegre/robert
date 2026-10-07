@@ -140,7 +140,7 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
 **1.** Create and activate the conda environment where you want to install the program. If you are not sure of what 
-this point means, check out the "Users with no Python experience" section. It only works with Python 3.11 or 3.12:
+this point means, check out the "Users with no Python experience" section. It only works with Python 3.12 or 3.13:
 
 .. code-block:: shell 
    
@@ -441,11 +441,15 @@ Reference
 
 .. reference-start
 
-If you use any of the ROBERT modules, please include this citation:  
+If you use any of the ROBERT modules, please include this citation:
 
-* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *14*, e1733. 
+* Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2024**, *14*, e1733.
 
-If you use the AQME module, please include this citation:  
+If you use ROBERT in low-data regimes, please also include this citation:
+
+* Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Machine learning workflows beyond linear models in low-data regimes. *Chem. Sci.* **2025**, *16*, 8555–8560.
+
+If you use the AQME module, please include this citation:
 
 * Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. *Wiley Interdiscip. Rev. Comput. Mol. Sci.* **2023**, *13*, e1663.
 

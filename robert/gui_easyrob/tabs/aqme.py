@@ -122,6 +122,11 @@ class AQMETab(QWidget):
         self.main_tab_widget = tab_parent # Reference to the main QTabWidget
         self.main_window = main_window  # Reference to the main window, accessible to csv_df, csv_path, etc... 
         self.selected_atoms = []
+        self.smarts_targets = []
+        self.unified_smiles = []
+        self.bot_context_message = ""
+        self.bot_context_tooltip = ""
+        self.bot_context_info = ""
         self.box_features = "QGroupBox { font-weight: bold; }"
 
         # === Main vertical layout ===
@@ -285,6 +290,8 @@ class AQMETab(QWidget):
 
     def set_mol_viewer_message(self, message, tooltip=None):
         """Display a styled message in the molecule viewer, with optional tooltip."""
+        self.bot_context_message = str(message or "")
+        self.bot_context_tooltip = str(tooltip or "")
         self.mol_viewer.setText(message)
         self.mol_viewer.setToolTip(tooltip if tooltip else "")
         self.mol_viewer.setStyleSheet("""
@@ -319,6 +326,9 @@ class AQMETab(QWidget):
         self.mcs_worker = None
         self.smarts_targets.append(smarts)
         self.mol_info_label.setText("🔬 Info here")
+        self.bot_context_message = ""
+        self.bot_context_tooltip = ""
+        self.bot_context_info = "🔬 Info here"
         self.display_molecule()
 
     def _on_mcs_error(self, message):
@@ -329,6 +339,7 @@ class AQMETab(QWidget):
             tooltip="SMARTS pattern detection failed."
         )
         self.mol_info_label.setText("🔬 Info here")
+        self.bot_context_info = "🔬 Info here"
 
     def _on_mcs_timeout(self):
         """Handle MCS detection timeout."""
@@ -338,6 +349,7 @@ class AQMETab(QWidget):
             tooltip="SMARTS pattern detection failed."
         )
         self.mol_info_label.setText("🔬 Info here")
+        self.bot_context_info = "🔬 Info here"
 
     def build_unified_smiles_context(self, train_csv_path, test_csv_path=None):
         """
@@ -514,12 +526,14 @@ class AQMETab(QWidget):
             if not self.smarts_targets:
                 self.set_mol_viewer_message("⚠️ No SMARTS patterns available.")
                 self.mol_info_label.setText("🔬 Info here")
+                self.bot_context_info = "🔬 Info here"
                 return
 
             pattern_mol = Chem.MolFromSmarts(self.smarts_targets[0])
             if pattern_mol is None:
                 self.set_mol_viewer_message("⚠️ Invalid SMARTS pattern.")
                 self.mol_info_label.setText("🔬 Info here")
+                self.bot_context_info = "🔬 Info here"
                 return
 
             self.multiple_matches_detected = False
@@ -530,6 +544,7 @@ class AQMETab(QWidget):
                     "⚠️ No molecules available for pattern matching."
                 )
                 self.mol_info_label.setText("🔬 Info here")
+                self.bot_context_info = "🔬 Info here"
                 return
 
             for smiles in unified_smiles:
@@ -561,6 +576,7 @@ class AQMETab(QWidget):
                             f"'{smiles}'. Atomic descriptor selection has been disabled to avoid ambiguity."
                         )
                         self.mol_info_label.setText("🔬 Info here")
+                        self.bot_context_info = "🔬 Info here"
                         return
 
             self.mol = pattern_mol
@@ -587,33 +603,44 @@ class AQMETab(QWidget):
                 if pixmap.isNull():
                     self.set_mol_viewer_message("⚠️ Could not render molecule image.")
                     self.mol_info_label.setText("🔬 Info here")
+                    self.bot_context_info = "🔬 Info here"
                 else:
                     self.mol_viewer.setPixmap(pixmap)
+                    self.bot_context_message = (
+                        f"SMARTS pattern loaded for common substructure `{self.smarts_targets[0]}`."
+                    )
+                    self.bot_context_tooltip = ""
 
                     if self.metal_found and self.multiple_matches_detected:
-                        self.mol_info_label.setText(
+                        info_text = (
                             '🧪 <b>SMARTS pattern loaded. Metal atom(s) automatically selected.</b><br>'
                             '<span style="color:red;">⚠️ Multiple matches were found. '
                             'Atomic descriptors will be generated for the detected metal atom(s). '
                             'Manual atom selection has been disabled to avoid ambiguity.</span>'
                         )
+                        self.mol_info_label.setText(info_text)
+                        self.bot_context_info = info_text
                     elif self.metal_found and not self.selected_atoms:
-                        self.mol_info_label.setText(
+                        info_text = (
                             '🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>'
                             '<span style="color:red;">⚠️ No atoms selected. '
                             'Descriptors will only be generated for the detected metal.</span>'
                         )
+                        self.mol_info_label.setText(info_text)
+                        self.bot_context_info = info_text
                     else:
                         if highlight_atoms:
-                            self.mol_info_label.setText(
-                                f"🔬 {len(highlight_atoms)} atom(s) selected."
-                            )
+                            info_text = f"🔬 {len(highlight_atoms)} atom(s) selected."
+                            self.mol_info_label.setText(info_text)
+                            self.bot_context_info = info_text
                         else:
-                            self.mol_info_label.setText(
+                            info_text = (
                                 '🧪 <b>SMARTS pattern loaded. Click to select atoms.</b><br>'
                                 '<span style="color:red;">⚠️ WARNING! No atoms selected. '
                                 'Atomic descriptors will not be generated.</span>'
                             )
+                            self.mol_info_label.setText(info_text)
+                            self.bot_context_info = info_text
 
         except Exception as e:
             self.set_mol_viewer_message(
@@ -621,6 +648,7 @@ class AQMETab(QWidget):
                 tooltip=str(e)
             )
             self.mol_info_label.setText("🔬 Info here")
+            self.bot_context_info = "🔬 Info here"
 
     def _prepare_pattern_molecule_for_drawing(self, pattern_mol, selected_atoms=None):
         """Return a copy of the SMARTS pattern with visible atom-order labels."""

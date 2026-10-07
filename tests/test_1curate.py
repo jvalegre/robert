@@ -101,17 +101,20 @@ def test_CURATE(test_job):
             # check that descriptors are removed correctly
             model_dict = {
                 "RF": {
-                    "accepted_vars": ["x10", "x2", "x5", "x7", "x9"],
-                    "discarded_vars": [
+                    "accepted_vars": [
                         "Csub-Csub",
                         "Csub-H",
                         "H-O",
+                        "x10",
                         "x11",
+                        "x2",
+                        "x5",
+                        "x7",
                         "x8",
+                        "x9",
                         "ynoise",
-                        "x4",
-                        "xtest",
                     ],
+                    "discarded_vars": ["x4", "xtest"],
                 },
                 "GB": {
                     "accepted_vars": [
@@ -124,9 +127,10 @@ def test_CURATE(test_job):
                         "x5",
                         "x7",
                         "x8",
+                        "x9",
                         "ynoise",
                     ],
-                    "discarded_vars": ["x9", "x4", "xtest"],
+                    "discarded_vars": ["x4", "xtest"],
                 },
                 "NN": {
                     "accepted_vars": [
@@ -322,12 +326,14 @@ def test_CURATE(test_job):
                 "thres_x": 0.999,
                 "corr_filter_y": True,
                 "thres_y": 0.000001,
+                "rfecv_filter": False,
             }
 
         elif test_job == "filter_thres_yaml":
             filter_thres_kwargs = {
                 "varfile": f"{path_tests}/params.yaml",
                 "csv_name": f"{path_tests}/Robert_example.csv",
+                "rfecv_filter": False,
             }
         _ = curate(**filter_thres_kwargs)
 
@@ -463,3 +469,101 @@ def test_CURATE(test_job):
         accepted_vars = ["V_Bur", "dist", "rando1", "rando2", "rando3", "rando4"]
         for var in accepted_vars:
             assert var in db_final.columns
+
+
+# tests that CURATE stops (instead of failing later or silently dropping rows) if the y column has
+# invalid values. They run in a scratch folder to avoid touching the CURATE folder used by other tests
+@pytest.mark.parametrize(
+    "test_job, y_values, expected_msg",
+    [
+        # empty y value (row 4 of the CSV: header is line 1)
+        ("y_empty", ["1.5", "2.5", "", "4.5", "5.5", "6.5"], "empty values in row(s) 4"),
+        # y mixing numbers and text (row 3 of the CSV)
+        ("y_mixed", ["1.5", "2.5", "abc", "4.5", "5.5", "6.5"], "mixes numbers and text"),
+    ],
+)
+def test_CURATE_invalid_y(test_job, y_values, expected_msg):
+    path_scratch = os.path.join(os.getcwd(), f"scratch_{test_job}")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    path_original = os.getcwd()
+    try:
+        df = pd.DataFrame(
+            {
+                "Name": range(1, len(y_values) + 1),
+                "y": y_values,
+                "x1": [1.0, 2.1, 2.9, 4.2, 5.1, 5.8],
+                "x2": [6.0, 5.2, 4.1, 3.3, 2.0, 1.4],
+            }
+        )
+        csv_path = os.path.join(path_scratch, "invalid_y.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+        with pytest.raises(SystemExit):
+            curate(y="y", csv_name="invalid_y.csv", names="Name")
+
+        # the program must stop with a clear message and without creating any output
+        with open(glob.glob(f"{path_scratch}/**/CURATE_data.dat", recursive=True)[0], "r") as datfile:
+            assert expected_msg in datfile.read()
+        assert len(glob.glob(f"{path_scratch}/**/*_CURATE*.csv", recursive=True)) == 0
+    finally:
+        os.chdir(path_original)
+        shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def test_CURATE_PFI_zero_positive_importance_floor():
+    """
+    Regression test for a real crash: NN/GP's per-model feature selection in
+    correlation_filter() (utils.py) only kept descriptors with POSITIVE permutation importance,
+    with no floor - unlike the RFECV branch used by other models (min_features_to_select=2). If
+    every descriptor happened to have zero/negative importance (plausible on real, noisy data -
+    this is exactly what a user hit), the model-specific CURATE CSV ended up with ZERO
+    descriptor columns, and GENERATE's StandardScaler.fit() later crashed on it with an opaque
+    sklearn error (ValueError: at least one array or dtype is required) instead of a clear one.
+
+    Forces every permutation importance non-positive (monkeypatched, not left to chance) so
+    this doesn't depend on getting unlucky/lucky with random data.
+    """
+    import robert.utils as robert_utils_mod
+
+    path_scratch = os.path.join(os.getcwd(), "scratch_pfi_zero_desc")
+    if os.path.exists(path_scratch):
+        shutil.rmtree(path_scratch)
+    os.makedirs(path_scratch)
+
+    path_original = os.getcwd()
+    try:
+        import numpy as np
+        rng = np.random.default_rng(0)
+        n, p = 15, 6
+        X = rng.normal(size=(n, p))
+        y = rng.normal(size=n)  # pure noise, unrelated to X
+        df = pd.DataFrame(X, columns=[f"d{i}" for i in range(p)])
+        df.insert(0, "y", y)
+        df.insert(0, "Name", [f"m{i}" for i in range(n)])
+        csv_path = os.path.join(path_scratch, "noise.csv")
+        df.to_csv(csv_path, index=False)
+
+        os.chdir(path_scratch)
+
+        class FakePermResult:
+            importances_mean = np.array([-0.01, 0.0, -0.02, -0.005, 0.0, -0.03])
+
+        orig_perm_importance = robert_utils_mod.permutation_importance
+        robert_utils_mod.permutation_importance = lambda *a, **k: FakePermResult()
+        try:
+            curate(y="y", names="Name", csv_name="noise.csv", model=["NN"], rfecv_filter=True)
+        finally:
+            robert_utils_mod.permutation_importance = orig_perm_importance
+
+        nn_csv = glob.glob("CURATE/*_CURATE_NN.csv")
+        assert len(nn_csv) == 1
+        nn_df = pd.read_csv(nn_csv[0])
+        # at least the same floor RFECV uses for the other models (min_features_to_select=2)
+        assert len(nn_df.columns) - 2 >= 2  # minus Name and y
+    finally:
+        os.chdir(path_original)
+        shutil.rmtree(path_scratch, ignore_errors=True)

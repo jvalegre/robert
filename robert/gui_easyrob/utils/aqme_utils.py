@@ -36,10 +36,15 @@ from PySide6.QtCore import QObject, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QLabel,
-    QMessageBox,
+    QMessageBox as QtMessageBox,
     QPushButton,
     QVBoxLayout,
 )
+
+try:
+    from .utils_gui import QMessageBox
+except ImportError:
+    QMessageBox = QtMessageBox
 
 # ------------------------------------------------------------
 # Local imports

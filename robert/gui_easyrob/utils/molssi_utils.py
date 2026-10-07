@@ -255,7 +255,10 @@ def _prepare_export(df_work, df_api, smiles_col, library, data_type, original_in
             if not only_smiles_input:
                 export_df = export_df.drop(columns=["molecule_id"])
 
-        export_available = _molssi_test_dataset_available(library)
+        export_available = (
+            library.lower() != "kraken"
+            and _molssi_test_dataset_available(library)
+        )
         return {
             "available": True,
             "export_available": export_available,

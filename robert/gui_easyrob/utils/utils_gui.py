@@ -52,7 +52,7 @@ from importlib.resources import as_file, files
 import pandas as pd
 import matplotlib.pyplot as plt
 import psutil
-import fitz
+import pymupdf as fitz
 
 import rdkit
 from rdkit import Chem
@@ -101,6 +101,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -115,14 +116,17 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
-    QMessageBox,
+    QMessageBox as QtMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QSlider,
+    QSplitter,
+    QSpinBox,
     QStackedWidget,
     QStatusBar,
     QStyle,
@@ -136,6 +140,105 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+class QMessageBox(QtMessageBox):
+    """Window-modal message box wrapper so floating helper windows stay usable."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setWindowModality(Qt.WindowModal)
+
+    @classmethod
+    def _build_box(
+        cls,
+        parent,
+        icon,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        box = cls(parent)
+        box.setIcon(icon)
+        box.setWindowTitle(str(title or ""))
+        box.setText(str(text or ""))
+        box.setStandardButtons(buttons)
+        if default_button != QtMessageBox.NoButton:
+            box.setDefaultButton(default_button)
+        return box
+
+    @classmethod
+    def information(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Information,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
+
+    @classmethod
+    def warning(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Warning,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
+
+    @classmethod
+    def critical(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.Ok,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Critical,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
+
+    @classmethod
+    def question(
+        cls,
+        parent,
+        title,
+        text,
+        buttons=QtMessageBox.StandardButton.Yes | QtMessageBox.StandardButton.No,
+        default_button=QtMessageBox.NoButton,
+    ):
+        return cls._build_box(
+            parent,
+            cls.Question,
+            title,
+            text,
+            buttons=buttons,
+            default_button=default_button,
+        ).exec()
 
 class DropLabel(QFrame):
     """Frame-based drop target with an optional file dialog button."""
@@ -253,17 +356,32 @@ class RobertWorker(QThread):
     def run(self):
         """Run the subprocess and stream output in real-time."""
         try:
+            process_env = os.environ.copy()
+            process_env["PYTHONIOENCODING"] = "utf-8"
             if self.is_windows:
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+
                 self.process = subprocess.Popen(
                     shlex.split(self.command),
                     cwd=self.working_dir,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    # Keep both reader threads alive when child output contains invalid bytes.
+                    encoding="utf-8",
+                    errors="replace",
+                    env=process_env,
                     bufsize=1,
                     universal_newlines=True,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW,
+                    startupinfo=startupinfo,
+                    creationflags=(
+                        subprocess.CREATE_NEW_PROCESS_GROUP
+                        | subprocess.CREATE_NEW_CONSOLE
+                    ),
                 )
+
             else:
                 self.process = subprocess.Popen(
                     shlex.split(self.command),
@@ -271,6 +389,9 @@ class RobertWorker(QThread):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=process_env,
                     bufsize=1,
                     universal_newlines=True,
                     preexec_fn=os.setsid,
@@ -345,6 +466,83 @@ class RobertWorker(QThread):
         except Exception as exc:
             self.error_received.emit(f"Error stopping process: {exc}")
 
+
+class CSVPreflightWorker(QThread):
+    """QThread that validates CSV accessibility before launching ROBERT."""
+
+    validation_finished = Signal(dict)
+
+    def __init__(self, csv_entries):
+        super().__init__()
+        self.csv_entries = list(csv_entries or [])
+
+    @staticmethod
+    def _resolve_path(path_value: str) -> str:
+        try:
+            return str(Path(path_value).expanduser().resolve(strict=False))
+        except OSError:
+            return os.path.abspath(path_value)
+
+    def run(self):
+        """Check CSV paths for long-path and permission-denied conditions."""
+        for csv_label, csv_path in self.csv_entries:
+            if not csv_path:
+                continue
+
+            resolved_path = self._resolve_path(csv_path)
+
+            if len(resolved_path) > 200:
+                self.validation_finished.emit(
+                    {
+                        "ok": False,
+                        "title": "WARNING!",
+                        "message": (
+                            f"The path of your {csv_label} is longer than 200 characters:\n\n"
+                            f"{resolved_path}\n\n"
+                            "To avoid problems in the workflow, move the file to a shorter path and try again."
+                        ),
+                    }
+                )
+                return
+
+            try:
+                with open(resolved_path, "r", encoding="utf-8"):
+                    pass
+            except PermissionError:
+                self.validation_finished.emit(
+                    {
+                        "ok": False,
+                        "title": "WARNING!",
+                        "message": (
+                            f"ROBERT could not access your {csv_label}:\n\n"
+                            f"{resolved_path}\n\n"
+                            "Close the CSV file, pause OneDrive, or close any app that might be using the file, and try again."
+                        ),
+                    }
+                )
+                return
+            except OSError:
+                continue
+
+        self.validation_finished.emit({"ok": True})
+
+
+def warn_if_csv_name_has_spaces(parent, file_path, what="CSV", title="WARNING!"):
+    """ROBERT can't use CSV files with spaces in their name (spaces in the folders are fine) and
+    it exits with code 0 when it stops for that reason, so the user is warned as soon as the file
+    is picked. Returns True if the name has spaces."""
+    file_name = os.path.basename(file_path)
+    if " " not in file_name:
+        return False
+    QMessageBox.warning(
+        parent, title,
+        f"The {what} file name contains spaces:\n{file_name}\n\n"
+        "ROBERT can't use CSV files with spaces in their name. Please rename it "
+        "(i.e., 'my_data.csv' instead of 'my data.csv') and select it again."
+    )
+    return True
+
+
 def smart_read_csv(filepath):
     """Read a CSV file with automatic delimiter detection."""
     try:
@@ -364,6 +562,138 @@ class NoScrollComboBox(QComboBox):
             super().wheelEvent(event)
         else:
             event.ignore()
+
+class SegmentedButtonGroup(QWidget):
+    """
+    A grid of mutually-exclusive checkable buttons, used instead of a QComboBox dropdown
+    for choices that should always be visible at a glance (a dropdown hides every option but
+    the current one behind a click, which is easy to miss or mis-select).
+
+    Exposes the same currentText()/setCurrentText() surface a QComboBox does, so it's a
+    drop-in replacement for call sites that only ever read/set the selection as a string -
+    the widget itself doesn't need to know about them.
+    """
+
+    def __init__(self, options, columns=3, parent=None):
+        super().__init__(parent)
+
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+        self._buttons = {}
+        self._options = list(options)
+
+        layout = QGridLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        # the checked state uses a neutral light-gray highlight (not the purple "Run ROBERT"
+        # uses) so this selection marker doesn't visually compete with that actual action button
+        button_style = """
+            QPushButton {
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                padding: 3px 2px;
+                font-size: 12px;
+                background: palette(base);
+            }
+            QPushButton:hover {
+                background: palette(light);
+            }
+            QPushButton:checked {
+                background-color: #D6D6D6;
+                color: palette(text);
+                font-weight: bold;
+                border: 1px solid #999999;
+            }
+            """
+
+        for i, option in enumerate(options):
+            button = QPushButton(option)
+            button.setCheckable(True)
+            button.setFixedHeight(26)
+            button.setStyleSheet(button_style)
+            self._group.addButton(button)
+            self._buttons[option] = button
+            row, col = divmod(i, columns)
+            layout.addWidget(button, row, col)
+
+        if options:
+            self._buttons[options[0]].setChecked(True)
+
+    def currentText(self):
+        checked = self._group.checkedButton()
+        return checked.text() if checked else ""
+
+    def setCurrentText(self, text):
+        button = self._buttons.get(text)
+        if button is not None:
+            button.setChecked(True)
+
+    def count(self):
+        return len(self._options)
+
+    def itemText(self, index):
+        return self._options[index]
+
+class YesNoToggle(QWidget):
+    """
+    An explicit "No"/"Yes" segmented pair for a boolean choice, used instead of a single
+    checkable button whose on/off state isn't obvious at a glance (is it a toggle? does
+    clicking it run something right away?). Exposes the same isChecked()/setChecked() surface
+    a QCheckBox/checkable QPushButton does, plus a toggled(bool) signal, so it's a drop-in
+    replacement for call sites built around that API.
+    """
+
+    toggled = Signal(bool)
+
+    def __init__(self, checked=False, parent=None):
+        super().__init__(parent)
+
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        button_style = """
+            QPushButton {
+                border: 1px solid palette(mid);
+                border-radius: 4px;
+                padding: 3px 2px;
+                font-size: 12px;
+                background: palette(base);
+            }
+            QPushButton:hover {
+                background: palette(light);
+            }
+            QPushButton:checked {
+                background-color: #D6D6D6;
+                color: palette(text);
+                font-weight: bold;
+                border: 1px solid #999999;
+            }
+            """
+
+        self._no_button = QPushButton("No")
+        self._yes_button = QPushButton("Yes")
+        for button in (self._no_button, self._yes_button):
+            button.setCheckable(True)
+            button.setFixedHeight(26)
+            button.setStyleSheet(button_style)
+            self._group.addButton(button)
+            layout.addWidget(button)
+
+        self._no_button.setChecked(not checked)
+        self._yes_button.setChecked(checked)
+        self._yes_button.toggled.connect(self.toggled.emit)
+
+    def isChecked(self):
+        return self._yes_button.isChecked()
+
+    def setChecked(self, checked):
+        self._yes_button.setChecked(checked)
+        self._no_button.setChecked(not checked)
 
 class AssetPath:
     """Resolve asset paths both in development and in frozen distributions."""

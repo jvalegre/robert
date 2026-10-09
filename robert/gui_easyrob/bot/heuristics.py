@@ -584,6 +584,35 @@ def _format_live_gui_state_answer(question: str, snapshot: GuiSnapshot) -> str |
         value = snapshot.active_tab or "unknown"
         return f"La pestaña activa es **{value}**." if spanish else f"The active tab is **{value}**."
 
+    stage_status_hint = current_hint or bool(re.search(
+        r"\b(va|vamos|fallo|failed|finished|completad[oa])\b", normalized,
+    ))
+    if stage_status_hint and re.search(r"\b(stage|step|etapa|paso|fase)\b", normalized) and snapshot.workflow_stage_states:
+        active = [stage for stage, state in snapshot.workflow_stage_states if state == "active"]
+        failed = [stage for stage, state in snapshot.workflow_stage_states if state == "failed"]
+        completed = [stage for stage, state in snapshot.workflow_stage_states if state == "done"]
+        if failed:
+            stage = failed[0]
+            return f"La etapa **{stage}** ha fallado." if spanish else f"**{stage}** has failed."
+        if active:
+            stage = active[0]
+            return f"La etapa activa es **{stage}**." if spanish else f"The active stage is **{stage}**."
+        if completed:
+            stage = completed[-1]
+            return f"La última etapa completada es **{stage}**." if spanish else f"The last completed stage is **{stage}**."
+
+    if current_hint and re.search(r"\b(model|modelo)\b", normalized):
+        if snapshot.active_tab == "Results" and snapshot.result_model:
+            model = snapshot.result_model
+            variants = "; ".join(
+                f"{variant}: {name}" for variant, name in snapshot.result_selected_variants
+            )
+            detail = f" ({variants})" if variants else ""
+            return f"En Results está seleccionado **{model}**{detail}." if spanish else f"Results has **{model}** selected{detail}."
+        if snapshot.active_tab == "Check model" and snapshot.evaluate_model_source:
+            model = snapshot.evaluate_model_name or snapshot.evaluate_model_source
+            return f"En Check model está seleccionado **{model}**." if spanish else f"Check model has **{model}** selected."
+
     if "workflow" in normalized and current_hint:
         value = snapshot.workflow or "unknown"
         return (

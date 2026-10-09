@@ -46,6 +46,8 @@ SUGGESTED_QUESTIONS = (
     "How do I start from ChemDraw?",
     "How do I make predictions for new molecules?",
     "How do I generate descriptors without training a model?",
+    "How do I check my own machine learning model?",
+    "How do I use robBOT?",
 )
 SUGGESTED_TUTORIAL_IDS = (
     "overview",
@@ -53,6 +55,8 @@ SUGGESTED_TUTORIAL_IDS = (
     "chemdraw",
     "predictions",
     "descriptors",
+    "check_model",
+    "robbot",
 )
 
 from .answer_metadata import AnswerMetadata, EvidenceOrigin, SourceCitation

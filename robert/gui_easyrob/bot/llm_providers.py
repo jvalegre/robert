@@ -289,6 +289,16 @@ def _format_snapshot_for_intent(snapshot: GuiSnapshot, question_intent: str) -> 
         lines.append(f"- Ignored columns: {', '.join(snapshot.ignored_columns)}")
     if snapshot.advanced_settings and question_intent in {"diagnostic", "tutorial", "parameter"}:
         lines.append(f"- Advanced settings: {'; '.join(snapshot.advanced_settings)}")
+    if snapshot.workflow_stage_states:
+        lines.append("- Workflow progress: " + "; ".join(
+            f"{stage}={state}" for stage, state in snapshot.workflow_stage_states
+        ))
+    if snapshot.evaluate_model_source:
+        lines.append(f"- Check ML model source: {snapshot.evaluate_model_source}")
+    if snapshot.evaluate_model_name:
+        lines.append(f"- Check ML estimator: {snapshot.evaluate_model_name}")
+    if snapshot.evaluate_model_settings:
+        lines.append(f"- Check ML model settings: {'; '.join(snapshot.evaluate_model_settings)}")
     popup_is_stale = (
         not snapshot.popup_active
         and snapshot.popup_age_seconds is not None
@@ -344,6 +354,12 @@ def _format_snapshot_for_intent(snapshot: GuiSnapshot, question_intent: str) -> 
         lines.append(f"- Results model selection: {snapshot.result_model}")
     if snapshot.result_models:
         lines.append(f"- Available result models: {', '.join(snapshot.result_models)}")
+    if snapshot.result_root_reports:
+        lines.append(f"- Reports kept in the run folder: {', '.join(snapshot.result_root_reports)}")
+    if snapshot.result_archived_report_count:
+        lines.append(f"- Reports in REPORT_models: {snapshot.result_archived_report_count}")
+    if len(snapshot.result_root_reports) == 1 and snapshot.result_archived_report_count:
+        lines.append("- Result layout: the sole root report is the overall-best model and variant; REPORT_models stores the archived reports selectable by model.")
     if snapshot.result_selected_variants:
         lines.append("- Selected result variants: " + "; ".join(
             f"{variant}={model}" for variant, model in snapshot.result_selected_variants

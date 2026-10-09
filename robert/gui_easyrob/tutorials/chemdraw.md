@@ -1,115 +1,49 @@
-In this tutorial we start from molecular structures created
-in <b>ChemDraw</b>.<br><br>
-
-ChemDraw files contain only chemical structures, without
-descriptors or datasets.<br><br>
-
-easyROB can read these structures, convert them into a dataset,
-and then use them to train a machine learning model.
+<b>Goal: turn drawings into a modelling dataset.</b><br><br>This example starts with structures saved from ChemDraw as CDXML. easyROB extracts the molecules, lets you add identifiers and target values, saves a CSV, and can then calculate descriptors with AQME before ROBERT builds a model.
 
 ---
 
-First, enable the <b>AQME Workflow</b> to unlock the
-<b>AQME</b> tab.<br><br>
-
-This tab contains the tools required to process ChemDraw
-files and convert them into a dataset that can be used
-for modelling.
+<b>Enable AQME first.</b><br><br>On <b>ROBERT</b>, choose <b>Yes</b> for <b>Start by calculating descriptors from SMILES? (AQME)</b>. This unlocks the AQME tab. Keep it enabled for the later full workflow because the converted structures still need descriptors.
 
 ---
 
-In the <b>AQME</b> tab, click
-<b>Generate CSV from ChemDraw files</b>.<br><br>
-
-This option converts ChemDraw structures into a dataset
-that can later be used to train the model.
+<b>Open the conversion tool.</b><br><br>In <b>AQME</b>, click <b>Generate CSV from ChemDraw Files or SDF file</b>. This prepares a table from the structure file; it does not start model training yet.
 
 ---
 
-A pop-up window will appear explaining the requirements
-for ChemDraw files.<br><br>
-
-The structures must be saved in <b>CDXML format</b>, and
-the chemical drawings should be correct, since incorrect
-structures may lead to errors when the GUI reads them.
+<b>Check the drawing requirements.</b><br><br>Read the dialog before selecting a file. Save a ChemDraw drawing as <b>CDXML</b> and inspect unusual bonds, charges, and disconnected fragments. If the structure is drawn incorrectly, its exported molecule or descriptors may not represent what you intended.
 
 ---
 
-Next, select the ChemDraw file containing the molecular
-structures.<br><br>
-
-Browse to the file location and load it into the program.
+<b>Select the structure file.</b><br><br>Choose the CDXML containing the molecules for this dataset. Confirm the filename before continuing; if you selected the wrong drawing, go back now rather than editing an unrelated table.
 
 ---
 
-Once the file is loaded, a table will appear containing
-the molecules extracted from the ChemDraw file.<br><br>
-
-Two columns are displayed: <b>code_name</b> and
-<b>Target</b>.<br><br>
-
-Assign a name to each molecule in the <b>code_name</b>
-column.<br><br>
-
-The <b>Target</b> column should contain the property that
-will be predicted by the machine learning model.<br><br>
-
-In this example, the target column is renamed to
-<b>Yield</b> and filled with the corresponding values.
+<b>Complete the extracted table.</b><br><br>Review each molecule. Give it a unique <b>code_name</b> and enter the measured property in the target column. The target is what ROBERT will learn, so check units and missing values. In this example, the property is Yield.
 
 ---
 
-After completing the information, click <b>Save as CSV</b>.<br><br>
-
-A dialog window will appear asking you to choose the location
-and the name of the CSV file to be saved.
+<b>Save the prepared CSV.</b><br><br>After reviewing the rows, click <b>Save as CSV</b> and choose a clear filename and destination. Remember that location: the workflow outputs will be associated with this dataset's project folder.
 
 ---
 
-A confirmation pop-up will then appear indicating that the
-CSV file has been successfully saved and automatically
-loaded into the GUI.
+<b>Confirm the handoff.</b><br><br>The confirmation dialog indicates that the CSV was written and loaded into easyROB. If the save fails or the wrong location was chosen, resolve that before starting ROBERT.
 
 ---
 
-Return to the <b>ROBERT</b> tab.<br><br>
-
-The newly generated CSV dataset will appear automatically
-as the training input.
+<b>Return to the main tab.</b><br><br>On <b>ROBERT</b>, check that the new CSV appears as the selected training input. This is the moment to catch an accidental older file. AQME should still be set to Yes for descriptor generation from the converted structures.
 
 ---
 
-Next, configure the model parameters.<br><br>
-
-Select the <b>target column</b> (Yield), choose the
-prediction type (<b>regression</b>), and specify the
-column containing the molecule identifiers.<br><br>
-
-No columns need to be ignored in this example.
+<b>Tell ROBERT how to read it.</b><br><br>Choose the measured property as <b>Target Column (y)</b>, select Regression or Classification, and set <b>code_name</b> as the name column. Move any extra metadata that should not become a descriptor to Ignored Columns.
 
 ---
 
-Press <b>Run ROBERT</b> to launch the workflow.<br><br>
-
-easyROB will automatically generate molecular descriptors
-from the structures and train the machine learning model.
+<b>Launch the combined workflow.</b><br><br>Choose <b>Full Workflow</b> and click <b>Run ROBERT</b>. The AQME preparation card is followed by the ROBERT stage cards. Use Live log if the conversion or descriptor step reports an error.
 
 ---
 
-A message will appear indicating that only structural
-descriptors will be generated in this workflow.<br><br>
-
-Atom-based descriptors can also be generated using the
-<b>AQME</b> tab, as shown in the <b>From CSV</b> tutorial.
+<b>Read any descriptor notice.</b><br><br>If easyROB announces that it will use structural descriptors, continue when that matches your goal. For atom-based descriptors, return to the AQME tab and select relevant atoms when a common scaffold is available.
 
 ---
 
-Once the workflow finishes, a pop-up message confirms
-that the process has completed successfully.<br><br>
-
-The <b>Reports</b> and <b>Images</b> tabs become available,
-providing access to the results generated during the
-workflow.<br><br>
-
-These result sections are explained in more detail in the
-<b>Overview</b> tutorial.
+<b>Inspect the output.</b><br><br>Open <b>Results → Report</b> after the run to understand model performance. <b>Images</b> shows generated figures. Predictions appears when external prediction files exist, and Interactive plots appears when model plot data is available.

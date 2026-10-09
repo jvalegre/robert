@@ -365,6 +365,10 @@ def _gui_candidates(snapshot: GuiSnapshot, secrets: Sequence[str], budget: Promp
         ("Disabled tabs", safe_items(snapshot.disabled_tabs)),
         ("Results model selection", snapshot.result_model),
         ("Available result models", safe_items(snapshot.result_models)),
+        ("Reports kept in the run folder", safe_items(snapshot.result_root_reports)),
+        ("Reports in REPORT_models", snapshot.result_archived_report_count),
+        ("Result layout", "One root report is the overall-best model and variant; archived reports are selectable by model."
+         if len(snapshot.result_root_reports) == 1 and snapshot.result_archived_report_count else ""),
         ("Selected result variants", "; ".join(
             f"{variant}={model}" for variant, model in snapshot.result_selected_variants
         )),
@@ -372,6 +376,12 @@ def _gui_candidates(snapshot: GuiSnapshot, secrets: Sequence[str], budget: Promp
         ("Enabled Results views", safe_items(snapshot.result_enabled_views)),
         ("Disabled Results views", safe_items(snapshot.result_disabled_views)),
         ("Current all_models toggle for the next run", snapshot.all_models_enabled),
+        ("Workflow progress", "; ".join(
+            f"{stage}={state}" for stage, state in snapshot.workflow_stage_states
+        )),
+        ("Check ML model source", snapshot.evaluate_model_source),
+        ("Check ML estimator", snapshot.evaluate_model_name),
+        ("Check ML model settings", "; ".join(snapshot.evaluate_model_settings)),
         ("Ignored columns", safe_items(snapshot.ignored_columns)),
         ("Advanced settings", "; ".join(snapshot.advanced_settings)),
         ("AQME workflow enabled", snapshot.aqme_workflow_enabled),

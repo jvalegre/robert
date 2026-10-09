@@ -112,6 +112,7 @@ def main(exe_type='command',sys_args=None):
 
         # REPORT
         if args.report or full_workflow:
+            print('o  Starting REPORT module', flush=True)
             report(**vars(args))
         
         # CHEERS
@@ -136,6 +137,7 @@ def main(exe_type='command',sys_args=None):
         predict(**vars(args))
 
         # REPORT
+        print('o  Starting REPORT module', flush=True)
         report(**vars(args))
 
 

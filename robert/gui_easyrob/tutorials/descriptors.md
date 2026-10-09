@@ -1,66 +1,21 @@
-This tutorial shows how to generate molecular descriptors
-using the <b>AQME</b> workflow.<br><br>
-
-Descriptor generation can be useful when preparing datasets
-for machine learning models or when molecular descriptors
-are required for other types of analysis.
+<b>Goal: create descriptors without training.</b><br><br>This route runs AQME on molecular structures and saves descriptor CSVs. It is useful for inspecting features or preparing data before deciding whether to build a ROBERT model.
 
 ---
 
-Load a <b>CSV file</b> containing the molecules for which
-descriptors should be generated.<br><br>
-
-The dataset must contain a <b>SMILES column</b>, which
-AQME will use to compute the molecular descriptors.
+<b>Load structures.</b><br><br>On <b>ROBERT</b>, choose a CSV with a <b>SMILES</b> column and identifiers. Check that the selected filename is correct. Set the AQME option to Yes if you want to inspect descriptor settings or atom selections in the AQME tab before running.
 
 ---
 
-Press <b>Run AQME</b> to start the descriptor generation
-workflow.<br><br>
-
-AQME will automatically generate three descriptor datasets:
-<b>denovo</b>, <b>interpret</b>, and <b>full</b>.<br><br>
-
-These files contain increasing numbers of descriptors,
-ranging from smaller and more interpretable sets to the
-complete descriptor collection.
+<b>Start AQME on its own.</b><br><br>Scroll to the action buttons and click <b>Run AQME (descriptor generation)</b>. The AQME card in Workflow progress shows the activity; CURATE through REPORT are not part of this run. You do not need to select Full Workflow or press Run ROBERT.
 
 ---
 
-A pop-up window will indicate that only <b>molecular
-descriptors</b> will be generated in this workflow.<br><br>
-
-Atomic descriptors can also be generated using the
-<b>AQME</b> tab. An example of this workflow is shown
-in the <b>From CSV</b> tutorial.
+<b>Understand the notice.</b><br><br>If a dialog says structural descriptors will be generated, continue when those features meet your goal. Atom-based descriptors need suitable structures and, when available, atom choices in the AQME tab.
 
 ---
 
-Once the process finishes, a message will indicate that
-the descriptor datasets have been generated successfully.<br><br>
-
-The three CSV files (<b>denovo</b>, <b>interpret</b>, and
-<b>full</b>) will be saved in the working directory.<br><br>
-
-These descriptor datasets can be used directly for further
-analysis or loaded into the <b>ROBERT</b> workflow to
-build machine learning models.
+<b>Find the files.</b><br><br>When AQME finishes, look for its green check and inspect <b>Live log</b> for output paths or warnings. The generated CSV variants can differ in descriptor coverage; choose the set whose detail matches your analysis needs.
 
 ---
 
-In this example, the <b>interpret</b> dataset is loaded,
-but any of the generated descriptor sets can be used
-depending on your needs.
-
-At this stage, the descriptors can be inspected, filtered,
-or modified before building a machine learning model.<br><br>
-
-If you want to train a predictive model using these descriptors,
-the dataset must contain a <b>target column</b> with the property
-you want to predict.
-
-If the original CSV did not include a target value, it can be
-added later before running the <b>ROBERT</b> workflow.
-
-Alternatively, the generated descriptor datasets can also be
-used independently of ROBERT for other analyses or workflows.
+<b>Reuse a descriptor dataset.</b><br><br>To model later, load one generated CSV as the ROBERT input. Set the target and name columns, choose <b>No</b> for AQME because descriptors are already present, and then select the desired ROBERT workflow. Check that the target property was carried into the descriptor file before training.

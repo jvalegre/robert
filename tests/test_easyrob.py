@@ -55,6 +55,7 @@ from rdkit import Chem
 
 # Local project imports
 from robert.gui_easyrob.main.window import EasyROB
+from robert.gui_easyrob.workflow_progress import WorkflowProgress
 import robert.gui_easyrob.easyrob as easyrob_module
 import robert.gui_easyrob.main.window as window_module
 import robert.gui_easyrob.tabs.aqme as aqme_module
@@ -628,15 +629,15 @@ def test_reset_ui_after_process_restores_buttons(easyrob_window):
     window.run_button.setDisabled(True)
     window.run_aqme_button.setDisabled(True)
     window.stop_button.setDisabled(False)
-    window.progress.setRange(0, 0)
+    window._set_workflow_activity("AQME is running")
 
     window._reset_ui_after_process()
 
     assert window.run_button.isEnabled()
     assert window.run_aqme_button.isEnabled()
     assert not window.stop_button.isEnabled()
-    assert window.progress.minimum() == 0
-    assert window.progress.maximum() == 100
+    assert window.workflow_activity_label.isHidden()
+    assert not window._workflow_spinner_timer.isActive()
 
 
 def test_open_external_url_uses_browser(easyrob_window, monkeypatch):
@@ -1587,7 +1588,7 @@ def test_workflow_selector_options(easyrob_window):
     """Workflow selector has all required entries and default."""
     window = easyrob_window
 
-    expected_workflows = ["Full Workflow", "CURATE", "GENERATE", "PREDICT", "VERIFY", "REPORT"]
+    expected_workflows = ["Full Workflow", "CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT"]
 
     workflow_items = [
         window.workflow_selector.itemText(i)
@@ -1611,13 +1612,14 @@ def test_console_output_widget_exists(easyrob_window):
     assert window.console_output.isReadOnly()
 
 
-def test_progress_bar_exists(easyrob_window):
-    """Progress bar exists and has 0–100 range."""
+def test_workflow_stage_cards_exist(easyrob_window):
+    """The workflow status contains every ROBERT stage."""
     window = easyrob_window
 
-    assert window.progress is not None
-    assert window.progress.minimum() == 0
-    assert window.progress.maximum() == 100
+    assert len(window.workflow_stage_cards) == 5
+    assert [label.text() for label in window.workflow_stage_labels] == [
+        "Curate", "Generate", "Verify", "Predict", "Report"
+    ]
 
 
 # =====================================================
@@ -1948,7 +1950,7 @@ def test_full_user_workflow_end_to_end(
     # ------------------------------------------------------------------
     print("\n[STEP 7] EXECUTING run_robert() from GUI (real subprocess)...")
     initial_console_text = window.console_output.toPlainText()
-    initial_progress = window.progress.value()
+    initial_statuses = window.workflow_progress.statuses() if getattr(window, "workflow_progress", None) else None
 
     print("\n[STEP 8] Waiting for workflow to complete (with timeout)...")
     run_full_workflow_and_wait(window, qtbot, output_dir, expected_dirs, report_pdf)
@@ -1966,9 +1968,9 @@ def test_full_user_workflow_end_to_end(
     )
     dump_console_output("----- BEGIN FULL CONSOLE OUTPUT -----", final_console_text)
 
-    print("\n[STEP 10] Progress bar state...")
-    final_progress = window.progress.value()
-    print(f"Progress: {initial_progress} → {final_progress}")
+    print("\n[STEP 10] Workflow stage state...")
+    final_statuses = window.workflow_progress.statuses()
+    print(f"Stages: {initial_statuses} → {final_statuses}")
 
     print("\n[STEP 11] Final assertions...")
     assert window.file_path == str(csv_path)
@@ -2445,3 +2447,81 @@ def test_main_window_rejects_csv_names_with_spaces(easyrob_window, monkeypatch):
     window.set_csv_test_path("some folder/my test data.csv")
     assert not window.csv_test_path
     assert any("contains spaces" in text and "external test CSV" in text for _, text in calls["info"])
+
+
+def test_full_workflow_advances_only_on_completion_markers():
+    progress = WorkflowProgress("Full Workflow")
+
+    assert progress.statuses() == ("active", "pending", "pending", "pending", "pending")
+    progress.observe("o  Starting data curation with the CURATE module")
+    assert progress.statuses() == ("active", "pending", "pending", "pending", "pending")
+
+    for stage, expected in (
+        ("CURATE", ("done", "active", "pending", "pending", "pending")),
+        ("GENERATE", ("done", "done", "active", "pending", "pending")),
+    ):
+        progress.observe(f"Time {stage}: 1.2 seconds")
+        assert progress.statuses() == expected
+
+    progress.observe("Time VERIFY: 1.2 seconds")
+    assert progress.statuses() == ("done", "done", "active", "pending", "pending")
+    progress.observe("o  Representation of predictions and analysis of ML models with the PREDICT module")
+    assert progress.statuses() == ("done", "done", "done", "active", "pending")
+
+    progress.observe("Time PREDICT: 1.2 seconds")
+    assert progress.statuses() == ("done", "done", "done", "active", "pending")
+    progress.observe("o  Starting REPORT module")
+    assert progress.statuses() == ("done", "done", "done", "done", "active")
+    progress.observe("o  ROBERT_report_No_PFI.pdf was created successfully")
+    assert progress.statuses()[-1] == "active"
+    progress.finish(0, report_created=True)
+    assert progress.statuses() == ("done",) * 5
+
+
+def test_standalone_stage_does_not_claim_other_stages():
+    progress = WorkflowProgress("VERIFY")
+    assert progress.statuses() == ("inactive", "inactive", "active", "inactive", "inactive")
+    progress.observe("Time VERIFY: 2 seconds")
+    assert progress.statuses() == ("inactive", "inactive", "active", "inactive", "inactive")
+    progress.finish(0)
+    assert progress.statuses() == ("inactive", "inactive", "done", "inactive", "inactive")
+
+
+def test_failure_keeps_completed_stages_and_marks_current_stage():
+    progress = WorkflowProgress("Full Workflow")
+    progress.observe("Time CURATE: 1 seconds")
+    progress.finish(1)
+    assert progress.statuses() == ("done", "failed", "pending", "pending", "pending")
+
+
+def test_report_requires_success_and_created_pdf():
+    progress = WorkflowProgress("REPORT")
+    progress.finish(0, report_created=False)
+    assert progress.statuses() == ("inactive", "inactive", "inactive", "inactive", "failed")
+
+
+def test_live_log_expands_inside_robert_tab_without_resizing_window(
+    disposed_easyrob_window, qapp,
+):
+    window = disposed_easyrob_window
+    window.resize(1100, 900)
+    window.show()
+    qapp.processEvents()
+    scroll_area = window.tab_widget.widget(0)
+    minimum_height = window.minimumSizeHint().height()
+    window_height = window.height()
+    closed_scroll_extent = scroll_area.verticalScrollBar().maximum()
+
+    window.live_log_toggle.setChecked(True)
+    qapp.processEvents()
+    assert window.console_output.isVisible()
+    assert scroll_area.widget().isAncestorOf(window.console_output)
+    assert window.minimumSizeHint().height() == minimum_height
+    assert window.height() == window_height
+    assert scroll_area.verticalScrollBar().maximum() > closed_scroll_extent
+
+    window.live_log_toggle.setChecked(False)
+    qapp.processEvents()
+    assert not window.console_output.isVisible()
+    assert window.minimumSizeHint().height() == minimum_height
+    assert scroll_area.verticalScrollBar().maximum() == closed_scroll_extent

@@ -1431,6 +1431,32 @@
   "inputs_outputs": [
     {
       "audience": "developer_reference",
+      "id": "easyrob-code-docstrings-bot-bot-engine-private-result-selection-note-d5b6daa1",
+      "keywords": [
+        "report",
+        "result selection note",
+        "robert",
+        "output"
+      ],
+      "kind": "output",
+      "module": "ROBERT",
+      "priority": 0.7,
+      "program": "ROBERT",
+      "question_patterns": [
+        "result selection note",
+        "what is robert",
+        "how does robert work"
+      ],
+      "source": "easyrob_code_docstrings",
+      "source_file": "bot/bot_engine.py",
+      "source_tier": "generated",
+      "tab": "ROBERT",
+      "text": "Explain the single overall-best report retained in the run folder.",
+      "title": "result selection note",
+      "topic": "output"
+    },
+    {
+      "audience": "developer_reference",
       "id": "easyrob-code-docstrings-bot-response-quality-result-summary-issues-d68afa5a",
       "keywords": [
         "report",
@@ -1614,6 +1640,32 @@
       "tab": "ROBERT",
       "text": "Automatically detects how AQME descriptors were generated\nand prints the AQME command that would be launched for the test CSV.",
       "title": "run aqme for test descriptors",
+      "topic": "output"
+    },
+    {
+      "audience": "developer_reference",
+      "id": "easyrob-code-docstrings-main-window-easyrob-private-set-workflow-activity-6803fa74",
+      "keywords": [
+        "aqme",
+        "set workflow activity",
+        "robert",
+        "output"
+      ],
+      "kind": "output",
+      "module": "ROBERT",
+      "priority": 0.7,
+      "program": "ROBERT",
+      "question_patterns": [
+        "set workflow activity",
+        "what is robert",
+        "how does robert work"
+      ],
+      "source": "easyrob_code_docstrings",
+      "source_file": "main/window.py",
+      "source_tier": "generated",
+      "tab": "ROBERT",
+      "text": "Show activity outside the ROBERT stages, such as CSV validation or AQME.",
+      "title": "set workflow activity",
       "topic": "output"
     },
     {
@@ -3788,12 +3840,12 @@
       "source_file": "ui_user_guidance.json",
       "source_tier": "curated",
       "tab": "Results",
-      "text": "Purpose: Display the generated ROBERT report PDFs for the available No PFI and PFI model variants.\nWhen to use:\n- Open Results > Report after a workflow has created a matching ROBERT report file.\nPrerequisites:\n- At least one report PDF for the selected model and variant.\nSteps:\n1. Open Results, choose Best models or a named model, then select Report and compare the No PFI and PFI PDFs with their validation evidence.\nExpected result: Best models shows the two GENERATE-selected model variants; selecting a named model shows that model's available variant PDFs from REPORT_models.\nNext steps:\n- Compare each report with the same model's Images, Predictions, and Interactive plots.\nCommon issues:\n- Report remains disabled for a selection without matching PDFs. The two root-level report PDFs can be REPORT's best-scoring reports and need not match GENERATE's Best models selection.",
+      "text": "Purpose: Display the generated ROBERT report PDFs for the available No PFI and PFI model variants.\nWhen to use:\n- Open Results > Report after a workflow has created a matching ROBERT report file.\nPrerequisites:\n- At least one report PDF for the selected model and variant.\nSteps:\n1. Open Results > Report. In an all-models run, the default selection shows the single overall-best report in the run folder; choose a named model to inspect its available variants in REPORT_models. In a single-model run, inspect the available No PFI and PFI reports directly.\nExpected result: An all-models run keeps one overall-best PDF in the run folder and archives the generated reports in REPORT_models. A single-model run can leave both No PFI and PFI PDFs in the run folder when PFI filtering is enabled, or only No PFI when it is disabled.\nNext steps:\n- Compare each report with the same model's Images, Predictions, and Interactive plots.\nCommon issues:\n- Report remains disabled for a selection without matching PDFs. The single root-level report is REPORT's overall-best selection and can differ from GENERATE's per-variant Best_model files.",
       "title": "Results Report view",
       "topic": "results",
       "user_guidance": {
         "common_issues": [
-          "Report remains disabled for a selection without matching PDFs. The two root-level report PDFs can be REPORT's best-scoring reports and need not match GENERATE's Best models selection."
+          "Report remains disabled for a selection without matching PDFs. The single root-level report is REPORT's overall-best selection and can differ from GENERATE's per-variant Best_model files."
         ],
         "next_steps": [
           "Compare each report with the same model's Images, Predictions, and Interactive plots."
@@ -3802,9 +3854,9 @@
           "At least one report PDF for the selected model and variant."
         ],
         "purpose": "Display the generated ROBERT report PDFs for the available No PFI and PFI model variants.",
-        "result": "Best models shows the two GENERATE-selected model variants; selecting a named model shows that model's available variant PDFs from REPORT_models.",
+        "result": "An all-models run keeps one overall-best PDF in the run folder and archives the generated reports in REPORT_models. A single-model run can leave both No PFI and PFI PDFs in the run folder when PFI filtering is enabled, or only No PFI when it is disabled.",
         "steps": [
-          "Open Results, choose Best models or a named model, then select Report and compare the No PFI and PFI PDFs with their validation evidence."
+          "Open Results > Report. In an all-models run, the default selection shows the single overall-best report in the run folder; choose a named model to inspect its available variants in REPORT_models. In a single-model run, inspect the available No PFI and PFI reports directly."
         ],
         "when_to_use": [
           "Open Results > Report after a workflow has created a matching ROBERT report file."
@@ -5056,6 +5108,59 @@
     },
     {
       "audience": "developer_reference",
+      "id": "easyrob-code-docstrings-workflow-progress-module-d0cae063",
+      "keywords": [
+        "aqme",
+        "module",
+        "robert",
+        "concept"
+      ],
+      "kind": "concept",
+      "module": "ROBERT",
+      "priority": 0.7,
+      "program": "ROBERT",
+      "question_patterns": [
+        "module",
+        "what is robert",
+        "how does robert work"
+      ],
+      "source": "easyrob_code_docstrings",
+      "source_file": "workflow_progress.py",
+      "source_tier": "generated",
+      "tab": "ROBERT",
+      "text": "Track AQME preparation and the visible milestones of a ROBERT run.",
+      "title": "module",
+      "topic": "concept"
+    },
+    {
+      "audience": "developer_reference",
+      "id": "easyrob-code-docstrings-workflow-progress-workflowprogress-complete-aqme-82a74a31",
+      "keywords": [
+        "aqme",
+        "descriptor",
+        "complete aqme",
+        "aqme",
+        "concept"
+      ],
+      "kind": "concept",
+      "module": "AQME",
+      "priority": 0.7,
+      "program": "ROBERT",
+      "question_patterns": [
+        "complete aqme",
+        "what is aqme",
+        "how does aqme work"
+      ],
+      "source": "easyrob_code_docstrings",
+      "source_file": "workflow_progress.py",
+      "source_tier": "generated",
+      "tab": "ROBERT",
+      "text": "Confirm that descriptor generation finished before advancing.",
+      "title": "complete aqme",
+      "topic": "concept"
+    },
+    {
+      "audience": "developer_reference",
       "id": "robert-code-docstrings-aqme-aqme-init-aqme-fe4ebef0",
       "keywords": [
         "aqme",
@@ -5240,6 +5345,33 @@
     "title": "easyROB UI overview"
   },
   "parameters": [
+    {
+      "audience": "developer_reference",
+      "id": "easyrob-code-docstrings-main-window-easyrob-private-start-aqme-progress-99cd8507",
+      "keywords": [
+        "aqme",
+        "descriptor",
+        "start aqme progress",
+        "aqme",
+        "parameter"
+      ],
+      "kind": "parameter",
+      "module": "AQME",
+      "priority": 0.9,
+      "program": "ROBERT",
+      "question_patterns": [
+        "start aqme progress",
+        "what does start aqme progress do",
+        "what is start aqme progress"
+      ],
+      "source": "easyrob_code_docstrings",
+      "source_file": "main/window.py",
+      "source_tier": "generated",
+      "tab": "Advanced Options",
+      "text": "Show descriptor generation before any optional ROBERT follow-up.",
+      "title": "start aqme progress",
+      "topic": "parameter"
+    },
     {
       "audience": "developer_reference",
       "id": "easyrob-code-docstrings-main-window-easyrob-private-update-unified-smiles-context-1211e50d",
@@ -5848,6 +5980,32 @@
     },
     {
       "audience": "developer_reference",
+      "id": "easyrob-code-docstrings-workflow-progress-workflowprogress-finish-d92185f2",
+      "keywords": [
+        "report",
+        "finish",
+        "robert",
+        "diagnostic"
+      ],
+      "kind": "diagnostic",
+      "module": "ROBERT",
+      "priority": 0.9,
+      "program": "ROBERT",
+      "question_patterns": [
+        "finish",
+        "what is robert",
+        "how does robert work"
+      ],
+      "source": "easyrob_code_docstrings",
+      "source_file": "workflow_progress.py",
+      "source_tier": "generated",
+      "tab": "ROBERT",
+      "text": "Confirm report creation and mark an incomplete run as failed.",
+      "title": "finish",
+      "topic": "diagnostic"
+    },
+    {
+      "audience": "developer_reference",
       "id": "robert-code-docstrings-report-report-get-warning-params-270e146b",
       "keywords": [
         "report",
@@ -6119,6 +6277,146 @@
     },
     {
       "audience": "end_user",
+      "id": "tutorial-check_model-1",
+      "keywords": [
+        "check model",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:check_model.md",
+      "source_file": "check_model.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Goal: assess a model you chose. The GUI calls this tab Check model ; this tutorial calls the route Check ML. It runs ROBERT EVALUATE using a model or model family you specify. Choose it when you want ROBERT's evaluation and report for that choice rather than its automatic model search.",
+      "title": "Goal: assess a model you chose",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-check_model-2",
+      "keywords": [
+        "check model",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:check_model.md",
+      "source_file": "check_model.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Open the separate EVALUATE page. Click Check model in the main tab bar. Its CSV inputs, model source, Run EVALUATE button, progress indicator, and console belong to this page. Settings from the main ROBERT workflow do not replace these inputs.",
+      "title": "Open the separate EVALUATE page",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-check_model-3",
+      "keywords": [
+        "check model",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:check_model.md",
+      "source_file": "check_model.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Load the data to evaluate. Choose an Input CSV containing the target and numerical descriptor columns for the model. You may also add an external test CSV. Check that both files correspond to the same problem; EVALUATE makes its own internal split using ROBERT's defaults.",
+      "title": "Load the data to evaluate",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-check_model-4",
+      "keywords": [
+        "check model",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:check_model.md",
+      "source_file": "check_model.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Map and filter columns. Select y (target column) , names (ID column) , and Regression or Classification. The ignored-column list excludes fields that are not descriptors. Text fields such as SMILES start checked when a CSV is loaded; review the checks so the model receives only the intended numerical features.",
+      "title": "Map and filter columns",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-check_model-5",
+      "keywords": [
+        "check model",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:check_model.md",
+      "source_file": "check_model.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Choose where the model comes from. The MODEL TO EVALUATE menu offers default MVL, a scikit-learn estimator, a hyperparameters CSV, or a saved joblib/pickle model. Pick the option that matches what you actually have. The controls shown below the menu change according to that choice.",
+      "title": "Choose where the model comes from",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-check_model-6",
+      "keywords": [
+        "check model",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:check_model.md",
+      "source_file": "check_model.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Supply only the required model details. For a scikit-learn estimator, choose its name and fill only hyperparameters you want to override; blank fields use its defaults. A hyperparameters CSV needs param,value rows, including a model row. For a saved model, select its joblib/pickle file instead.",
+      "title": "Supply only the required model details",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-check_model-7",
+      "keywords": [
+        "check model",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:check_model.md",
+      "source_file": "check_model.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Run and interpret the result. Press Run EVALUATE and follow the progress indicator and console on this tab. Use Stop if you need to interrupt it. After successful completion, open Results for the PDF and any other available outputs; if the run stops early, read the console before changing the inputs.",
+      "title": "Run and interpret the result",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
       "id": "tutorial-chemdraw-1",
       "keywords": [
         "chemdraw",
@@ -6133,8 +6431,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "In this tutorial we start from molecular structures created\nin ChemDraw . \n\nChemDraw files contain only chemical structures, without\ndescriptors or datasets. \n\neasyROB can read these structures, convert them into a dataset,\nand then use them to train a machine learning model.",
-      "title": "In this tutorial we start from molecular structures created",
+      "text": "Goal: turn drawings into a modelling dataset. This example starts with structures saved from ChemDraw as CDXML. easyROB extracts the molecules, lets you add identifiers and target values, saves a CSV, and can then calculate descriptors with AQME before ROBERT builds a model.",
+      "title": "Goal: turn drawings into a modelling dataset",
       "topic": "tutorial"
     },
     {
@@ -6153,8 +6451,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Next, configure the model parameters. \n\nSelect the target column (Yield), choose the\nprediction type ( regression ), and specify the\ncolumn containing the molecule identifiers. \n\nNo columns need to be ignored in this example.",
-      "title": "Next, configure the model parameters",
+      "text": "Tell ROBERT how to read it. Choose the measured property as Target Column (y) , select Regression or Classification, and set code_name as the name column. Move any extra metadata that should not become a descriptor to Ignored Columns.",
+      "title": "Tell ROBERT how to read it",
       "topic": "tutorial"
     },
     {
@@ -6173,8 +6471,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Press Run ROBERT to launch the workflow. \n\neasyROB will automatically generate molecular descriptors\nfrom the structures and train the machine learning model.",
-      "title": "Press Run ROBERT to launch the workflow",
+      "text": "Launch the combined workflow. Choose Full Workflow and click Run ROBERT . The AQME preparation card is followed by the ROBERT stage cards. Use Live log if the conversion or descriptor step reports an error.",
+      "title": "Launch the combined workflow",
       "topic": "tutorial"
     },
     {
@@ -6193,8 +6491,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "A message will appear indicating that only structural\ndescriptors will be generated in this workflow. \n\nAtom-based descriptors can also be generated using the\n AQME tab, as shown in the From CSV tutorial.",
-      "title": "A message will appear indicating that only structural",
+      "text": "Read any descriptor notice. If easyROB announces that it will use structural descriptors, continue when that matches your goal. For atom-based descriptors, return to the AQME tab and select relevant atoms when a common scaffold is available.",
+      "title": "Read any descriptor notice",
       "topic": "tutorial"
     },
     {
@@ -6213,8 +6511,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Once the workflow finishes, a pop-up message confirms\nthat the process has completed successfully. \n\nThe Reports and Images tabs become available,\nproviding access to the results generated during the\nworkflow. \n\nThese result sections are explained in more detail in the\n Overview tutorial.",
-      "title": "Once the workflow finishes, a pop-up message confirms",
+      "text": "Inspect the output. Open Results \u2192 Report after the run to understand model performance. Images shows generated figures. Predictions appears when external prediction files exist, and Interactive plots appears when model plot data is available.",
+      "title": "Inspect the output",
       "topic": "tutorial"
     },
     {
@@ -6233,8 +6531,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "First, enable the AQME Workflow to unlock the\n AQME tab. \n\nThis tab contains the tools required to process ChemDraw\nfiles and convert them into a dataset that can be used\nfor modelling.",
-      "title": "First, enable the AQME Workflow to unlock the",
+      "text": "Enable AQME first. On ROBERT , choose Yes for Start by calculating descriptors from SMILES? (AQME) . This unlocks the AQME tab. Keep it enabled for the later full workflow because the converted structures still need descriptors.",
+      "title": "Enable AQME first",
       "topic": "tutorial"
     },
     {
@@ -6253,8 +6551,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "In the AQME tab, click\n Generate CSV from ChemDraw files . \n\nThis option converts ChemDraw structures into a dataset\nthat can later be used to train the model.",
-      "title": "In the AQME tab, click",
+      "text": "Open the conversion tool. In AQME , click Generate CSV from ChemDraw Files or SDF file . This prepares a table from the structure file; it does not start model training yet.",
+      "title": "Open the conversion tool",
       "topic": "tutorial"
     },
     {
@@ -6273,8 +6571,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "A pop-up window will appear explaining the requirements\nfor ChemDraw files. \n\nThe structures must be saved in CDXML format , and\nthe chemical drawings should be correct, since incorrect\nstructures may lead to errors when the GUI reads them.",
-      "title": "A pop-up window will appear explaining the requirements",
+      "text": "Check the drawing requirements. Read the dialog before selecting a file. Save a ChemDraw drawing as CDXML and inspect unusual bonds, charges, and disconnected fragments. If the structure is drawn incorrectly, its exported molecule or descriptors may not represent what you intended.",
+      "title": "Check the drawing requirements",
       "topic": "tutorial"
     },
     {
@@ -6293,8 +6591,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Next, select the ChemDraw file containing the molecular\nstructures. \n\nBrowse to the file location and load it into the program.",
-      "title": "Next, select the ChemDraw file containing the molecular",
+      "text": "Select the structure file. Choose the CDXML containing the molecules for this dataset. Confirm the filename before continuing; if you selected the wrong drawing, go back now rather than editing an unrelated table.",
+      "title": "Select the structure file",
       "topic": "tutorial"
     },
     {
@@ -6313,8 +6611,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Once the file is loaded, a table will appear containing\nthe molecules extracted from the ChemDraw file. \n\nTwo columns are displayed: code_name and\n Target . \n\nAssign a name to each molecule in the code_name \ncolumn. \n\nThe Target column should contain the property that\nwill be predicted by the machine learning model. \n\nIn this example, the target column is renamed to\n Yield and filled with the corresponding values.",
-      "title": "Once the file is loaded, a table will appear containing",
+      "text": "Complete the extracted table. Review each molecule. Give it a unique code_name and enter the measured property in the target column. The target is what ROBERT will learn, so check units and missing values. In this example, the property is Yield.",
+      "title": "Complete the extracted table",
       "topic": "tutorial"
     },
     {
@@ -6333,8 +6631,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "After completing the information, click Save as CSV . \n\nA dialog window will appear asking you to choose the location\nand the name of the CSV file to be saved.",
-      "title": "After completing the information, click Save as CSV",
+      "text": "Save the prepared CSV. After reviewing the rows, click Save as CSV and choose a clear filename and destination. Remember that location: the workflow outputs will be associated with this dataset's project folder.",
+      "title": "Save the prepared CSV",
       "topic": "tutorial"
     },
     {
@@ -6353,8 +6651,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "A confirmation pop-up will then appear indicating that the\nCSV file has been successfully saved and automatically\nloaded into the GUI.",
-      "title": "A confirmation pop-up will then appear indicating that the",
+      "text": "Confirm the handoff. The confirmation dialog indicates that the CSV was written and loaded into easyROB. If the save fails or the wrong location was chosen, resolve that before starting ROBERT.",
+      "title": "Confirm the handoff",
       "topic": "tutorial"
     },
     {
@@ -6373,8 +6671,8 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Return to the ROBERT tab. \n\nThe newly generated CSV dataset will appear automatically\nas the training input.",
-      "title": "Return to the ROBERT tab",
+      "text": "Return to the main tab. On ROBERT , check that the new CSV appears as the selected training input. This is the moment to catch an accidental older file. AQME should still be set to Yes for descriptor generation from the converted structures.",
+      "title": "Return to the main tab",
       "topic": "tutorial"
     },
     {
@@ -6393,8 +6691,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "In this tutorial we will build a machine learning model starting\nfrom a simple CSV dataset. \n\nWe will first show how to create the input CSV file containing\nthe molecular structures and the target property to be predicted. \n\nIn this example we will use SMILES representations so that\nmolecular descriptors can be generated automatically with AQME,\nbut if descriptors are already available they can be included\ndirectly in the CSV instead of SMILES. \n\nThis dataset will then be used to train the machine learning\nmodel within the ROBERT workflow.",
-      "title": "In this tutorial we will build a machine learning model starting",
+      "text": "Goal: start from structures in a CSV. We will prepare identifiers, a target property, and SMILES. AQME will calculate molecular descriptors from the structures; ROBERT will then use those descriptors to build and assess a model. If your CSV already has numerical descriptors, skip the AQME choice later.",
+      "title": "Goal: start from structures in a CSV",
       "topic": "tutorial"
     },
     {
@@ -6413,8 +6711,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "In the AQME tab, the interface may detect a common\n\nmolecular scaffold across the dataset. \n\nIn this example, the molecules share a carboxylic acid\n\nfunctional group, which is displayed in the structure viewer. \n\nAtoms from this structure can be selected to generate\n\nadditional atom-based descriptors.",
-      "title": "In the AQME tab, the interface may detect a common",
+      "text": "Inspect the AQME viewer. Open the AQME tab. It may show a common molecular pattern after processing the SMILES. The placeholder in the image indicates where that pattern appears. You can use structural descriptors with the defaults even when there is no suitable shared scaffold.",
+      "title": "Inspect the AQME viewer",
       "topic": "tutorial"
     },
     {
@@ -6433,8 +6731,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Here, two atoms from the carboxylic acid group have been\n\nselected: the carbonyl oxygen and the hydroxyl oxygen. \n\nThese selections will be used during descriptor generation.",
-      "title": "Here, two atoms from the carboxylic acid group have been",
+      "text": "Optional: choose atoms. If a common scaffold appears and specific atoms matter for your study, select them in the viewer for atom-based descriptors. Check that the highlighted atoms correspond to the chemistry you intend to compare. If no pattern appears, leave atom selections empty and continue with structural descriptors.",
+      "title": "Optional: choose atoms",
       "topic": "tutorial"
     },
     {
@@ -6453,8 +6751,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Once the configuration is complete, return to the\n\n ROBERT tab and press Run ROBERT to launch\n\nthe workflow. \n\nThe program will automatically generate descriptors,\n\ntrain the machine learning models, and produce the results.",
-      "title": "Once the configuration is complete, return to the",
+      "text": "Run AQME and ROBERT together. Return to ROBERT , leave Full Workflow selected, and click Run ROBERT . AQME prepares descriptors first; ROBERT then advances through its stages. Watch the cards for the active step, and expand Live log when you need detailed progress.",
+      "title": "Run AQME and ROBERT together",
       "topic": "tutorial"
     },
     {
@@ -6473,8 +6771,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "After the workflow finishes, a message will indicate that\n\nthe process has completed successfully. \n\nYou can then choose to open the generated report to\n\ninspect the results.",
-      "title": "After the workflow finishes, a message will indicate that",
+      "text": "Interpret the finish state. Green checks show stages that completed. If a card shows an error, open Live log and read the messages around that stage before changing inputs or trying again. A completed run should provide output files in the project folder.",
+      "title": "Interpret the finish state",
       "topic": "tutorial"
     },
     {
@@ -6493,8 +6791,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The report summarizes the machine learning results, including\n\nmodel performance metrics and validation information. \n\nOnce the workflow has generated results, the Reports ,\n\n Images , and Predictions tabs become available. \n\nThe Reports tab displays the PDF summary of the modelling\n\nresults, the Images tab provides access to the figures\n\ngenerated during the workflow, and the Predictions tab\n\nshows the predicted values for the external test dataset used\n\nin this example. \n\nThese result sections are described in more detail in the\n\n Overview tutorial.",
-      "title": "The report summarizes the machine learning results, including",
+      "text": "Open the results. In Results , start with Report for the model summary. Use Images and Interactive plots to inspect behaviour; Predictions is available when external test output exists. If multiple models were produced, choose one with the Model selector before comparing its views.",
+      "title": "Open the results",
       "topic": "tutorial"
     },
     {
@@ -6513,8 +6811,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Open a new spreadsheet in Microsoft Excel. \nAny spreadsheet software can be used to create or edit CSV files.",
-      "title": "Open a new spreadsheet in Microsoft Excel",
+      "text": "Open a spreadsheet. Excel is shown in the image, but any editor that can save a comma-separated CSV works. Use one row per molecule and one header per column. Before importing the file, make sure the first row contains column names rather than data.",
+      "title": "Open a spreadsheet",
       "topic": "tutorial"
     },
     {
@@ -6533,8 +6831,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "In this example we will create a dataset containing three columns:\n code_name (unique identifiers for each molecule), \n target (the property that the machine learning model will \nlearn to predict), and SMILES (the molecular structures).",
-      "title": "In this example we will create a dataset containing three columns:",
+      "text": "Set up three essential columns. code_name identifies each molecule, target holds the value or class to learn, and SMILES describes the structure. For regression, target values should be numerical. Give every molecule a distinct identifier and check for missing targets before modelling.",
+      "title": "Set up three essential columns",
       "topic": "tutorial"
     },
     {
@@ -6553,8 +6851,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The SMILES strings can be obtained in several ways. \n\nFor example, they can be copied from molecular drawing software\nsuch as ChemDraw , or retrieved from online chemical\ndatabases that provide both the structure and the corresponding\nSMILES string. \n\nIn this tutorial we will copy the SMILES directly from ChemDraw,\nas shown in the image. \n\nSelect the structure and go to Edit \u2192 Copy As \u2192 SMILES .\nYou can also use the shortcut Ctrl + Alt + C .",
-      "title": "The SMILES strings can be obtained in several ways",
+      "text": "Add molecular structures. In ChemDraw, select a structure and use Edit \u2192 Copy As \u2192 SMILES , then paste the string into its row. You can also obtain SMILES from a trusted database. Verify that each string belongs to the correct molecule; a shifted spreadsheet row silently pairs the wrong structure with the target.",
+      "title": "Add molecular structures",
       "topic": "tutorial"
     },
     {
@@ -6573,8 +6871,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Once the dataset is complete and all molecular structures have\nbeen added as SMILES, the file must be saved as a CSV file.",
-      "title": "Once the dataset is complete and all molecular structures have",
+      "text": "Review the completed table. Check that every row has an identifier, target, and SMILES, with no accidental blank lines or extra header rows. A quick spot-check of a few molecules now is easier than diagnosing incorrect descriptor generation later.",
+      "title": "Review the completed table",
       "topic": "tutorial"
     },
     {
@@ -6593,8 +6891,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Go to the File tab and select Save As . \nChoose CSV under the Save as type dropdown menu,\nprovide a name for the dataset, and click Save .",
-      "title": "Go to the File tab and select Save As",
+      "text": "Save a CSV, not a workbook. Use File \u2192 Save As and choose a CSV format. Give the file a simple name without spaces, because ROBERT checks CSV file names. Reopen it once to confirm the three headers and values survived the export.",
+      "title": "Save a CSV, not a workbook",
       "topic": "tutorial"
     },
     {
@@ -6613,8 +6911,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The first step in the workflow is loading the input dataset. \n\nSelect the training CSV file that will be used to build\nthe machine learning model. \n\nOptionally, an external test dataset can also be provided.\nIf included, ROBERT will generate predictions for these\nmolecules after the model has been trained.",
-      "title": "The first step in the workflow is loading the input dataset",
+      "text": "Load the input in easyROB. On the ROBERT tab, select your training CSV. Add an External Test CSV only when you have a separate set of molecules to predict. Seeing the selected filename under the input control confirms that easyROB is working with the intended file.",
+      "title": "Load the input in easyROB",
       "topic": "tutorial"
     },
     {
@@ -6633,8 +6931,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Next, configure the basic model parameters. \n\nSelect the target column , choose the prediction type\n\n(in this example regression ), and specify the column\n\ncontaining the molecule identifiers. \n\nNo columns need to be excluded in this case, since the\n\nSMILES column is handled automatically.",
-      "title": "Next, configure the basic model parameters",
+      "text": "Map the columns. Choose target as y, Regression or Classification according to the property, and code_name as the name column. Do not assume the first dropdown item is correct: inspect each selection. Move other non-descriptor metadata to Ignored Columns.",
+      "title": "Map the columns",
       "topic": "tutorial"
     },
     {
@@ -6653,8 +6951,8 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Enable the AQME Workflow to generate molecular\n\ndescriptors from the SMILES structures. \n\nOnce this option is activated, the AQME tab becomes\n\navailable and can be used to adjust descriptor generation\n\nsettings. \n\n Note: If the input CSV already contains molecular\n\ndescriptors, this step can be skipped and the workflow can\n\nbe run directly.",
-      "title": "Enable the AQME Workflow to generate molecular",
+      "text": "Enable descriptor calculation. Because this example starts from SMILES, choose Yes for Start by calculating descriptors from SMILES? (AQME) . The AQME tab becomes available, and the AQME stage appears before ROBERT in Workflow progress. Choose No only if you intend to use descriptors already present in the CSV.",
+      "title": "Enable descriptor calculation",
       "topic": "tutorial"
     },
     {
@@ -6673,8 +6971,8 @@
       "source_file": "descriptors.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "This tutorial shows how to generate molecular descriptors\nusing the AQME workflow. \n\nDescriptor generation can be useful when preparing datasets\nfor machine learning models or when molecular descriptors\nare required for other types of analysis.",
-      "title": "This tutorial shows how to generate molecular descriptors",
+      "text": "Goal: create descriptors without training. This route runs AQME on molecular structures and saves descriptor CSVs. It is useful for inspecting features or preparing data before deciding whether to build a ROBERT model.",
+      "title": "Goal: create descriptors without training",
       "topic": "tutorial"
     },
     {
@@ -6693,8 +6991,8 @@
       "source_file": "descriptors.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Load a CSV file containing the molecules for which\ndescriptors should be generated. \n\nThe dataset must contain a SMILES column , which\nAQME will use to compute the molecular descriptors.",
-      "title": "Load a CSV file containing the molecules for which",
+      "text": "Load structures. On ROBERT , choose a CSV with a SMILES column and identifiers. Check that the selected filename is correct. Set the AQME option to Yes if you want to inspect descriptor settings or atom selections in the AQME tab before running.",
+      "title": "Load structures",
       "topic": "tutorial"
     },
     {
@@ -6713,8 +7011,8 @@
       "source_file": "descriptors.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Press Run AQME to start the descriptor generation\nworkflow. \n\nAQME will automatically generate three descriptor datasets:\n denovo , interpret , and full . \n\nThese files contain increasing numbers of descriptors,\nranging from smaller and more interpretable sets to the\ncomplete descriptor collection.",
-      "title": "Press Run AQME to start the descriptor generation",
+      "text": "Start AQME on its own. Scroll to the action buttons and click Run AQME (descriptor generation) . The AQME card in Workflow progress shows the activity; CURATE through REPORT are not part of this run. You do not need to select Full Workflow or press Run ROBERT.",
+      "title": "Start AQME on its own",
       "topic": "tutorial"
     },
     {
@@ -6733,8 +7031,8 @@
       "source_file": "descriptors.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "A pop-up window will indicate that only molecular\ndescriptors will be generated in this workflow. \n\nAtomic descriptors can also be generated using the\n AQME tab. An example of this workflow is shown\nin the From CSV tutorial.",
-      "title": "A pop-up window will indicate that only molecular",
+      "text": "Understand the notice. If a dialog says structural descriptors will be generated, continue when those features meet your goal. Atom-based descriptors need suitable structures and, when available, atom choices in the AQME tab.",
+      "title": "Understand the notice",
       "topic": "tutorial"
     },
     {
@@ -6753,8 +7051,8 @@
       "source_file": "descriptors.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Once the process finishes, a message will indicate that\nthe descriptor datasets have been generated successfully. \n\nThe three CSV files ( denovo , interpret , and\n full ) will be saved in the working directory. \n\nThese descriptor datasets can be used directly for further\nanalysis or loaded into the ROBERT workflow to\nbuild machine learning models.",
-      "title": "Once the process finishes, a message will indicate that",
+      "text": "Find the files. When AQME finishes, look for its green check and inspect Live log for output paths or warnings. The generated CSV variants can differ in descriptor coverage; choose the set whose detail matches your analysis needs.",
+      "title": "Find the files",
       "topic": "tutorial"
     },
     {
@@ -6773,8 +7071,8 @@
       "source_file": "descriptors.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "In this example, the interpret dataset is loaded,\nbut any of the generated descriptor sets can be used\ndepending on your needs.\n\nAt this stage, the descriptors can be inspected, filtered,\nor modified before building a machine learning model. \n\nIf you want to train a predictive model using these descriptors,\nthe dataset must contain a target column with the property\nyou want to predict.\n\nIf the original CSV did not include a target value, it can be\nadded later before running the ROBERT workflow.\n\nAlternatively, the generated descriptor datasets can also be\nused independently of ROBERT for other analyses or workflows.",
-      "title": "In this example, the interpret dataset is loaded,",
+      "text": "Reuse a descriptor dataset. To model later, load one generated CSV as the ROBERT input. Set the target and name columns, choose No for AQME because descriptors are already present, and then select the desired ROBERT workflow. Check that the target property was carried into the descriptor file before training.",
+      "title": "Reuse a descriptor dataset",
       "topic": "tutorial"
     },
     {
@@ -6793,8 +7091,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Welcome to the easyROB graphical interface . \n\neasyROB integrates two complementary engines designed for\n\ncomputational chemistry workflows: \n\n\u2022 AQME \u2014 generates molecular descriptors from molecular structures \n\n\u2022 ROBERT \u2014 builds and evaluates machine learning models \n\nTogether, these tools allow users to move from raw molecular\n\nstructures to predictive models within a single interface. \n\nThis overview briefly introduces the main sections of the GUI\n\nbefore moving to the practical tutorials.",
-      "title": "Welcome to the easyROB graphical interface",
+      "text": "What you can do here. easyROB connects two tools. AQME turns molecular structures into numerical descriptors. ROBERT uses those descriptors to prepare data, build models, check their reliability, make predictions, and create reports. Follow this overview once, then use the practical tutorial that matches your starting data.",
+      "title": "What you can do here",
       "topic": "tutorial"
     },
     {
@@ -6813,8 +7111,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "When the Enable AQME Workflow option is activated, the\n\n AQME tab becomes available in the interface. \n\nIf a dataset containing a SMILES column has already been loaded,\n\neasyROB will automatically generate molecular descriptors when the\n\nworkflow is executed. \n\nThe AQME tab provides advanced options for users who want more\n\ncontrol over the descriptor generation process. \n\nFor example, if your molecules share a common structure, the interface\n\ncan display the molecular scaffold and allow you to select specific\n\natoms to generate atom-based descriptors. \n\nYou can also configure additional AQME descriptor parameters .\n\nA documentation button is available to access detailed information\n\nabout these options. \n\nThis tab is also used when starting from ChemDraw outputs .\n\nIn this case, the ChemDraw file can be loaded here to extract the\n\nrelevant information and generate a CSV dataset that can then be\n\nused in the AQME and ROBERT workflows.",
-      "title": "When the Enable AQME Workflow option is activated, the",
+      "text": "Explore AQME when you need descriptors. With AQME enabled, open its tab to adjust descriptor settings. It also contains the ChemDraw/SDF to CSV tool. When a compatible SMILES dataset is available, the molecular viewer may show a common scaffold; select atoms there only if atom-based descriptors are useful to your question.",
+      "title": "Explore AQME when you need descriptors",
       "topic": "tutorial"
     },
     {
@@ -6833,8 +7131,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The Advanced Options tab provides additional controls for the\n\nROBERT machine learning workflow. \n\nThis section allows advanced users to modify specific parameters\n\nused during different stages of the pipeline, including: \n\n\u2022 GENERAL \u2013 parameters affecting the overall workflow \n\n\u2022 CURATE \u2013 dataset preparation and preprocessing \n\n\u2022 GENERATE \u2013 model training and descriptor selection \n\n\u2022 PREDICT \u2013 prediction settings \n\nThese options are intended for users who want more control over\n\nthe modelling process. In most cases, the default settings are\n\nsufficient to run the workflow successfully. \n\nHelp buttons are available throughout this tab to access the\n\ndocumentation and obtain detailed explanations of each parameter.",
-      "title": "The Advanced Options tab provides additional controls for the",
+      "text": "Change advanced settings deliberately. The Advanced Options tab groups controls by ROBERT stage. Start with defaults unless you have a specific modelling reason to change one. If a setting is unfamiliar, use its help control before editing it, then note the change so you can interpret the resulting report.",
+      "title": "Change advanced settings deliberately",
       "topic": "tutorial"
     },
     {
@@ -6853,8 +7151,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The MolSSI Databases tab provides access to molecular libraries\n\ndeveloped through the Descriptor Libraries project, a collaborative\n\ninitiative between the Molecular Sciences Software Institute (MolSSI)\n\nand the Center for Computer Assisted Synthesis (C-CAS). \n\nThese libraries contain curated collections of molecules organised\n\nby functional group, such as carboxylic acids, amines, sulfonamides,\n\nand many others. \n\nUsers can explore these datasets directly within the interface,\n\ninspect the available molecules, and download the corresponding\n\nlibraries for further analysis. \n\nThe downloaded datasets already include molecular descriptors\n\nas well as machine learning predictions generated within the\n\nDescriptor Libraries project, allowing them to be used directly\n\nin modelling workflows.",
-      "title": "The MolSSI Databases tab provides access to molecular libraries",
+      "text": "Browse prepared molecular data. MolSSI Databases lets you explore descriptor libraries and available molecules. Use it when you want an existing dataset to inspect or analyse. The main ROBERT input still determines what runs in your own workflow.",
+      "title": "Browse prepared molecular data",
       "topic": "tutorial"
     },
     {
@@ -6873,8 +7171,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The Reports , Images , and Predictions tabs remain\n\ndisabled until the ROBERT workflow has been executed and results\n\nhave been generated. \n\nOnce the workflow finishes, these tabs become available and allow\n\nusers to explore the different outputs produced during the machine\n\nlearning process. \n\nEach tab focuses on a different type of result: reports summarizing\n\nmodel performance, images generated during the workflow, and\n\npredictions obtained for external datasets. \n\n Note: The Predictions tab is only available if an\n\nexternal test dataset was provided before running the workflow.",
-      "title": "The Reports , Images , and Predictions tabs remain",
+      "text": "Evaluate a model you chose. The Check model tab is separate from ROBERT's automatic model search. It runs EVALUATE on a default model, a scikit-learn estimator, parameters from CSV, or a saved model. Open the Check ML tutorial for the input requirements and model choices.",
+      "title": "Evaluate a model you chose",
       "topic": "tutorial"
     },
     {
@@ -6893,8 +7191,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The Reports tab displays the PDF report automatically\n\ngenerated by the ROBERT workflow. \n\nThis report provides a complete summary of the machine learning\n\nprocess, including the selected model, performance metrics,\n\nidentified outliers, boundary robustness analysis, and statistical\n\nvalidation tests. \n\nThe report helps users evaluate whether the generated model\n\nis robust and reliable for making predictions.",
-      "title": "The Reports tab displays the PDF report automatically",
+      "text": "Find outputs in one place. After a run, or after reopening a CSV beside existing outputs, open Results . Its buttons lead to Report, Predictions, Images, and Interactive plots when those files exist. If several models were generated, use the Model selector first so you inspect the intended model.",
+      "title": "Find outputs in one place",
       "topic": "tutorial"
     },
     {
@@ -6913,8 +7211,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The Images tab provides access to all figures generated\n\nduring the ROBERT workflow. \n\nThese images are organised into sections corresponding to the\n\ndifferent stages of the pipeline, including CURATE ,\n\n GENERATE , VERIFY , and PREDICT . \n\nUsers can browse these figures directly in the interface.\n\nBy right-clicking on an image, it can be copied, saved to a file,\n\nopened in full size, or the folder containing the image can\n\nbe opened.",
-      "title": "The Images tab provides access to all figures generated",
+      "text": "Inspect workflow figures. Choose Images inside Results, then select a stage such as CURATE or PREDICT from the View menu. Figures can reveal patterns, outliers, or model behaviour that a single score cannot show. A missing stage or empty view means no matching image was found in this project.",
+      "title": "Inspect workflow figures",
       "topic": "tutorial"
     },
     {
@@ -6933,8 +7231,28 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The Predictions tab displays the prediction results\n\ngenerated for an external test dataset, if one was provided. \n\nThe results are organised into two sub-tabs: PFI and\n\n no PFI . ROBERT automatically builds two models: one applying\n\na descriptor reduction step ( PFI ) and another without this\n\nreduction. Each tab shows the predictions generated by one of\n\nthese models. \n\nFor each molecule in the test dataset, the table displays the\n\npredicted value together with the associated standard deviation. \n\nThe table also provides several interactive options. By right-clicking\n\non the prediction columns, users can sort the values or generate\n\nsimple plots such as histograms to quickly explore the distribution\n\nof the predicted results.",
-      "title": "The Predictions tab displays the prediction results",
+      "text": "Explore predictions visually. Predictions displays external test results when such a CSV was generated. Interactive plots shows model plots even when no external prediction table exists. Hover over a point to inspect it, and click a legend entry to show or hide that set of points.",
+      "title": "Explore predictions visually",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-overview-17",
+      "keywords": [
+        "overview",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:overview.md",
+      "source_file": "overview.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Ask robBOT for help. The robBOT button remains at the top right. It opens a separate window, so you can keep the GUI visible while asking about a workflow, result, popup, or setting. The robBOT tutorial explains how to ask questions, summarize available results, and choose an answer mode.",
+      "title": "Ask robBOT for help",
       "topic": "tutorial"
     },
     {
@@ -6953,8 +7271,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "When easyROB starts, the interface opens in the ROBERT tab . \n\nThis tab contains the main controls used to: \n\n\u2022 Load datasets \n\n\u2022 Configure machine learning workflows \n\n\u2022 Train predictive models \n\nMost users will perform the majority of their work in this section.",
-      "title": "When easyROB starts, the interface opens in the ROBERT tab",
+      "text": "Find your starting point. The ROBERT tab opens first. Everything needed for a standard run is on this scrollable page: CSV inputs at the top, modelling choices in the middle, and workflow progress, Live log, and action buttons near the bottom. Scroll inside the tab to reach the controls below the fold.",
+      "title": "Find your starting point",
       "topic": "tutorial"
     },
     {
@@ -6973,8 +7291,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The first step is loading a dataset . \n\nTo train a machine learning model, the dataset must contain\n\n molecular descriptors , which are numerical features describing\n\neach molecule. \n\nTwo scenarios are possible: \n\n\u2022 If your CSV file already contains descriptors, they will be used\n\ndirectly to train the model. \n\n\u2022 If the dataset only contains a SMILES column , descriptors\n\ncan be generated automatically using the AQME workflow . \n\nThis descriptor generation process will be explained later\n\nin the tutorial. \n\nOptionally, you may also provide a separate test CSV file \n\nto evaluate predictions on an external dataset.",
-      "title": "The first step is loading a dataset",
+      "text": "Choose the data. Load the training Input CSV . The External Test CSV is optional; use it for molecules you want to predict after the model is built. If you reopen a CSV in a folder that already contains ROBERT outputs, easyROB detects those files and makes their available Results views accessible again.",
+      "title": "Choose the data",
       "topic": "tutorial"
     },
     {
@@ -6993,8 +7311,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "This section defines the model configuration . \n\nFirst, select the Target value . \n\nThe target is the property that the machine learning model will\n\nlearn from the dataset and later attempt to predict for new molecules. \n\nNext, choose the prediction type , such as: \n\n\u2022 Regression for continuous values \n\n\u2022 Classification for categorical outcomes \n\nIn addition, you must provide a column containing\n\n unique identifiers for each row in the dataset. \n\nThese identifiers allow easyROB to correctly track molecules\n\nand report predictions in a clear and reproducible way.",
-      "title": "This section defines the model configuration",
+      "text": "Tell ROBERT what to learn. Set Target Column (y) to the property to predict, Prediction Type to Regression for a numerical value or Classification for a category, and name column to each row's identifier. For example, a table with code_name and target should use those columns for name and y respectively.",
+      "title": "Tell ROBERT what to learn",
       "topic": "tutorial"
     },
     {
@@ -7013,8 +7331,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Some dataset columns may contain information that should not\n\nbe used to build the model. \n\nThese columns can be excluded here. \n\nTypical examples include metadata columns, comments, or\n\nexperimental annotations that are not meaningful descriptors. \n\n Important: The columns selected as Target value ,\n\n Name column , and the SMILES column are automatically\n\nhandled by easyROB and do not need to be excluded manually.",
-      "title": "Some dataset columns may contain information that should not",
+      "text": "Keep only useful descriptors. Move metadata that must not influence the model from Available Columns to Ignored Columns . An identifier or free-text note is not a molecular descriptor. Check this list before running: an unintended column can change what the model learns. The chosen target and name columns are handled separately.",
+      "title": "Keep only useful descriptors",
       "topic": "tutorial"
     },
     {
@@ -7033,8 +7351,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Enabling the AQME workflow allows easyROB to generate\n\nmolecular descriptors directly from SMILES structures. \n\nWhen this option is activated, the AQME tab becomes\n\navailable in the interface. \n\nThis tab provides advanced options for descriptor generation\n\nand molecular processing. \n\nThese settings are optional and will be explained in detail\n\nlater in this tutorial.",
-      "title": "Enabling the AQME workflow allows easyROB to generate",
+      "text": "Decide whether AQME is needed. Choose Yes for Start by calculating descriptors from SMILES? (AQME) when your CSV contains structures that still need descriptors. The AQME tab becomes available and AQME appears as preparation in Workflow progress. Choose No when the CSV already contains the descriptors you want ROBERT to use.",
+      "title": "Decide whether AQME is needed",
       "topic": "tutorial"
     },
     {
@@ -7053,8 +7371,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The ROBERT machine learning pipeline can be executed\n\nautomatically using the Full Workflow option. \n\nThis option is enabled by default , so in most cases\n\nyou do not need to modify anything before running the workflow. \n\nAlternatively, advanced users can run individual stages\n\nof the pipeline separately: \n\n CURATE \u2192 GENERATE \u2192 PREDICT \u2192 VERIFY \u2192 REPORT \n\nRunning steps individually can be useful for debugging\n\nor for inspecting intermediate results.",
-      "title": "The ROBERT machine learning pipeline can be executed",
+      "text": "Choose the scope of the run. Click What do you want to run? . Full Workflow is the usual choice for a new model. CURATE, GENERATE, VERIFY, PREDICT, and REPORT run a particular stage when its required inputs or earlier outputs are ready. Hovering or scrolling over the closed dropdown does not change your selection.",
+      "title": "Choose the scope of the run",
       "topic": "tutorial"
     },
     {
@@ -7073,8 +7391,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Press the ROBERT button to launch the automated\n\nmachine learning workflow. \n\nThis will execute the selected stages of the ROBERT pipeline\n\nusing the dataset and configuration provided. \n\nAlternatively, the AQME button can be used independently\n\nto generate molecular descriptors before training a model. \n\nThe Stop button allows interrupting the workflow\n\nat any moment if necessary.",
-      "title": "Press the ROBERT button to launch the automated",
+      "text": "Start the right process. At the bottom, Run ROBERT launches the workflow chosen above. Run AQME (descriptor generation) creates descriptors without starting ROBERT. Stop interrupts a running process. Before clicking, review the loaded CSV, the target and name columns, the AQME choice, and the selected workflow.",
+      "title": "Start the right process",
       "topic": "tutorial"
     },
     {
@@ -7093,8 +7411,8 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "The console panel displays log messages and progress\n\ninformation generated during execution. \n\nThis output helps track which steps are running and\n\nidentify potential warnings or errors.",
-      "title": "The console panel displays log messages and progress",
+      "text": "Read progress at a glance. Workflow progress shows the optional AQME preparation and the ROBERT stages. The current stage animates; a green check means it completed; an error marks the stage that failed. A stage not selected for an individual run stays inactive. Open Live log beside the cards to see detailed messages and diagnose a warning or failure.",
+      "title": "Read progress at a glance",
       "topic": "tutorial"
     },
     {
@@ -7113,8 +7431,8 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "This workflow is used when you already have a trained ROBERT model\nand want to generate predictions for new candidate molecules. \n\nFor example, you may have trained a model previously and now want\nto evaluate new structures using that model.",
-      "title": "This workflow is used when you already have a trained ROBERT model",
+      "text": "Goal: predict new molecules with an existing model. Use this route only after a ROBERT project has produced model outputs. You are reusing that model rather than training from scratch. The new molecules must provide the same kind of input information used for the original model.",
+      "title": "Goal: predict new molecules with an existing model",
       "topic": "tutorial"
     },
     {
@@ -7133,8 +7451,8 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "To run predictions, provide a CSV file containing the molecules\nfor which predictions should be calculated. \n\nThe CSV file must be placed in the same directory where the ROBERT\nmodel was generated, as shown in the example. This allows the workflow\nto automatically detect the model and use it to generate predictions.",
-      "title": "To run predictions, provide a CSV file containing the molecules",
+      "text": "Prepare the new data. Save the external test CSV in the existing ROBERT project folder so the saved model can be found. Use a name column for each new molecule. If the trained model used AQME descriptors, include SMILES; if it used your own descriptors, provide the matching descriptor columns.",
+      "title": "Prepare the new data",
       "topic": "tutorial"
     },
     {
@@ -7153,8 +7471,8 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Select the Test CSV file in the interface to load the\nmolecules for prediction. \n\nThis dataset must contain the information required by the\ntrained model. \n\nIf descriptors were originally generated using AQME, the\nCSV should contain an ID column and a SMILES\ncolumn so descriptors can be generated automatically.",
-      "title": "Select the Test CSV file in the interface to load the",
+      "text": "Select both CSVs. On ROBERT , load the original project input CSV, then select the new file under External Test CSV . Check both displayed filenames. The first identifies the trained project's context; the second is the set for which predictions will be generated.",
+      "title": "Select both CSVs",
       "topic": "tutorial"
     },
     {
@@ -7173,8 +7491,8 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Since the model has already been trained, only the\n PREDICT step needs to be executed. \n\nSelect the PREDICT option in the workflow\nconfiguration.",
-      "title": "Since the model has already been trained, only the",
+      "text": "Run only the needed stage. Open What do you want to run? and select PREDICT . The progress display will treat other ROBERT stages as unused for this run. This choice avoids starting a fresh model-building workflow.",
+      "title": "Run only the needed stage",
       "topic": "tutorial"
     },
     {
@@ -7193,8 +7511,8 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Once the test dataset is loaded and the PREDICT \noption is selected, press Run ROBERT to start\nthe prediction workflow.",
-      "title": "Once the test dataset is loaded and the PREDICT",
+      "text": "Start and watch PREDICT. Click Run ROBERT . The PREDICT card becomes active; open Live log to follow file loading and descriptor handling. A green check indicates completion, while an error card points to the stage whose messages you should inspect.",
+      "title": "Start and watch PREDICT",
       "topic": "tutorial"
     },
     {
@@ -7213,8 +7531,8 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "A pop-up window will ask how the descriptors should be handled\nfor the prediction workflow. \n\nIf the original model was built using AQME , the GUI can\ngenerate the descriptors again automatically from the SMILES\nstructures. \n\nIf the model was trained using custom descriptors, then\nthe test CSV must already contain the same descriptors that\nwere used when training the model. \n\nIn this tutorial we use the AQME option, but you should\nselect the option that matches how your model was originally\ntrained.",
-      "title": "A pop-up window will ask how the descriptors should be handled",
+      "text": "Match the descriptor method. If the dialog asks how to handle descriptors, choose Generate descriptors with AQME when the original model was trained with AQME-derived descriptors and your test CSV has SMILES. Choose Descriptors already present only when the test CSV already contains the descriptors expected by that model.",
+      "title": "Match the descriptor method",
       "topic": "tutorial"
     },
     {
@@ -7233,8 +7551,188 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Once the process finishes successfully, a confirmation\nmessage will appear. \n\nThe Predictions tab will become available, where\nthe generated prediction results can be inspected. \n\nMore details about this results tab are explained in the\n Overview tutorial.",
-      "title": "Once the process finishes successfully, a confirmation",
+      "text": "Review the prediction output. Open Results \u2192 Predictions after successful external output is created. In the example image, Predictions is disabled because that project's external prediction CSV is still absent. Use the Model selector when several models exist; Interactive plots offers visual comparisons, and legend clicks show or hide point groups.",
+      "title": "Review the prediction output",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-1",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Goal: get help without leaving easyROB. Click robBOT at the top right of the main window. You can ask about GUI controls, workflow stages, results, warnings, and AQME/ROBERT documentation while the main interface stays open.",
+      "title": "Goal: get help without leaving easyROB",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-2",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Recognize the two tabs. robBOT opens in a separate window. Chat contains the conversation and question box; Settings controls how answers are produced. The first Chat message explains the modes. Use Close to hide the window and the robBOT button to reopen it.",
+      "title": "Recognize the two tabs",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-3",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Ask a specific question. Type in the input box and press Send or Enter. For example, ask \u201cWhat does VERIFY check in my workflow?\u201d Mention the step or result you want explained. Clear resets the visible conversation when you want to start again.",
+      "title": "Ask a specific question",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-4",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Use the built-in prompts. Expand Advanced options and choose a Suggested question . This fills the question box; press Send to receive the answer. The same area shows token usage and, when an answer provides them, source links. Questions about Check ML and robBOT are included.",
+      "title": "Use the built-in prompts",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-5",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Summarize detected work. After opening a project with outputs, Chat may offer Summarize workflow or Summarize report . Click it for an explanation based on the detected results. If no result is available, the button stays disabled. The nearby status tells you what kind of output robBOT found.",
+      "title": "Summarize detected work",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-6",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Choose the answer mode. Open Settings and use the Mode dropdown. Cloud AI uses a provider and API key, Local AI uses a model in your ROBERT environment, and Heuristic gives rule-based help from local context. The settings below change with the mode.",
+      "title": "Choose the answer mode",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-7",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Configure Cloud AI if you want it. Select a provider, enter its API key, and click Save API . The key field is masked. The optional web-search checkbox allows supported cloud providers to look up missing or current information; provider use and searches may incur charges. The on-screen guide explains the Groq setup.",
+      "title": "Configure Cloud AI if you want it",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-8",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Prepare Local AI if preferred. Select Local AI to see whether its model is ready, downloaded, or still missing. Use the action button to download or load it when needed. Once ready, return to Chat and ask normally; this mode does not need a cloud provider key.",
+      "title": "Prepare Local AI if preferred",
+      "topic": "tutorial"
+    },
+    {
+      "audience": "end_user",
+      "id": "tutorial-robbot-9",
+      "keywords": [
+        "robbot",
+        "tutorial"
+      ],
+      "kind": "tutorial",
+      "module": "TUTORIALS",
+      "priority": 0.95,
+      "program": "ROBERT",
+      "question_patterns": [],
+      "source": "tutorial:robbot.md",
+      "source_file": "robbot.md",
+      "source_tier": "tutorial",
+      "tab": "ROBERT",
+      "text": "Use Heuristic for local guidance. Select Heuristic when you want a rule-based answer using the GUI state, popups, logs, and packaged knowledge. It needs no API key or AI model. Return to Chat, ask a focused question, and inspect the answer alongside the relevant GUI output.",
+      "title": "Use Heuristic for local guidance",
       "topic": "tutorial"
     },
     {
@@ -7762,7 +8260,7 @@
       "source_file": "ui_user_guidance.json",
       "source_tier": "curated",
       "tab": "Results",
-      "text": "Purpose: Combine the PDF report, stage figures, and external prediction tables instead of judging a workflow from one output.\nWhen to use:\n- Use this review after a ROBERT run has created result artifacts.\nPrerequisites:\n- Open Results after output for this run is detected; each child view unlocks according to its files for the selected model.\nSteps:\n1. Choose Best models or a named model in Results.\n2. Read Report for both available No PFI and PFI PDFs.\n3. Inspect Images and Interactive plots for matching figures.\n4. Use Predictions for matching internal or external CSVs.\nExpected result: The four views share the model selection and present matching model, validation, visualization, and inference evidence.\nNext steps:\n- Resolve warnings or data limitations before relying on the model.\nCommon issues:\n- A disabled Results child view means its matching artifact was not produced or discovered for the selected model.",
+      "text": "Purpose: Combine the PDF report, stage figures, and external prediction tables instead of judging a workflow from one output.\nWhen to use:\n- Use this review after a ROBERT run has created result artifacts.\nPrerequisites:\n- Open Results after output for this run is detected; each child view unlocks according to its files for the selected model.\nSteps:\n1. In an all-models run, choose the overall-best report or a named model in Results; a single-model run has no model selector.\n2. Read the report PDFs available for that selection: one overall-best PDF by default in an all-models run, or the available No PFI and PFI PDFs for a named or single-model run.\n3. Inspect Images and Interactive plots for matching figures.\n4. Use Predictions for matching internal or external CSVs.\nExpected result: The four views share the model selection and present matching model, validation, visualization, and inference evidence.\nNext steps:\n- Resolve warnings or data limitations before relying on the model.\nCommon issues:\n- A disabled Results child view means its matching artifact was not produced or discovered for the selected model.",
       "title": "Inspect ROBERT results",
       "topic": "result interpretation",
       "user_guidance": {
@@ -7778,8 +8276,8 @@
         "purpose": "Combine the PDF report, stage figures, and external prediction tables instead of judging a workflow from one output.",
         "result": "The four views share the model selection and present matching model, validation, visualization, and inference evidence.",
         "steps": [
-          "Choose Best models or a named model in Results.",
-          "Read Report for both available No PFI and PFI PDFs.",
+          "In an all-models run, choose the overall-best report or a named model in Results; a single-model run has no model selector.",
+          "Read the report PDFs available for that selection: one overall-best PDF by default in an all-models run, or the available No PFI and PFI PDFs for a named or single-model run.",
           "Inspect Images and Interactive plots for matching figures.",
           "Use Predictions for matching internal or external CSVs."
         ],

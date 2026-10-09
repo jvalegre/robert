@@ -63,6 +63,18 @@ class ResultCatalog:
                 if parsed:
                     model, variant = parsed
                     best[variant] = model
+            if not best:
+                # A partial or imported run can have model reports without the final
+                # PDF copied to the root. Use GENERATE's recorded selections then.
+                best_root = root / "GENERATE" / "Best_model"
+                for variant in VARIANTS:
+                    candidates = sorted(
+                        path for path in (best_root / variant).glob("*.csv")
+                        if not path.stem.endswith("_db")
+                    )
+                    if candidates:
+                        name = candidates[0].stem
+                        best[variant] = name.removesuffix("_PFI") if variant == "PFI" else name
         else:
             # single-model run (no --all_models): both No_PFI and PFI are the same model,
             # read straight from GENERATE/Best_model/{variant} as before
@@ -104,6 +116,10 @@ class ResultCatalog:
         """Return the default or selected model reports."""
         if not self.is_all_models:
             return sorted(self.root.glob("ROBERT_report*.pdf"))
+        if model is None:
+            retained = sorted(self.root.glob("ROBERT_report_*.pdf"))
+            if retained:
+                return retained
         selected = self.selected_variants(model)
         return [
             path for variant in VARIANTS

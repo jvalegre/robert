@@ -1618,7 +1618,7 @@ def test_workflow_stage_cards_exist(easyrob_window):
 
     assert len(window.workflow_stage_cards) == 5
     assert [label.text() for label in window.workflow_stage_labels] == [
-        "Curate", "Generate", "Verify", "Predict", "Report"
+        "CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT"
     ]
 
 
@@ -2501,9 +2501,9 @@ def test_report_requires_success_and_created_pdf():
 
 
 def test_live_log_expands_inside_robert_tab_without_resizing_window(
-    disposed_easyrob_window, qapp,
+    easyrob_window, qapp,
 ):
-    window = disposed_easyrob_window
+    window = easyrob_window
     window.resize(1100, 900)
     window.show()
     qapp.processEvents()

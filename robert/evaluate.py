@@ -90,7 +90,7 @@ class evaluate:
         _ = self.clean_eval()
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
+        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"evaluate",print_info=False)
 
         # unlike the normal ROBERT pipeline (where CURATE explicitly fills in or removes
         # missing data before GENERATE ever sees it), EVALUATE calls load_database() directly,

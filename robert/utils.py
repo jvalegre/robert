@@ -67,7 +67,7 @@ warnings.filterwarnings("ignore")
 robert_version = "2.2.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733. Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Chem. Sci. 2025, 16, 8555-8560."
-
+checkml_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733. CheckML citation TBD."
 
 def _parse_class_mapping_reverse(mapping):
     """
@@ -339,11 +339,14 @@ o Other common options:
   --descp_lvl (default="interpret") "interpret", "denovo" or "full" : type of descriptor calculation
 
 
-o How to cite ROBERT:
----------------------
+o How to cite ROBERT and CheckML:
+---------------------------------
 
+ROBERT:
 {robert_ref}
 
+CheckML:
+{checkml_ref}
 
 o Complete documentation:
 -------------------------
@@ -1149,7 +1152,7 @@ def check_csv_option(self,csv_option,print_err):
     return self
 
 
-def sanity_checks(self, type_checks, module, columns_csv):
+def sanity_checks(self, type_checks, module, csv_df):
     """
     Check that different variables are set correctly
     """
@@ -1158,23 +1161,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
     # adds manual inputs missing from the command line
     self = missing_inputs(self,module)
 
-    if module.lower() == 'evaluate':
-        curate_valid = locate_csv(self,self.csv_name,curate_valid)
-
-        # eval_model ('MVL', the legacy default) is only actually used as a fallback when none
-        # of model_obj/model_file/model_params are given - those resolve (and validate) an
-        # arbitrary scikit-learn model instead, see evaluate.py's resolve_eval_model()
-        using_custom_model = bool(self.model_obj is not None or self.model_file or self.model_params)
-        if not using_custom_model and self.eval_model.lower() not in ['mvl']:
-            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL', or provide model_obj/model_file/model_params for an arbitrary scikit-learn model (i.e., --model_file model.pkl or --model_params model_params.csv)")
-            curate_valid = False
-
-        if self.type.lower() not in ['reg','clas']:
-            self.log.write(f"\nx  The type option used is not valid in EVALUATE! Options: 'reg', 'clas'")
-            curate_valid = False
-
-    elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
-
+    if type_checks == 'initial' and module.lower() not in ['verify','predict']:
         curate_valid = locate_csv(self,self.csv_name,curate_valid)
 
         if module.lower() == 'curate':
@@ -1187,7 +1174,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     self.log.write(f"\nx  The {thres_name} option should be between 0 and 1!")
                     curate_valid = False
         
-        elif module.lower() == 'generate':
+        elif module.lower() in ['generate','evaluate']:
+            
             if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q5','auto']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND', 'stratified', 'even', 'extra_q1', 'extra_q5', 'auto'")
                 curate_valid = False
@@ -1201,31 +1189,41 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     # leave a class under/over-represented, especially on small datasets
                     self.split = 'stratified'
 
-            if len(self.model) == 0:
-                self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
-                curate_valid = False
-            else:
-                for model_type in self.model:
-                    if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN','RIDGE','LOGISTIC']:
-                        self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
-                        curate_valid = False
-                    if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
-                        self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")
-                        curate_valid = False
-                    if model_type.upper() == 'RIDGE' and self.type.lower() == 'clas':
-                        self.log.write(f"\nx  Ridge regression (RIDGE in the model_type option) is not compatible with classification! Use LOGISTIC instead.")
-                        curate_valid = False
-                    if model_type.upper() == 'LOGISTIC' and self.type.lower() == 'reg':
-                        self.log.write(f"\nx  Logistic regression (LOGISTIC in the model_type option) is not compatible with regression, it's a classifier despite the name! Use RIDGE instead.")
-                        curate_valid = False
-
             if self.type.lower() not in ['reg','clas']:
-                self.log.write(f"\nx  The type option used is not valid! Options: 'reg', 'clas'")
+                self.log.write(f"\nx  The 'type' option used is not valid! Options: 'reg', 'clas'")
                 curate_valid = False
 
-    if type_checks == 'initial' and module.lower() in ['generate','verify','predict','report']:
+            if module.lower() == 'generate':
+                if len(self.model) == 0:
+                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
+                    curate_valid = False
+                else:
+                    for model_type in self.model:
+                        if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN','RIDGE','LOGISTIC']:
+                            self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
+                            curate_valid = False
+                        if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
+                            self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")
+                            curate_valid = False
+                        if model_type.upper() == 'RIDGE' and self.type.lower() == 'clas':
+                            self.log.write(f"\nx  Ridge regression (RIDGE in the model_type option) is not compatible with classification! Use LOGISTIC instead.")
+                            curate_valid = False
+                        if model_type.upper() == 'LOGISTIC' and self.type.lower() == 'reg':
+                            self.log.write(f"\nx  Logistic regression (LOGISTIC in the model_type option) is not compatible with regression, it's a classifier despite the name! Use RIDGE instead.")
+                            curate_valid = False
+            
+            if module.lower() == 'evaluate':
+                # eval_model ('MVL', the legacy default) is only actually used as a fallback when none
+                # of model_obj/model_file/model_params are given - those resolve (and validate) an
+                # arbitrary scikit-learn model instead, see evaluate.py's resolve_eval_model()
+                using_custom_model = bool(self.model_obj is not None or self.model_file or self.model_params)
+                if not using_custom_model and self.eval_model.lower() not in ['mvl']:
+                    self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL', or provide model_obj/model_file/model_params for an arbitrary scikit-learn model (i.e., --model_file model.pkl or --model_params model_params.csv)")
+                    curate_valid = False
 
-        if type_checks == 'initial' and module.lower() in ['generate','verify']:
+    if type_checks == 'initial' and module.lower() in ['generate','verify','predict','report','evaluate']:
+
+        if type_checks == 'initial' and module.lower() in ['generate','verify','evaluate']:
             if self.type.lower() == 'reg' and self.error_type.lower() not in ['rmse','mae','r2']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
                 curate_valid = False
@@ -1244,7 +1242,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f'\nx  The path of your CSV files doesn\'t exist! Set the folder containing the two CSV files with 1) the parameters of the model and 2) the Xy database with the params_dir option')
                 curate_valid = False
 
-        if module.lower() == 'predict':
+        if module.lower() in ['predict','evaluate']:
             if self.t_value < 0:
                 self.log.write(f"\nx  t_value ({self.t_value}) should be higher 0!")
                 curate_valid = False
@@ -1270,20 +1268,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
   
     elif type_checks == 'csv_db':
         if module.lower() != 'predict':
-            if self.y not in columns_csv:
-                if self.y.lower() in columns_csv: # accounts for upper/lowercase mismatches
-                    self.y = self.y.lower()
-                elif self.y.upper() in columns_csv:
-                    self.y = self.y.upper()
-                else:
-                    self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
-                    curate_valid = False
-
-            for option,option_name in zip([self.discard,self.ignore],['discard','ignore']):
-                for val in option:
-                    if val not in columns_csv:
-                        self.log.write(f"\nx  Descriptor {val} specified in the {option_name} option is not a column in the csv selected ({self.csv_name})!")
-                        curate_valid = False
+            self.y = check_y_column(self.y, self.log, self.discard, self.ignore, csv_df, self.csv_name)
 
     if not curate_valid:
         self.log.finalize()
@@ -1412,35 +1397,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
-
-    # Missing data handling: robust strategy for columns and rows (optional KNN imputer)
-    target_col = self.args.y
-
     csv_name_load = os.path.basename(csv_load)
-
-    # Missing target (y) values can't be predicted or imputed and crash later steps (e.g. data
-    # splitting) in cryptic ways, and silently dropping those rows would hide a data-entry
-    # mistake the user almost certainly wants to know about - so stop with a message pointing
-    # to the offending rows instead. External test sets are skipped since their target column
-    # is often unknown on purpose (that's what's being predicted)
-    if not external_test and target_col in csv_df.columns:
-        y_values = csv_df[target_col]
-
-        rows_missing_y = y_values.isna()
-        if rows_missing_y.any():
-            self.args.log.write(f'\nx  The target column ({target_col}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_y)} of {csv_name_load}! Missing target values can not be predicted or imputed, please fill them in (or remove those rows) and run ROBERT again.')
-            self.args.log.finalize()
-            sys.exit()
-
-        # a column mixing numbers and text (i.e. a stray "N/A" or ">10" in a regression y) is read
-        # by pandas as all-text, so every value is tried as a number instead: all convert = numeric
-        # column, none convert = text class labels (valid in classification), only some = mixed
-        rows_non_numeric_y = pd.to_numeric(y_values, errors='coerce').isna()
-        if rows_non_numeric_y.any() and not rows_non_numeric_y.all():
-            offending_values = ', '.join(f'"{val}"' for val in y_values[rows_non_numeric_y].unique()[:5])
-            self.args.log.write(f'\nx  The target column ({target_col}) mixes numbers and text! Row(s) {_csv_row_numbers_txt(rows_non_numeric_y)} of {csv_name_load} contain non-numeric values ({offending_values}) while the rest of the column is numeric. Please fix these values (or remove those rows) and run ROBERT again.')
-            self.args.log.finalize()
-            sys.exit()
 
     # AQME workflows calculate descriptors from SMILES, so every row needs one: a missing SMILES
     # would either crash CSEARCH/QDESCP later or, when several are missing, get the whole SMILES
@@ -1489,7 +1446,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     
     # Apply KNN imputer only to numeric columns with missing values (when auto_fill is activated)
     if self.args.auto_fill:
-        numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(target_col, errors='ignore')
+        numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(self.args.y, errors='ignore')
         if csv_df[numeric_columns].isna().any().any():
             imputer = KNNImputer(n_neighbors=5)
             csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns, index=csv_df.index)
@@ -1503,8 +1460,8 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
             if module.lower() == 'curate':
                 txt_load += f"\n   - Removed {len(cols_with_missing)} column(s) with missing values\n"
 
-    if print_info:
-        sanity_checks(self.args,'csv_db',module,csv_df.columns)
+    if print_info or module.lower() == 'evaluate':
+        sanity_checks(self.args,'csv_db',module,csv_df)
 
     discard_cols = [col for col in self.args.discard if col in csv_df.columns]
     if discard_cols:
@@ -1555,7 +1512,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         csv_df = csv_df[sorted_all_cols]
     
     # ignore user-defined descriptors and assign X and y values (but keeps the original database)
-    if module.lower() == 'generate':
+    if module.lower() in ['generate','evaluate']:
         # Only drop columns that actually exist in the dataframe (for model-specific CSVs from CURATE)
         cols_to_ignore = [col for col in self.args.ignore if col in csv_df.columns]
         # Also drop 'Set' column if it exists (for model-specific CSVs)
@@ -1577,6 +1534,65 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
             csv_y = csv_df[self.args.y]
 
     return csv_df,csv_X,csv_y
+
+
+def check_y_column(y_name, log_proc, discard_cols, ignore_cols, csv_df, csv_name_load):
+        """Validate target values, reporting missing or mixed numeric/text entries.
+
+        Checks the target column for missing values in the y column, for values that mix numeric
+        data with non-numeric text in y values, and for missing columns descriptors. 
+        On either issue, writes an error to the ROBERT
+        log, finalizes it, and exits the program. Text-only target columns are
+        allowed for classification.
+        """
+
+        if y_name not in csv_df.columns:
+            matching_columns = [
+                column for column in csv_df.columns
+                if isinstance(column, str) and column.casefold() == y_name.casefold()
+            ]
+            if len(matching_columns) == 1:
+                y_name = matching_columns[0]
+            elif len(matching_columns) > 1:
+                log_proc.write(
+                    f"\nx  The y option specified ({y_name}) matches multiple columns "
+                    f"in the csv selected ({csv_name_load}) when ignoring case: "
+                    f"{', '.join(str(column) for column in matching_columns)}. "
+                    "Please rename the columns so the target is unambiguous."
+                )
+                log_proc.finalize()
+                sys.exit()
+            else:
+                log_proc.write(f"\nx  The y option specified ({y_name}) is not a column in the csv selected ({csv_name_load})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
+                log_proc.finalize()
+                sys.exit()
+
+        for option,option_name in zip([discard_cols, ignore_cols],['discard','ignore']):
+            for val in option:
+                if val not in csv_df.columns:
+                    log_proc.write(f"\nx  Descriptor {val} specified in the {option_name} option is not a column in the csv selected ({csv_name_load})!")
+                    log_proc.finalize()
+                    sys.exit()
+
+        y_values = csv_df[y_name]
+
+        rows_missing_y = y_values.isna()
+        if rows_missing_y.any():
+            log_proc.write(f'\nx  The target column ({y_name}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_y)} of {csv_name_load}! Missing target values can not be predicted or imputed, please fill them in (or remove those rows) and run ROBERT again.')
+            log_proc.finalize()
+            sys.exit()
+
+        # a column mixing numbers and text (i.e. a stray "N/A" or ">10" in a regression y) is read
+        # by pandas as all-text, so every value is tried as a number instead: all convert = numeric
+        # column, none convert = text class labels (valid in classification), only some = mixed
+        rows_non_numeric_y = pd.to_numeric(y_values, errors='coerce').isna()
+        if rows_non_numeric_y.any() and not rows_non_numeric_y.all():
+            offending_values = ', '.join(f'"{val}"' for val in y_values[rows_non_numeric_y].unique()[:5])
+            log_proc.write(f'\nx  The target column ({y_name}) mixes numbers and text! Row(s) {_csv_row_numbers_txt(rows_non_numeric_y)} of {csv_name_load} contain non-numeric values ({offending_values}) while the rest of the column is numeric. Please fix these values (or remove those rows) and run ROBERT again.')
+            log_proc.finalize()
+            sys.exit()
+    
+        return y_name
 
 
 def categorical_transform(self,csv_df,module):
@@ -4094,12 +4110,25 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
                 self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
-            self.args.log.write(f'\no  Before hyperoptimization, {int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values.')
             try:
                 test_points = test_select(self,X_scaled_df,csv_y)
             except TypeError:
                 self.args.log.write(f'   x The data split process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
                 sys.exit()
+
+            if self.args.evaluate:
+                text_method = 'Before the CheckML evaluation, '
+            else: # for GENERATE
+                text_method = 'Before hyperoptimization, '
+            if self.args.split == 'even':
+                text_split = ', using an even distribution of data points across the range of y values.'
+            elif self.args.split == 'rnd':
+                text_split = ', using a random distribution of data points.'
+            elif self.args.split == 'stratified':
+                text_split = ', using a stratified distribution of data points.'
+            else:
+                text_split = '.'
+            self.args.log.write(f'\no  {text_method}{int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set{text_split}')
 
     # load predefined sets and save the info in Xy data
     Xy_data = Xy_split(csv_df,csv_X,X_scaled_df,csv_y,csv_external_df,csv_X_external,X_scaled_external_df,csv_y_external,test_points,column_names)

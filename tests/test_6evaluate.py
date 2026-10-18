@@ -133,9 +133,9 @@ def test_EVALUATE_module():
     assert "Traceback (most recent call last)" not in debug_content
 
     # deeper content checks (same spirit as the full-workflow pytests in
-    # test_5aqme_n_full.py) - confirms the ROBERT score section actually rendered with real
+    # test_5aqme_n_full.py) - confirms the CheckML score section actually rendered with real
     # data instead of just checking that the PDF file exists
-    assert "Section A. ROBERT Score" in debug_content
+    assert "Section A. CheckML Score" in debug_content
     assert "Interpolation" in debug_content
     assert "Boundary robustness" in debug_content  # MVL is regression, so this column exists
     score_imgs = [

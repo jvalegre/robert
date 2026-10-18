@@ -75,7 +75,7 @@ def _regenerate_report_and_check(test_job, path_main):
         debug_lines = f.readlines()
     debug_text = "".join(debug_lines)
 
-    assert "Section A. ROBERT Score" in debug_text
+    assert "Section A. CheckML Score" in debug_text
 
     # score images ("report/score_N.jpg") are the Interpolation/Boundary robustness score bars
     # in Section A - classification only ever gets one (Interpolation), since Boundary
@@ -330,7 +330,7 @@ def test_AQME(test_job, aqme_workspace):
         if "External test metrics" in line:
             find_test += 1
 
-    # more specific tests to check content from the ROBERT score section
+    # more specific tests to check content from the CheckML score section
     if test_job in ["full_workflow", "full_clas"]:
         robert_score, points_desc = [], []
         ml_model_count, partition_count, metrics_train_count, metrics_test_count = (
@@ -362,11 +362,18 @@ def test_AQME(test_job, aqme_workspace):
                 ml_model_count += 1
             if "CV (train+valid.)" in line and "81:19" in line:
                 partition_count += 1
-            if "Points(train+validation):descriptors = " in line:
+            if "Points = " in line and "Descript. = " in line:
+                # append points
                 points_desc.append(
-                    line.split("Points(train+validation):descriptors = ")[1].split(
+                    line.split("Points = ")[1].split(
                         "</p>"
-                    )[0]
+                    ).split()[0]
+                )
+                # append descriptors
+                points_desc.append(
+                    line.split("Points = ")[1].split(
+                        "</p>"
+                    ).split()[-1]
                 )
             if "Results_RF_No_PFI.png" in line:
                 predict_graphs = True
@@ -438,7 +445,7 @@ def test_AQME(test_job, aqme_workspace):
                 break
 
         if test_job == "full_workflow":
-            # model summary, robert score, predict graphs and model metrics
+            # model summary, checkml score, predict graphs and model metrics
             # NOTE: report_debug_{suffix}.txt now holds a SINGLE model/suffix's report (one
             # PDF per suffix - see report.py's "generate one PDF per model (No PFI / PFI)"
             # loop), not a combined No_PFI+PFI report like before 2.2.0 - so every field below
@@ -449,7 +456,8 @@ def test_AQME(test_job, aqme_workspace):
             assert robert_score[1] == "0"
             assert ml_model_count == 1
             assert partition_count == 1
-            assert points_desc[0] == "30:11"
+            assert points_desc[0] == "30"
+            assert points_desc[1] == "11"
             assert predict_graphs
             assert metrics_train_count == 1
             assert metrics_test_count == 1
@@ -486,7 +494,7 @@ def test_AQME(test_job, aqme_workspace):
             _regenerate_report_and_check(test_job, path_main)
 
         elif test_job == "full_clas":
-            # model summary, robert score, predict graphs and model metrics
+            # model summary, checkml score, predict graphs and model metrics
             # (see the NOTE above the full_workflow block: report_debug_{suffix}.txt now
             # holds a single model/suffix's report, so every field below appears once.
             # Unlike full_workflow, robert_score here has only 1 entry: classification
@@ -498,7 +506,8 @@ def test_AQME(test_job, aqme_workspace):
             assert robert_score[0] == "5"
             assert len(robert_score) == 1
             assert ml_model_count == 1
-            assert points_desc[0] == "30:6"
+            assert points_desc[0] == "30"
+            assert points_desc[1] == "6"
             # advanced analysis, flawed models section 1
             assert "-2 / 0" in flawed_models[0]
             assert flawed_image

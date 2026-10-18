@@ -133,7 +133,7 @@ def get_metrics(file,suffix,spacing):
 
 def get_boundary_metrics(data_score,suffix,spacing):
     """
-    Gather the Low/High (sorted CV) boundary robustness metrics for the ROBERT score section.
+    Gather the Low/High (sorted CV) boundary robustness metrics for the CheckML score section.
     Regression only - boundary robustness isn't defined for classification (see print_score()
     in report.py)
     """
@@ -430,11 +430,11 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
 
     if col == 'interpolation':
         caption = f'{spacing}Interpolation{score_title}'
-        partitions_ratio = data_score['proportion_ratio_print'].split('-  Proportion ')[1]
+        partitions_ratio = data_score['proportion_ratio_print'].split()[-1]
 
         column = f"""<p style="margin-top:-18px;"><span style="font-weight:bold;">{caption}</span></p>
-        {ML_line_format}Model = {data_score['ML_model']}&nbsp;&nbsp;·&nbsp;&nbsp;{partitions_ratio}</p>
-        {part_line_format}Points(train+validation):descriptors = {data_score[f'points_descp_ratio_{suffix}']}</p>
+        {ML_line_format}Model = {data_score['ML_model']}&nbsp;&nbsp;·&nbsp;&nbsp;Proportion CV:test = {partitions_ratio}</p>
+        {part_line_format}Points = {data_score[f'total_points_{suffix}']} (CV: {data_score[f'cv_points_{suffix}']}, test: {data_score[f'test_points_{suffix}']})&nbsp;&nbsp;·&nbsp;&nbsp;Descript. = {data_score[f'points_descp_ratio_{suffix}'].split(':')[-1]}</p>
         <p style="margin-top: 4px;">{score_info}
         <p style="margin-bottom: 18px;"></p>
         """
@@ -456,11 +456,11 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
             # distributes any remainder unevenly across folds, so the real Low/High fold sizes
             # can differ from this by a point or two
             fold_points = round(total_points/5)
-            extreme_line = f'Points in bottom+top 20% ~= {2*fold_points}:{total_points}.'
+            extreme_line = f'Points in each 20% high/low folds = {fold_points}'
 
         column = f"""<div style="{indent} box-sizing: border-box;">
         <p style="margin-top:-18px;"><span style="font-weight:bold;">Boundary robustness{score_title}</span></p>
-        <p style="margin-top: -10px; margin-bottom: 0px;">Performance at the extremes of the y-range.</p>
+        <p style="margin-top: -10px; margin-bottom: 0px;">Showing high fold y-values (others in Section B)</p>
         <p style="margin-top: 1px; margin-bottom: 0px;">{extreme_line}</p>
         <p style="margin-top: 4px;">{score_info}
         <p style="margin-bottom: 18px;"></p>
@@ -628,7 +628,7 @@ def adv_diff_test(self,suffix,data_score,spacing,pred_type):
         thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
 
     score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. CV vs test consistency</span> &nbsp;({score_label} &nbsp;<img src="file:///{diff_test_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. CV vs test consistency</span> &nbsp;({score_label} &nbsp;<img src="file:///{diff_test_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_diff}<i>Relative differences in values from sections 2 and 3.</i><br>
     {spacing}{diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
@@ -691,7 +691,7 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
         thres_line = '(a)/(b)/(c) ≤15%/≤25%. Avg., rounded.'
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">6. Prediction stability</span> &nbsp;({score_label} &nbsp;<img src="file:///{cv_r2_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">6. Prediction stability</span> &nbsp;({score_label} &nbsp;<img src="file:///{cv_r2_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_pred}{cv_sd_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
 
@@ -734,7 +734,7 @@ def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
         thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
 
     score_adv_gap = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Train vs validation gap</span> &nbsp;({score_label} &nbsp;<img src="file:///{gap_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Train vs validation gap</span> &nbsp;({score_label} &nbsp;<img src="file:///{gap_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_gap}{gap_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
     """
 
@@ -752,7 +752,7 @@ def adv_sorted_cv_high(self,suffix,data_score,spacing):
     crossing_high = data_score.get(f'crossing_high_{suffix}', 0)
 
     score_adv_high = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Sorted CV, top 20% (High)</span> &nbsp;({score_label} &nbsp;<img src="file:///{high_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Sorted CV, top 20% (High)</span> &nbsp;({score_label} &nbsp;<img src="file:///{high_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_high}Scaled RMSE (High, sorted CV) = {scaled_high}%.<br>{spacing}Beyond training range (High) = {round(crossing_high*100)}%.<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.<br>{spacing}Crossing < 50%: -1, < 20%: -2.</p>
     """
 
@@ -770,7 +770,7 @@ def adv_sorted_cv_low(self,suffix,data_score,spacing):
     crossing_low = data_score.get(f'crossing_low_{suffix}', 0)
 
     score_adv_low = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">2. Sorted CV, bottom 20% (Low)</span> &nbsp;({score_label} &nbsp;<img src="file:///{low_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">2. Sorted CV, bottom 20% (Low)</span> &nbsp;({score_label} &nbsp;<img src="file:///{low_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_low}Scaled RMSE (Low, sorted CV) = {scaled_low}%.<br>{spacing}Beyond training range (Low) = {round(crossing_low*100)}%.<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.<br>{spacing}Crossing < 50%: -1, < 20%: -2.</p>
     """
 
@@ -798,7 +798,7 @@ def adv_spearman(self,suffix,data_score,spacing):
         spearman_result = f'Spearman rank : Low = {spearman_low}, High = {spearman_high}.'
 
     score_adv_spearman = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Spearman rank</span> &nbsp;({score_label} &nbsp;<img src="file:///{spearman_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Spearman rank</span> &nbsp;({score_label} &nbsp;<img src="file:///{spearman_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_spearman}{spearman_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≥ 0.5: +1. High ≥ 0.5: +1.</p>
     """
 
@@ -825,7 +825,7 @@ def adv_bound_sd(self,suffix,data_score,spacing):
         degradation_result = f'Degradation vs 80% RMSE: High {round(ratio_high,2)}x, Low {round(ratio_low,2)}x.'
 
     score_adv_degradation = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Degradation ratio</span> &nbsp;({score_label} &nbsp;<img src="file:///{degradation_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Degradation ratio</span> &nbsp;({score_label} &nbsp;<img src="file:///{degradation_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_degradation}{degradation_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≤ 1.5x: +1. High ≤ 1.5x: +1.</p>
     """
 
@@ -850,7 +850,7 @@ def adv_applicability_domain(self,suffix,data_score,spacing):
         ad_result = f'Scaled RMSE (high-leverage 20%) = {scaled_rmse_ad}%.'
 
     score_adv_ad = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. Applicability domain (leverage)</span> &nbsp;({score_label} &nbsp;<img src="file:///{ad_image}" alt="ROBERT Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. Applicability domain (leverage)</span> &nbsp;({score_label} &nbsp;<img src="file:///{ad_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_ad}{ad_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.</p>
     """
 
@@ -1214,8 +1214,8 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                 # Low/High folds are drawn from the whole dataset (see sort_n_load()), not just
                 # the train+validation pool, so the "points in extreme folds" line needs this
                 if 'Points CV (train+valid.):Test' in dat_predict[i+1]:
-                    n_train_str,n_test_str = dat_predict[i+1].split('=')[-1].split(':')
-                    data_score[f'total_points_{suffix}'] = int(n_train_str) + int(n_test_str)
+                    data_score[f'cv_points_{suffix}'],data_score[f'test_points_{suffix}'] = dat_predict[i+1].split('=')[-1].split(':')
+                    data_score[f'total_points_{suffix}'] = int(data_score[f'cv_points_{suffix}']) + int(data_score[f'test_points_{suffix}'])
 
                     # the score's thresholds (test_score, CV-vs-test consistency, etc.) were
                     # calibrated assuming the standard test_set=0.2 split (see the note in
@@ -1228,7 +1228,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # this check: it no longer forces the internal split to 0 (see
                     # prepare_sets()), so a run using both an internal split and an external
                     # --csv_test file scores normally
-                    n_test = int(n_test_str)
+                    n_test = int(data_score[f'test_points_{suffix}'])
                     expected_test_pts = max(round(0.2 * data_score[f'total_points_{suffix}']), 4)
                     data_score[f'n_test_{suffix}'] = n_test
                     score_available = (n_test == expected_test_pts)
@@ -1675,17 +1675,16 @@ def repro_info(modules,model_suffix=''):
     except:
         python_version = '(version could not be determined)'
 
-    # split the single logged citation line (robert_ref in utils.py, always the main ROBERT
-    # paper followed by the low-data-regimes one) back into its two references, so the report
-    # can show them on their own row each instead of one long wrapped paragraph
-    citation_main, citation_lowdata = citation.strip(), ''
-    lowdata_marker = 'Dalmau, D.; Sigman, M. S.;'
+    # Split after the end marker of the main ROBERT citation (robert_ref in utils.py), leaving
+    # the following low-data-regimes citation for its own row in the report.
+    citation_main, citation_second = citation.strip(), ''
+    lowdata_marker = 'e1733.'
     if lowdata_marker in citation:
-        split_idx = citation.index(lowdata_marker)
+        split_idx = citation.index(lowdata_marker) + len(lowdata_marker)
         citation_main = citation[:split_idx].strip()
-        citation_lowdata = citation[split_idx:].strip()
+        citation_second = citation[split_idx:].strip()
 
-    return version_n_date, citation_main, citation_lowdata, command_line, python_version, total_time, dat_files
+    return version_n_date, citation_main, citation_second, command_line, python_version, total_time, dat_files
 
 
 def make_report(report_html, HTML, pdf_name='ROBERT_report.pdf'):

@@ -291,7 +291,7 @@ def select_answer_depth(question: object, question_intent: str = "") -> AnswerDe
         marker in folded
         for marker in (
             "explain", "explica", "explicas", "how does", "how it works", "como funciona",
-            "gui overview", "robert score",
+            "gui overview", "checkml score",
         )
     )
     if intent == "greeting":

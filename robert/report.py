@@ -297,11 +297,11 @@ class report:
                 # print header
                 report_html = self.print_header(citation_dat)
 
-                # print ROBERT score section
+                # print CheckML score section
                 score_dat, data_score = self.print_score(dat_files, pred_type, suffix, suffix_title)
                 report_html += score_dat
 
-                # print warnings in ROBERT score section
+                # print warnings in CheckML score section
                 warnings_dat, warnings_dict = self.print_warnings(dat_files, pred_type, data_score, suffix)
                 report_html += warnings_dat
 
@@ -485,10 +485,10 @@ class report:
 
     def print_score(self,dat_files,pred_type,suffix,suffix_title):
         """
-        Generates the ROBERT score section (left = Interpolation, right = Boundary robustness)
+        Generates the CheckML score section (left = Interpolation, right = Boundary robustness)
         """
 
-        # calculates the ROBERT score (R2 is analogous for accuracy in classification)
+        # calculates the CheckML score (R2 is analogous for accuracy in classification)
         data_score = {}
         data_score = calc_score(dat_files,suffix,pred_type,data_score)
 
@@ -513,7 +513,7 @@ class report:
         # for some reason, rather than hiding the score by mistake
         score_available = data_score.get(f'score_available_{suffix}', True)
 
-        # starts with the icon of ROBERT score - when the score isn't calibrated, the standing
+        # starts with the icon of CheckML score - when the score isn't calibrated, the standing
         # intro paragraph is replaced (not just dropped) with the shorter "Score not available"
         # notice, in the exact same slot/spacing (see explain_override in module_lines()) so the
         # Interpolation/Boundary robustness columns right below keep the same tight spacing they
@@ -524,13 +524,13 @@ class report:
             reason = data_score.get(f'score_unavailable_reason_{suffix}')
             if reason == 'cv':
                 cv_type = data_score.get(f'cv_type_{suffix}', '')
-                reason_txt = f"this model used {cv_type} instead of the standard 10x repeated 5-fold CV the ROBERT score was calibrated for. If you want a score, use the default --kfold 5 --repeat_kfolds 10"
+                reason_txt = f"this model used {cv_type} instead of the standard 10x repeated 5-fold CV the CheckML score was calibrated for. If you want a score, use the default --kfold 5 --repeat_kfolds 10"
             elif reason == 'user_set':
-                reason_txt = "the test set was chosen by the user (Set column) instead of ROBERT's systematic ~20% split the ROBERT score was calibrated for. If you want a score, remove the Set column"
+                reason_txt = "the test set was chosen by the user (Set column) instead of CheckML's systematic ~20% split the CheckML score was calibrated for. If you want a score, remove the Set column"
             else:
                 n_test = data_score.get(f'n_test_{suffix}')
-                reason_txt = f"this model's test set has {n_test} point(s), not the standard ~20% split the ROBERT score was calibrated for. If you want a score, use the default --test_set 0.2"
-            explain_override = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Score not available: {reason_txt} (see <a href="https://robert.readthedocs.io/en/latest/Report/score.html">the ROBERT score documentation</a>).</i>'
+                reason_txt = f"this model's test set has {n_test} point(s), not the standard ~20% split the CheckML score was calibrated for. If you want a score, use the default --test_set 0.2"
+            explain_override = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Score not available: {reason_txt} (see <a href="https://robert.readthedocs.io/en/latest/Report/score.html">the CheckML score documentation</a>).</i>'
 
         score_dat = ''
         score_dat = self.module_lines('score',score_dat,pred_type=pred_type,explain_override=explain_override)
@@ -639,7 +639,7 @@ class report:
 
     def print_warnings(self,dat_files,pred_type,data_score,suffix):
         """
-        Generates the warning box in the ROBERT score section. Always a single, complete box on
+        Generates the warning box in the CheckML score section. Always a single, complete box on
         page 1: severe warnings and the Overall assessment are never cut, moderate warnings show
         as many as reliably fit (see MODERATE_WARNINGS_BUDGET below) with a "..." marker if more
         were found than shown - never a second box, never spilling onto page 2
@@ -1033,7 +1033,7 @@ class report:
 
     def print_assessment(self,space,suffix,data_score,style_lines,warnings_dict,color_dict,pred_type):
         '''
-        Add overall assessment to the ROBERT score section: one phrase for Interpolation and
+        Add overall assessment to the CheckML score section: one phrase for Interpolation and
         (regression only) one phrase for Boundary robustness/extrapolation, each picked
         independently from its own 5-tier band (see INTERP_BANDS/EXTRAP_BANDS above).
         Classification has no Boundary robustness score (see print_score()), so only the
@@ -1540,7 +1540,7 @@ class report:
         Generates the reproducibility section
         """
 
-        version_n_date, citation_main, citation_lowdata, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules,self.model_suffix)
+        version_n_date, citation_main, citation_second, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules,self.model_suffix)
         robert_version = version_n_date.split()[2]
 
         if self.args.csv_name == '' or self.args.csv_test == '':
@@ -1551,8 +1551,8 @@ class report:
         # version, date and citation - the main ROBERT paper and the low-data-regimes one each
         # get their own row (still 2 lines total, same as before) instead of one long paragraph
         citation_dat += f"""<p style="text-align: justify; margin-top: -9px;"><br>{version_n_date}</p>
-        <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">How to cite:</span> {citation_main}</p>
-        <p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;"><span style="font-weight:bold;">Low data regimes:</span> {citation_lowdata}</p>"""
+        <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">Please cite ROBERT:</span> {citation_main}</p>"""
+        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
 
         # QDESCP's own validation paper - only relevant when AQME generated the descriptors
         # (command_line already has the full "python -m robert ..." line at this point, so the
@@ -1827,22 +1827,17 @@ class report:
         """
 
         if module == 'score':
-            module_name = 'Section A. ROBERT Score'
+            module_name = 'Section A. CheckML Score'
             if explain_override is not None:
                 section_explain = explain_override
             elif pred_type == 'clas':
                 # Boundary robustness isn't defined for classification (see print_score())
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on.</i>'
             else:
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on; Boundary robustness measures how well it holds up at the edges of that range, where predictions are hardest to trust.</i>'
-            if getattr(self,'eval_only',False):
-                # provenance note: this model came from EVALUATE (a user-supplied model/
-                # hyperparameters), not from ROBERT's own BO hyperparameter search - flagged
-                # here since it's the first thing a reader sees, for scientific transparency
-                section_explain += ' <b>Note:</b> this model was provided by the user through the EVALUATE module and was not optimized through ROBERT\'s own Bayesian search.'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on; Boundary robustness (related to extrapolation) measures how well it holds up at the edges of that range, where predictions are hardest to trust.</i>'
         elif module == 'adv_anal':
             module_name = 'Section B. Advanced Score Analysis'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the ROBERT score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the CheckML score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'
         elif module == 'y_distrib':
             module_name = 'Section C. Distribution of y Values'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the training and validation sets.</i>'

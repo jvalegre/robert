@@ -888,7 +888,7 @@ def render_workflow_evidence(
                 "before using them for modeling. Review specific molecule failures only when the logs record them."
             )
     wants_report = full or comparison_request or quality_request or bool(re.search(
-        r"\b(?:robert score|report|informe|puntuaci[oó]n)\b",
+        r"\b(?:checkml score|report|informe|puntuaci[oó]n)\b",
         str(question or ""),
         re.IGNORECASE,
     ))
@@ -1112,7 +1112,7 @@ def render_workflow_answer(
     if full:
         lines.extend(("", f"Results were read from `{snapshot.root_name}`.", "", "**Stage results**"))
     wants_report = full or bool(requested_variants) or bool(re.search(
-        r"\b(?:robert score|report|informe|puntuaci[oó]n)\b",
+        r"\b(?:checkml score|report|informe|puntuaci[oó]n)\b",
         str(question or ""),
         re.IGNORECASE,
     ))

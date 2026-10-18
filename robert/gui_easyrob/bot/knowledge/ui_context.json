@@ -686,7 +686,7 @@
       "source_file": "utils/predictions_utils.py",
       "source_tier": "generated",
       "tab": "Reports",
-      "text": "Evaluate the model scenario based on ROBERT score and predictions.",
+      "text": "Evaluate the model scenario based on CheckML score and predictions.",
       "title": "evaluate model scenario",
       "topic": "results"
     },
@@ -825,7 +825,7 @@
       "source_file": "utils/predictions_utils.py",
       "source_tier": "generated",
       "tab": "Reports",
-      "text": "Render the ROBERT score block from parsed report data.",
+      "text": "Render the CheckML score block from parsed report data.",
       "title": "extract robert fragment image",
       "topic": "results"
     },
@@ -1120,7 +1120,7 @@
         "prediction",
         "predictions",
         "report",
-        "extract robert score details",
+        "extract checkml score details",
         "predict",
         "results"
       ],
@@ -1129,16 +1129,16 @@
       "priority": 0.9,
       "program": "ROBERT",
       "question_patterns": [
-        "extract robert score details",
-        "what does extract robert score details mean",
-        "how should i interpret extract robert score details"
+        "extract checkml score details",
+        "what does extract checkml score details mean",
+        "how should i interpret extract checkml score details"
       ],
       "source": "easyrob_code_docstrings",
       "source_file": "utils/predictions_utils.py",
       "source_tier": "generated",
       "tab": "Reports",
       "text": "Extract structured Interpolation score information (the report's headline score) from\nthe ROBERT report.",
-      "title": "extract robert score details",
+      "title": "extract checkml score details",
       "topic": "results"
     },
     {
@@ -1332,23 +1332,23 @@
       "keywords": [
         "report",
         "results",
-        "robert score"
+        "checkml score"
       ],
       "kind": "results",
       "module": "REPORT",
       "priority": 0.95,
       "program": "ROBERT",
       "question_patterns": [
-        "robert score",
-        "what does robert score mean",
-        "how should i interpret robert score"
+        "checkml score",
+        "what does checkml score mean",
+        "how should i interpret checkml score"
       ],
       "source": "robert_docs",
       "source_file": "Report/score.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "Overview\n\nWhile experienced ML users can normally assess whether an ML workflow has yielded favorable results for \nvalid reasons, inexperienced users may encounter difficulties in gauging the reliability of its predictive \nproficiency. It is widely recognized that ML algorithms can exhibit good metrics (i.e., R\\ 2, MAE, RMSE, \nand similar) in the validation set while harboring questionable predictive ability. For example, a user \nmight assume that a model with good metrics is proficient at prediction, but that very model could yield \ncomparably low errors when the y values are shuffled [1] or when using random numbers as descriptors, [2] \ncasting doubt on its actual predictive validity. br\n\nFor these reasons, we designed the ROBERT score, which reports two independent ratings out of 10 to give\nusers insight into the predictive capabilities of the models selected by ROBERT:\n\n Interpolation: how reliably the model predicts within the range of data it was trained on.\n Boundary robustness: how well the model holds up at the edges of that range and on the most\n descriptor-wise unusual points, where predictions are hardest to trust.\n\nBoth scores are computed from the same battery of VERIFY/PREDICT tests, but each focuses on a different\nfailure mode, so a model can score very differently on each of them (e.g., a model that interpolates well\nbut degrades sharply for extreme substrates). We attempted to rank the models using guidelines aligned with\nmodern ML research (see below). For a more detailed explanation of best practices for designing robust ML\nmodels, see references [3] and [4].\n\n [1] y-Randomization and Its Variants in QSPR/QSAR <https://pubs.acs.org/doi/10.1021/ci700157b>_\n [2] Comment on \u201cPredicting reaction performance in C\u2013N cross-coupling using machine learning\u201d <https://www.science.org/doi/10.1126/science.aat8603>_\n [3] Best practices in ML for chemistry <https://www.nature.com/articles/s41557-021-00716-z>_\n [4] Engineering best practices for ML <https://se-ml.github.io/practices>_ \n\n Please note that the ROBERT score was developed based on the following:\n\n 1) insights from previous publications on best practices for ML models;\n 2) our experience with these models; and\n 3) a comprehensive benchmarking process that involved the nine examples presented in the ROBERT publication (DOI: https://doi.org/10.1002/wcms.1733) along with eight additional examples from low-data regimes (DOI: https://doi.org/10.1039/D5SC00996K).\n\n The scoring ranges were established to achieve consensus among ML experts at the extremes (i.e., very weak and strong models), while allowing for varied interpretations of the intermediate scores (i.e., weak and moderate).\n\n We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!\n\n This calibration assumes the standard `--test_set split (~20% of the data held out as a\n test set). If a run uses a custom --test_set value (including 0, i.e. no held-out test\n set at all), the score isn't meaningful and is hidden from the PDF report \u2014 the rest of the\n report (feature importances, outlier analysis, reproducibility, etc.) is unaffected. Using an\n external --csv_test` set does not affect this: it doesn't replace the internal test split\n (which keeps working as usual) and is only used for predicting the extra points it contains,\n which may not even have known target values.\n\nbr\n\nHow is the score calculated?",
-      "title": "ROBERT score",
+      "text": "Overview\n\nWhile experienced ML users can normally assess whether an ML workflow has yielded favorable results for \nvalid reasons, inexperienced users may encounter difficulties in gauging the reliability of its predictive \nproficiency. It is widely recognized that ML algorithms can exhibit good metrics (i.e., R\\ 2, MAE, RMSE, \nand similar) in the validation set while harboring questionable predictive ability. For example, a user \nmight assume that a model with good metrics is proficient at prediction, but that very model could yield \ncomparably low errors when the y values are shuffled [1] or when using random numbers as descriptors, [2] \ncasting doubt on its actual predictive validity. br\n\nFor these reasons, we designed the CheckML score, which reports two independent ratings out of 10 to give\nusers insight into the predictive capabilities of the models selected by ROBERT:\n\n Interpolation: how reliably the model predicts within the range of data it was trained on.\n Boundary robustness: how well the model holds up at the edges of that range and on the most\n descriptor-wise unusual points, where predictions are hardest to trust.\n\nBoth scores are computed from the same battery of VERIFY/PREDICT tests, but each focuses on a different\nfailure mode, so a model can score very differently on each of them (e.g., a model that interpolates well\nbut degrades sharply for extreme substrates). We attempted to rank the models using guidelines aligned with\nmodern ML research (see below). For a more detailed explanation of best practices for designing robust ML\nmodels, see references [3] and [4].\n\n [1] y-Randomization and Its Variants in QSPR/QSAR <https://pubs.acs.org/doi/10.1021/ci700157b>_\n [2] Comment on \u201cPredicting reaction performance in C\u2013N cross-coupling using machine learning\u201d <https://www.science.org/doi/10.1126/science.aat8603>_\n [3] Best practices in ML for chemistry <https://www.nature.com/articles/s41557-021-00716-z>_\n [4] Engineering best practices for ML <https://se-ml.github.io/practices>_ \n\n Please note that the CheckML score was developed based on the following:\n\n 1) insights from previous publications on best practices for ML models;\n 2) our experience with these models; and\n 3) a comprehensive benchmarking process that involved the nine examples presented in the ROBERT publication (DOI: https://doi.org/10.1002/wcms.1733) along with eight additional examples from low-data regimes (DOI: https://doi.org/10.1039/D5SC00996K).\n\n The scoring ranges were established to achieve consensus among ML experts at the extremes (i.e., very weak and strong models), while allowing for varied interpretations of the intermediate scores (i.e., weak and moderate).\n\n We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!\n\n This calibration assumes the standard `--test_set split (~20% of the data held out as a\n test set). If a run uses a custom --test_set value (including 0, i.e. no held-out test\n set at all), the score isn't meaningful and is hidden from the PDF report \u2014 the rest of the\n report (feature importances, outlier analysis, reproducibility, etc.) is unaffected. Using an\n external --csv_test` set does not affect this: it doesn't replace the internal test split\n (which keeps working as usual) and is only used for predicting the extra points it contains,\n which may not even have known target values.\n\nbr\n\nHow is the score calculated?",
+      "title": "CheckML score",
       "topic": "results"
     },
     {
@@ -2210,7 +2210,7 @@
       "source_file": "Tutorials/tutorials.rst",
       "source_tier": "reference",
       "tab": "ROBERT",
-      "text": "Interactive Tutorial Guides\n\nThese tutorials guide you step-by-step through the easyROB graphical interface.\n\nYou will learn how to:\n\n- Build models from CSV datasets \n- Generate descriptors \n- Process ChemDraw files \n- Run predictions \n\nSelect a tutorial workflow:\n\nEach tutorial is a step-by-step interactive guide. \nUse the controls at the bottom to navigate through the different stages of the workflow.",
+      "text": "easyROB Tutorial Guides\n\nThese tutorials guide you step-by-step through the easyROB graphical interface.\n\nYou will learn how to:\n\n- Build models from CSV datasets \n- Generate descriptors \n- Process ChemDraw files \n- Run predictions \n\nSelect a tutorial workflow:\n\nEach tutorial is a step-by-step interactive guide. \nUse the controls at the bottom to navigate through the different stages of the workflow.",
       "title": "Overview",
       "topic": "output"
     },

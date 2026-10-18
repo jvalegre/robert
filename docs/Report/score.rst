@@ -1,7 +1,7 @@
 .. robert-score-start
 
-ROBERT score
-------------
+CheckML score
+-------------
 
 Overview
 ++++++++
@@ -18,7 +18,7 @@ might assume that a model with good metrics is proficient at prediction, but tha
 comparably low errors when the y values are shuffled [1] or when using random numbers as descriptors, [2] 
 casting doubt on its actual predictive validity. |br|
 
-For these reasons, we designed the ROBERT score, which reports **two independent ratings out of 10** to give
+For these reasons, we designed the CheckML score, which reports **two independent ratings out of 10** to give
 users insight into the predictive capabilities of the models selected by ROBERT:
 
 * **Interpolation:** how reliably the model predicts within the range of data it was trained on.
@@ -38,7 +38,7 @@ models, see references [3] and [4].
 
 .. note:: 
 
-   Please note that the ROBERT score was developed based on the following:
+   Please note that the CheckML score was developed based on the following:
    
    1) insights from previous publications on best practices for ML models;
    2) our experience with these models; and
@@ -457,7 +457,7 @@ Some of the most common reasons for getting low scores are:
 * Including too few descriptors
 * Overfitted and underfitted models
 
-Different causes that might be affecting your score are included in the ROBERT score section of the PDF report.
+Different causes that might be affecting your score are included in the CheckML score section of the PDF report.
 
 **Very weak models:** very unreliable models. 
 

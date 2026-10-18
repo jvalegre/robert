@@ -66,8 +66,8 @@ warnings.filterwarnings("ignore")
 
 robert_version = "2.2.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733. Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Chem. Sci. 2025, 16, 8555-8560."
-checkml_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733. CheckML citation TBD."
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
+checkml_ref = "CheckML citation TBD."
 
 def _parse_class_mapping_reverse(mapping):
     """
@@ -342,11 +342,9 @@ o Other common options:
 o How to cite ROBERT and CheckML:
 ---------------------------------
 
-ROBERT:
-{robert_ref}
+ROBERT: {robert_ref}
 
-CheckML:
-{checkml_ref}
+CheckML: {checkml_ref}
 
 o Complete documentation:
 -------------------------
@@ -526,7 +524,7 @@ def load_variables(kwargs, robert_module):
                 sys.exit()
 
             self.log = Logger(self.destination / logger_1, logger_2)
-            self.log.write(f"ROBERT v {robert_version} {time_run} \nHow to cite: {robert_ref}\n")
+            self.log.write(f"ROBERT v {robert_version} {time_run} \nHow to cite: {robert_ref} {checkml_ref}\n")
 
             if self.command_line:
                 cmd_print = ''
@@ -3303,7 +3301,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     # set axis limits and graph PATH
     min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph,sd_set)
 
-    # track the range of predictions (used in ROBERT score) - an empty internal test set
+    # track the range of predictions (used in CheckML score) - an empty internal test set
     # (e.g. --csv_test with --auto_test False) has no y_test values to fold in
     if len(Xy_data["y_test"]) > 0:
         pred_min = min(min(Xy_data["y_train"]),min(Xy_data["y_test"]))

@@ -139,7 +139,7 @@ def extract_boundary_fragment(pdf_path: Path) -> QPixmap | None:
     return _render_robert_score_pixmap(details)
 
 def extract_robert_fragment_image(pdf_path: Path) -> QPixmap | None:
-    """Render the ROBERT score block from parsed report data."""
+    """Render the CheckML score block from parsed report data."""
     details = _extract_robert_score_details(pdf_path)
     if not details:
         return None
@@ -217,7 +217,7 @@ def _extract_boundary_details(pdf_path: Path) -> dict | None:
 
 
 def _parse_robert_score_block(text: str) -> dict | None:
-    """Parse the ROBERT score text block into structured data."""
+    """Parse the CheckML score text block into structured data."""
     if not text:
         return None
 
@@ -232,7 +232,7 @@ def _parse_robert_score_block(text: str) -> dict | None:
         if not score_match:
             return None
         title_match = re.search(r"(.+?)\s*[.\-·]?\s*Score\s+\d+\b", joined_text, re.IGNORECASE)
-        title = title_match.group(1).strip() if title_match else "ROBERT Score"
+        title = title_match.group(1).strip() if title_match else "CheckML Score"
         return {
             "title": title,
             "score": int(score_match.group(1)),
@@ -295,7 +295,7 @@ def _extract_robert_score_details(pdf_path: Path) -> dict | None:
 
 
 def _robert_score_style(score: int | None) -> dict:
-    """Return the visual style associated with a ROBERT score."""
+    """Return the visual style associated with a CheckML score."""
     if score is None:
         return {"label": "UNKNOWN", "segments": 0, "fill": (0.92, 0.90, 0.96), "text": (0.35, 0.35, 0.35)}
     if score <= 0:
@@ -310,7 +310,7 @@ def _robert_score_style(score: int | None) -> dict:
 
 
 def _render_robert_score_pixmap(details: dict) -> QPixmap | None:
-    """Render a synthetic ROBERT score card for the GUI using parsed PDF data."""
+    """Render a synthetic CheckML score card for the GUI using parsed PDF data."""
     width = 620
     height = 255
     margin = 24
@@ -427,20 +427,20 @@ def extract_prediction_info(df: pd.DataFrame) -> dict:
     return result
 
 def evaluate_model_scenario(score: int | None, predictions_identical: bool | None) -> dict:
-    """Evaluate the model scenario based on ROBERT score and predictions."""
+    """Evaluate the model scenario based on CheckML score and predictions."""
     almos_link = "https://github.com/MiguelMartzFdez/almos"
     almos_html = f'<a href="{almos_link}">ALMOS</a>'
     result = {"state": "UNKNOWN", "messages": [], "recommendations": []}
 
     if score is None:
-        result["messages"].append("No valid ROBERT score was detected. Model reliability cannot be evaluated.")
+        result["messages"].append("No valid CheckML score was detected. Model reliability cannot be evaluated.")
         result["recommendations"].append("You may verify that ROBERT_report_No_PFI.pdf was generated correctly.")
         return result
 
     if predictions_identical is True:
         result["state"] = "FAILED"
         result["messages"].append(
-            f"ROBERT score is {score}, but all predictions are identical. "
+            f"CheckML score is {score}, but all predictions are identical. "
             "The model cannot discriminate between candidates."
         )
         result["recommendations"].append(
@@ -451,7 +451,7 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if 0 <= score <= 3:
         result["state"] = "FAILED"
-        result["messages"].append(f"ROBERT score is {score}. Model performance is critically low.")
+        result["messages"].append(f"CheckML score is {score}. Model performance is critically low.")
         result["recommendations"].append(
             "You may avoid using these predictions and rebuild the dataset "
             f"using Clustering module in {almos_html}."
@@ -460,7 +460,7 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if 4 <= score <= 6:
         result["state"] = "WEAK"
-        result["messages"].append(f"ROBERT score is {score}. The model works, but reliability is limited.")
+        result["messages"].append(f"CheckML score is {score}. The model works, but reliability is limited.")
         result["recommendations"].append(
             "You may use predictions cautiously and improve robustness "
             f"through Active Learning module with {almos_html}."
@@ -469,7 +469,7 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if 7 <= score <= 8:
         result["state"] = "DECENT"
-        result["messages"].append(f"ROBERT score is {score}. The model is solid but can still improve.")
+        result["messages"].append(f"CheckML score is {score}. The model is solid but can still improve.")
         result["recommendations"].append(
             "You may use these predictions while considering further optimization "
             f"through Active Learning module with {almos_html}."
@@ -478,7 +478,7 @@ def evaluate_model_scenario(score: int | None, predictions_identical: bool | Non
 
     if score > 8:
         result["state"] = "STRONG"
-        result["messages"].append(f"ROBERT score is {score}. The model shows strong predictive performance.")
+        result["messages"].append(f"CheckML score is {score}. The model shows strong predictive performance.")
         result["recommendations"].append(
             "You may confidently use these predictions for candidate prioritization."
         )
@@ -694,7 +694,7 @@ class PredictionDashboardPanel(QWidget):
             container_layout.addWidget(image_frame)
 
         # Boundary robustness is scored 0-10 (regression only), the same scale used for the
-        # main ROBERT score - see _robert_score_style() for the VERY WEAK/WEAK/MODERATE/STRONG
+        # main CheckML score - see _robert_score_style() for the VERY WEAK/WEAK/MODERATE/STRONG
         # bands it's built from
         if score is not None:
             label = _robert_score_style(score)["label"]

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from pathlib import Path
 import re
 from typing import Callable, Final, Mapping, Sequence
 import unicodedata
 
 from .answer_metadata import AnswerMetadata, EvidenceOrigin, WebSearchMode
 from .bot_context import GuiSnapshot
-from .workflow_results import render_workflow_answer, scope_workflow_result_snapshot
+from .workflow_results import _requested_variants, render_workflow_answer, scope_workflow_result_snapshot
 from .bot_rag import KnowledgeBase, SearchResult, normalize_terms
 from .heuristics import diagnose_snapshot, format_heuristic_answer
 from .evidence_policy import EvidenceDecision, assess_evidence, sanitize_search_query
@@ -38,6 +39,8 @@ _TUTORIALS_BY_ID = {
     "chemdraw": ("tutorial:chemdraw.md", "From ChemDraw"),
     "predictions": ("tutorial:predictions.md", "New Predictions"),
     "descriptors": ("tutorial:descriptors.md", "Descriptors"),
+    "check_model": ("tutorial:check_model.md", "Check ML"),
+    "robbot": ("tutorial:robbot.md", "robBOT"),
 }
 _EXACT_TUTORIAL_QUESTIONS = {
     "how does the gui overview work": "overview",
@@ -45,8 +48,32 @@ _EXACT_TUTORIAL_QUESTIONS = {
     "how do i start from chemdraw": "chemdraw",
     "how do i make predictions for new molecules": "predictions",
     "how do i generate descriptors without training a model": "descriptors",
+    "how do i check my own machine learning model": "check_model",
+    "how do i use robbot": "robbot",
 }
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _result_selection_note(snapshot: GuiSnapshot, question: str) -> str:
+    """Explain the single overall-best report retained in the run folder."""
+    if len(snapshot.result_root_reports) != 1 or not snapshot.result_archived_report_count:
+        return ""
+    filename = snapshot.result_root_reports[0]
+    selected = ", ".join(
+        f"{variant}={model}" for variant, model in snapshot.result_selected_variants
+    )
+    if _response_language(question) == "Spanish":
+        return (
+            f"**Selección de Results:** ROBERT dejó un único informe final en la carpeta "
+            f"principal, `{filename}` ({selected}). Hay {snapshot.result_archived_report_count} "
+            "informes en `REPORT_models`; selecciona un modelo concreto para consultar sus "
+            "otras variantes."
+        )
+    return (
+        f"**Results selection:** ROBERT kept one final report in the run folder, "
+        f"`{filename}` ({selected}). There are {snapshot.result_archived_report_count} "
+        "reports in `REPORT_models`; choose a named model to inspect its other variants."
+    )
 
 
 def _result_provider_fallback(
@@ -76,7 +103,10 @@ def _result_provider_fallback(
         else:
             explanation += f"Reason for local answer: {reason}.\n\n"
     return BotAnswerResult(
-        explanation + render_workflow_answer(snapshot.workflow_results, question, full=full),
+        explanation + "\n\n".join(part for part in (
+            _result_selection_note(snapshot, question) if snapshot.result_model == "Best models" else "",
+            render_workflow_answer(snapshot.workflow_results, question, full=full),
+        ) if part),
         memory_eligible=False,
         metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.LOCAL_SYSTEM),
     )
@@ -160,7 +190,11 @@ class BotEngine:
         local_manager: LocalLLMManager | None = None,
         now_provider: Callable[[], datetime] | None = None,
     ) -> None:
-        self._knowledge_base = knowledge_base or KnowledgeBase.from_directory(strict=False)
+        tutorials_dir = Path(__file__).resolve().parents[1] / "tutorials"
+        self._knowledge_base = knowledge_base or KnowledgeBase.from_directory(
+            tutorials_dir=tutorials_dir,
+            strict=False,
+        )
         self._provider_registry = dict(provider_registry or build_provider_registry())
         self._local_manager = local_manager or LocalLLMManager()
         self._now_provider = now_provider or (lambda: datetime.now().astimezone())
@@ -225,12 +259,65 @@ class BotEngine:
                 memory_eligible=False,
             )
 
+        requested_variants = _requested_variants(clean_question)
+        named_model = any(re.search(
+            rf"(?<![\w]){re.escape(model)}(?![\w])", clean_question, re.IGNORECASE,
+        ) for model in snapshot.result_models)
+        asks_all_models = bool(re.search(
+            r"\b(?:all models|todos los modelos|cada modelo)\b", clean_question.casefold(),
+        ))
+        selected_variants = {variant for variant, _ in snapshot.result_selected_variants}
+        if (requested_variants and snapshot.result_models and selected_variants
+                and not named_model and not asks_all_models
+                and not set(requested_variants).issubset(selected_variants)):
+            selected = ", ".join(
+                f"{variant}={model}" for variant, model in snapshot.result_selected_variants
+            )
+            archive_note = (
+                f" Hay {snapshot.result_archived_report_count} informes archivados en REPORT_models."
+                if snapshot.result_archived_report_count else ""
+            )
+            if _response_language(clean_question) == "Spanish":
+                reply = (
+                    f"La selección actual de Results ({snapshot.result_model or 'Best models'}) "
+                    f"solo contiene {selected}. La variante que preguntas no está seleccionada."
+                    f"{archive_note} Elige un modelo concreto en el selector Model para consultar "
+                    "sus variantes disponibles."
+                )
+            else:
+                archive_note = (
+                    f" There are {snapshot.result_archived_report_count} archived reports in REPORT_models."
+                    if snapshot.result_archived_report_count else ""
+                )
+                reply = (
+                    f"The current Results selection ({snapshot.result_model or 'Best models'}) "
+                    f"contains only {selected}. The requested variant is not selected."
+                    f"{archive_note} Choose a named model in the Model selector to inspect "
+                    "its available variants."
+                )
+            return BotAnswerResult(
+                reply, memory_eligible=False,
+                metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.LOCAL_SYSTEM),
+            )
+
+        if (len(snapshot.result_root_reports) == 1 and snapshot.result_archived_report_count
+                and re.search(r"\b(?:report|informe|pdf)\b", clean_question, re.IGNORECASE)
+                and re.search(r"\b(?:only|single|one|solo|unico|único|uno)\b", clean_question, re.IGNORECASE)):
+            return BotAnswerResult(
+                _result_selection_note(snapshot, clean_question), memory_eligible=False,
+                metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.LOCAL_SYSTEM),
+            )
+
         if snapshot.workflow_results is not None and snapshot.result_models:
             snapshot = replace(snapshot, workflow_results=scope_workflow_result_snapshot(
                 snapshot.workflow_results,
                 clean_question,
                 selected_variants=snapshot.result_selected_variants,
                 available_models=snapshot.result_models,
+                prefer_root_report=(
+                    snapshot.result_model == "Best models" and len(snapshot.result_root_reports) == 1
+                    and not named_model and not asks_all_models
+                ),
             ))
 
         local_clock_answer = self._build_local_clock_answer(clean_question)
@@ -273,7 +360,8 @@ class BotEngine:
             question_intent = "results"
         if question_intent == "greeting":
             return BotAnswerResult(self._build_greeting_reply(clean_question, snapshot))
-        if self._is_low_information_question(clean_question) and not selected_history:
+        if (self._is_low_information_question(clean_question) and not selected_history
+                and not (snapshot.workflow_results is not None and result_evidence_question)):
             return BotAnswerResult(
                 "Please ask a more specific question about the GUI, workflow, results, or the step you want help with.",
                 memory_eligible=False,
@@ -323,11 +411,17 @@ class BotEngine:
             if tutorial_summary is not None:
                 return BotAnswerResult(self._render_tutorial_summary(tutorial_summary))
             if snapshot.workflow_results is not None and not generic_question and (question_intent == "results" or result_evidence_question):
-                return BotAnswerResult(render_workflow_answer(
+                result_answer = render_workflow_answer(
                     snapshot.workflow_results,
                     clean_question,
                     full=result_summary_request,
-                ))
+                )
+                if (result_summary_request and snapshot.result_model == "Best models"
+                        and not named_model and not asks_all_models):
+                    note = _result_selection_note(snapshot, clean_question)
+                    if note:
+                        result_answer = f"{note}\n\n{result_answer}"
+                return BotAnswerResult(result_answer)
             return BotAnswerResult(
                 format_heuristic_answer(
                     clean_question,

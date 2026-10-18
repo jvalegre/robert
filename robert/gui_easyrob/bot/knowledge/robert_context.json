@@ -64,7 +64,7 @@
       "source_file": "generate.py",
       "source_tier": "generated",
       "tab": "Reports",
-      "text": "Parameters\n\n csv_name : str, default=''\n Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). \n y : str, default=''\n Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). \n discard : list, default=[]\n List containing the columns of the input CSV file that will not be included as descriptors\n in the curated CSV file (i.e. ['name','SMILES']).\n ignore : list, default=[]\n List containing the columns of the input CSV file that will be ignored during the curation process\n (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value\n is automatically ignored.\n destination : str, default=None\n Directory to create the output file(s).\n varfile : str, default=None\n Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml). \n auto_type : bool, default=True\n If there are only two y values, the program automatically changes the type of problem to classification.\n model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) \n ML models available: \n 1. 'RF' (Random forest)\n 2. 'MVL' (Multivariate lineal models)\n 3. 'GB' (Gradient boosting)\n 4. 'NN' (MLP neural network)\n 5. 'GP' (Gaussian Process)\n 6. 'AdaB' (AdaBoost)\n 7. 'RIDGE' (Ridge regression, regression only)\n 8. 'LOGISTIC' (Logistic regression, classification only)\n type : str, default='reg'\n Type of the pedictions. Options:\n 1. 'reg' (Regressor)\n 2. 'clas' (Classifier)\n all_models : bool, default=True\n Runs the full VERIFY/PREDICT/REPORT pipeline for every screened model (from the 'model'\n option), each producing its own PDF report - instead of only the single best one. All\n the PDFs are moved into a REPORT_models folder, keeping only the best model(s) for\n Interpolation and Boundary robustness in the working directory. Set to False to only\n run the single best model, like ROBERT did before this option existed (faster).\n seed : int, default=0\n Random seed used in the ML predictor models and other protocols.\n error_type : str, default: rmse (regression), mcc (classification)\n Target value used during the hyperopt optimization. Options:\n Regression:\n 1. rmse (root-mean-square error)\n 2. mae (mean absolute error)\n 3. r2 (R-squared, not recommended since R2 might be good even with high errors in small datasets)\n Classification:\n 1. mcc (Matthew's correlation coefficient)\n 2. f1 (F1 score)\n 3. acc (accuracy, fraction of correct predictions)\n init_points : int, default=10\n Number of initial points for Bayesian optimization (exploration)\n n_iter : int, default=10\n Number of iterations for Bayesian optimization (exploitation)\n expect_improv : int, default=0.05\n Expected improvement for Bayesian optimization\n pfi_filter : bool, default=True\n Activate the PFI filter of descriptors.\n pfi_epochs : int, default=5\n Sets the number of times a feature is randomly shuffled during the PFI analysis\n (standard from sklearn webpage: 5).\n pfi_threshold : float, default=0.2\n The PFI filter is X% of the model's score (% adjusted, 0.2 = 20% of the total score during PFI).\n pfi_max : int, default=0\n Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI\n filter are used.\n auto_test : bool, default=True\n Raises % of test points to 20% if test_set is lower than that.\n test_set : float, default=0.2\n Amount of datapoints to separate as external test set (0.2 = 20%). These points will not be used during the\n hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select\n --test_set 0 to use only training and validation.\n kfold : int, default=5\n Number of random data splits for the cross-validation of the models. \n repeat_kfolds : int, default=10\n Number of repetitions for the k-fold cross-validation of the models.\n split : str, default='auto' (resolves to 'even' for regression, 'stratified' for classification)\n Specifies how the data is split into training and test sets. Options:\n 1. 'auto': resolves to 'even' (regression) or 'stratified' (classification).\n 2. 'even': splits the data evenly into training and test sets.\n 3. 'RND': randomly splits the data.\n 4. 'stratified': splits the data while preserving the distribution of the target variable.\n 5. 'KN': uses a k-means approach to select representative samples for training (good for intrapolation, bad for boundary robustness).\n 6. 'extra_q1': selects the 20% lowest values.\n 7. 'extra_q5': selects the 20% highest values.",
+      "text": "Parameters\n\n csv_name : str, default=''\n Name of the CSV file containing the database. A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). \n y : str, default=''\n Name of the column containing the response variable in the input CSV file (i.e. 'solubility'). \n discard : list, default=[]\n List containing the columns of the input CSV file that will not be included as descriptors\n in the curated CSV file (i.e. ['name','SMILES']).\n ignore : list, default=[]\n List containing the columns of the input CSV file that will be ignored during the curation process\n (i.e. ['name','SMILES']). The descriptors will be included in the curated CSV file. The y value\n is automatically ignored.\n destination : str, default=None\n Directory to create the output file(s).\n varfile : str, default=None\n Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml). \n auto_type : bool, default=True\n If there are only two y values, the program automatically changes the type of problem to classification.\n model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) \n ML models available: \n 1. 'RF' (Random forest)\n 2. 'MVL' (Multivariate lineal models)\n 3. 'GB' (Gradient boosting)\n 4. 'NN' (MLP neural network)\n 5. 'GP' (Gaussian Process)\n 6. 'AdaB' (AdaBoost)\n 7. 'RIDGE' (Ridge regression, regression only)\n 8. 'LOGISTIC' (Logistic regression, classification only)\n type : str, default='reg'\n Type of the pedictions. Options:\n 1. 'reg' (Regressor)\n 2. 'clas' (Classifier)\n all_models : bool, default=True\n Runs the full VERIFY/PREDICT/REPORT pipeline for every screened model (from the 'model'\n option), each producing its own PDF report - instead of only the single best one. All\n the PDFs are moved into a REPORT_models folder, keeping one overall-best model and\n variant report in the working directory. Set to False to run only the\n GENERATE-selected model; REPORT can still create both No PFI and PFI PDFs\n for that model when PFI filtering is enabled (faster).\n seed : int, default=0\n Random seed used in the ML predictor models and other protocols.\n error_type : str, default: rmse (regression), mcc (classification)\n Target value used during the hyperopt optimization. Options:\n Regression:\n 1. rmse (root-mean-square error)\n 2. mae (mean absolute error)\n 3. r2 (R-squared, not recommended since R2 might be good even with high errors in small datasets)\n Classification:\n 1. mcc (Matthew's correlation coefficient)\n 2. f1 (F1 score)\n 3. acc (accuracy, fraction of correct predictions)\n init_points : int, default=10\n Number of initial points for Bayesian optimization (exploration)\n n_iter : int, default=10\n Number of iterations for Bayesian optimization (exploitation)\n expect_improv : int, default=0.05\n Expected improvement for Bayesian optimization\n pfi_filter : bool, default=True\n Activate the PFI filter of descriptors.\n pfi_epochs : int, default=5\n Sets the number of times a feature is randomly shuffled during the PFI analysis\n (standard from sklearn webpage: 5).\n pfi_threshold : float, default=0.2\n The PFI filter is X% of the model's score (% adjusted, 0.2 = 20% of the total score during PFI).\n pfi_max : int, default=0\n Number of features to keep after the PFI filter. If pfi_max is 0, all the features that pass the PFI\n filter are used.\n auto_test : bool, default=True\n Raises % of test points to 20% if test_set is lower than that.\n test_set : float, default=0.2\n Amount of datapoints to separate as external test set (0.2 = 20%). These points will not be used during the\n hyperoptimization, and PREDICT will use the points as test set during ROBERT workflows. Select\n --test_set 0 to use only training and validation.\n kfold : int, default=5\n Number of random data splits for the cross-validation of the models. \n repeat_kfolds : int, default=10\n Number of repetitions for the k-fold cross-validation of the models.\n split : str, default='auto' (resolves to 'even' for regression, 'stratified' for classification)\n Specifies how the data is split into training and test sets. Options:\n 1. 'auto': resolves to 'even' (regression) or 'stratified' (classification).\n 2. 'even': splits the data evenly into training and test sets.\n 3. 'RND': randomly splits the data.\n 4. 'stratified': splits the data while preserving the distribution of the target variable.\n 5. 'KN': uses a k-means approach to select representative samples for training (good for intrapolation, bad for boundary robustness).\n 6. 'extra_q1': selects the 20% lowest values.\n 7. 'extra_q5': selects the 20% highest values.",
       "title": "module",
       "topic": "results"
     },
@@ -93,66 +93,6 @@
       "tab": "Reports",
       "text": "Prints results of the predictions for all the sets",
       "title": "print predict",
-      "topic": "results"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "robert-code-docstrings-report-report-best-models-text-a54dcf88",
-      "keywords": [
-        "model",
-        "models",
-        "pfi",
-        "report",
-        "rmse",
-        "best models text",
-        "report",
-        "results"
-      ],
-      "kind": "results",
-      "module": "REPORT",
-      "priority": 0.9,
-      "program": "ROBERT",
-      "question_patterns": [
-        "best models text",
-        "what does best models text mean",
-        "how should i interpret best models text"
-      ],
-      "source": "robert_code_docstrings",
-      "source_file": "report.py",
-      "source_tier": "generated",
-      "tab": "Reports",
-      "text": "Informative-only line (doesn't change which model(s) run through VERIFY/PREDICT/\nREPORT) showing, for this PFI variant, the best model for Interpolation and the\nbest model for Boundary robustness, picked from the --all_models pre-pass scores\ncollected in self.model_scores (see __init__). Tie-break cascade: own score ->\nthe other score -> lower RMSE (scaled_rmse_cv for Interpolation, average of the\nLow/High sorted-CV scaled RMSEs for Boundary robustness)",
-      "title": "best models text",
-      "topic": "results"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "robert-code-docstrings-report-report-organize-all-models-pdfs-93e6436f",
-      "keywords": [
-        "model",
-        "models",
-        "pfi",
-        "report",
-        "rmse",
-        "organize all models pdfs",
-        "report",
-        "results"
-      ],
-      "kind": "results",
-      "module": "REPORT",
-      "priority": 0.9,
-      "program": "ROBERT",
-      "question_patterns": [
-        "organize all models pdfs",
-        "what does organize all models pdfs mean",
-        "how should i interpret organize all models pdfs"
-      ],
-      "source": "robert_code_docstrings",
-      "source_file": "report.py",
-      "source_tier": "generated",
-      "tab": "Reports",
-      "text": "Moves every --all_models PDF (one per model x PFI variant) into a REPORT_models/\nsubfolder, then copies back into the working directory only the single best PDF for\nInterpolation and the single best PDF for Boundary robustness - picked across BOTH\nmodels AND PFI variants together (unlike best_models_text(), which picks per suffix),\nsince there should be exactly one \"best\" PDF per axis in the working directory. Same\ntie-break cascade as best_models_text(): own score -> other score -> lower RMSE. If\nthe same (model, suffix) wins both axes, only that one PDF ends up back in the\nworking directory",
-      "title": "organize all models pdfs",
       "topic": "results"
     },
     {
@@ -237,6 +177,35 @@
       "tab": "Reports",
       "text": "Shared --all_models tie-break cascade (own score -> other axis's score -> lower RMSE),\nused by both organize_all_models_pdfs() and best_models_text() so the two don't each\nkeep their own hand-indexed copy of the same cascade against differently-shaped\ntuples (previously risked drifting out of sync if one tuple's shape ever changed\nwithout mirroring the index shift in the other). items: list of\n(key, interp, bound, rmse_cv, rmse_bound) tuples, always in this order regardless of\ncaller. Returns the single best tuple.",
       "title": "pick best model",
+      "topic": "results"
+    },
+    {
+      "audience": "developer_reference",
+      "id": "robert-code-docstrings-report-report-private-pick-best-overall-af27e0cc",
+      "keywords": [
+        "model",
+        "models",
+        "report",
+        "rmse",
+        "pick best overall",
+        "report",
+        "results"
+      ],
+      "kind": "results",
+      "module": "REPORT",
+      "priority": 0.9,
+      "program": "ROBERT",
+      "question_patterns": [
+        "pick best overall",
+        "what does pick best overall mean",
+        "how should i interpret pick best overall"
+      ],
+      "source": "robert_code_docstrings",
+      "source_file": "report.py",
+      "source_tier": "generated",
+      "tab": "Reports",
+      "text": "Picks a single overall-best (key, interp, bound, rmse_cv, rmse_bound) candidate,\ncombining Interpolation and Boundary robustness instead of ranking them separately\n(which could point at two different models/suffixes). A candidate with either score\nbelow OVERALL_FLOOR is disqualified first, regardless of how good its other axis is -\na model that can't be trusted at all on one axis isn't a safe overall pick just\nbecause it excels at the other. Only if NO candidate clears that floor does the floor\nget dropped entirely and every candidate is ranked by the normal Interpolation-primary\ncascade (_pick_best_model) - a model that's merely weak on both axes is still a more\ninformative pick than refusing to choose. Classification has no Boundary robustness\nscore at all, so the floor never applies there - callers route that case straight to\n_pick_best_model() instead of calling this.",
+      "title": "pick best overall",
       "topic": "results"
     },
     {
@@ -665,33 +634,6 @@
       "tab": "Reports",
       "text": "Calculate scores for R2 and MCC using predetermined thresholds\n\nFor regression (scaled RMSE): 0-2 points\nFor classification (MCC): 0-2 points, same scale as regression (homogenized so both\nprediction types share the same 0-2 tiers/max everywhere in Section B)",
       "title": "score rmse mcc",
-      "topic": "results"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "robert-code-docstrings-test-move-backup-20260929-inner-tests-test-interactive-predictions-module-91436ecb",
-      "keywords": [
-        "prediction",
-        "predictions",
-        "module",
-        "predict",
-        "results"
-      ],
-      "kind": "results",
-      "module": "PREDICT",
-      "priority": 0.9,
-      "program": "ROBERT",
-      "question_patterns": [
-        "module",
-        "what does module mean",
-        "how should i interpret module"
-      ],
-      "source": "robert_code_docstrings",
-      "source_file": "test-move-backup-20260929/inner-tests/test_interactive_predictions.py",
-      "source_tier": "generated",
-      "tab": "Reports",
-      "text": "Data checks for interactive prediction figures.",
-      "title": "module",
       "topic": "results"
     },
     {
@@ -2208,6 +2150,7 @@
       "audience": "developer_reference",
       "id": "robert-code-docstrings-report-utils-css-content-732ce854",
       "keywords": [
+        "model",
         "report",
         "css content",
         "report",
@@ -2226,7 +2169,7 @@
       "source_file": "report_utils.py",
       "source_tier": "generated",
       "tab": "Reports",
-      "text": "Obtain ROBERT version and CSV name to use it on top of the PDF report",
+      "text": "Obtain ROBERT version and CSV name to use it on top of the PDF report. eval_only=True\n(EVALUATE reports, scoring a model the user already chose) shows \"CheckML Report\" in the\ntop-left running header instead of \"ROBERT Report\", matching the CheckML logo used in\nprint_header() for the same reports.",
       "title": "css content",
       "topic": "output"
     },
@@ -2283,34 +2226,6 @@
       "tab": "Reports",
       "text": "Retrieves variables used in the Reproducibility section. model_suffix (e.g. '_RF') reads\nthe per-model log split off by VERIFY/PREDICT under --all_models instead of the normal\nshared VERIFY_data.dat/PREDICT_data.dat - only applies to those two modules, since\nCURATE/GENERATE run once for the whole dataset and are never split per model.",
       "title": "repro info",
-      "topic": "output"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "robert-code-docstrings-test-move-backup-20260929-inner-tests-test-all-models-completion-module-650cf273",
-      "keywords": [
-        "model",
-        "models",
-        "report",
-        "module",
-        "robert",
-        "output"
-      ],
-      "kind": "output",
-      "module": "ROBERT",
-      "priority": 0.7,
-      "program": "ROBERT",
-      "question_patterns": [
-        "module",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "robert_code_docstrings",
-      "source_file": "test-move-backup-20260929/inner-tests/test_all_models_completion.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "Completion messages for standard and all-model ROBERT reports.",
-      "title": "module",
       "topic": "output"
     },
     {
@@ -2595,33 +2510,6 @@
       "tab": "Predictions",
       "text": "Plots the Pearson map and analyzes correlation of descriptors.",
       "title": "pearson map predict",
-      "topic": "concept"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "robert-code-docstrings-test-move-backup-20260929-inner-tests-test-all-models-results-module-74002953",
-      "keywords": [
-        "model",
-        "models",
-        "module",
-        "robert",
-        "concept"
-      ],
-      "kind": "concept",
-      "module": "ROBERT",
-      "priority": 0.7,
-      "program": "ROBERT",
-      "question_patterns": [
-        "module",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "robert_code_docstrings",
-      "source_file": "test-move-backup-20260929/inner-tests/test_all_models_results.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "All-model result discovery and shared Results navigation.",
-      "title": "module",
       "topic": "concept"
     },
     {
@@ -3029,12 +2917,12 @@
       "source_file": "robert_user_guidance.json",
       "source_tier": "curated",
       "tab": "Reports",
-      "text": "Purpose: Assemble the PDF report and interpretation from model, validation, prediction, and diagnostic outputs.\nWhen to use:\n- Use REPORT after the relevant workflow stages have produced results, or rerun it to rebuild the summary.\nPrerequisites:\n- Keep the workflow output folders and selected model results available.\nSteps:\n1. Run REPORT or complete Full Workflow, then open Results > Report and select Best models or a named model.\nExpected result: REPORT normally creates separate No PFI and PFI PDFs. With all_models enabled, each selected model has both variant PDFs in REPORT_models, while two root-level PDFs identify REPORT's best Interpolation and Boundary robustness reports.\nNext steps:\n- Compare the available variant reports and read validation evidence rather than selecting a model from one metric.\nCommon issues:\n- REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. Root-level PDF winners and GENERATE's Best models may differ.",
+      "text": "Purpose: Assemble the PDF report and interpretation from model, validation, prediction, and diagnostic outputs.\nWhen to use:\n- Use REPORT after the relevant workflow stages have produced results, or rerun it to rebuild the summary.\nPrerequisites:\n- Keep the workflow output folders and selected model results available.\nSteps:\n1. Run REPORT or complete Full Workflow, then open Results > Report and select Best models or a named model.\nExpected result: With all_models enabled, REPORT archives each generated model and variant PDF in REPORT_models and keeps one overall-best PDF in the run folder. With all_models disabled, REPORT writes separate No PFI and PFI PDFs for the selected model when PFI filtering is enabled; it writes only No PFI when PFI filtering is disabled or EVALUATE is used.\nNext steps:\n- Compare the available variant reports and read validation evidence rather than selecting a model from one metric.\nCommon issues:\n- REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. REPORT's single overall-best PDF can differ from GENERATE's per-variant Best_model selections.",
       "title": "REPORT module",
       "topic": "result reporting",
       "user_guidance": {
         "common_issues": [
-          "REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. Root-level PDF winners and GENERATE's Best models may differ."
+          "REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. REPORT's single overall-best PDF can differ from GENERATE's per-variant Best_model selections."
         ],
         "next_steps": [
           "Compare the available variant reports and read validation evidence rather than selecting a model from one metric."
@@ -3043,7 +2931,7 @@
           "Keep the workflow output folders and selected model results available."
         ],
         "purpose": "Assemble the PDF report and interpretation from model, validation, prediction, and diagnostic outputs.",
-        "result": "REPORT normally creates separate No PFI and PFI PDFs. With all_models enabled, each selected model has both variant PDFs in REPORT_models, while two root-level PDFs identify REPORT's best Interpolation and Boundary robustness reports.",
+        "result": "With all_models enabled, REPORT archives each generated model and variant PDF in REPORT_models and keeps one overall-best PDF in the run folder. With all_models disabled, REPORT writes separate No PFI and PFI PDFs for the selected model when PFI filtering is enabled; it writes only No PFI when PFI filtering is disabled or EVALUATE is used.",
         "steps": [
           "Run REPORT or complete Full Workflow, then open Results > Report and select Best models or a named model."
         ],
@@ -3569,6 +3457,35 @@
     },
     {
       "audience": "developer_reference",
+      "id": "robert-code-docstrings-report-report-best-models-text-a54dcf88",
+      "keywords": [
+        "model",
+        "models",
+        "pfi",
+        "report",
+        "best models text",
+        "report",
+        "parameter"
+      ],
+      "kind": "parameter",
+      "module": "REPORT",
+      "priority": 0.9,
+      "program": "ROBERT",
+      "question_patterns": [
+        "best models text",
+        "what does best models text do",
+        "what is best models text"
+      ],
+      "source": "robert_code_docstrings",
+      "source_file": "report.py",
+      "source_tier": "generated",
+      "tab": "Reports",
+      "text": "Informative-only line (doesn't change which model(s) run through VERIFY/PREDICT/\nREPORT) showing, for this PFI variant, the single overall-best model - same\ncombined-score pick as organize_all_models_pdfs() (see _pick_best_overall()), so this\ntext always names the same model as the PDF that actually gets kept",
+      "title": "best models text",
+      "topic": "parameter"
+    },
+    {
+      "audience": "developer_reference",
       "id": "robert-code-docstrings-report-report-default-best-model-text-0b582dd7",
       "keywords": [
         "error",
@@ -3623,6 +3540,35 @@
       "tab": "Reports",
       "text": "Checks whether a file belongs to the No_PFI or PFI model. Plain substring matching isn't\nenough since 'No_PFI' ends in 'PFI', so a 'PFI' file would also match 'No_PFI' filenames.",
       "title": "matches suffix",
+      "topic": "parameter"
+    },
+    {
+      "audience": "developer_reference",
+      "id": "robert-code-docstrings-report-report-organize-all-models-pdfs-93e6436f",
+      "keywords": [
+        "model",
+        "models",
+        "pfi",
+        "report",
+        "organize all models pdfs",
+        "report",
+        "parameter"
+      ],
+      "kind": "parameter",
+      "module": "REPORT",
+      "priority": 0.9,
+      "program": "ROBERT",
+      "question_patterns": [
+        "organize all models pdfs",
+        "what does organize all models pdfs do",
+        "what is organize all models pdfs"
+      ],
+      "source": "robert_code_docstrings",
+      "source_file": "report.py",
+      "source_tier": "generated",
+      "tab": "Reports",
+      "text": "Moves every --all_models PDF (one per model x PFI variant) into a REPORT_models/\nsubfolder, then copies back into the working directory only the single overall-best\nPDF - picked across BOTH models AND PFI variants together (unlike best_models_text(),\nwhich picks per suffix) via _pick_best_overall(), so there's always exactly one PDF\nleft in the working directory, never two",
+      "title": "organize all models pdfs",
       "topic": "parameter"
     },
     {

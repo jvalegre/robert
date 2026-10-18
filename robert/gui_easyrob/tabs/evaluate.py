@@ -797,4 +797,4 @@ class EvaluateTab(QWidget):
         main_window = self.window()
         if not self.csv_path or not hasattr(main_window, "refresh_tabs"):
             return
-        main_window.refresh_tabs(self.csv_path)
+        main_window.refresh_tabs(self.csv_path, source_kind="EVALUATE")

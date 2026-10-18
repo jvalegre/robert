@@ -143,11 +143,14 @@ class InteractivePredictions(QWidget):
         self.williams_image = None
         self.williams_smiles = []
         self._artists = {}
+        self._legend_artists = {}
         self.seed = 0
         self.cv_label = "CV"
         self.outlier_threshold = 2.0
         layout = QVBoxLayout(self)
-        subtitle = QLabel("Hover over a point to inspect its molecule and prediction.")
+        subtitle = QLabel(
+            "Hover over a point to inspect it. Click a legend entry to show or hide its points."
+        )
         layout.addWidget(subtitle)
         self.selector = QComboBox()
         self.selector.currentIndexChanged.connect(self._load_selected)
@@ -167,6 +170,7 @@ class InteractivePredictions(QWidget):
             canvas = FigureCanvasQTAgg(Figure(figsize=(7, 5), constrained_layout=True))
             canvas.mpl_connect("motion_notify_event", lambda event, chart=canvas: self._hover(event, chart))
             canvas.mpl_connect("button_press_event", lambda event, chart=canvas: self._hover(event, chart))
+            canvas.mpl_connect("pick_event", self._on_legend_pick)
             self.charts.addWidget(canvas)
             self.canvases.append(canvas)
         plot_selector.addStretch()
@@ -219,6 +223,7 @@ class InteractivePredictions(QWidget):
             self.williams_data = None
             self.williams_image = None
             self._artists.clear()
+            self._legend_artists.clear()
             self.structure.setPixmap(QPixmap())
             self.structure.setText("No prediction data available")
             self.details.clear()
@@ -312,14 +317,17 @@ class InteractivePredictions(QWidget):
     def _draw_charts(self):
         data = self.data
         self._artists.clear()
+        self._legend_artists.clear()
         for plot_index, canvas in enumerate(self.canvases):
             figure = canvas.figure
             figure.clear()
             axis = figure.add_subplot(111)
             axis.grid(linestyle="--", linewidth=0.8, alpha=0.5)
             axis.set_axisbelow(True)
+            legend_targets = {}
             if plot_index == 2:
-                self._draw_williams(axis)
+                self._draw_williams(axis, legend_targets)
+                self._add_clickable_legend(axis, canvas, legend_targets)
                 canvas.draw_idle()
                 continue
             if plot_index == 0:
@@ -339,13 +347,6 @@ class InteractivePredictions(QWidget):
                     upper = max(np.max(x[valid]), np.max(y[valid])) + padding
                     axis.set_xlim(lower, upper)
                     axis.set_ylim(lower, upper)
-                    if external:
-                        sd_column = f"{data['target']}_pred_sd"
-                        if sd_column in data["frame"]:
-                            errors = pd.to_numeric(data["frame"][sd_column], errors="coerce").to_numpy(dtype=float)
-                            error_mask = valid & np.isfinite(errors)
-                            axis.errorbar(x[error_mask], y[error_mask], yerr=errors[error_mask],
-                                          fmt="none", ecolor="gray", capsize=3, zorder=1)
             elif plot_index == 1:
                 x = y = data["outlier_score"]
                 axis.set(xlabel="SD of the errors", ylabel="SD of the errors",
@@ -369,14 +370,28 @@ class InteractivePredictions(QWidget):
                     artist = axis.scatter(x[indices], y[indices], label=legend_label, color=color,
                                           edgecolors="black", linewidths=0.8, s=50, picker=6, zorder=2)
                     self._artists[artist] = indices
+                    related = []
+                    if plot_index == 0 and external:
+                        sd_column = f"{data['target']}_pred_sd"
+                        if sd_column in data["frame"]:
+                            errors = pd.to_numeric(
+                                data["frame"][sd_column], errors="coerce"
+                            ).to_numpy(dtype=float)
+                            error_indices = indices[np.isfinite(errors[indices])]
+                            if len(error_indices):
+                                bars = axis.errorbar(
+                                    x[error_indices], y[error_indices], yerr=errors[error_indices],
+                                    fmt="none", ecolor="gray", capsize=3, zorder=1,
+                                )
+                                related.extend(bars.get_children())
+                    legend_targets[artist] = (artist, related)
             if not (np.isfinite(x) & np.isfinite(y)).any():
                 axis.text(0.5, 0.5, "Observed values are unavailable for this plot",
                           ha="center", va="center", transform=axis.transAxes)
-            if plot_index != 1 and axis.get_legend_handles_labels()[0]:
-                axis.legend(loc="best", fontsize=8)
+            self._add_clickable_legend(axis, canvas, legend_targets)
             canvas.draw_idle()
 
-    def _draw_williams(self, axis):
+    def _draw_williams(self, axis, legend_targets):
         table = self.williams_data
         if table is None:
             axis.set_title("Williams plot: interactive data unavailable")
@@ -406,6 +421,7 @@ class InteractivePredictions(QWidget):
                                       color=color, edgecolors="black", linewidths=0.8,
                                       s=50, picker=6, zorder=2)
                 self._artists[artist] = indices
+                legend_targets[artist] = (artist, [])
         for bound in (-3, 3):
             axis.axhline(bound, color="dimgray", linestyle="--", linewidth=1)
         if np.isfinite(h_star):
@@ -415,14 +431,45 @@ class InteractivePredictions(QWidget):
         y_max = max(float(np.max(np.abs(residual[valid])) * 1.1) if valid.any() else 0, 3.5)
         axis.set_xlim(0, x_max)
         axis.set_ylim(-y_max, y_max)
-        if axis.get_legend_handles_labels()[0]:
-            axis.legend(loc="best", fontsize=8)
+
+    def _add_clickable_legend(self, axis, canvas, targets):
+        """Make each legend entry toggle its associated plotted points."""
+        handles, _ = axis.get_legend_handles_labels()
+        if not handles:
+            return
+        legend = axis.legend(loc="best", fontsize=8)
+        for handle, proxy, text in zip(handles, legend.legend_handles, legend.get_texts()):
+            if handle not in targets:
+                continue
+            for item in (proxy, text):
+                item.set_picker(True)
+                self._legend_artists[item] = (*targets[handle], canvas)
+
+    def _on_legend_pick(self, event):
+        """Handle a click on a legend symbol or its text."""
+        self._toggle_legend_artist(event.artist)
+
+    def _toggle_legend_artist(self, legend_artist):
+        target = self._legend_artists.get(legend_artist)
+        if target is None:
+            return
+        points, related, canvas = target
+        visible = not points.get_visible()
+        points.set_visible(visible)
+        for artist in related:
+            artist.set_visible(visible)
+        for proxy, (mapped_points, _, _) in self._legend_artists.items():
+            if mapped_points is points:
+                proxy.set_alpha(1.0 if visible else 0.3)
+        canvas.draw_idle()
 
     def _hover(self, event, canvas):
         if event.inaxes is None or self.data is None:
             return
         for artist, indices in self._artists.items():
             if artist.axes.figure is not canvas.figure:
+                continue
+            if not artist.get_visible():
                 continue
             contains, info = artist.contains(event)
             if contains and len(info.get("ind", [])):

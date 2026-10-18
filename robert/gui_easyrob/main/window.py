@@ -36,7 +36,8 @@ Notes:
 import re
 import webbrowser
 import time
-from PySide6.QtCore import QEvent, QSettings
+from PySide6.QtCore import QEvent, QRect, QSettings
+from PySide6.QtGui import QColor, QPainter, QPalette, QPen
 
 try:
 
@@ -52,6 +53,7 @@ try:
     )
     from bot.bot_worker import BotReplyWorker
     from bot.local_model_worker import LocalModelPrepareWorker
+    from workflow_progress import WorkflowProgress, STAGES
     from utils import utils_gui, molssi_utils
     from tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate, results_workspace, interactive_predictions, result_catalog
 
@@ -69,6 +71,7 @@ except ImportError as e:
     )
     from robert.gui_easyrob.bot.bot_worker import BotReplyWorker
     from robert.gui_easyrob.bot.local_model_worker import LocalModelPrepareWorker
+    from robert.gui_easyrob.workflow_progress import WorkflowProgress, STAGES
     from robert.gui_easyrob.utils import utils_gui, molssi_utils
     from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate, results_workspace, interactive_predictions, result_catalog
 
@@ -86,7 +89,6 @@ AssetLibrary = utils_gui.AssetLibrary
 Chem = utils_gui.Chem
 DropLabel = utils_gui.DropLabel
 NoScrollComboBox = utils_gui.NoScrollComboBox
-SegmentedButtonGroup = utils_gui.SegmentedButtonGroup
 YesNoToggle = utils_gui.YesNoToggle
 Path = utils_gui.Path
 QApplication = utils_gui.QApplication
@@ -103,7 +105,6 @@ QListWidget = utils_gui.QListWidget
 QMainWindow = utils_gui.QMainWindow
 QMessageBox = utils_gui.QMessageBox
 QPixmap = utils_gui.QPixmap
-QProgressBar = utils_gui.QProgressBar
 QPushButton = utils_gui.QPushButton
 QScrollArea = utils_gui.QScrollArea
 QSize = utils_gui.QSize
@@ -399,9 +400,187 @@ class EasyROB(QMainWindow):
         self.run_button.setDisabled(False)
         self.run_aqme_button.setDisabled(False)
         self.stop_button.setDisabled(True)
-        self.progress.setRange(0, 100)
+        self._set_workflow_activity(None)
         if hasattr(self, "workflow_result_store"):
             QTimer.singleShot(150, self._refresh_workflow_result_snapshot)
+
+    def _start_workflow_progress(self, preserve_aqme=False):
+        """Reset the milestone display for the ROBERT command about to run."""
+        workflow = self.workflow_selector.currentText()
+        prior_progress = getattr(self, "workflow_progress", None)
+        aqme_completed = (
+            preserve_aqme and prior_progress is not None
+            and prior_progress.aqme_status() == "done"
+        )
+        include_aqme = aqme_completed or (
+            self.aqme_workflow.isChecked() and workflow not in {"PREDICT", "REPORT"}
+        )
+        actual_workflow = (
+            "Full Workflow" if include_aqme and not aqme_completed else workflow
+        )
+        self.workflow_progress = WorkflowProgress(actual_workflow, include_aqme=include_aqme)
+        if aqme_completed:
+            self.workflow_progress.complete_aqme()
+        self._set_workflow_activity(None)
+        self._render_workflow_progress()
+
+    def _start_aqme_progress(self, followup_workflow=None):
+        """Show descriptor generation before any optional ROBERT follow-up."""
+        self.workflow_progress = WorkflowProgress(
+            followup_workflow or "AQME", include_aqme=True,
+        )
+        self._set_workflow_activity(None)
+        self._render_workflow_progress()
+
+    def _set_workflow_activity(self, message):
+        """Show activity outside the ROBERT stages, such as CSV validation or AQME."""
+        self._workflow_activity_message = message
+        self.workflow_activity_label.setVisible(bool(message))
+        self._advance_workflow_spinner()
+        self._sync_workflow_spinner()
+
+    def _sync_workflow_spinner(self):
+        """Animate only while an operation has a visible active state."""
+        progress = getattr(self, "workflow_progress", None)
+        stage_active = progress is not None and (
+            progress.aqme_status() == "active" or "active" in progress.statuses()
+        )
+        if self._workflow_activity_message or stage_active:
+            if not self._workflow_spinner_timer.isActive():
+                self._workflow_spinner_timer.start()
+        else:
+            self._workflow_spinner_timer.stop()
+
+    def _advance_workflow_spinner(self):
+        """Rotate the activity symbol without changing milestone status."""
+        frames = ("◐", "◓", "◑", "◒")
+        symbol = frames[self._workflow_spinner_frame % len(frames)]
+        self._workflow_spinner_frame += 1
+        if self._workflow_activity_message:
+            self.workflow_activity_label.setText(f"{symbol}  {self._workflow_activity_message}")
+        progress = getattr(self, "workflow_progress", None)
+        if progress is not None:
+            if progress.aqme_status() == "active":
+                self.aqme_stage_icon.setText(symbol)
+            for icon, state in zip(self.workflow_stage_icons, progress.statuses()):
+                if state == "active":
+                    icon.setText(symbol)
+
+    def _on_robert_output(self, line):
+        """Show process output and advance stages on confirmed milestones."""
+        self.console_output.append(line)
+        progress = getattr(self, "workflow_progress", None)
+        if progress is not None:
+            progress.observe(re.sub(r"<[^>]+>", "", line))
+            self._render_workflow_progress()
+
+    def _render_workflow_progress(self):
+        """Refresh the five stage indicators without changing the log or bot."""
+        if getattr(self, "_applying_workflow_theme", False):
+            return
+        self._applying_workflow_theme = True
+        try:
+            self._apply_workflow_progress_theme()
+        finally:
+            self._applying_workflow_theme = False
+        self._sync_workflow_spinner()
+
+    def _apply_workflow_progress_theme(self):
+        """Use the active Qt palette for the progress panel and its states."""
+        palette = self.palette()
+        window = palette.color(QPalette.Window)
+        base = palette.color(QPalette.Base)
+        text_color = palette.color(QPalette.WindowText)
+        mid = palette.color(QPalette.Mid)
+        is_dark = window.lightness() < 128
+
+        def blend(start, end, amount):
+            return QColor(
+                round(start.red() * (1 - amount) + end.red() * amount),
+                round(start.green() * (1 - amount) + end.green() * amount),
+                round(start.blue() * (1 - amount) + end.blue() * amount),
+            )
+
+        def css(color):
+            return color.name(QColor.HexRgb)
+
+        green = QColor("#70dfa0" if is_dark else "#16803c")
+        purple = QColor("#c7a4ff" if is_dark else "#5b21b6")
+        red = QColor("#ff9890" if is_dark else "#b42318")
+        muted = blend(text_color, base, 0.42)
+        neutral_border = blend(mid, text_color, 0.12)
+        tint_amount = 0.18 if is_dark else 0.10
+        panel_background = blend(window, base, 0.32)
+        self.workflow_progress_panel.setStyleSheet(
+            f"QFrame#workflowProgressPanel {{ background: {css(panel_background)}; "
+            f"border: 1px solid {css(neutral_border)}; border-radius: 16px; }}"
+        )
+        self.workflow_progress_title.setStyleSheet(
+            f"color: {css(text_color)}; font-size: 14px; font-weight: 800; border: none;"
+        )
+        for arrow in self.workflow_arrows:
+            arrow.setStyleSheet(
+                f"color: {css(purple)}; font-size: 22px; font-weight: 800; border: none;"
+            )
+
+        progress = getattr(self, "workflow_progress", None)
+        states = progress.statuses() if progress is not None else ("idle",) * len(STAGES)
+        aqme_state = progress.aqme_status() if progress is not None else (
+            "idle" if self.aqme_workflow.isChecked() else "inactive"
+        )
+        appearances = {
+            "done": ("✓", "Complete", blend(base, green, tint_amount), green, green),
+            "active": ("◐", "In progress", blend(base, purple, tint_amount), purple, purple),
+            "pending": ("○", "Up next", base, neutral_border, muted),
+            "inactive": ("○", "Not selected", blend(base, window, 0.5), neutral_border, muted),
+            "failed": ("!", "Failed", blend(base, red, tint_amount), red, red),
+            "stopped": ("■", "Stopped", blend(base, red, tint_amount), red, red),
+            "idle": ("○", "Not started", base, neutral_border, muted),
+        }
+        for card, icon, label, status, stage, state in zip(
+            (self.aqme_stage_card, *self.workflow_stage_cards),
+            (self.aqme_stage_icon, *self.workflow_stage_icons),
+            (self.aqme_stage_label, *self.workflow_stage_labels),
+            (self.aqme_stage_status_label, *self.workflow_stage_status_labels),
+            ("AQME", *STAGES),
+            (aqme_state, *states),
+        ):
+            symbol, caption, background, border, foreground = appearances[state]
+            card.setStyleSheet(
+                f"QFrame#workflowStageCard {{ background: {css(background)}; "
+                f"border: 2px solid {css(border)}; "
+                "border-radius: 12px; }"
+            )
+            icon.setText(symbol)
+            icon.setStyleSheet(f"color: {css(foreground)}; font-size: 24px; font-weight: 800; border: none;")
+            label.setStyleSheet(f"color: {css(foreground)}; font-size: 13px; font-weight: 800; border: none;")
+            status.setText(caption)
+            status.setStyleSheet(f"color: {css(foreground)}; font-size: 10px; border: none;")
+            card.setToolTip(f"{stage.upper()}: {caption}")
+
+        button_background = blend(base, QColor("#6d28d9"), 0.70) if is_dark else QColor("#39205d")
+        button_hover = button_background.lighter(125)
+        self.live_log_toggle.setStyleSheet(
+            f"QToolButton {{ background: {css(button_background)}; color: #ffffff; "
+            f"border: 1px solid {css(purple)}; border-radius: 10px; "
+            "font-size: 11px; font-weight: 700; padding: 6px 10px; }"
+            f"QToolButton:hover, QToolButton:checked {{ background: {css(button_hover)}; }}"
+        )
+        self.workflow_activity_label.setStyleSheet(
+            f"color: {css(purple)}; font-size: 12px; font-weight: 700; border: none;"
+        )
+
+    def changeEvent(self, event):
+        """Repaint the workflow controls when the application theme changes."""
+        if event.type() in {QEvent.PaletteChange, QEvent.ApplicationPaletteChange}:
+            if hasattr(self, "workflow_stage_cards") and hasattr(self, "_workflow_spinner_timer"):
+                self._render_workflow_progress()
+        super().changeEvent(event)
+
+    def _toggle_live_log(self, expanded):
+        """Expand or collapse the live process output."""
+        self.console_output.setVisible(expanded)
+        self.live_log_toggle.setText("Live log ▴" if expanded else "Live log ▾")
 
     def _shutdown_molssi_async(self):
         """Shut down MolSSI workers asynchronously."""
@@ -1017,7 +1196,7 @@ class EasyROB(QMainWindow):
         evaluate_candidate = getattr(self, "evaluate_tab", None)
         evaluate_tab = evaluate_candidate if (
             active_tab == "Check model"
-            or (result_source and result_source == str(getattr(evaluate_candidate, "csv_path", "") or ""))
+            or (result_source and getattr(self, "_result_view_source_kind", "ROBERT") == "EVALUATE")
         ) else None
         input_view = evaluate_tab if evaluate_tab is not None else self
         main_csv_path = result_source or (
@@ -1092,6 +1271,7 @@ class EasyROB(QMainWindow):
         self.workflow_result_store = WorkflowResultStore()
         self.workflow_result_snapshot = None
         self._result_view_source_path = ""
+        self._result_view_source_kind = "ROBERT"
         self.bot_window = BotWindow(self)
         self.bot_panel = self.bot_window.panel
         self.bot_window.hide()
@@ -1445,21 +1625,23 @@ class EasyROB(QMainWindow):
         main_layout.addWidget(column_container)
         main_layout.addSpacing(10)
 
-        # Workflow selection - segmented buttons instead of a dropdown: every option stays
-        # visible at a glance, instead of being hidden behind a click (a dropdown here was easy
-        # to misuse - see run() call sites, which all just read workflow_selector.currentText())
+        # Keep the workflow choice compact and ignore accidental wheel movement.
         self.workflow_selector_label = QLabel("What do you want to run?")
         self.workflow_selector_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         main_layout.addWidget(self.workflow_selector_label)
 
-        self.workflow_selector = SegmentedButtonGroup([
+        self.workflow_selector = NoScrollComboBox()
+        self.workflow_selector.addItems([
             "Full Workflow",
             "CURATE",
             "GENERATE",
-            "PREDICT",
             "VERIFY",
+            "PREDICT",
             "REPORT"
-        ], columns=3)
+        ])
+        self.workflow_selector.setMinimumWidth(260)
+        self.workflow_selector.setMaximumWidth(420)
+        self.workflow_selector.setFixedHeight(34)
 
         # Set default selection
         self.workflow_selector.setCurrentText("Full Workflow")
@@ -1479,8 +1661,7 @@ class EasyROB(QMainWindow):
         self.all_models_toggle = YesNoToggle(checked=True)
         main_layout.addWidget(self.all_models_toggle)
 
-        # extra spacing (vs. the 10px used elsewhere) so this doesn't visually crowd the
-        # Run/Stop buttons right below it
+        # Separate the input options from the workflow status and controls.
         main_layout.addSpacing(20)
 
         # --- Run button ---
@@ -1589,12 +1770,11 @@ class EasyROB(QMainWindow):
 
         self.stop_button.clicked.connect(self.stop_process)
 
-        # Add button layout to the main layout
+        # Keep the actions together after the workflow status and live log.
         button_container = QHBoxLayout()
         button_container.addWidget(self.run_button)
         button_container.addWidget(self.run_aqme_button)
         button_container.addWidget(self.stop_button)
-        main_layout.addLayout(button_container)
 
         # --- Console Output Setup ---
         self.console_output = QTextEdit()
@@ -1629,34 +1809,101 @@ class EasyROB(QMainWindow):
                 background: none;
             }
         """)
-        # Set minimum height for the console output and make it expandable
-        self.console_output.setMinimumHeight(250)  
-        self.console_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Keep the log available without occupying the workflow view by default.
+        self.console_output.setFixedHeight(190)
+        self.console_output.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         # Create ANSI converter to display colors in the console and special characters
         self.ansi_converter = Ansi2HTMLConverter(dark_bg=True)  # Preserves colors
-        main_layout.addWidget(QLabel("Console Output"))
-        main_layout.addWidget(self.console_output, stretch=1)
+        progress_panel = QFrame()
+        progress_panel.setObjectName("workflowProgressPanel")
+        self.workflow_progress_panel = progress_panel
+        progress_layout = QVBoxLayout(progress_panel)
+        progress_layout.setContentsMargins(14, 10, 14, 12)
+        progress_layout.setSpacing(8)
+        progress_header = QHBoxLayout()
+        progress_title = QLabel("Workflow progress")
+        self.workflow_progress_title = progress_title
+        progress_header.addWidget(progress_title)
+        progress_header.addStretch(1)
+        self.workflow_activity_label = QLabel()
+        self.workflow_activity_label.hide()
+        progress_header.addWidget(self.workflow_activity_label)
+        progress_layout.addLayout(progress_header)
 
-        # --- Progress bar ---
-        main_layout.addStretch()
-        self.progress = QProgressBar()
-        self.progress.setFixedHeight(10)  # Adjust height for a sleeker look
-        self.progress.setStyleSheet("""
-            QProgressBar {
-                border: 2px solid gray;
-                border-radius: 10px;
-                background: #f0f0f0;
-                text-align: center;
-                font-weight: bold;
-            }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-                width: 5px;
-                border-radius: 10px;
-            }
-        """)
-        main_layout.addWidget(self.progress)
+        self.aqme_stage_card = QFrame()
+        self.aqme_stage_card.setObjectName("workflowStageCard")
+        self.aqme_stage_card.setMinimumHeight(54)
+        aqme_stage_layout = QHBoxLayout(self.aqme_stage_card)
+        aqme_stage_layout.setContentsMargins(14, 5, 14, 5)
+        aqme_stage_layout.setSpacing(10)
+        self.aqme_stage_icon = QLabel()
+        self.aqme_stage_icon.setAlignment(Qt.AlignCenter)
+        self.aqme_stage_label = QLabel("AQME · DESCRIPTORS")
+        aqme_stage_hint = QLabel("Optional preparation from SMILES")
+        aqme_stage_hint.setStyleSheet("border: none;")
+        self.aqme_stage_status_label = QLabel()
+        self.aqme_stage_status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        aqme_stage_layout.addWidget(self.aqme_stage_icon)
+        aqme_stage_layout.addWidget(self.aqme_stage_label)
+        aqme_stage_layout.addWidget(aqme_stage_hint)
+        aqme_stage_layout.addStretch(1)
+        aqme_stage_layout.addWidget(self.aqme_stage_status_label)
+        progress_layout.addWidget(self.aqme_stage_card)
+
+        progress_row = QHBoxLayout()
+        progress_row.setSpacing(8)
+        self.workflow_stage_cards = []
+        self.workflow_stage_icons = []
+        self.workflow_stage_labels = []
+        self.workflow_stage_status_labels = []
+        self.workflow_arrows = []
+        for index, stage in enumerate(STAGES):
+            card = QFrame()
+            card.setObjectName("workflowStageCard")
+            card.setMinimumHeight(80)
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(7, 5, 7, 5)
+            card_layout.setSpacing(0)
+            icon = QLabel()
+            icon.setAlignment(Qt.AlignCenter)
+            label = QLabel(stage.upper())
+            label.setAlignment(Qt.AlignCenter)
+            status = QLabel()
+            status.setAlignment(Qt.AlignCenter)
+            card_layout.addWidget(icon)
+            card_layout.addWidget(label)
+            card_layout.addWidget(status)
+            self.workflow_stage_cards.append(card)
+            self.workflow_stage_icons.append(icon)
+            self.workflow_stage_labels.append(label)
+            self.workflow_stage_status_labels.append(status)
+            progress_row.addWidget(card, 1)
+            if index < len(STAGES) - 1:
+                arrow = QLabel("→")
+                self.workflow_arrows.append(arrow)
+                progress_row.addWidget(arrow)
+
+        self.live_log_toggle = QToolButton()
+        self.live_log_toggle.setText("Live log ▾")
+        self.live_log_toggle.setCheckable(True)
+        self.live_log_toggle.setToolTip("Show or hide live process output")
+        self.live_log_toggle.setMinimumSize(108, 36)
+        self.live_log_toggle.toggled.connect(self._toggle_live_log)
+        progress_row.addWidget(self.live_log_toggle)
+        progress_layout.addLayout(progress_row)
+        main_layout.addWidget(progress_panel)
+        self.console_output.hide()
+        main_layout.addWidget(self.console_output)
+        main_layout.addSpacing(12)
+        main_layout.addLayout(button_container)
+        self._workflow_activity_message = None
+        self._workflow_spinner_frame = 0
+        self._workflow_spinner_timer = QTimer(self)
+        self._workflow_spinner_timer.setInterval(160)
+        self._workflow_spinner_timer.timeout.connect(self._advance_workflow_spinner)
+        self._render_workflow_progress()
 
         # ============
         # Create Tabs
@@ -1798,7 +2045,8 @@ class EasyROB(QMainWindow):
         dialog = self.tutorial_dialog
 
         dialog.setWindowTitle("Workflow Tutorial")
-        dialog.setFixedSize(900, 700)
+        available = QApplication.primaryScreen().availableGeometry()
+        dialog.setFixedSize(min(1280, available.width() - 40), min(700, available.height() - 40))
 
         self.tutorial_layout = QVBoxLayout(dialog)
 
@@ -1825,6 +2073,8 @@ class EasyROB(QMainWindow):
             ("chemdraw", "From ChemDraw"),
             ("predictions", "New Predictions"),
             ("descriptors", "Generate Descriptors"),
+            ("check_model", "Check ML"),
+            ("robbot", "robBOT"),
         ]
 
         for folder, title in tutorials:
@@ -1843,6 +2093,10 @@ class EasyROB(QMainWindow):
 
     def create_tutorial_tab(self, folder_name, texts):
         """Create a tutorial tab with image left and text right."""
+
+        text_width = max(250, min(340, self.tutorial_dialog.width() // 3))
+        image_width = max(300, self.tutorial_dialog.width() - text_width - 80)
+        image_height = max(300, min(520, self.tutorial_dialog.height() - 160))
 
         base = BASE_DIR / "tutorials" / "tutorial_images" / folder_name
         images = sorted(
@@ -1864,7 +2118,7 @@ class EasyROB(QMainWindow):
 
             # -------- Image container (fixed) --------
             image_container = QWidget()
-            image_container.setFixedSize(540, 520)
+            image_container.setFixedSize(image_width, image_height)
 
             image_layout = QVBoxLayout(image_container)
             image_layout.setContentsMargins(0, 0, 0, 0)
@@ -1875,9 +2129,14 @@ class EasyROB(QMainWindow):
             pixmap = QPixmap(str(image_path))
 
             if not pixmap.isNull():
+                if folder_name == "overview" and image_path.name == "overview_4.png":
+                    painter = QPainter(pixmap)
+                    painter.setPen(QPen(QColor("#d00000"), 3))
+                    painter.drawRect(QRect(243, 29, 117, 23))
+                    painter.end()
                 scaled = pixmap.scaled(
-                    520,
-                    520,
+                    image_width - 20,
+                    image_height,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
@@ -1901,12 +2160,12 @@ class EasyROB(QMainWindow):
                 padding:12px;
             """)
 
-            text_label.setFixedWidth(320)
+            text_label.setFixedWidth(text_width - 20)
 
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setWidget(text_label)
-            scroll.setFixedWidth(340)
+            scroll.setFixedWidth(text_width)
             scroll.setFrameShape(QFrame.NoFrame)
 
             page_layout.addWidget(image_container)
@@ -2033,6 +2292,9 @@ class EasyROB(QMainWindow):
             if self.tab_widget.isTabEnabled(tab_index):
                 self.tab_widget.setTabEnabled(tab_index, False)
 
+        if hasattr(self, "aqme_stage_card"):
+            self._render_workflow_progress()
+
     def check_for_images(self, base_path: str):
         """Enable the Images result view when workflow images are present."""
         if not base_path:
@@ -2101,7 +2363,7 @@ class EasyROB(QMainWindow):
         if self.results_workspace.show_view(view):
             self.tab_widget.setCurrentWidget(self.results_workspace)
 
-    def refresh_tabs(self, file_path):
+    def refresh_tabs(self, file_path, source_kind="ROBERT"):
         """Refresh the result views for the selected run."""
 
         if not file_path:
@@ -2109,6 +2371,7 @@ class EasyROB(QMainWindow):
 
         # Save latest requested path
         self._result_view_source_path = str(file_path)
+        self._result_view_source_kind = source_kind
         self._pending_refresh_path = file_path
 
         # If a refresh is already scheduled, don't schedule another
@@ -2137,6 +2400,12 @@ class EasyROB(QMainWindow):
         self.results_workspace.set_models(
             self._result_catalog.models if self._result_catalog.is_all_models else (),
             preferred,
+        )
+        retained_reports = tuple(self._result_catalog.root.glob("ROBERT_report_*.pdf"))
+        self.results_workspace.model_selector.setToolTip(
+            "Best models shows the single overall-best report kept in the run folder. "
+            "Choose a named model to inspect its archived variants."
+            if self._result_catalog.is_all_models and len(retained_reports) == 1 else ""
         )
         self._result_view_source_path = str(file_path)
         self._refresh_result_views(file_path)
@@ -2882,10 +3151,10 @@ class EasyROB(QMainWindow):
     def run_test_aqme(self, aqme_command, run_dir):
         """Launches an AQME worker for generating descriptors for the test CSV."""
         
+        self._start_aqme_progress("PREDICT")
         self.console_output.append(
             "<b><span style='color:cyan;'>Running AQME...</span></b><br>"
         )
-        self.progress.setRange(0, 0)
 
         self.current_process = "AQME"
         self.aqme_role = "test" 
@@ -3150,10 +3419,12 @@ class EasyROB(QMainWindow):
         if self.csv_preflight_worker is not None and self.csv_preflight_worker.isRunning():
             return
 
+        self.workflow_progress = None
+        self._render_workflow_progress()
         self.run_button.setDisabled(True)
         self.run_aqme_button.setDisabled(True)
         self.stop_button.setDisabled(True)
-        self.progress.setRange(0, 0)
+        self._set_workflow_activity("Validating CSV files")
 
         csv_entries = [
             ("main CSV file", self.file_path),
@@ -3492,11 +3763,12 @@ class EasyROB(QMainWindow):
         # Build and launch ROBERT
         # --------------------------------------------------
         command = self.build_robert_command(selected_file_path)
+        self._start_workflow_progress()
 
         self.console_output.append(
             "<b><span style='color:purple;'>Running ROBERT...</span></b><br>"
         )
-        self.progress.setRange(0, 0)
+        self._sync_workflow_spinner()
 
         # Determine run directory train or test CSV
         if selected_file_path:
@@ -3505,7 +3777,7 @@ class EasyROB(QMainWindow):
             run_dir = os.path.dirname(self.csv_test_path)
      
         self.worker = RobertWorker(command, run_dir)
-        self.worker.output_received.connect(self.console_output.append)
+        self.worker.output_received.connect(self._on_robert_output)
         self.worker.error_received.connect(self.console_output.append)
         self.worker.process_finished.connect(self.on_process_finished)
         self.worker.start()
@@ -4160,6 +4432,7 @@ class EasyROB(QMainWindow):
         self.aqme_runs = []
         self.aqme_command_queue = []
         self.aqme_is_running = True
+        self.aqme_role = None
         self.is_aqme_mapped = False
         self.mapped_train_csv = None
         self.mapped_test_csv = None
@@ -4172,6 +4445,8 @@ class EasyROB(QMainWindow):
             return
 
         self.current_process = "AQME"
+        self.workflow_progress = None
+        self._render_workflow_progress()
 
         self.run_button.setDisabled(True)
         self.run_aqme_button.setDisabled(True)
@@ -4296,7 +4571,7 @@ class EasyROB(QMainWindow):
         self.console_output.append(
             "<b><span style='color:deepskyblue;'>Running AQME (descriptor generation)...</span></b><br>"
         )
-        self.progress.setRange(0, 0)
+        self._start_aqme_progress()
         self._run_next_aqme()
 
     def _run_next_aqme(self):
@@ -4334,7 +4609,7 @@ class EasyROB(QMainWindow):
 
         if self.worker and self.worker.isRunning():
             self.console_output.append("<br><b><span style='color:orangered;'>Stopping ROBERT...</span></b>")
-            self.progress.setRange(0, 100)
+            self._set_workflow_activity("Stopping process")
             self.stop_button.setDisabled(True)
             QTimer.singleShot(0, self.worker.stop) 
 
@@ -4408,6 +4683,9 @@ class EasyROB(QMainWindow):
         # Handle manual stop (common to ROBERT & AQME)
         # --------------------------------------------------
         if exit_code == -1:
+            if getattr(self, "workflow_progress", None):
+                self.workflow_progress.finish(exit_code)
+                self._render_workflow_progress()
             self.console_output.clear()
             QMessageBox.information(
                 self,
@@ -4419,6 +4697,16 @@ class EasyROB(QMainWindow):
             return
 
         output_text = self.console_output.toPlainText()
+        reports_created = (
+            "ROBERT_report_No_PFI.pdf was created successfully" in output_text
+            or re.search(
+                r"\bAll\s+\d+\s+model PDFs were moved to REPORT_models/",
+                output_text,
+            ) is not None
+        )
+        if self.current_process == "ROBERT" and getattr(self, "workflow_progress", None):
+            self.workflow_progress.finish(exit_code, report_created=reports_created)
+            self._render_workflow_progress()
 
         # ==================================================
         # AQME COMPLETION LOGIC
@@ -4441,6 +4729,8 @@ class EasyROB(QMainWindow):
                     new_test_csv = self._detect_aqme_output_csv()
 
                     if not new_test_csv:
+                        self.workflow_progress.finish(1)
+                        self._render_workflow_progress()
                         QMessageBox.warning(
                             self,
                             "AQME error",
@@ -4453,6 +4743,8 @@ class EasyROB(QMainWindow):
                         return
 
                     self.aqme_test_csv_path = new_test_csv
+                    self.workflow_progress.complete_aqme()
+                    self._render_workflow_progress()
 
                     self.console_output.append(
                         f"[AQME] Using generated test CSV: {self.aqme_test_csv_path}"
@@ -4475,7 +4767,8 @@ class EasyROB(QMainWindow):
                     self.current_process = "ROBERT"
 
                     self.worker = RobertWorker(command, run_dir)
-                    self.worker.output_received.connect(self.console_output.append)
+                    self._start_workflow_progress(preserve_aqme=True)
+                    self.worker.output_received.connect(self._on_robert_output)
                     self.worker.error_received.connect(self.console_output.append)
                     self.worker.process_finished.connect(self.on_process_finished)
                     self.worker.start()
@@ -4491,6 +4784,8 @@ class EasyROB(QMainWindow):
                 )
 
                 if not train_run:
+                    self.workflow_progress.finish(1)
+                    self._render_workflow_progress()
                     QMessageBox.warning(
                         self,
                         "WARNING!",
@@ -4500,6 +4795,9 @@ class EasyROB(QMainWindow):
                     self._reset_ui_after_process()
                     return
 
+                self.workflow_progress.complete_aqme()
+                self.workflow_progress.finish(0)
+                self._render_workflow_progress()
                 aqme_base = train_run["csv"]
                 base_dir = os.path.dirname(aqme_base)
                 base_name = os.path.splitext(os.path.basename(aqme_base))[0]
@@ -4677,6 +4975,8 @@ class EasyROB(QMainWindow):
             # AQME FAILURE
             # ==================================================
             else:
+                self.workflow_progress.finish(exit_code if exit_code != 0 else 1)
+                self._render_workflow_progress()
                 self._show_tracked_process_warning(
                     "AQME",
                     "AQME encountered an issue while finishing. Please check the logs.",
@@ -4704,13 +5004,6 @@ class EasyROB(QMainWindow):
         # Full workflow / REPORT
         # ------------------------
         if not self.manual_stop and (workflow == "Full Workflow" or workflow == "REPORT"):
-            reports_created = (
-                "ROBERT_report_No_PFI.pdf was created successfully" in output_text
-                or re.search(
-                    r"\bAll\s+\d+\s+model PDFs were moved to REPORT_models/",
-                    output_text,
-                ) is not None
-            )
             if exit_code == 0 and reports_created:
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Information)

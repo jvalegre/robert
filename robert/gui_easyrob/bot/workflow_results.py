@@ -639,6 +639,7 @@ def scope_workflow_result_snapshot(
     *,
     selected_variants: tuple[tuple[str, str], ...] = (),
     available_models: tuple[str, ...] = (),
+    prefer_root_report: bool = False,
 ) -> WorkflowResultSnapshot | None:
     """Keep result evidence for the models and variants named or selected in the GUI."""
     if snapshot is None or not available_models:
@@ -663,6 +664,14 @@ def scope_workflow_result_snapshot(
         return match.group(1) if match else ""
 
     def artifact_pair(path: str) -> tuple[str, str] | None:
+        parts = Path(path).parts
+        if len(parts) >= 4 and parts[:2] == ("GENERATE", "Best_model") and parts[2] in ("No_PFI", "PFI"):
+            variant = parts[2]
+            model = Path(path).stem.removesuffix("_db")
+            if variant == "PFI":
+                model = model.removesuffix("_PFI")
+            if model in available_models:
+                return variant, model
         stem = Path(path).stem
         for variant in ("No_PFI", "PFI"):
             if not stem.endswith(f"_{variant}"):
@@ -676,10 +685,23 @@ def scope_workflow_result_snapshot(
         return None
 
     archive_pairs = {artifact_pair(item.path) for item in snapshot.artifacts if item.path.startswith("REPORT_models/")}
-    artifacts = tuple(item for item in snapshot.artifacts if (
-        (pair := artifact_pair(item.path)) is None or
-        (pair in pairs and (not item.path.startswith("ROBERT_report_") or pair not in archive_pairs))
-    ))
+    root_pairs = {artifact_pair(item.path) for item in snapshot.artifacts if item.path.startswith("ROBERT_report_")}
+
+    def include_artifact(artifact: WorkflowArtifact) -> bool:
+        pair = artifact_pair(artifact.path)
+        if pair is not None and pair not in pairs:
+            return False
+        if artifact.path.startswith("ROBERT_report_") and pair in archive_pairs and not prefer_root_report:
+            return False
+        if artifact.path.startswith("REPORT_models/") and pair in root_pairs and prefer_root_report:
+            return False
+        if artifact.path.startswith("CURATE/"):
+            model = next((name for name in available_models if Path(artifact.path).stem.endswith(f"_{name}")), "")
+            if model and model not in chosen_models:
+                return False
+        return True
+
+    artifacts = tuple(item for item in snapshot.artifacts if include_artifact(item))
     stages = []
     for stage in snapshot.stages:
         if stage.model and stage.model not in chosen_models:
@@ -690,7 +712,7 @@ def scope_workflow_result_snapshot(
                 continue
             stage = replace(stage, source=", ".join(reports))
         elif stage.model:
-            checks = tuple(check for check in stage.checks if not variants or any(
+            checks = tuple(check for check in stage.checks if any(
                 check[0].startswith(f"{variant} /") for variant, model in pairs if model == stage.model
             ))
             stage = replace(stage, checks=checks, facts=())
@@ -709,9 +731,10 @@ def scope_workflow_result_snapshot(
             return True
         if model not in chosen_models:
             return False
-        return not any(f"({variant})" in issue for variant in ("No_PFI", "PFI")) or any(
-            f"({variant})" in issue for variant, selected_model in pairs if selected_model == model
-        )
+        mentioned_variant = next((variant for variant in ("No_PFI", "PFI") if (
+            f"({variant})" in issue or re.search(rf"(?:^|:)\s*{variant}\s*/", issue)
+        )), None)
+        return mentioned_variant is None or (mentioned_variant, model) in pairs
 
     sources = tuple(sorted({stage.source for stage in stages if stage.source and stage.name != "REPORT"} |
                            {item.path for item in artifacts}))

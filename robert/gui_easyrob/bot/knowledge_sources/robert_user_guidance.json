@@ -230,9 +230,9 @@
         "when_to_use": ["Use REPORT after the relevant workflow stages have produced results, or rerun it to rebuild the summary."],
         "prerequisites": ["Keep the workflow output folders and selected model results available."],
         "steps": ["Run REPORT or complete Full Workflow, then open Results > Report and select Best models or a named model."],
-        "result": "REPORT normally creates separate No PFI and PFI PDFs. With all_models enabled, each selected model has both variant PDFs in REPORT_models, while two root-level PDFs identify REPORT's best Interpolation and Boundary robustness reports.",
+        "result": "With all_models enabled, REPORT archives each generated model and variant PDF in REPORT_models and keeps one overall-best PDF in the run folder. With all_models disabled, REPORT writes separate No PFI and PFI PDFs for the selected model when PFI filtering is enabled; it writes only No PFI when PFI filtering is disabled or EVALUATE is used.",
         "next_steps": ["Compare the available variant reports and read validation evidence rather than selecting a model from one metric."],
-        "common_issues": ["REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. Root-level PDF winners and GENERATE's Best models may differ."]
+        "common_issues": ["REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. REPORT's single overall-best PDF can differ from GENERATE's per-variant Best_model selections."]
       }
     },
     {

@@ -142,10 +142,10 @@
         "purpose": "Display the generated ROBERT report PDFs for the available No PFI and PFI model variants.",
         "when_to_use": ["Open Results > Report after a workflow has created a matching ROBERT report file."],
         "prerequisites": ["At least one report PDF for the selected model and variant."],
-        "steps": ["Open Results, choose Best models or a named model, then select Report and compare the No PFI and PFI PDFs with their validation evidence."],
-        "result": "Best models shows the two GENERATE-selected model variants; selecting a named model shows that model's available variant PDFs from REPORT_models.",
+        "steps": ["Open Results > Report. In an all-models run, the default selection shows the single overall-best report in the run folder; choose a named model to inspect its available variants in REPORT_models. In a single-model run, inspect the available No PFI and PFI reports directly."],
+        "result": "An all-models run keeps one overall-best PDF in the run folder and archives the generated reports in REPORT_models. A single-model run can leave both No PFI and PFI PDFs in the run folder when PFI filtering is enabled, or only No PFI when it is disabled.",
         "next_steps": ["Compare each report with the same model's Images, Predictions, and Interactive plots."],
-        "common_issues": ["Report remains disabled for a selection without matching PDFs. The two root-level report PDFs can be REPORT's best-scoring reports and need not match GENERATE's Best models selection."]
+        "common_issues": ["Report remains disabled for a selection without matching PDFs. The single root-level report is REPORT's overall-best selection and can differ from GENERATE's per-variant Best_model files."]
       }
     },
     {
@@ -1157,7 +1157,7 @@
         "purpose": "Combine the PDF report, stage figures, and external prediction tables instead of judging a workflow from one output.",
         "when_to_use": ["Use this review after a ROBERT run has created result artifacts."],
         "prerequisites": ["Open Results after output for this run is detected; each child view unlocks according to its files for the selected model."],
-        "steps": ["Choose Best models or a named model in Results.", "Read Report for both available No PFI and PFI PDFs.", "Inspect Images and Interactive plots for matching figures.", "Use Predictions for matching internal or external CSVs."],
+        "steps": ["In an all-models run, choose the overall-best report or a named model in Results; a single-model run has no model selector.", "Read the report PDFs available for that selection: one overall-best PDF by default in an all-models run, or the available No PFI and PFI PDFs for a named or single-model run.", "Inspect Images and Interactive plots for matching figures.", "Use Predictions for matching internal or external CSVs."],
         "result": "The four views share the model selection and present matching model, validation, visualization, and inference evidence.",
         "next_steps": ["Resolve warnings or data limitations before relying on the model."],
         "common_issues": ["A disabled Results child view means its matching artifact was not produced or discovered for the selected model."]

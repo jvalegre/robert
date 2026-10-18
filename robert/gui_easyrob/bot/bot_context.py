@@ -181,6 +181,29 @@ def _collect_list_widget_text(widget: Any) -> tuple[str, ...]:
     return tuple(values)
 
 
+def _collect_checked_list_widget_text(widget: Any) -> tuple[str, ...]:
+    """Read only checked items from a checkable GUI list."""
+    count_accessor = _get_attr(widget, "count", None)
+    count_value = _safe_maybe_call(count_accessor, default=0) if callable(count_accessor) else 0
+    try:
+        count = max(0, min(int(count_value or 0), _GUI_LIST_COUNT_LIMIT))
+    except (TypeError, ValueError):
+        return ()
+    item_accessor = _get_attr(widget, "item", None)
+    if not callable(item_accessor):
+        return ()
+    values: list[str] = []
+    for index in range(count):
+        item = _safe_maybe_call(item_accessor, index, default=None)
+        state = _safe_maybe_call(_get_attr(item, "checkState", None), default=None)
+        if _get_attr(state, "value", state) != 2:
+            continue
+        text = _bounded_popup_text(_text_from_widget(item, "text", ""), _GUI_LIST_ITEM_LIMIT)
+        if text:
+            values.append(text)
+    return tuple(values)
+
+
 def _line_edit_setting(widget: Any) -> str:
     text = _text_from_widget(widget, "text", "").strip()
     if text:
@@ -363,11 +386,18 @@ class GuiSnapshot:
     result_enabled_views: tuple[str, ...] = field(default_factory=tuple)
     result_disabled_views: tuple[str, ...] = field(default_factory=tuple)
     all_models_enabled: bool = False
+    result_root_reports: tuple[str, ...] = field(default_factory=tuple)
+    result_archived_report_count: int = 0
+    workflow_stage_states: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    evaluate_model_source: str = ""
+    evaluate_model_name: str = ""
+    evaluate_model_settings: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         """Keep the public snapshot valid even when tests construct it directly."""
         object.__setattr__(self, "ignored_columns", _normalize_text_items(self.ignored_columns))
         object.__setattr__(self, "advanced_settings", _normalize_text_items(self.advanced_settings))
+        object.__setattr__(self, "evaluate_model_settings", _normalize_text_items(self.evaluate_model_settings))
         object.__setattr__(self, "popup_title", _bounded_popup_text(self.popup_title, _POPUP_TITLE_LIMIT))
         object.__setattr__(self, "popup_text", _bounded_popup_text(self.popup_text, _POPUP_TEXT_LIMIT))
         object.__setattr__(self, "popup_buttons", tuple(_popup_buttons({"buttons": self.popup_buttons})))
@@ -403,7 +433,7 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
     evaluate_candidate = _get_attr(window, "evaluate_tab", None)
     evaluate_tab = evaluate_candidate if (
         active_tab == "Check model"
-        or (result_source and result_source == str(_get_attr(evaluate_candidate, "csv_path", "") or ""))
+        or (result_source and _get_attr(window, "_result_view_source_kind", "ROBERT") == "EVALUATE")
     ) else None
     input_view = evaluate_tab if evaluate_tab is not None else window
     workflow_selector = _get_attr(window, "workflow_selector", None)
@@ -439,8 +469,50 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
         "EVALUATE" if evaluate_tab is not None else str(_get_attr(window, "current_process", "") or "").strip()
     ) if process_running else ""
     run_aqme_enabled = _is_enabled(_get_attr(window, "run_aqme_button", None))
-    ignored_columns = _collect_list_widget_text(_get_attr(window, "ignore_list", None))
-    advanced_settings = _collect_advanced_settings(_get_attr(window, "options_tab", None))
+    if evaluate_tab is not None:
+        ignored_columns = _collect_checked_list_widget_text(_get_attr(evaluate_tab, "ignore_list", None))
+        advanced_settings = ()
+    else:
+        ignored_columns = _collect_list_widget_text(_get_attr(window, "ignore_list", None))
+        advanced_settings = _collect_advanced_settings(_get_attr(window, "options_tab", None))
+    evaluate_model_source = _text_from_widget(
+        _get_attr(evaluate_tab, "model_source_dropdown", None), "currentText", "",
+    )
+    evaluate_model_name = ""
+    evaluate_model_settings: tuple[str, ...] = ()
+    evaluate_source_index = _safe_maybe_call(
+        _get_attr(_get_attr(evaluate_tab, "model_source_dropdown", None), "currentIndex", None),
+        default=-1,
+    )
+    if evaluate_source_index == 1:
+        evaluate_model_name = _text_from_widget(
+            _get_attr(evaluate_tab, "sklearn_model_dropdown", None), "currentText", "",
+        )
+        fields = _get_attr(evaluate_tab, "sklearn_param_fields", {})
+        if isinstance(fields, dict):
+            evaluate_model_settings = _normalize_text_items([
+                f"{name}={value}" for name, widget in fields.items()
+                if (value := _text_from_widget(widget, "text", "").strip())
+            ])
+    elif evaluate_source_index in {2, 3}:
+        attribute = "model_params_path" if evaluate_source_index == 2 else "model_file_path"
+        value = str(_get_attr(evaluate_tab, attribute, "") or "")
+        if value:
+            evaluate_model_settings = _normalize_text_items([f"{attribute}={value}"])
+
+    workflow_stage_states: tuple[tuple[str, str], ...] = ()
+    if evaluate_tab is None:
+        progress = _get_attr(window, "workflow_progress", None)
+        if progress is not None:
+            aqme_status = _safe_maybe_call(_get_attr(progress, "aqme_status", None), default="")
+            stage_statuses = _safe_maybe_call(_get_attr(progress, "statuses", None), default=())
+            if isinstance(aqme_status, str) and isinstance(stage_statuses, (list, tuple)):
+                workflow_stage_states = tuple(
+                    (name, state) for name, state in zip(
+                        ("AQME", "CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT"),
+                        (aqme_status, *stage_statuses),
+                    ) if isinstance(state, str)
+                )
     enabled_tabs, disabled_tabs = _collect_tab_states(tab_widget)
     result_model = ""
     result_models: tuple[str, ...] = ()
@@ -448,6 +520,8 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
     result_active_view = ""
     result_enabled_views: tuple[str, ...] = ()
     result_disabled_views: tuple[str, ...] = ()
+    result_root_reports: tuple[str, ...] = ()
+    result_archived_report_count = 0
     catalog = _get_attr(window, "_result_catalog", None)
     workspace = _get_attr(window, "results_workspace", None)
     if catalog is not None and workspace is not None and main_csv_path:
@@ -456,6 +530,16 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
         except (OSError, ValueError, TypeError):
             same_run = False
         if same_run:
+            try:
+                result_root_reports = tuple(sorted(
+                    path.name for path in Path(catalog.root).glob("ROBERT_report_*.pdf") if path.is_file()
+                ))
+                result_archived_report_count = sum(
+                    1 for path in (Path(catalog.root) / "REPORT_models").glob("ROBERT_report_*.pdf")
+                    if path.is_file()
+                )
+            except OSError:
+                pass
             result_models = tuple(str(model) for model in _get_attr(catalog, "models", ())) if _get_attr(catalog, "is_all_models", False) else ()
             current_model = _safe_maybe_call(_get_attr(workspace, "current_model", None), default=None)
             result_model = str(current_model) if current_model else "Best models" if result_models else ""
@@ -564,4 +648,10 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
         result_enabled_views=result_enabled_views,
         result_disabled_views=result_disabled_views,
         all_models_enabled=_checked(_get_attr(window, "all_models_toggle", None)),
+        result_root_reports=result_root_reports,
+        result_archived_report_count=result_archived_report_count,
+        workflow_stage_states=workflow_stage_states,
+        evaluate_model_source=evaluate_model_source,
+        evaluate_model_name=evaluate_model_name,
+        evaluate_model_settings=evaluate_model_settings,
     )

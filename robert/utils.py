@@ -1455,6 +1455,18 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                     self.args.log.finalize()
                     sys.exit()
 
+    # Sort rows by a stable per-datapoint key (names) for reproducibility across ALL modules -
+    # columns were already order-independent (see the alphabetical column sort below), but rows
+    # weren't: CV-based steps downstream (RFECV/permutation importance in CURATE, hyperparameter
+    # search in GENERATE, diagnostic folds in VERIFY/PREDICT) split the data by row POSITION, so
+    # simply reordering the rows of the input CSV silently changed which datapoints landed in
+    # which fold - and therefore the final score - even though the exact same datapoints were
+    # used. Done after the row-number diagnostics above (which report positions in the ORIGINAL
+    # file, so those need the original order) but before KNN imputation and any other
+    # order-sensitive step
+    if module.lower() not in ['aqme', 'aqme_test'] and self.args.names and self.args.names in csv_df.columns:
+        csv_df = csv_df.sort_values(by=self.args.names, kind='stable').reset_index(drop=True)
+
     descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
     min_count = int(0.9 * len(csv_df))
 
@@ -1502,7 +1514,12 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         total_amount = len(csv_df.columns)
         ignored_descs = len(self.args.ignore)
         accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
-        if 'Set' in csv_df.columns: # removes the column that tracks sets
+        # removes the column that tracks sets - but only if it isn't already counted via
+        # self.args.ignore (EVALUATE's robert.main() always appends 'Set' to ignore itself),
+        # otherwise it gets double-subtracted: accepted_descs undercounts by one, and for a
+        # model with exactly one real descriptor that false zero trips the hard "aren't any
+        # valid descriptors" exit below even though the descriptor is actually there and used
+        if 'Set' in csv_df.columns and 'Set' not in self.args.ignore:
             accepted_descs -= 1
             ignored_descs += 1
         if module.lower() not in ['aqme','aqme_test']:

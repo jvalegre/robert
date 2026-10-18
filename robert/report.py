@@ -1003,20 +1003,25 @@ class report:
         {space}{message}</p>'''
 
 
-    # (min_score, phrase, color_key) bands, checked highest-first, score on a 0-10 scale
+    # (min_score, phrase, color_key) bands, checked highest-first, score on a 0-10 scale.
+    # Both bands name "interpolation"/"extrapolation" explicitly in every tier (not just the
+    # top one) so each phrase is unambiguous read on its own - a high Interpolation score and
+    # a low Boundary robustness one both get shown (see print_assessment() below), and without
+    # the explicit label a reader skimming just the first line could mistake a good
+    # interpolation-only verdict for a general "this model is reliable" claim
     INTERP_BANDS = [
-        (9, 'The model seems reliable to explain trends in the current prediction range', 'blue'),
-        (7, 'Decent model, but it has limitations to explain trends in the current prediction range', 'yellow'),
-        (5, 'Moderate model, with important limitations to explain trends in the current prediction range', 'yellow'),
-        (3, 'Weak model, unable to explain trends in the current prediction range', 'red'),
-        (0, 'Very weak model, completely unable to explain trends in the current prediction range', 'red'),
+        (9, 'The model seems reliable for interpolation (explaining trends within the current prediction range)', 'blue'),
+        (7, 'Decent model for interpolation, but with some limitations explaining trends within the current prediction range', 'yellow'),
+        (5, 'Moderate model for interpolation, with important limitations explaining trends within the current prediction range', 'yellow'),
+        (3, 'Weak model for interpolation, unable to explain trends within the current prediction range', 'red'),
+        (0, 'Very weak model for interpolation, completely unable to explain trends within the current prediction range', 'red'),
     ]
     EXTRAP_BANDS = [
-        (9, 'The model seems reliable outside the current prediction range of Y values', 'blue'),
-        (7, 'Decent model, but it has limitations outside the current prediction range of Y values', 'yellow'),
-        (5, 'Moderate model, with important limitations outside the current prediction range of Y values', 'yellow'),
-        (3, 'Weak model, unable to explain trends outside the current prediction range of Y values', 'red'),
-        (0, 'Very weak model, completely unable to explain trends outside the current prediction range of Y values', 'red'),
+        (9, 'The model seems reliable for extrapolation (predicting points outside the current prediction range)', 'blue'),
+        (7, 'Decent model for extrapolation, but with some limitations predicting points outside the current prediction range', 'yellow'),
+        (5, 'Moderate model for extrapolation, with important limitations predicting points outside the current prediction range', 'yellow'),
+        (3, 'Weak model for extrapolation, unable to predict points outside the current prediction range', 'red'),
+        (0, 'Very weak model for extrapolation, completely unable to predict points outside the current prediction range', 'red'),
     ]
 
     def _pick_band(self,score,bands):
@@ -1242,7 +1247,9 @@ class report:
 
     def print_outliers(self,pred_type,suffix,suffix_title):
         """
-        Generates the outliers section (2 columns, same content on both sides for now)
+        Generates the outliers section - shown once, in the left column's position (the
+        content is the same regardless of suffix, there's no separate interpolation/boundary
+        version of it, so repeating it on the right was pure duplication)
         """
 
         # starts with the icon of outliers
@@ -1252,11 +1259,8 @@ class report:
         if pred_type == 'reg':
             # get information about outliers
             module_file = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
-            columns_outlier = []
-            for col in ['interpolation','boundary']:
-                spacing = '' if col == 'interpolation' else self.spacing_PFI
-                columns_outlier.append(get_outliers(module_file,suffix,spacing))
-            outlier_dat += combine_cols(columns_outlier)
+            column_outlier = get_outliers(module_file,suffix,'')
+            outlier_dat += combine_cols([column_outlier,''])
 
             # add corresponding image
             height = 217
@@ -1271,7 +1275,9 @@ class report:
 
     def print_y_distrib(self,warnings_dict,suffix,suffix_title):
         """
-        Generates the y distribution section (2 columns, same content on both sides for now)
+        Generates the y distribution section - shown once, in the left column's position (the
+        content is the same regardless of suffix, there's no separate interpolation/boundary
+        version of it, so repeating it on the right was pure duplication)
         """
 
         # starts with the icon of outliers
@@ -1282,21 +1288,16 @@ class report:
         height = 220
         distrib_dat += self.print_img('y_distribution',-5,height,'PREDICT',suffix_title)
 
-        columns_y_distrib = []
-        for col in ['interpolation','boundary']:
-            spacing = '' if col == 'interpolation' else self.spacing_PFI
+        # split the sentence into 1 column size and add spacing line by line
+        y_distrib_sentence = format_lines(warnings_dict[f'y_dist_info_{suffix}'],max_width=55,one_column=True,spacing='')
 
-            # split the sentence into 1 column size and add spacing line by line
-            y_distrib_sentence = format_lines(warnings_dict[f'y_dist_info_{suffix}'],max_width=55,one_column=True,spacing=spacing)
+        column_y_distrib = f"""
+        <p style='margin-top:25px; margin-bottom:-6px'><span style="font-weight:bold;">y distribution analysis</span></p>
+        {y_distrib_sentence}
+        <p style='margin-bottom:-15px'></p>
+        """
 
-            column = f"""
-            <p style='margin-top:25px; margin-bottom:-6px'><span style="font-weight:bold;">{spacing*3}y distribution analysis</span></p>
-            {y_distrib_sentence}
-            <p style='margin-bottom:-15px'></p>
-            """
-            columns_y_distrib.append(column)
-
-        distrib_dat += combine_cols(columns_y_distrib)
+        distrib_dat += combine_cols([column_y_distrib,''])
 
         distrib_dat += '<p style="margin-bottom: 30px;"></p>'
 
@@ -1352,27 +1353,25 @@ class report:
         }
         for label, images in [('SHAP', shap_images), ('PFI', pfi_images), ('Pearson', pearson_images)]:
             if len(images) == 1:
-                pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px"><img src="file:///{self._posix_uri(images[0])}" style="margin: 0; width: 100%;"/>'
-                pair_list += f'{("&nbsp;")*22}'
-                pair_list += f'<img src="file:///{self._posix_uri(images[0])}" style="margin: 0; width: 100%;"/></p>'
+                # shown once, in the left column's position - this suffix's PDF has only this
+                # one plot, not a second, different one to pair it with, so showing it twice
+                # (or centering it, which reads as its own third position) was duplication
+                pair_list = f'<p style="width: 91%; text-align: left; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px"><img src="file:///{self._posix_uri(images[0])}" style="margin: 0; width: 55%;"/></p>'
             else:
                 pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px">{missing_messages[label]}</p>'
             feature_dat += pair_list
 
-        columns_pearson = []
-        for col in ['interpolation','boundary']:
-            spacing = '' if col == 'interpolation' else self.spacing_PFI
+        # split the sentence into 1 column size and add spacing line by line - shown once, in
+        # the left column's position (same content regardless of suffix, so repeating it on
+        # the right was pure duplication)
+        pearson_sentence = format_lines(warnings_dict[f'pearson_info_{suffix}'],max_width=55,one_column=True,spacing='')
 
-            # split the sentence into 1 column size and add spacing line by line
-            pearson_sentence = format_lines(warnings_dict[f'pearson_info_{suffix}'],max_width=55,one_column=True,spacing=spacing)
+        column_pearson = f"""
+        <p style='margin-top:-10px; margin-bottom:-6px'><span style="font-weight:bold;">Correlation analysis</span></p>
+        {pearson_sentence}
+        """
 
-            column = f"""
-            <p style='margin-top:-10px; margin-bottom:-6px'><span style="font-weight:bold;">{spacing*3}Correlation analysis</span></p>
-            {pearson_sentence}
-            """
-            columns_pearson.append(column)
-
-        feature_dat += combine_cols(columns_pearson)
+        feature_dat += combine_cols([column_pearson,''])
 
         # add separator line and page break
         feature_dat += '<hr style="margin-top: 10px;">'
@@ -1724,8 +1723,9 @@ class report:
 
     def transpa_model_misc(self,section,suffix):
         """
-        Collects the data for model parameters and misc options in the Reproducibility section
-        (2 columns, same content on both sides for now)
+        Collects the data for model parameters and misc options in the Reproducibility section -
+        shown once, in the left column's position (same content regardless of suffix, so
+        repeating it on the right was pure duplication)
         """
 
         # set the parameters for the ML model
@@ -1744,11 +1744,8 @@ class report:
                 params_df = pd.read_csv(file_param, encoding='utf-8')
         params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
-        columns_repro = []
-        for col in ['interpolation','boundary']:
-            spacing = '' if col == 'interpolation' else self.spacing_PFI
-            columns_repro.append(get_col_transpa(params_dict,suffix,section,spacing))
-        section_dat = combine_cols(columns_repro)
+        column_repro = get_col_transpa(params_dict,suffix,section,'')
+        section_dat = combine_cols([column_repro,''])
         section_dat += '<p style="text-align: justify; margin-top: -70px;">'
 
         return section_dat,params_df
@@ -1778,7 +1775,8 @@ class report:
 
     def print_predictions(self,pred_type,suffix,suffix_title):
         """
-        Generates the new predictions section (2 columns, same content on both sides for now)
+        Generates the new predictions section - shown once, in the left column's position
+        (same content regardless of suffix, so repeating it on the right was pure duplication)
         """
 
         # detects whether there are predictions from an external test set
@@ -1789,18 +1787,14 @@ class report:
             pred_dat = ''
             pred_dat = self.module_lines('pred',pred_dat,pred_type=pred_type)
 
-            columns_metrics, columns_pred = [], []
-            for col in ['interpolation','boundary']:
-                spacing = '' if col == 'interpolation' else self.spacing_PFI
+            # add metrics
+            column_metrics = get_csv_metrics(module_file,suffix,'')
 
-                # add metrics
-                columns_metrics.append(get_csv_metrics(module_file,suffix,spacing))
+            # add predictions table
+            column_pred = get_csv_pred(suffix,path_csv_test,y_value,names,'')
 
-                # add predictions table
-                columns_pred.append(get_csv_pred(suffix,path_csv_test,y_value,names,spacing))
-
-            pred_dat += combine_cols(columns_metrics)
-            pred_dat += combine_cols(columns_pred)
+            pred_dat += combine_cols([column_metrics,''])
+            pred_dat += combine_cols([column_pred,''])
 
             # add corresponding image
             height = 217
@@ -2027,11 +2021,16 @@ class report:
 
     def print_img(self,file_name,margin_top,height,module,suffix_title):
         """
-        Generates the row for a single image (matching suffix_title), duplicated on both sides
+        Generates the row for a single image (matching suffix_title), shown once in the left
+        column's position (not centered, not duplicated) - each suffix's PDF only ever has
+        this one plot (not a second, different one to pair it with), so showing it twice side
+        by side was pure visual duplication rather than an actual left/right comparison
         """
 
         tag = self.print_img_tag(self.find_img(file_name,module,suffix_title),height)
+        if not tag:
+            return ''
 
-        return self.print_img_row(tag,tag,margin_top)
+        return self.print_img_row(tag,'',margin_top)
 
 

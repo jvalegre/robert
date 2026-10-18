@@ -1456,18 +1456,26 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                 # (a) SD of the repeated-CV predictions in the test set
                 if '-  Average SD in test set' in line:
                     cv_sd = float(line.split()[-1])
-                    cv_4sd = 4*cv_sd
-                    y_range_covered = cv_4sd/data_score[f'y_range_{suffix}']
 
-                    cv_sd_score_a = 0
-                    if y_range_covered <= 0.25:
-                        cv_sd_score_a += 2
-                    elif y_range_covered <= 0.50:
-                        cv_sd_score_a += 1
+                    # with --test_set 0 there's no test set to average over, so this line
+                    # prints "nan" (np.std() of an empty array) - without this guard, the NaN
+                    # silently flows into cv_range_cov_{suffix}/cv_4sd_{suffix} and later
+                    # crashes adv_cv_sd()'s round() call (ValueError: cannot convert float NaN
+                    # to integer) instead of just leaving this facet at its "not available" 0,
+                    # the same way score_available already handles a non-standard test split
+                    if not np.isnan(cv_sd):
+                        cv_4sd = 4*cv_sd
+                        y_range_covered = cv_4sd/data_score[f'y_range_{suffix}']
 
-                    data_score[f"cv_4sd_{suffix}"] = cv_4sd
-                    data_score[f"cv_range_cov_{suffix}"] = y_range_covered
-                    data_score[f'cv_sd_score_a_{suffix}'] = cv_sd_score_a
+                        cv_sd_score_a = 0
+                        if y_range_covered <= 0.25:
+                            cv_sd_score_a += 2
+                        elif y_range_covered <= 0.50:
+                            cv_sd_score_a += 1
+
+                        data_score[f"cv_4sd_{suffix}"] = cv_4sd
+                        data_score[f"cv_range_cov_{suffix}"] = y_range_covered
+                        data_score[f'cv_sd_score_a_{suffix}'] = cv_sd_score_a
 
                 # (b) SD of the out-of-fold CV predictions themselves (train+validation) - same
                 # 25%/50% thresholds as (a), since both use the "4*SD as % of y-range"

@@ -12,7 +12,7 @@ import textwrap
 from pathlib import Path
 import ast
 import json
-from robert.utils import boundary_n_points
+from robert.utils import boundary_n_points, deserialize_model_params
 
 
 title_no_pfi = 'No PFI (standard descriptor filter):'
@@ -969,13 +969,9 @@ def get_col_transpa(params_dict,suffix,section,spacing):
                 sklearn_model = f"""{first_line}sklearn model: {sklearn_model}</p>"""
             elif section == 'model_section' and ele.lower() not in misc_params:
                 if ele == 'params':
-                    # try JSON first (new format, e.g. from CHECKML's dynamic scikit-learn
-                    # models - True/False/None come out as lowercase true/false/null, which
-                    # ast.literal_eval doesn't understand), fall back to the old format
-                    try:
-                        model_params = json.loads(params_dict['params'])
-                    except (json.JSONDecodeError, TypeError):
-                        model_params = ast.literal_eval(params_dict['params'])
+                    # same reader VERIFY/PREDICT use (JSON or the old format, with objects such as
+                    # GP kernels decoded back), so the report shows i.e. "kernel: RBF(...)"
+                    model_params = deserialize_model_params(params_dict['params'])
                     for param in model_params:
                         col_info += f"""{reduced_line}{param}: {model_params[param]}</p>"""
             elif section == 'misc_section' and ele.lower() in misc_params:

@@ -10,6 +10,7 @@ import glob
 import json
 import shutil
 import subprocess
+import pytest
 import pandas as pd
 
 from robert.checkml import checkml
@@ -414,3 +415,236 @@ def test_CHECKML_missing_descriptor_value():
         if os.path.exists(csv_path):
             os.remove(csv_path)
         _clean_checkml_run()
+
+
+# ---------------------------------------------------------------------------------------------
+# User-supplied scikit-learn models (--model_params / --model_file / model_obj)
+# ---------------------------------------------------------------------------------------------
+
+_CUSTOM_DESCRIPTORS = ["x2", "x5", "x6", "x7", "x9", "x10"]
+
+
+def _write_custom_model_csvs():
+    """Numeric-only regression/classification databases (CHECKML uses descriptors as they are)."""
+    reg = pd.read_csv("tests/Robert_example.csv")[["Name", "Target_values"] + _CUSTOM_DESCRIPTORS]
+    reg.drop_duplicates("Name").to_csv("custom_reg.csv", index=False)
+    clas = pd.read_csv("tests/Robert_example_clas.csv")[["Name", "Target_values"] + _CUSTOM_DESCRIPTORS]
+    clas.to_csv("custom_clas.csv", index=False)
+    clas_txt = clas.copy()
+    clas_txt["Target_values"] = clas_txt["Target_values"].map({0: "inactive", 1: "active"})
+    clas_txt.to_csv("custom_clas_txt.csv", index=False)
+
+
+def _write_model_params(rows):
+    pd.DataFrame(rows, columns=["param", "value"]).to_csv("custom_model_params.csv", index=False)
+    return "custom_model_params.csv"
+
+
+def test_model_params_serialization_roundtrip():
+    """
+    The hyperparameters are saved as text in GENERATE/Best_model and read back by
+    VERIFY/PREDICT/REPORT to rebuild the model - every type must come back exactly as it was
+    """
+    import numpy as np
+    from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+    from sklearn.tree import DecisionTreeRegressor
+    from robert.utils import serialize_model_params, deserialize_model_params, dict_formating
+
+    kernel = RBF(1.0) + WhiteKernel(0.1)
+    params = {
+        "kernel": kernel,  # object (GP kernel)
+        "estimator": DecisionTreeRegressor(max_depth=2),  # object (base estimator)
+        "class_weight": {0: 1, 1: 3},  # dict with integer keys
+        "hidden_layer_sizes": (20, 10),  # tuple
+        "max_depth": np.int64(3),  # numpy int (i.e. from a grid search)
+        "alpha": np.float64(0.5),
+        "criterion": "gini",
+        "max_features": None,
+        "bootstrap": True,
+    }
+    restored = deserialize_model_params(serialize_model_params(params))
+    assert restored["kernel"] == kernel
+    assert restored["estimator"].get_params()["max_depth"] == 2
+    assert restored["class_weight"] == {0: 1, 1: 3}
+    assert restored["hidden_layer_sizes"] == (20, 10)
+    assert restored["max_depth"] == 3 and type(restored["max_depth"]) is int
+    assert restored["alpha"] == 0.5 and type(restored["alpha"]) is float
+    assert restored["criterion"] == "gini"
+    assert restored["max_features"] is None
+    assert restored["bootstrap"] is True
+
+    # params saved before serialize_model_params() existed (plain JSON with text keys) still load
+    old_format = {"params": json.dumps({"class_weight": {"0": 1, "1": 3}, "max_depth": 3})}
+    assert dict_formating(old_format)["params"] == {"class_weight": {0: 1, 1: 3}, "max_depth": 3}
+    # class names (non-numeric keys) are kept as they are
+    names_format = {"params": json.dumps({"class_weight": {"active": 3, "inactive": 1}})}
+    assert dict_formating(names_format)["params"]["class_weight"] == {"active": 3, "inactive": 1}
+
+
+def test_model_params_csv_values():
+    """Values typed in the --model_params CSV, including the ways Excel writes them"""
+    from robert.utils import parse_param_value
+
+    assert parse_param_value("3") == 3
+    assert parse_param_value(" 0.1 ") == 0.1
+    assert parse_param_value("(20, 10)") == (20, 10)
+    assert parse_param_value("{0: 1, 1: 3}") == {0: 1, 1: 3}
+    assert parse_param_value("[1, 2]") == [1, 2]
+    assert parse_param_value("gini") == "gini"
+    assert parse_param_value("'sqrt'") == "sqrt"
+    for empty in [None, float("nan"), "", "  ", "None", "none", "NULL"]:
+        assert parse_param_value(empty) is None
+    for true in ["True", "TRUE", "true"]:
+        assert parse_param_value(true) is True
+    for false in ["False", "FALSE", "false"]:
+        assert parse_param_value(false) is False
+
+
+def _custom_model_options(scenario):
+    import joblib
+    import numpy as np
+
+    opts = {"y": "Target_values", "names": "Name"}
+    if scenario == "clas_class_weight_int":
+        opts.update(csv_name="custom_clas.csv", type="clas", model_params=_write_model_params(
+            [("model", "DecisionTreeClassifier"), ("max_depth", "3"), ("class_weight", "{0: 1, 1: 3}")]))
+    elif scenario == "clas_class_weight_labels":
+        opts.update(csv_name="custom_clas_txt.csv", type="clas", model_params=_write_model_params(
+            [("model", "DecisionTreeClassifier"), ("max_depth", "3"), ("class_weight", "{'active': 3, 'inactive': 1}")]))
+    elif scenario == "reg_model_file_gp_kernel":
+        from sklearn.gaussian_process import GaussianProcessRegressor
+        from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+        joblib.dump(GaussianProcessRegressor(kernel=RBF(1.0) + WhiteKernel(0.1), normalize_y=True), "custom_gp.joblib")
+        opts.update(csv_name="custom_reg.csv", model_file="custom_gp.joblib")
+    elif scenario == "reg_model_file_bagging":
+        from sklearn.ensemble import BaggingRegressor
+        from sklearn.tree import DecisionTreeRegressor
+        joblib.dump(BaggingRegressor(estimator=DecisionTreeRegressor(max_depth=3), n_estimators=10), "custom_bag.joblib")
+        opts.update(csv_name="custom_reg.csv", model_file="custom_bag.joblib")
+    elif scenario == "reg_model_obj_numpy_ints":
+        from sklearn.ensemble import RandomForestRegressor
+        opts.update(csv_name="custom_reg.csv",
+                    model_obj=RandomForestRegressor(n_estimators=np.int64(20), max_depth=np.int64(3)))
+    elif scenario == "reg_csv_quirks":
+        opts.update(csv_name="custom_reg.csv", model_params=_write_model_params(
+            [("model", "RandomForestRegressor"), (" n_estimators ", " 20 "), ("max_depth", None),
+             ("bootstrap", "TRUE"), ("oob_score", "false"), ("max_features", "sqrt")]))
+    elif scenario == "reg_csv_tuple_mlp":
+        opts.update(csv_name="custom_reg.csv", model_params=_write_model_params(
+            [("model", "MLPRegressor"), ("hidden_layer_sizes", "(20, 10)"), ("max_iter", "2000"), ("solver", "lbfgs")]))
+    elif scenario == "clas_class_weight_bad_key":
+        opts.update(csv_name="custom_clas.csv", type="clas", model_params=_write_model_params(
+            [("model", "DecisionTreeClassifier"), ("class_weight", "{0: 1, 5: 3}")]))
+    elif scenario == "clas_typo_value":
+        opts.update(csv_name="custom_clas.csv", type="clas", model_params=_write_model_params(
+            [("model", "DecisionTreeClassifier"), ("criterion", "ginni")]))
+    return opts
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "clas_class_weight_int",  # class_weight={0: 1, 1: 3} (JSON used to turn the keys into text)
+        "clas_class_weight_labels",  # class_weight typed with the original text labels
+        "reg_model_file_gp_kernel",  # fitted model with a kernel object (nested get_params keys)
+        "reg_model_file_bagging",  # model with a base estimator object
+        "reg_model_obj_numpy_ints",  # numpy ints (i.e. hyperparameters from a grid search)
+        "reg_csv_quirks",  # spaces, empty cell (None) and TRUE/false as Excel writes them
+        "reg_csv_tuple_mlp",  # tuple hyperparameter
+    ],
+)
+def test_CHECKML_custom_sklearn_models(scenario):
+    """
+    CHECKML saves the user's hyperparameters and VERIFY rebuilds the model from them and fits it
+    in every CV fold - this used to fail for all of these models except the tuple one
+    """
+    _clean_checkml_run()
+    _write_custom_model_csvs()
+    opts = _custom_model_options(scenario)
+    try:
+        checkml(**opts)
+        chain = {key: val for key, val in opts.items() if key not in ("model_params", "model_file", "model_obj")}
+        curate(**chain)
+        verify(ignore=["Set"])
+        assert len(glob.glob(os.path.join(path_main, "VERIFY", "*.dat"))) == 1
+        assert len(glob.glob(os.path.join(path_main, "VERIFY", "VERIFY_tests_*_No_PFI.png"))) == 1
+        if scenario == "clas_class_weight_labels":
+            with open(os.path.join(path_main, "CHECKML", "CHECKML_data.dat"), encoding="utf-8") as log_file:
+                assert "class_weight keys converted to the class codes used by ROBERT" in log_file.read()
+    finally:
+        _clean_checkml_run()
+
+
+@pytest.mark.parametrize(
+    "scenario,expected_message",
+    [
+        ("clas_class_weight_bad_key", "The class_weight key 5 doesn't match any class of the y column"),
+        ("clas_typo_value", "Invalid hyperparameters for DecisionTreeClassifier"),
+    ],
+)
+def test_CHECKML_custom_sklearn_models_clear_errors(scenario, expected_message):
+    """Wrong hyperparameters stop CHECKML with a clear message (not a traceback inside VERIFY)"""
+    _clean_checkml_run()
+    _write_custom_model_csvs()
+    try:
+        with pytest.raises(SystemExit):
+            checkml(**_custom_model_options(scenario))
+        with open(os.path.join(path_main, "CHECKML", "CHECKML_data.dat"), encoding="utf-8") as log_file:
+            assert expected_message in log_file.read()
+    finally:
+        _clean_checkml_run()
+
+
+# ---------------------------------------------------------------------------------------------
+# Order of rows and columns
+# ---------------------------------------------------------------------------------------------
+
+def test_CHECKML_row_and_column_order_do_not_change_results():
+    """
+    ROBERT sorts rows by the names column and descriptors alphabetically when loading a database,
+    so shuffling the rows/columns of the same CSV must give exactly the same test set, CV folds,
+    VERIFY tests and PREDICT metrics/predictions (before, the row order changed which points
+    landed in each fold, and therefore the scores)
+    """
+    base = pd.read_csv("tests/Robert_example.csv")[["Name", "Target_values"] + _CUSTOM_DESCRIPTORS].drop_duplicates("Name")
+    shuffled = base.sample(frac=1, random_state=7)[["x9", "Name", "x10", "Target_values", "x2", "x7", "x5", "x6"]]
+    assert list(shuffled["Name"]) != list(base["Name"])
+
+    results = []
+    try:
+        for csv_name, df in [("order_original.csv", base), ("order_shuffled.csv", shuffled)]:
+            _clean_checkml_run()
+            df.to_csv(csv_name, index=False)
+            model_params = _write_model_params(
+                [("model", "RandomForestRegressor"), ("n_estimators", "20"), ("max_depth", "3")])
+            checkml(y="Target_values", names="Name", csv_name=csv_name, model_params=model_params)
+            verify(ignore=["Set"])
+            predict(ignore=["Set"])
+
+            best = os.path.join(path_main, "GENERATE", "Best_model", "No_PFI")
+            db = pd.read_csv(os.path.join(best, "RandomForestRegressor_db.csv"))
+            params = pd.read_csv(os.path.join(best, "RandomForestRegressor.csv"))
+            with open(os.path.join(path_main, "VERIFY", "VERIFY_data.dat"), encoding="utf-8") as verify_file:
+                verify_dat = verify_file.read()
+            with open(os.path.join(path_main, "PREDICT", "PREDICT_data.dat"), encoding="utf-8") as predict_file:
+                predict_dat = predict_file.read()
+            preds = pd.read_csv(os.path.join(path_main, "PREDICT", "RandomForestRegressor_No_PFI.csv"))
+            results.append({
+                "sets": dict(zip(db["Name"], db["Set"])),
+                "descriptors": params["X_descriptors"][0],
+                "verify": [line.strip() for line in verify_dat.split("\n")
+                           if any(tag in line for tag in ["y_mean", "y_shuffle", "onehot", "cluster", "Sorted"])],
+                "predict": [line.strip() for line in predict_dat.split("\n")
+                            if "10x 5-fold CV :" in line or "Test :" in line or "Sorted CV extremes" in line],
+                "predictions": preds.sort_values("Name").reset_index(drop=True).round(10),
+            })
+    finally:
+        _clean_checkml_run()
+
+    original, reordered = results
+    assert original["sets"] == reordered["sets"]
+    assert original["descriptors"] == reordered["descriptors"]
+    assert original["verify"] and original["verify"] == reordered["verify"]
+    assert original["predict"] and original["predict"] == reordered["predict"]
+    pd.testing.assert_frame_equal(original["predictions"][sorted(original["predictions"].columns)],
+                                  reordered["predictions"][sorted(reordered["predictions"].columns)])

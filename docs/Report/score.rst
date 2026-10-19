@@ -1,4 +1,4 @@
-.. robert-score-start
+.. _robert-score-start:
 
 CheckML score
 -------------
@@ -9,57 +9,6 @@ Overview
 .. |br| raw:: html
 
    <br />
-
-While experienced ML users can normally assess whether an ML workflow has yielded favorable results for 
-valid reasons, inexperienced users may encounter difficulties in gauging the reliability of its predictive 
-proficiency. It is widely recognized that ML algorithms can exhibit good metrics (i.e., R\ :sup:`2`, MAE, RMSE, 
-and similar) in the validation set while harboring questionable predictive ability. For example, a user 
-might assume that a model with good metrics is proficient at prediction, but that very model could yield 
-comparably low errors when the y values are shuffled [1] or when using random numbers as descriptors, [2] 
-casting doubt on its actual predictive validity. |br|
-
-For these reasons, we designed the CheckML score, which reports **two independent ratings out of 10** to give
-users insight into the predictive capabilities of the models selected by ROBERT:
-
-* **Interpolation:** how reliably the model predicts within the range of data it was trained on.
-* **Boundary robustness:** how well the model holds up at the edges of that range and on the most
-  descriptor-wise unusual points, where predictions are hardest to trust.
-
-Both scores are computed from the same battery of VERIFY/PREDICT tests, but each focuses on a different
-failure mode, so a model can score very differently on each of them (e.g., a model that interpolates well
-but degrades sharply for extreme substrates). We attempted to rank the models using guidelines aligned with
-modern ML research (see below). For a more detailed explanation of best practices for designing robust ML
-models, see references [3] and [4].
-
-* [1] `y-Randomization and Its Variants in QSPR/QSAR <https://pubs.acs.org/doi/10.1021/ci700157b>`__
-* [2] `Comment on “Predicting reaction performance in C–N cross-coupling using machine learning” <https://www.science.org/doi/10.1126/science.aat8603>`__
-* [3] `Best practices in ML for chemistry <https://www.nature.com/articles/s41557-021-00716-z>`__
-* [4] `Engineering best practices for ML <https://se-ml.github.io/practices>`__ 
-
-.. note:: 
-
-   Please note that the CheckML score was developed based on the following:
-   
-   1) insights from previous publications on best practices for ML models;
-   2) our experience with these models; and
-   3) a comprehensive benchmarking process that involved the nine examples presented in the ROBERT publication (DOI: https://doi.org/10.1002/wcms.1733) along with eight additional examples from low-data regimes (DOI: https://doi.org/10.1039/D5SC00996K).
-   
-   The scoring ranges were established to achieve consensus among ML experts at the extremes (i.e., very weak and strong models), while allowing for varied interpretations of the intermediate scores (i.e., weak and moderate).
-
-   **We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!**
-
-   This calibration assumes the standard ``--test_set`` split (~20% of the data held out as a
-   test set). If a run uses a custom ``--test_set`` value (including 0, i.e. no held-out test
-   set at all), the score isn't meaningful and is hidden from the PDF report — the rest of the
-   report (feature importances, outlier analysis, reproducibility, etc.) is unaffected. Using an
-   external ``--csv_test`` set does not affect this: it doesn't replace the internal test split
-   (which keeps working as usual) and is only used for predicting the extra points it contains,
-   which may not even have known target values.
-
-|br|
-
-How is the score calculated?
-++++++++++++++++++++++++++++
 
 .. |u| raw:: html
 
@@ -73,8 +22,105 @@ How is the score calculated?
 
    &nbsp;
 
+**How should we assess whether a published ML model is sufficiently robust, reliable, and applicable
+to the chemical problem it is intended to address?**
+
+In practice, model quality is often communicated
+through a small number of statistical metrics (ie R2, RMSE, MCC, etc.). Although these metrics are useful, 
+they provide only a partial view of model reliability, making it difficult 
+for readers and reviewers to assess the robustness and domain of applicability of the reported models. 
+
+To this end, we have developed CheckML, a set of tools that systematically analyze descriptor-based tabular 
+ML models, evaluates multiple aspects of their performance, and provides quality scores and diagnostic 
+alerts associated with potential weaknesses. The framework examines predictive performance, 
+overfitting, generalization, prediction stability, and behavior at the boundaries of the modeled chemical space 
+(related to extrapolation). These analyses are compiled into standardized PDF reports that document the evaluation 
+and highlight aspects requiring further consideration.
+
+.. figure:: images/checkml_summary.jpg
+   :width: 400
+   :align: center
+
+|br|
+
+.. note:: 
+
+   Please note that the CheckML score was developed based on the following:
+   
+   * Established recommendations for robust ML
+   * Experience with chemical ML models across a broad community of expert chemists
+   * A comprehensive benchmarking process
+   
+   **We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!**
+
+Please, see the CheckML publication for more details.
+
+|br|
+
+Protocols followed by CheckML
++++++++++++++++++++++++++++++
+
+Before evaluation, CheckML applies a standardized splitting procedure. The random seed is fixed, and rows 
+and columns are sorted so that the results are independent of the order in which data are provided. 80% of 
+the data are used for cross-validation (CV), while the remaining 20% (or a minimum of four data points) 
+are reserved as an independent test set. 
+
+CheckML uses 10-times repreated 5-fold CV (10x 5-fold CV) because this type of CV 
+is widely used in the ML community and is the default repeated CV strategy recommended
+by scikit-learn. Benchmarking across low-data regimes also showed that 10x 5-fold CV 
+remains informative across a broad range of dataset sizes (16–4200 data points, 
+see the CheckML publication). 
+
+.. note::
+  Although leave-one-out CV (LOOCV) is sometimes used for low-data chemical problems,
+  each validation estimate is based on a single observation and the resulting 
+  estimates can be highly correlated. Thus, 10x 5-fold CV provides a more informative 
+  validation framework for the intended application of CheckML.
+
+.. note::
+  A potential concern during development of the scoring system was whether reserving 
+  20% of the data as an independent test set, in addition to the CV set, 
+  could adversely affect model performance in the low-data regime. The overall 
+  effect was small (MAE in 10x 5-fold CV scaled RMSE = 1.3% across 14 exampes, 
+  see the CheckML publication). Based on these results, we retained the 20% test-set
+  holdout for all datasets. This provides a more informative assessment of overfitting
+  and generalization while having only a minor effect on the resulting score, 
+  even in the low-data regime.
+
+After this initial splitting, different ROBERT routines are applied to evaluate the 
+model as explained in the following sections.
+
+|br|
+
+How is the score calculated?
+++++++++++++++++++++++++++++
+
+The numerical thresholds used to assign points across the different sections were calibrated using 112 
+representative models. Their suitability was further assessed based on the diverse perspectives of the 
+chemical ML community represented among the co-authors of the CheckML manuscript.
+
+Importantly, the resulting scores should not be interpreted as replacements for the underlying statistical 
+metrics or as universal guarantees of predictive validity. Rather, they provide a standardized, quantitative 
+quality-control layer that integrates multiple diagnostics. By explicitly testing performance against 
+flawed baselines, evaluating overfitting and generalization, 
+quantifying prediction stability, and probing both response- and descriptor-space boundaries, CheckML provides 
+a systematic assessment of the conditions under which a model's predictions can reasonably be considered 
+reliable. 
+
+.. warning:: 
+   In this context, a published model may still be useful for its intended application even when weak scores or 
+   warnings are obtained. For example, a model may receive a poor extrapolatin score, but it could still be 
+   useful if it is intended to cover only a well-defined region of the data space. Therefore, a low score should 
+   not necessarily be interpreted as evidence that a model is unusable; rather, it should prompt the authors to 
+   assess whether the identified limitation is relevant to the intended application and to provide an 
+   appropriate justification within the corresponding manuscript.
+
+|br|
+
 Interpolation (0 to 10)
-^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
+
+**How reliably the model predicts within the range of data it was trained on.**
 
 **Section B.1. Model vs "flawed" models (from -8 to 0 points for regression, -6 to 0 for
 classification):**
@@ -95,22 +141,22 @@ rather than a genuine structure-property relationship.
 ============== ========================================================
 Points         Condition
 ============== ========================================================
-0               Each of the VERIFY tests passed (4 for regression, 3 for classification)
--• -1           Each of the unclear VERIFY tests
 -••  -2         Each of the VERIFY tests failed
+-• -1           Each of the unclear VERIFY tests
+0               Each of the VERIFY tests passed (4 for regression, 3 for classification)
 ============== ========================================================
 
 The following examples might help clarify these points:
 
-.. |reg_verify| image:: images/reg_verify.jpg
+.. figure:: images/reg_verify.jpg
    :width: 400
+   :align: center
 
-|reg_verify|
 
-.. |clas_verify| image:: images/clas_verify.jpg
+.. figure:: images/clas_verify.jpg
    :width: 400
+   :align: center
 
-|clas_verify|
 
 |br|
 
@@ -260,25 +306,25 @@ Points       Condition — facet (c)
 
 The final score for this item is the average of (a), (b) and (c), rounded to the nearest point.
 
-.. |stability_real| image:: images/stability_real.jpg
+.. figure:: images/stability_real.jpg
    :width: 560
+   :align: center
 
-|stability_real|
 
 *Real (a) test-set and (b) train/validation SD plots from an actual ROBERT v2.2.0 report — facet (c),*
 *RMSE coefficient of variation, is a single number and isn't plotted.*
 
 The examples below illustrate facet (a), the test-set stability check, in more detail:
 
-.. |sd_explain| image:: images/sd_explain.jpg
+.. figure:: images/sd_explain.jpg
    :width: 400
+   :align: center
 
-|sd_explain|
 
-.. |sd_examples| image:: images/sd_examples.jpg
+.. figure:: images/sd_examples.jpg
    :width: 400
+   :align: center
 
-|sd_examples|
 
 **Classification**
 
@@ -306,21 +352,23 @@ three are now plain percentages rather than a percentage of the y-range.
 Boundary robustness (0 to 10 for regression only)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+**How well the model holds up at the edges of y ranges and on the most descriptor-wise unusual points (related to extrapolation).**
+
 Not defined for classification: none of the sub-metrics below have a well-defined discrete-label
 equivalent yet, so classification reports show only the Interpolation score (see `Score ranges`_ below).
 
 For regression, ROBERT sorts the dataset by its target value and runs **two independent 80/20 splits**
 of it — not one three-way split. The "Low" split holds out the bottom 20% of points as its test fold and
 trains on the remaining top 80%; the "High" split holds out the top 20% and trains on the remaining
-bottom 80%. Each split is evaluated with its own repeated 5-fold CV over its own 80% training portion, so
+bottom 80%. Each split is evaluated with its own 10x 5-fold CV over its own 80% training portion, so
 a point in the top 80% of one split can be in the held-out 20% of the other. Four of the five sub-metrics
 below come from these two extreme folds; the fifth uses a different, X-descriptor space definition of
 "boundary" instead.
 
-.. |sorted_lh| image:: images/sorted_low_high_diagram.svg
+.. figure:: images/sorted_low_high_diagram.svg
    :width: 560
+   :align: center
 
-|sorted_lh|
 
 *Not statistical outliers — simply the most extreme 20% of real values in the dataset. Sub-metrics 1-4*
 *below all follow this Low/High fold pattern; sub-metric 5 breaks it on purpose (see* |u| 5. Applicability domain (leverage) |/u| *below).*
@@ -342,15 +390,15 @@ predictions that actually extrapolate past the training range instead of being c
 ============== ================================================
 Penalty        Crossing rate (Low or High fold)
 ============== ================================================
-0               ≥ 50% of predictions cross the training boundary
--• -1           < 50% cross the boundary
 -•• -2          < 20% cross the boundary
+-• -1           < 50% cross the boundary
+0               ≥ 50% of predictions cross the training boundary
 ============== ================================================
 
-.. |crossing_diag| image:: images/crossing_rate_diagram.svg
+.. figure:: images/crossing_rate_diagram.svg
    :width: 560
+   :align: center
 
-|crossing_diag|
 
 *Same four extreme points, two different model behaviors. "Crossing" is the fraction of Low/High*
 *predictions that actually land beyond the training range rather than clipping to it — logged in the*
@@ -360,10 +408,10 @@ Penalty        Crossing rate (Low or High fold)
 
 The RMSE score and the crossing penalty are combined and floored at 0, so this item can never go negative.
 
-.. |boundary_lh_real| image:: images/boundary_low_high_real.jpg
+.. figure:: images/boundary_low_high_real.jpg
    :width: 560
+   :align: center
 
-|boundary_lh_real|
 
 *Real Low/High fold scatter plots from an actual ROBERT v2.2.0 report — this is what Section B of the*
 *PDF actually shows for sub-metrics 1-2.*
@@ -376,10 +424,10 @@ A model can be systematically biased at the edges (consistently predicting a bit
 be useful if it correctly tells you which of two extreme points is more extreme than the other — getting
 the order wrong is a worse sign than getting the scale wrong.
 
-.. |spearman_diag| image:: images/spearman_rank_diagram.svg
+.. figure:: images/spearman_rank_diagram.svg
    :width: 560
+   :align: center
 
-|spearman_diag|
 
 *Parallel lines mean the model's predicted order matches the true order; crossings mean it doesn't.*
 
@@ -395,10 +443,10 @@ Points         Spearman (Low or High fold)
 Compares each extreme fold's scaled RMSE against the RMSE of the *remaining* 80% of the data, so a
 model can't hide a badly-degraded boundary behind a fine-looking interior.
 
-.. |degrad_diag| image:: images/degradation_ratio_diagram.svg
+.. figure:: images/degradation_ratio_diagram.svg
    :width: 560
+   :align: center
 
-|degrad_diag|
 
 *Reported in the PDF as e.g.* ``Degradation vs 80% RMSE: High 1.65x, Low 1.61x`` *— both sides scored*
 *independently against the same 1.5x line, so one badly-degraded side can't hide behind a fine one.*
@@ -418,18 +466,18 @@ statistical leverage (the diagonal of the hat matrix, :math:`h_i = x_i^T (X_{tra
 to identify which points are the most structurally/descriptor-wise extreme — the same quantity plotted on
 a Williams plot, with the usual warning threshold :math:`h^* = 3(p+1)/n`.
 
-.. |leverage_diag| image:: images/leverage_diagram.svg
+.. figure:: images/leverage_diagram.svg
    :width: 560
+   :align: center
 
-|leverage_diag|
 
 *Leverage looks at X, not y. A point can have a perfectly ordinary target value and still be structurally*
 *novel — an unusual combination of descriptors the model has barely seen examples of.*
 
-.. |leverage_real| image:: images/boundary_leverage_real.jpg
+.. figure:: images/boundary_leverage_real.jpg
    :width: 560
+   :align: center
 
-|leverage_real|
 
 *Real output from an actual ROBERT v2.2.0 report: the applicability-domain scatter (left) and the*
 *Williams plot itself — leverage on the x-axis, standardized residual on the y-axis, with the*
@@ -461,37 +509,37 @@ Different causes that might be affecting your score are included in the CheckML 
 
 **Very weak models:** very unreliable models. 
 
-.. |veryweak_fig| image:: images/score_veryweak.jpg
+.. figure:: images/score_veryweak.jpg
    :width: 400
+   :align: center
 
-|veryweak_fig|
 
 **Weak models:** unreliable models. 
 
-.. |weak_fig| image:: images/score_weak.jpg
+.. figure:: images/score_weak.jpg
    :width: 400
+   :align: center
 
-|weak_fig|
 
 **Moderate models:** somewhat reliable models. 
 
-.. |moderate_fig| image:: images/score_moderate.jpg
+.. figure:: images/score_moderate.jpg
    :width: 400
+   :align: center
 
-|moderate_fig|
 
 **Strong models:** reliable models.
 
-.. |strong_fig| image:: images/score_strong.jpg
+.. figure:: images/score_strong.jpg
    :width: 400
+   :align: center
 
-|strong_fig|
 
 **Very strong models:** highly reliable models.
 
-.. |verystrong_fig| image:: images/score_verystrong.jpg
+.. figure:: images/score_verystrong.jpg
    :width: 400
+   :align: center
 
-|verystrong_fig|
 
 .. robert-score-end

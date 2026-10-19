@@ -135,7 +135,7 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
    No additional manual installation is required.
 
 **Alternative installation**
-===========================
+========================================
 
 In a nutshell, ROBERT and its dependencies are installed as follows:
 
@@ -202,7 +202,7 @@ You need a terminal with Python to install and run ROBERT. These are some sugges
 If you prefer a faster and easier installation, you can use the preconfigured **YAML environment file**.  
 This method automatically installs Python, ROBERT, and all required dependencies.
 
-.. |download| image:: /Modules/images/download.png
+.. |download_manual| image:: /Modules/images/download.png
    :width: 140
    :align: middle
 
@@ -211,7 +211,7 @@ operating system (Windows, macOS or Linux). Alternatively, if you're familiar wi
 you can install `Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
 (requires less space than Anaconda).  
 
-**2.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+**2.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>`__ by clicking this button on GitHub |download_manual|.
 
 **3.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
 
@@ -241,7 +241,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 ----
 
 **Alternative installation**
-===========================
+========================================
 
 If you prefer to install ROBERT manually, follow these steps:
 
@@ -304,7 +304,7 @@ without using command lines — just by selecting files and options through an i
 
 
 **Standalone GUI Launcher (Windows and Linux)**
-=============================================
+============================================================
 
 If you prefer to **avoid the manual installation** and start using ROBERT’s graphical interface (**easyROB**) immediately,  
 there is a **ready-to-use program** available for:

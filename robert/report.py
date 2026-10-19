@@ -1940,8 +1940,8 @@ class report:
         """
         Finds the single image (matching suffix_title) for a given module/file_name prefix.
         'exclude' filters out filenames containing that substring, or any substring in a
-        list/tuple (e.g. so a search for 'CV_variability' doesn't also match
-        'CV_variability_boundary_...' files)
+        list/tuple (e.g. so a search for ``CV_variability`` doesn't also match
+        ``CV_variability_boundary_...`` files)
         """
 
         module_path = Path(f'{os.getcwd()}/{module}')

@@ -360,7 +360,7 @@ def test_AQME(test_job, aqme_workspace):
                 robert_score.append(line.split("report/score_")[1][0])
             if "Model = RF" in line:
                 ml_model_count += 1
-            if "CV (train+valid.)" in line and "81:19" in line:
+            if "Proportion CV:test = 81:19" in line:
                 partition_count += 1
             if "Points = " in line and "Descript. = " in line:
                 # append points

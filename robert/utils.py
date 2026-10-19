@@ -2015,14 +2015,18 @@ def BO_hyperparams(model_name):
     assume - so several ranges deliberately sit in a more heavily-regularized/lower-capacity
     region than scikit-learn's generic defaults (e.g. NN's hidden_layer_1/2, RF/GB's shallower
     max_depth). A few parameters are intentionally left out of the search entirely:
+
     - GB's validation_fraction: only has any effect if n_iter_no_change is set, which ROBERT
       never does, so scikit-learn silently ignores it - searching it wastes BO budget on a
       parameter with zero effect on the fitted model.
+
     - RF/GB's min_weight_fraction_leaf: constrains leaf size by weighted sample fraction, but
       ROBERT never passes sample_weight to fit(), so with implicit uniform weights this is a
       weaker, redundant echo of min_samples_leaf/min_samples_split (already searched).
+
     - NN's tol (lbfgs convergence tolerance): affects when the solver stops, not the quality of
       the fit for the max_iter budget already given, so it's left at scikit-learn's default.
+
     '''
 
     model_BO_params = {

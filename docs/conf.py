@@ -24,7 +24,7 @@ copyright = '2023, Juan V. Alegre Requena, David Dalmau Ginesta'
 author = '2023, Juan V. Alegre Requena, David Dalmau Ginesta'
 
 # The full version, including alpha/beta/rc tags
-release = 'v1.0'
+release = 'v2.2'
 
 
 # -- General configuration ---------------------------------------------------

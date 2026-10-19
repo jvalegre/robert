@@ -156,6 +156,9 @@ class report:
         Specify any arguments from the REPORT module (for a complete list of variables, visit the ROBERT documentation)
     """
 
+    # lines available in the Section A warnings box on page 1 (see print_warnings())
+    WARNING_LINE_BUDGET = 6
+
     def __init__(self, **kwargs):
         # check if there is a problem with weasyprint (required for this module)
         # Suppress fontconfig warnings during import on Windows
@@ -183,26 +186,26 @@ class report:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
 
-        # if EVALUATE is activated, no PFI models are ever generated (it always scores the
+        # if CHECKML is activated, no PFI models are ever generated (it always scores the
         # model as-is on the descriptors already in the input CSV, never re-curates them) - so
-        # the PFI PDF loop below is skipped whenever EVALUATE was involved
-        path_eval = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
+        # the PFI PDF loop below is skipped whenever CHECKML was involved
+        path_eval = Path(f'{os.getcwd()}/CHECKML/CHECKML_data.dat')
         eval_only = os.path.exists(path_eval)
         # with --pfi_filter False, GENERATE never creates a Best_model/PFI (or All_models/.../PFI)
         # folder, but the suffix loops below unconditionally tried 'PFI' too - get_transparency()
         # found no CSV there and crashed with UnboundLocalError instead of just skipping it, the
-        # same way it already does for EVALUATE (see eval_only above)
+        # same way it already does for CHECKML (see eval_only above)
         skip_pfi = eval_only or not self.args.pfi_filter
         # stored on self too (not just the local var) so module_lines() can add a provenance
         # note to Section A without needing this threaded through print_score()'s own call chain
         self.eval_only = eval_only
 
-        # detects whether EVALUATE evaluated a model with user-supplied hyperparameters
+        # detects whether CHECKML evaluated a model with user-supplied hyperparameters
         # (model_obj/model_file/model_params) rather than the trivial 'MVL' default - only
         # those carry the optimistic-scores risk flagged in print_warnings() below, since 'MVL'
         # has no hyperparameters that could have been tuned on data ROBERT now scores against.
         # The model name is read off the actual GENERATE output (not re-derived from CLI args,
-        # which aren't available here) - EVALUATE always narrows GENERATE to a single model, so
+        # which aren't available here) - CHECKML always narrows GENERATE to a single model, so
         # the first non-'_db' CSV in Best_model/No_PFI names it
         self.custom_model_used = False
         if eval_only:
@@ -466,7 +469,7 @@ class report:
         Retrieves the header for the HTML string
         """
 
-        # EVALUATE scores a model the user already chose (not one ROBERT's own Bayesian search
+        # CHECKML scores a model the user already chose (not one ROBERT's own Bayesian search
         # picked), so its reports use the CheckML logo instead of ROBERT's, to visually tell
         # the two apart at a glance
         logo_name = 'CheckML_logo.jpg' if getattr(self,'eval_only',False) else 'Robert_logo.jpg'
@@ -492,10 +495,10 @@ class report:
         data_score = {}
         data_score = calc_score(dat_files,suffix,pred_type,data_score)
 
-        # a test set picked by the user (EVALUATE's 'Set' column) is never the systematic split
+        # a test set picked by the user (CHECKML's 'Set' column) is never the systematic split
         # the score was calibrated for, even if it happens to have ~20% of the points (in which
         # case the size check in calc_score() alone would still give a score)
-        path_eval_log = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
+        path_eval_log = Path(f'{os.getcwd()}/CHECKML/CHECKML_data.dat')
         if path_eval_log.exists() and "Using the 'Set' column" in path_eval_log.read_text(encoding='utf-8'):
             data_score[f'score_available_{suffix}'] = False
             data_score[f'score_unavailable_reason_{suffix}'] = 'user_set'
@@ -666,13 +669,13 @@ class report:
         # score display) is always about the same height, so the box gets a fixed line budget
         # and severe warnings (always shown in full) eat into it first - whatever's left goes
         # to moderate warnings, truncated with "..." if there isn't room for all of them.
-        # TOTAL_LINE_BUDGET=5 was measured directly against a real worst-case report (AQME
-        # citation line + a fully populated score display), where the box needed ~18.6pt per
-        # line and only ~183pt was left above the page-1 boundary - about 6 lines' worth, minus
-        # the Overall assessment title, which back then sat on its own line above its verdict
-        # (2 rendered lines total). Now that title+verdict share a single row (see title_row()
-        # above), that's only 1 rendered line - one more line fits, so the budget goes up by 1
-        TOTAL_LINE_BUDGET = 6
+        # Measured on a real worst-case report (no severe warnings, so the Overall assessment
+        # takes 2 lines: Interpolation + Boundary robustness; all moderate slots used by the
+        # longest warnings): ~246pt are left for the box on page 1, and a 6-line budget fits
+        # (box ~184pt of text + margins) while 7 does not. The QDESCP citation added to the
+        # header in AQME workflows wraps to 2 lines and leaves only ~214pt, where 6 no longer
+        # fits but 5 does - so one line less is used in that case
+        TOTAL_LINE_BUDGET = self.WARNING_LINE_BUDGET - (1 if getattr(self, 'qdescp_citation', False) else 0)
         moderate_budget = max(0, TOTAL_LINE_BUDGET - len(severe_list) - 1)  # -1 reserves the Overall assessment line
         if len(moderate_list) <= moderate_budget:
             moderate_shown = moderate_list
@@ -690,7 +693,7 @@ class report:
 
         # a big, impossible-to-miss banner (separate from the bulleted severe-warnings list
         # below, which uses a small 15px bullet) for the one risk ROBERT cannot itself measure
-        # or correct: hyperparameters supplied by the user (EVALUATE's model_obj/model_file/
+        # or correct: hyperparameters supplied by the user (CHECKML's model_obj/model_file/
         # model_params) rather than searched by ROBERT's own BO within a held-out split. If
         # those hyperparameters were chosen using a process that already saw data ROBERT now
         # scores against (CV folds or the test set), both scores are optimistic to an unknown
@@ -702,7 +705,7 @@ class report:
         #     warning_print += f'''
         # <div style="width:100%; box-sizing:border-box; background-color:{color_dict['red']}; padding:8px; margin-top:2px; margin-bottom:10px; text-align:center;">
         # <span style="font-size:17px; font-weight:bold; color:white;">&#9888; SCORES MAY BE OPTIMISTIC: user-provided hyperparameters</span><br>
-        # <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (EVALUATE), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
+        # <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (CHECKML), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
         # </div>'''
 
         # add severe warnings
@@ -1004,24 +1007,23 @@ class report:
 
 
     # (min_score, phrase, color_key) bands, checked highest-first, score on a 0-10 scale.
-    # Both bands name "interpolation"/"extrapolation" explicitly in every tier (not just the
-    # top one) so each phrase is unambiguous read on its own - a high Interpolation score and
-    # a low Boundary robustness one both get shown (see print_assessment() below), and without
-    # the explicit label a reader skimming just the first line could mistake a good
-    # interpolation-only verdict for a general "this model is reliable" claim
+    # Each phrase is printed after its own bold label ("Interpolation:" / "Boundary robustness:",
+    # see print_assessment() below), so a high Interpolation score and a low Boundary robustness
+    # one are never read as a single general "this model is reliable" verdict. The label already
+    # names the score, so the phrases don't repeat it and stay short enough for one line each
     INTERP_BANDS = [
-        (9, 'The model seems reliable for interpolation (explaining trends within the current prediction range)', 'blue'),
-        (7, 'Decent model for interpolation, but with some limitations explaining trends within the current prediction range', 'yellow'),
-        (5, 'Moderate model for interpolation, with important limitations explaining trends within the current prediction range', 'yellow'),
-        (3, 'Weak model for interpolation, unable to explain trends within the current prediction range', 'red'),
-        (0, 'Very weak model for interpolation, completely unable to explain trends within the current prediction range', 'red'),
+        (9, 'the model seems reliable within the current y range', 'blue'),
+        (7, 'decent model, with some limitations within the current y range', 'yellow'),
+        (5, 'moderate model, with important limitations within the current y range', 'yellow'),
+        (3, 'weak model, unable to capture the trends within the current y range', 'red'),
+        (0, 'very weak model, unable to capture any trend within the current y range', 'red'),
     ]
     EXTRAP_BANDS = [
-        (9, 'The model seems reliable for extrapolation (predicting points outside the current prediction range)', 'blue'),
-        (7, 'Decent model for extrapolation, but with some limitations predicting points outside the current prediction range', 'yellow'),
-        (5, 'Moderate model for extrapolation, with important limitations predicting points outside the current prediction range', 'yellow'),
-        (3, 'Weak model for extrapolation, unable to predict points outside the current prediction range', 'red'),
-        (0, 'Very weak model for extrapolation, completely unable to predict points outside the current prediction range', 'red'),
+        (9, 'the model seems reliable for extrapolation (predicting points outside the current y range)', 'blue'),
+        (7, 'decent model, with some limitations to predict points outside the current y range', 'yellow'),
+        (5, 'moderate model, with important limitations to predict points outside the current y range', 'yellow'),
+        (3, 'weak model, unable to predict points outside the current y range', 'red'),
+        (0, 'very weak model, completely unable to predict points outside the current y range', 'red'),
     ]
 
     def _pick_band(self,score,bands):
@@ -1069,15 +1071,16 @@ class report:
         n_moderate = len(warnings_dict[f'moderate_warnings_{suffix}'])
         moderate_threshold = 3 if pred_type == 'reg' else 2
         if interp_score >= 9 and n_moderate >= moderate_threshold:
-            interp_phrase,interp_color = 'Reliable model, but examine warnings','yellow'
+            interp_phrase,interp_color = 'the model seems reliable, but examine the warnings','yellow'
 
-        assessment_print = title_row(interp_phrase,color_dict[interp_color])
+        # one labeled sentence per score, so it's always clear which verdict is which
+        assessment_print = title_row(f'<strong>Interpolation:</strong> {interp_phrase}',color_dict[interp_color])
 
         if pred_type == 'reg':
             extrap_score = data_score.get(f'extrap_score_{suffix}', 0)
             extrap_phrase,extrap_color = self._pick_band(extrap_score,self.EXTRAP_BANDS)
             assessment_print += self.print_line_warning(
-                extrap_phrase,style_lines,color_dict[extrap_color],space)
+                f'<strong>Boundary robustness:</strong> {extrap_phrase}',style_lines,color_dict[extrap_color],space)
 
         return assessment_print
 
@@ -1557,6 +1560,8 @@ class report:
         # QDESCP's own validation paper - only relevant when AQME generated the descriptors
         # (command_line already has the full "python -m robert ..." line at this point, so the
         # --aqme flag is checked here directly instead of waiting for aqme_workflow below)
+        # kept on self so print_warnings() can leave room for this extra (2-line) header row
+        self.qdescp_citation = '--aqme' in command_line
         if '--aqme' in command_line:
             qdescp_citation = "Dalmau, D.; Jacot-Descombes, L.; Kalikadien, A.; Manzanilla, B.; Pidko, E. A.; Jorner, K.; Sigman, M. S.; Alegre-Requena, J. V. ACS Catal. 2026, 16, 12565-12574."
             citation_dat += f"""
@@ -1853,7 +1858,7 @@ class report:
         elif module == 'generate':
             module_name = 'Section F. Model Screening'
             if eval_only:
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">The screening of models is disabled when using the EVALUATE module.</i>'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">The screening of models is disabled when using the CHECKML module.</i>'
             else:
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section compares different combinations of hyperoptimized algorithms and partition sizes. The combined error is calculated as the product of the training error, validation error, and cross-validation error.</i>'
         elif module == 'repro':

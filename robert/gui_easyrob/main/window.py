@@ -55,7 +55,7 @@ try:
     from bot.local_model_worker import LocalModelPrepareWorker
     from workflow_progress import WorkflowProgress, STAGES
     from utils import utils_gui, molssi_utils
-    from tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate, results_workspace, interactive_predictions, result_catalog
+    from tabs import predictions, aqme, advanced_options, molssi, results, images, checkml, results_workspace, interactive_predictions, result_catalog
 
 except ImportError as e:
 
@@ -73,7 +73,7 @@ except ImportError as e:
     from robert.gui_easyrob.bot.local_model_worker import LocalModelPrepareWorker
     from robert.gui_easyrob.workflow_progress import WorkflowProgress, STAGES
     from robert.gui_easyrob.utils import utils_gui, molssi_utils
-    from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images, evaluate, results_workspace, interactive_predictions, result_catalog
+    from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images, checkml, results_workspace, interactive_predictions, result_catalog
 
 
 # ------------------------------------------------------------
@@ -145,7 +145,7 @@ ImagesTab = images.ImagesTab
 ResultsWorkspace = results_workspace.ResultsWorkspace
 InteractivePredictions = interactive_predictions.InteractivePredictions
 ResultCatalog = result_catalog.ResultCatalog
-EvaluateTab = evaluate.EvaluateTab
+CheckMLTab = checkml.CheckMLTab
 
 # ------------------------------------------------------------
 # Base directory (used for assets, tutorials, etc.)
@@ -1193,14 +1193,14 @@ class EasyROB(QMainWindow):
         active_tab = tab_widget.tabText(tab_widget.currentIndex()) if tab_widget is not None else ""
         result_view = active_tab in {"Results", "Reports", "Images", "Predictions"}
         result_source = str(getattr(self, "_result_view_source_path", "") or "") if result_view else ""
-        evaluate_candidate = getattr(self, "evaluate_tab", None)
-        evaluate_tab = evaluate_candidate if (
-            active_tab == "Check model"
-            or (result_source and getattr(self, "_result_view_source_kind", "ROBERT") == "EVALUATE")
+        checkml_candidate = getattr(self, "checkml_tab", None)
+        checkml_tab = checkml_candidate if (
+            active_tab == "CheckML"
+            or (result_source and getattr(self, "_result_view_source_kind", "ROBERT") == "CHECKML")
         ) else None
-        input_view = evaluate_tab if evaluate_tab is not None else self
+        input_view = checkml_tab if checkml_tab is not None else self
         main_csv_path = result_source or (
-            getattr(input_view, "csv_path", None) if evaluate_tab is not None else getattr(self, "file_path", None)
+            getattr(input_view, "csv_path", None) if checkml_tab is not None else getattr(self, "file_path", None)
         )
         process_running = getattr(input_view, "worker", None) is not None
         snapshot = store.refresh(
@@ -1956,7 +1956,7 @@ class EasyROB(QMainWindow):
         )
 
         # Model checking is self-contained and does not depend on a prior run.
-        self.evaluate_tab = EvaluateTab(self.tab_widget)
+        self.checkml_tab = CheckMLTab(self.tab_widget)
 
         # ===============================
         # Add Tabs to Tab Widget (Display order)
@@ -1969,7 +1969,7 @@ class EasyROB(QMainWindow):
         
         self.tab_widget.addTab(self.molssi_tab, "MolSSI Databases")
 
-        self.tab_widget.addTab(self.evaluate_tab, "Check model")
+        self.tab_widget.addTab(self.checkml_tab, "CheckML")
 
         self.tab_widget.addTab(self.results_workspace, "Results")
         self.tab_widget.setTabEnabled(self.tab_widget.indexOf(self.results_workspace), False)

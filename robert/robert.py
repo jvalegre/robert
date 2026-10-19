@@ -34,7 +34,7 @@ from robert.verify import verify
 from robert.predict import predict
 from robert.report import report
 from robert.aqme import aqme
-from robert.evaluate import evaluate
+from robert.checkml import checkml
 from robert.utils import (command_line_args,missing_inputs)
 
 
@@ -58,7 +58,7 @@ def main(exe_type='command',sys_args=None):
     args = command_line_args(exe_type,sys_args)
     args.command_line = True
 
-    if not args.evaluate:
+    if not args.checkml:
         # if no modules are called, the full workflow is activated
         full_workflow = False
         if not args.curate and not args.generate and not args.predict:
@@ -73,8 +73,8 @@ def main(exe_type='command',sys_args=None):
 
         # save the csv_name, y and names values from full workflows
         if full_workflow:
-            # remove the EVALUATE folder to avoid issues when generating the report PDF
-            eval_folder = Path(f'{os.getcwd()}/EVALUATE')
+            # remove the CHECKML folder to avoid issues when generating the report PDF
+            eval_folder = Path(f'{os.getcwd()}/CHECKML')
             if os.path.exists(eval_folder):
                 shutil.rmtree(eval_folder)
 
@@ -119,15 +119,15 @@ def main(exe_type='command',sys_args=None):
         if args.cheers:
             print('o  This module was designed to thank ROBERT Paton, who was a mentor to me throughout my years at Colorado State University, and who introduced me to the field of cheminformatics. Cheers mate!\n')
 
-    # EVALUATE, only evaluates models
+    # CHECKML, only evaluates models
     else:
-        # EVALUATE, which also creates the files of GENERATE
-        evaluate(**vars(args))
+        # CHECKML, which also creates the files of GENERATE
+        checkml(**vars(args))
 
         # CURATE, only for the Pearson corr matrix (print if there are 30 or less points)
         curate(**vars(args))
 
-        # Ignore the Set column created in EVALUATE inside the CSV of the GENERATE folder
+        # Ignore the Set column created in CHECKML inside the CSV of the GENERATE folder
         args.ignore.append('Set')
 
         # VERIFY

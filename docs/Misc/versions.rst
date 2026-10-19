@@ -309,7 +309,7 @@ Version 2.0.2 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.2>`__]
 
 Version 2.0.1 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.1>`__]
 
-- The AQME and EVALUATE modules are now fully functional and have been reactivated in this version.
+- The AQME and CHECKML modules are now fully functional and have been reactivated in this version.
 - Fixed classification with external predictions
 - Fixed scores from VERIFY tests in clas
 - Fixed bug in the detection of automatic classification problems
@@ -329,7 +329,7 @@ Version 2.0.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.0.0>`__]
 - The program always holds out a test set
 - The average results of the repeated k-fold CV are used to measure predictive ability and to predict new results
 - The BayesianOptimization() is used to find the bets model, using a combined metric that depends on interpolation and extrapolation of diferent types of CVs
-- This version does not work with classification problems and the AQME and EVALUATE modules were disabled until v2.0.1.
+- This version does not work with classification problems and the AQME and CHECKML modules were disabled until v2.0.1.
 - Updated ROBERT score, which is more robust towards small data problems
 
 Version 1.3.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.3.0>`__]
@@ -353,7 +353,7 @@ Version 1.2.1 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.1>`__]
 
 - NN solver are now set to 'lbfgs' by default in the MLPRegressor to work with small datasets
 - Thres_x is now set to 0.7 by default in the CURATE module
-- Fixing bug in the PREDICT module when using EVALUATE module (it was not showing the linear model equation)
+- Fixing bug in the PREDICT module when using CHECKML module (it was not showing the linear model equation)
 - Adding linear model equation in the REPORT module
 - Changing the threshold for correlated features in predict_utils to adjust to the new thres_x
 - Changing the way missing values are treated (previously filled with 0s, now using KNN imputer)
@@ -376,7 +376,7 @@ Version 1.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/1.2.0>`__]
 - Fixing auto_test (now it works as specified in the documentation)
 - Adding clas predictions to report PDF
 - Adding new pytests that cover the ROBERT score section from the report PDF
-- Adding the EVALUATE module to evaluate linear models with user-defined descriptors and partitions
+- Adding the CHECKML module to evaluate linear models with user-defined descriptors and partitions
 - Adding Pearson heatmap in PREDICT for the two models, with individual variable correlation analysis
 - Adding y-distribution graphs and analysis of uniformity
 - Major changes to the report PDF file to include sections rather than modules

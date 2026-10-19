@@ -1,10 +1,10 @@
 from types import SimpleNamespace
 
-from gui_easyrob.tabs.evaluate import EvaluateTab
+from gui_easyrob.tabs.checkml import CheckMLTab
 from gui_easyrob.main.window import EasyROB
 
 
-def test_evaluate_completion_refreshes_sibling_tabs_from_selected_csv():
+def test_checkml_completion_refreshes_sibling_tabs_from_selected_csv():
     class MainWindow:
         def __init__(self):
             self.refreshed_paths = []
@@ -12,7 +12,7 @@ def test_evaluate_completion_refreshes_sibling_tabs_from_selected_csv():
         def refresh_tabs(self, path):
             self.refreshed_paths.append(path)
 
-    class EvaluateView:
+    class CheckMLView:
         csv_path = "C:/runs/train.csv"
 
         def __init__(self, main_window):
@@ -22,12 +22,12 @@ def test_evaluate_completion_refreshes_sibling_tabs_from_selected_csv():
             return self.main_window
 
     main_window = MainWindow()
-    EvaluateTab._refresh_sibling_tabs(EvaluateView(main_window))
+    CheckMLTab._refresh_sibling_tabs(CheckMLView(main_window))
 
     assert main_window.refreshed_paths == ["C:/runs/train.csv"]
 
 
-def test_chat_result_snapshot_reads_active_evaluate_run():
+def test_chat_result_snapshot_reads_active_checkml_run():
     class Store:
         def __init__(self):
             self.calls = []
@@ -38,9 +38,9 @@ def test_chat_result_snapshot_reads_active_evaluate_run():
 
     store = Store()
     fake_window = SimpleNamespace(
-        tab_widget=SimpleNamespace(currentIndex=lambda: 0, tabText=lambda index: "Check model"),
-        evaluate_tab=SimpleNamespace(
-            csv_path="C:/runs/evaluate.csv",
+        tab_widget=SimpleNamespace(currentIndex=lambda: 0, tabText=lambda index: "CheckML"),
+        checkml_tab=SimpleNamespace(
+            csv_path="C:/runs/checkml.csv",
             csv_test_path="C:/runs/external.csv",
             worker=object(),
         ),
@@ -53,4 +53,4 @@ def test_chat_result_snapshot_reads_active_evaluate_run():
 
     EasyROB._refresh_workflow_result_snapshot(fake_window)
 
-    assert store.calls == [("C:/runs/evaluate.csv", "C:/runs/external.csv", True)]
+    assert store.calls == [("C:/runs/checkml.csv", "C:/runs/external.csv", True)]

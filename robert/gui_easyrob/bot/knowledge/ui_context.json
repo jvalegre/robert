@@ -110,7 +110,7 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-tabs-evaluate-evaluatetab-private-refresh-sibling-tabs-8014f296",
+      "id": "easyrob-code-docstrings-tabs-checkml-checkmltab-private-refresh-sibling-tabs-8014f296",
       "keywords": [
         "prediction",
         "predictions",
@@ -129,7 +129,7 @@
         "how should i interpret refresh sibling tabs"
       ],
       "source": "easyrob_code_docstrings",
-      "source_file": "tabs/evaluate.py",
+      "source_file": "tabs/checkml.py",
       "source_tier": "generated",
       "tab": "Reports",
       "text": "Refreshes the Reports/Predictions/Images tabs, mirroring the main ROBERT tab.",
@@ -138,7 +138,7 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-tabs-evaluate-module-6521b75f",
+      "id": "easyrob-code-docstrings-tabs-checkml-module-6521b75f",
       "keywords": [
         "descriptor",
         "descriptors",
@@ -162,10 +162,10 @@
         "how should i interpret module"
       ],
       "source": "easyrob_code_docstrings",
-      "source_file": "tabs/evaluate.py",
+      "source_file": "tabs/checkml.py",
       "source_tier": "generated",
       "tab": "Reports",
-      "text": "EVALUATE tab for easyROB.\n\nLets a user evaluate their own scikit-learn model (regression or classification) under\nROBERT's standard rigor - repeated CV, VERIFY's flawed-model tests, boundary robustness (for\nregression), outliers, SHAP, and a scored PDF report - without going through GENERATE's\nBayesian hyperparameter search.\n\nResponsibilities:\n- Collect a CSV plus the y/names columns and prediction type - the train/internal-test split\n always uses ROBERT's own default (no manual split-point control exposed here)\n- Optionally collect a separate external test CSV (--csv_test), for a model already evaluated\n against a held-out set the user manages themselves\n- Collect the model to evaluate: ROBERT's own default (MVL, no tuning), a CSV naming a\n scikit-learn class and its hyperparameters, or a pre-fitted model saved with joblib/pickle\n- Score the model as-is on the descriptors already present in the input CSV - ROBERT never\n re-curates them, so the model is evaluated on exactly what the user provided\n- Build the equivalent \"python -m robert --evaluate ...\" command and run it with the same\n RobertWorker used by the main ROBERT tab, streaming output live\n- Refresh the Reports/Predictions/Images tabs once the run finishes successfully\n\nImport strategy mirrors the rest of gui_easyrob/tabs: a local (portable) import path is tried\nfirst, falling back to the installed-package path.",
+      "text": "CHECKML tab for easyROB.\n\nLets a user evaluate their own scikit-learn model (regression or classification) under\nROBERT's standard rigor - repeated CV, VERIFY's flawed-model tests, boundary robustness (for\nregression), outliers, SHAP, and a scored PDF report - without going through GENERATE's\nBayesian hyperparameter search.\n\nResponsibilities:\n- Collect a CSV plus the y/names columns and prediction type - the train/internal-test split\n always uses ROBERT's own default (no manual split-point control exposed here)\n- Optionally collect a separate external test CSV (--csv_test), for a model already evaluated\n against a held-out set the user manages themselves\n- Collect the model to evaluate: ROBERT's own default (MVL, no tuning), a CSV naming a\n scikit-learn class and its hyperparameters, or a pre-fitted model saved with joblib/pickle\n- Score the model as-is on the descriptors already present in the input CSV - ROBERT never\n re-curates them, so the model is evaluated on exactly what the user provided\n- Build the equivalent \"python -m robert --checkml ...\" command and run it with the same\n RobertWorker used by the main ROBERT tab, streaming output live\n- Refresh the Reports/Predictions/Images tabs once the run finishes successfully\n\nImport strategy mirrors the rest of gui_easyrob/tabs: a local (portable) import path is tried\nfirst, falling back to the installed-package path.",
       "title": "module",
       "topic": "results"
     },
@@ -664,7 +664,7 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-utils-predictions-utils-evaluate-model-scenario-cd09afd4",
+      "id": "easyrob-code-docstrings-utils-predictions-utils-checkml-model-scenario-cd09afd4",
       "keywords": [
         "model",
         "prediction",
@@ -692,7 +692,7 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-utils-predictions-utils-evaluate-predictions-for-model-0cc15e88",
+      "id": "easyrob-code-docstrings-utils-predictions-utils-checkml-predictions-for-model-0cc15e88",
       "keywords": [
         "model",
         "prediction",
@@ -3587,18 +3587,18 @@
     },
     {
       "aliases": [
-        "EVALUATE workflow",
+        "CHECKML workflow",
         "evaluate existing model",
-        "Check model tab"
+        "CheckML tab"
       ],
       "audience": "end_user",
-      "entity_id": "tab-evaluate",
+      "entity_id": "tab-checkml",
       "entity_type": "tab",
-      "id": "ui-curated-tab-evaluate",
+      "id": "ui-curated-tab-checkml",
       "keywords": [
-        "Check model",
+        "CheckML",
         "Evaluate",
-        "EVALUATE",
+        "CHECKML",
         "existing model",
         "No PFI"
       ],
@@ -3607,9 +3607,9 @@
       "priority": 1.0,
       "program": "ROBERT",
       "question_patterns": [
-        "what does Check model do",
+        "what does CheckML do",
         "how do I evaluate my own model",
-        "why is there only a No PFI report after Check model"
+        "why is there only a No PFI report after CheckML"
       ],
       "related_ids": [
         "tab-reports",
@@ -3619,9 +3619,9 @@
       "source": "curated_user_guidance",
       "source_file": "ui_user_guidance.json",
       "source_tier": "curated",
-      "tab": "Check model",
-      "text": "Purpose: Evaluate a supplied scikit-learn model or ROBERT's default MVL model without GENERATE's model search.\nWhen to use:\n- Use Check model when the model or its hyperparameters are already chosen and you want ROBERT's validation and report workflow.\nPrerequisites:\n- Select a training CSV, target column, name column, prediction type, and optional external test CSV.\nSteps:\n1. Choose the model source, run EVALUATE, then inspect its No PFI PDF in Results > Report and any external prediction table in Results > Predictions.\nExpected result: EVALUATE runs validation and reporting for the supplied model and creates ROBERT_report_No_PFI.pdf; it does not generate a PFI variant.\nNext steps:\n- Judge Interpolation and, for regression, Boundary robustness using the validation evidence in the report.\nCommon issues:\n- Predictions is available only when compatible external prediction CSV files were produced.",
-      "title": "Check model tab",
+      "tab": "CheckML",
+      "text": "Purpose: Evaluate a supplied scikit-learn model or ROBERT's default MVL model without GENERATE's model search.\nWhen to use:\n- Use CheckML when the model or its hyperparameters are already chosen and you want ROBERT's validation and report workflow.\nPrerequisites:\n- Select a training CSV, target column, name column, prediction type, and optional external test CSV.\nSteps:\n1. Choose the model source, run CHECKML, then inspect its No PFI PDF in Results > Report and any external prediction table in Results > Predictions.\nExpected result: CHECKML runs validation and reporting for the supplied model and creates ROBERT_report_No_PFI.pdf; it does not generate a PFI variant.\nNext steps:\n- Judge Interpolation and, for regression, Boundary robustness using the validation evidence in the report.\nCommon issues:\n- Predictions is available only when compatible external prediction CSV files were produced.",
+      "title": "CheckML tab",
       "topic": "model evaluation",
       "user_guidance": {
         "common_issues": [
@@ -3634,12 +3634,12 @@
           "Select a training CSV, target column, name column, prediction type, and optional external test CSV."
         ],
         "purpose": "Evaluate a supplied scikit-learn model or ROBERT's default MVL model without GENERATE's model search.",
-        "result": "EVALUATE runs validation and reporting for the supplied model and creates ROBERT_report_No_PFI.pdf; it does not generate a PFI variant.",
+        "result": "CHECKML runs validation and reporting for the supplied model and creates ROBERT_report_No_PFI.pdf; it does not generate a PFI variant.",
         "steps": [
-          "Choose the model source, run EVALUATE, then inspect its No PFI PDF in Results > Report and any external prediction table in Results > Predictions."
+          "Choose the model source, run CHECKML, then inspect its No PFI PDF in Results > Report and any external prediction table in Results > Predictions."
         ],
         "when_to_use": [
-          "Use Check model when the model or its hyperparameters are already chosen and you want ROBERT's validation and report workflow."
+          "Use CheckML when the model or its hyperparameters are already chosen and you want ROBERT's validation and report workflow."
         ]
       }
     },
@@ -5585,7 +5585,7 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-tabs-evaluate-evaluatetab-private-write-sklearn-params-csv-d2d1e5c2",
+      "id": "easyrob-code-docstrings-tabs-checkml-checkmltab-private-write-sklearn-params-csv-d2d1e5c2",
       "keywords": [
         "model",
         "parameter",
@@ -5603,7 +5603,7 @@
         "what is write sklearn params csv"
       ],
       "source": "easyrob_code_docstrings",
-      "source_file": "tabs/evaluate.py",
+      "source_file": "tabs/checkml.py",
       "source_tier": "generated",
       "tab": "Advanced Options",
       "text": "Writes the picked model + any non-blank hyperparameter fields to a temp CSV, reusing\nthe exact same --model_params mechanism as the \"upload a CSV\" model source.",
@@ -5612,7 +5612,7 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-tabs-evaluate-private-sklearn-estimators-4d5da812",
+      "id": "easyrob-code-docstrings-tabs-checkml-private-sklearn-estimators-4d5da812",
       "keywords": [
         "model",
         "models",
@@ -5630,10 +5630,10 @@
         "what is sklearn estimators"
       ],
       "source": "easyrob_code_docstrings",
-      "source_file": "tabs/evaluate.py",
+      "source_file": "tabs/checkml.py",
       "source_tier": "generated",
       "tab": "Advanced Options",
-      "text": "(name, class) pairs for every scikit-learn regressor/classifier registered via\nsklearn.utils.all_estimators() - imported lazily so sklearn's own import cost is only paid\nonce the user actually opens this model-source option. Excludes the models in\n_INCOMPATIBLE_REGRESSORS/_INCOMPATIBLE_CLASSIFIERS above, which can't work with EVALUATE's\nplain param=value interface regardless of what the user fills in.",
+      "text": "(name, class) pairs for every scikit-learn regressor/classifier registered via\nsklearn.utils.all_estimators() - imported lazily so sklearn's own import cost is only paid\nonce the user actually opens this model-source option. Excludes the models in\n_INCOMPATIBLE_REGRESSORS/_INCOMPATIBLE_CLASSIFIERS above, which can't work with CHECKML's\nplain param=value interface regardless of what the user fills in.",
       "title": "sklearn estimators",
       "topic": "parameter"
     },
@@ -6291,7 +6291,7 @@
       "source_file": "check_model.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Goal: assess a model you chose. The GUI calls this tab Check model ; this tutorial calls the route Check ML. It runs ROBERT EVALUATE using a model or model family you specify. Choose it when you want ROBERT's evaluation and report for that choice rather than its automatic model search.",
+      "text": "Goal: assess a model you chose. The GUI calls this tab CheckML ; this tutorial calls the route Check ML. It runs ROBERT CHECKML using a model or model family you specify. Choose it when you want ROBERT's evaluation and report for that choice rather than its automatic model search.",
       "title": "Goal: assess a model you chose",
       "topic": "tutorial"
     },
@@ -6311,8 +6311,8 @@
       "source_file": "check_model.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Open the separate EVALUATE page. Click Check model in the main tab bar. Its CSV inputs, model source, Run EVALUATE button, progress indicator, and console belong to this page. Settings from the main ROBERT workflow do not replace these inputs.",
-      "title": "Open the separate EVALUATE page",
+      "text": "Open the separate CHECKML page. Click CheckML in the main tab bar. Its CSV inputs, model source, Run CHECKML button, progress indicator, and console belong to this page. Settings from the main ROBERT workflow do not replace these inputs.",
+      "title": "Open the separate CHECKML page",
       "topic": "tutorial"
     },
     {
@@ -6331,7 +6331,7 @@
       "source_file": "check_model.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Load the data to evaluate. Choose an Input CSV containing the target and numerical descriptor columns for the model. You may also add an external test CSV. Check that both files correspond to the same problem; EVALUATE makes its own internal split using ROBERT's defaults.",
+      "text": "Load the data to evaluate. Choose an Input CSV containing the target and numerical descriptor columns for the model. You may also add an external test CSV. Check that both files correspond to the same problem; CHECKML makes its own internal split using ROBERT's defaults.",
       "title": "Load the data to evaluate",
       "topic": "tutorial"
     },
@@ -6371,7 +6371,7 @@
       "source_file": "check_model.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Choose where the model comes from. The MODEL TO EVALUATE menu offers default MVL, a scikit-learn estimator, a hyperparameters CSV, or a saved joblib/pickle model. Pick the option that matches what you actually have. The controls shown below the menu change according to that choice.",
+      "text": "Choose where the model comes from. The MODEL TO CHECKML menu offers default MVL, a scikit-learn estimator, a hyperparameters CSV, or a saved joblib/pickle model. Pick the option that matches what you actually have. The controls shown below the menu change according to that choice.",
       "title": "Choose where the model comes from",
       "topic": "tutorial"
     },
@@ -6411,7 +6411,7 @@
       "source_file": "check_model.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Run and interpret the result. Press Run EVALUATE and follow the progress indicator and console on this tab. Use Stop if you need to interrupt it. After successful completion, open Results for the PDF and any other available outputs; if the run stops early, read the console before changing the inputs.",
+      "text": "Run and interpret the result. Press Run CHECKML and follow the progress indicator and console on this tab. Use Stop if you need to interrupt it. After successful completion, open Results for the PDF and any other available outputs; if the run stops early, read the console before changing the inputs.",
       "title": "Run and interpret the result",
       "topic": "tutorial"
     },
@@ -7171,7 +7171,7 @@
       "source_file": "overview.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Evaluate a model you chose. The Check model tab is separate from ROBERT's automatic model search. It runs EVALUATE on a default model, a scikit-learn estimator, parameters from CSV, or a saved model. Open the Check ML tutorial for the input requirements and model choices.",
+      "text": "Evaluate a model you chose. The CheckML tab is separate from ROBERT's automatic model search. It runs CHECKML on a default model, a scikit-learn estimator, parameters from CSV, or a saved model. Open the Check ML tutorial for the input requirements and model choices.",
       "title": "Evaluate a model you chose",
       "topic": "tutorial"
     },

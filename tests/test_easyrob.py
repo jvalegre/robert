@@ -414,7 +414,7 @@ def test_all_tabs_created(easyrob_window):
     assert "Advanced Options" in tab_names
     assert "MolSSI Databases" in tab_names
     assert isinstance(window.molssi_tab.web_view, _InertWebView)
-    assert "Check model" in tab_names
+    assert "CheckML" in tab_names
     assert "Results" in tab_names
     assert window.bot_window.parent() is window
     assert window.bot_panel.api_setup_movie.parent() is window.bot_panel.api_setup_gif_label
@@ -2317,17 +2317,17 @@ def test_aqme_atom_selection_generates_mapped_smiles(
         assert s is None or ":" in s, "Expected atom mapping numbers in mapped SMILES"
 
 
-def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot, monkeypatch):
+def test_checkml_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot, monkeypatch):
     """
-    Same scenario as test_EVALUATE_custom_sklearn_model_and_user_split (test_6evaluate.py) but
-    driven through the EVALUATE tab like a real user: loads the CSV (with its own 'Set'
+    Same scenario as test_CHECKML_custom_sklearn_model_and_user_split (test_6checkml.py) but
+    driven through the CHECKML tab like a real user: loads the CSV (with its own 'Set'
     column), picks a scikit-learn model in the dropdown, types its hyperparameters in the
-    form fields and clicks "Run EVALUATE", which launches the real ROBERT subprocess.
+    form fields and clicks "Run CHECKML", which launches the real ROBERT subprocess.
     """
     install_message_box_stubs(monkeypatch)
-    tab = easyrob_window.evaluate_tab
+    tab = easyrob_window.checkml_tab
 
-    work_dir = Path(__file__).resolve().parent / "test-easyrob-evaluate-output"
+    work_dir = Path(__file__).resolve().parent / "test-easyrob-checkml-output"
     if work_dir.exists():
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True)
@@ -2336,11 +2336,11 @@ def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot,
         # train + valid rows in one CSV, relabeling the valid rows 'Test' (user-defined split)
         tests_dir = Path(__file__).resolve().parent
         combined = pd.concat(
-            [pd.read_csv(tests_dir / "Evaluate_train.csv"),
-             pd.read_csv(tests_dir / "Evaluate_valid.csv").assign(Set="Test")],
+            [pd.read_csv(tests_dir / "CheckML_train.csv"),
+             pd.read_csv(tests_dir / "CheckML_valid.csv").assign(Set="Test")],
             ignore_index=True,
         )
-        csv_path = work_dir / "evaluate_combined.csv"
+        csv_path = work_dir / "checkml_combined.csv"
         combined.to_csv(csv_path, index=False)
 
         # what a user does: load the CSV, pick y/names, pick the model source, model and
@@ -2357,7 +2357,7 @@ def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot,
         assert not tab.run_button.isEnabled()
         qtbot.waitUntil(lambda: tab.run_button.isEnabled(), timeout=int(WORKFLOW_MAX_WAIT_S * 1000))
         console_text = tab.console_output.toPlainText()
-        assert "EVALUATE finished successfully" in console_text, console_text
+        assert "CHECKML finished successfully" in console_text, console_text
 
         # the model picked in the GUI (not the default MVL) with the typed hyperparameters
         params_csv = work_dir / "GENERATE" / "Best_model" / "No_PFI" / "Ridge.csv"
@@ -2376,10 +2376,10 @@ def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot,
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def test_evaluate_success_message_points_to_results_tab(easyrob_window, monkeypatch, tmp_path):
+def test_checkml_success_message_points_to_results_tab(easyrob_window, monkeypatch, tmp_path):
     """A completed evaluation directs users to the current results workspace."""
     calls = install_message_box_stubs(monkeypatch)
-    tab = easyrob_window.evaluate_tab
+    tab = easyrob_window.checkml_tab
     tab.csv_path = str(tmp_path / "input.csv")
     (tmp_path / "ROBERT_report_No_PFI.pdf").touch()
     monkeypatch.setattr(tab, "_refresh_sibling_tabs", lambda: None)
@@ -2390,21 +2390,21 @@ def test_evaluate_success_message_points_to_results_tab(easyrob_window, monkeypa
     assert "Results" in calls["info"][0][1]
 
 
-def test_evaluate_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monkeypatch):
+def test_checkml_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monkeypatch):
     """
-    EVALUATE tab: text columns (i.e. SMILES) start checked in the ignore list and are sent through
+    CHECKML tab: text columns (i.e. SMILES) start checked in the ignore list and are sent through
     --ignore, and a CSV whose name has spaces is refused with a warning as soon as it is loaded.
     """
     calls = install_message_box_stubs(monkeypatch)
-    tab = easyrob_window.evaluate_tab
+    tab = easyrob_window.checkml_tab
 
-    work_dir = Path(__file__).resolve().parent / "test-easyrob-evaluate-ignore"
+    work_dir = Path(__file__).resolve().parent / "test-easyrob-checkml-ignore"
     if work_dir.exists():
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True)
 
     try:
-        df = pd.read_csv(Path(__file__).resolve().parent / "Evaluate_train.csv")
+        df = pd.read_csv(Path(__file__).resolve().parent / "CheckML_train.csv")
         df["smiles"] = ["C"] * len(df)
         good_csv = work_dir / "with_smiles.csv"
         df.to_csv(good_csv, index=False)
@@ -2415,7 +2415,7 @@ def test_evaluate_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monk
         tab.set_csv_path(str(bad_csv))
         assert tab.csv_path is None
         assert any("contains spaces" in text for _, text in calls["info"])
-        tab.run_evaluate()
+        tab.run_checkml()
         assert tab.worker is None
 
         # normal CSV: the text column is pre-checked in the ignore list and goes into --ignore

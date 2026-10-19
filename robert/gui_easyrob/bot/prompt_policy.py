@@ -379,9 +379,9 @@ def _gui_candidates(snapshot: GuiSnapshot, secrets: Sequence[str], budget: Promp
         ("Workflow progress", "; ".join(
             f"{stage}={state}" for stage, state in snapshot.workflow_stage_states
         )),
-        ("Check ML model source", snapshot.evaluate_model_source),
-        ("Check ML estimator", snapshot.evaluate_model_name),
-        ("Check ML model settings", "; ".join(snapshot.evaluate_model_settings)),
+        ("Check ML model source", snapshot.checkml_model_source),
+        ("Check ML estimator", snapshot.checkml_model_name),
+        ("Check ML model settings", "; ".join(snapshot.checkml_model_settings)),
         ("Ignored columns", safe_items(snapshot.ignored_columns)),
         ("Advanced settings", "; ".join(snapshot.advanced_settings)),
         ("AQME workflow enabled", snapshot.aqme_workflow_enabled),

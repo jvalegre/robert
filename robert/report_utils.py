@@ -12,6 +12,7 @@ import textwrap
 from pathlib import Path
 import ast
 import json
+from robert.utils import boundary_n_points
 
 
 title_no_pfi = 'No PFI (standard descriptor filter):'
@@ -452,10 +453,9 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
         total_points = data_score.get(f'total_points_{suffix}')
         extreme_line = ''
         if total_points:
-            # approximate: total_points isn't always evenly divisible by 5, and array-splitting
-            # distributes any remainder unevenly across folds, so the real Low/High fold sizes
-            # can differ from this by a point or two
-            fold_points = round(total_points/5)
+            # same rule used to build the Low/High partitions (20%, min. 4 points - see
+            # boundary_n_points() in utils.py)
+            fold_points = boundary_n_points(total_points)
             extreme_line = f'Points in each 20% high/low folds = {fold_points}'
 
         column = f"""<div style="{indent} box-sizing: border-box;">
@@ -963,13 +963,13 @@ def get_col_transpa(params_dict,suffix,section,spacing):
         if ele not in excluded_params:
             if ele == 'model' and section == 'model_section':
                 # ROBERT's own short codes (RF/MVL/...) need translating to their full sklearn
-                # class name; a dynamic scikit-learn model (see EVALUATE's --model_params/
+                # class name; a dynamic scikit-learn model (see CHECKML's --model_params/
                 # --model_file) already stores the exact class name directly, so it's used as-is
                 sklearn_model = models_dict.get(params_dict[ele].upper(), params_dict[ele])
                 sklearn_model = f"""{first_line}sklearn model: {sklearn_model}</p>"""
             elif section == 'model_section' and ele.lower() not in misc_params:
                 if ele == 'params':
-                    # try JSON first (new format, e.g. from EVALUATE's dynamic scikit-learn
+                    # try JSON first (new format, e.g. from CHECKML's dynamic scikit-learn
                     # models - True/False/None come out as lowercase true/false/null, which
                     # ast.literal_eval doesn't understand), fall back to the old format
                     try:
@@ -1236,7 +1236,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
 
                     # same reasoning, for the other half of "standard conditions" the score was
                     # calibrated for: a 10x repeated 5-fold CV (ROBERT's kfold/repeat_kfolds
-                    # defaults). A custom --kfold/--repeat_kfolds (common with EVALUATE, where a
+                    # defaults). A custom --kfold/--repeat_kfolds (common with CHECKML, where a
                     # user brings their own settings) makes the CV estimate noisier or more
                     # optimistic than what the score's thresholds assume, so it's hidden the
                     # same way a non-standard test split is. The "Nx M-fold CV" line has the
@@ -1717,7 +1717,7 @@ def make_pdf(html, HTML, css_files):
 def css_content(csv_name,robert_version,eval_only=False):
     """
     Obtain ROBERT version and CSV name to use it on top of the PDF report. eval_only=True
-    (EVALUATE reports, scoring a model the user already chose) shows "CheckML Report" in the
+    (CHECKML reports, scoring a model the user already chose) shows "CheckML Report" in the
     top-left running header instead of "ROBERT Report", matching the CheckML logo used in
     print_header() for the same reports.
     """

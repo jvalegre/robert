@@ -53,7 +53,7 @@ ALLOWED_TABS = {
     "Reports",
     "Predictions",
     "Evaluate",
-    "Check model",
+    "CheckML",
     "Images",
     "MolSSI Databases",
 }

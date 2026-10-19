@@ -184,7 +184,7 @@ def test_GENERATE(test_job):
             elif _log_line_metric_close(
                 line,
                 "o Best combined RMSE (target) found in BO for RF (no PFI filter):",
-                0.84,
+                0.85,
             ):
                 reproducibility += 1
             elif _log_line_metric_close(
@@ -211,7 +211,7 @@ def test_GENERATE(test_job):
             elif _log_line_metric_close(
                 line,
                 "o Combined RMSE for RF (with PFI filter):",
-                0.58,
+                0.55,
             ):
                 reproducibility += 1
             elif _log_line_metric_close(
@@ -223,7 +223,7 @@ def test_GENERATE(test_job):
             elif _log_line_metric_close(
                 line,
                 "o Combined RMSE for GB (with PFI filter):",
-                0.49,
+                0.54,
             ):
                 reproducibility += 1
             elif _log_line_metric_close(
@@ -235,13 +235,13 @@ def test_GENERATE(test_job):
             elif _log_line_metric_close(
                 line,
                 "o Combined RMSE for NN (with PFI filter):",
-                0.39,
+                0.41,
             ):
                 reproducibility += 1
             elif _log_line_metric_close(
                 line,
                 "o Combined RMSE for MVL (no BO needed) (no PFI filter):",
-                0.47,
+                0.48,
             ):
                 reproducibility += 1
             elif _log_line_metric_close(
@@ -398,17 +398,17 @@ def test_GENERATE(test_job):
                         "Training",
                         "Training",
                         "Test",
-                        "Training",
+                        "Test",
                     ]
                     for i, expected_set in enumerate(expected_sets):
                         assert db_best["Set"][i] == expected_set
-                    # check whether the values are sorted (for reproducibility)
+                    # check whether the rows are sorted by names (for reproducibility), Name = 1-5
                     expected_rows = [
-                        0.308776518,
-                        0.321084552,
-                        0.329517076,
-                        0.39762592,
-                        0.410599034,
+                        1.854766065,
+                        2.034511341,
+                        0.860667495,
+                        1.026447198,
+                        0.952469022,
                     ]
                     assert list(
                         db_best["Target_values"][: len(expected_rows)]

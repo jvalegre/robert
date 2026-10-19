@@ -293,12 +293,12 @@ def _format_snapshot_for_intent(snapshot: GuiSnapshot, question_intent: str) -> 
         lines.append("- Workflow progress: " + "; ".join(
             f"{stage}={state}" for stage, state in snapshot.workflow_stage_states
         ))
-    if snapshot.evaluate_model_source:
-        lines.append(f"- Check ML model source: {snapshot.evaluate_model_source}")
-    if snapshot.evaluate_model_name:
-        lines.append(f"- Check ML estimator: {snapshot.evaluate_model_name}")
-    if snapshot.evaluate_model_settings:
-        lines.append(f"- Check ML model settings: {'; '.join(snapshot.evaluate_model_settings)}")
+    if snapshot.checkml_model_source:
+        lines.append(f"- Check ML model source: {snapshot.checkml_model_source}")
+    if snapshot.checkml_model_name:
+        lines.append(f"- Check ML estimator: {snapshot.checkml_model_name}")
+    if snapshot.checkml_model_settings:
+        lines.append(f"- Check ML model settings: {'; '.join(snapshot.checkml_model_settings)}")
     popup_is_stale = (
         not snapshot.popup_active
         and snapshot.popup_age_seconds is not None

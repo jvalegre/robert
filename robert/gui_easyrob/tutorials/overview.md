@@ -46,7 +46,7 @@
 
 ---
 
-<b>Evaluate a model you chose.</b><br><br>The <b>Check model</b> tab is separate from ROBERT's automatic model search. It runs EVALUATE on a default model, a scikit-learn estimator, parameters from CSV, or a saved model. Open the <b>Check ML</b> tutorial for the input requirements and model choices.
+<b>Evaluate a model you chose.</b><br><br>The <b>CheckML</b> tab is separate from ROBERT's automatic model search. It runs CHECKML on a default model, a scikit-learn estimator, parameters from CSV, or a saved model. Open the <b>Check ML</b> tutorial for the input requirements and model choices.
 
 ---
 

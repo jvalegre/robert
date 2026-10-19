@@ -2169,7 +2169,7 @@
       "source_file": "report_utils.py",
       "source_tier": "generated",
       "tab": "Reports",
-      "text": "Obtain ROBERT version and CSV name to use it on top of the PDF report. eval_only=True\n(EVALUATE reports, scoring a model the user already chose) shows \"CheckML Report\" in the\ntop-left running header instead of \"ROBERT Report\", matching the CheckML logo used in\nprint_header() for the same reports.",
+      "text": "Obtain ROBERT version and CSV name to use it on top of the PDF report. eval_only=True\n(CHECKML reports, scoring a model the user already chose) shows \"CheckML Report\" in the\ntop-left running header instead of \"ROBERT Report\", matching the CheckML logo used in\nprint_header() for the same reports.",
       "title": "css content",
       "topic": "output"
     },
@@ -2917,7 +2917,7 @@
       "source_file": "robert_user_guidance.json",
       "source_tier": "curated",
       "tab": "Reports",
-      "text": "Purpose: Assemble the PDF report and interpretation from model, validation, prediction, and diagnostic outputs.\nWhen to use:\n- Use REPORT after the relevant workflow stages have produced results, or rerun it to rebuild the summary.\nPrerequisites:\n- Keep the workflow output folders and selected model results available.\nSteps:\n1. Run REPORT or complete Full Workflow, then open Results > Report and select Best models or a named model.\nExpected result: With all_models enabled, REPORT archives each generated model and variant PDF in REPORT_models and keeps one overall-best PDF in the run folder. With all_models disabled, REPORT writes separate No PFI and PFI PDFs for the selected model when PFI filtering is enabled; it writes only No PFI when PFI filtering is disabled or EVALUATE is used.\nNext steps:\n- Compare the available variant reports and read validation evidence rather than selecting a model from one metric.\nCommon issues:\n- REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. REPORT's single overall-best PDF can differ from GENERATE's per-variant Best_model selections.",
+      "text": "Purpose: Assemble the PDF report and interpretation from model, validation, prediction, and diagnostic outputs.\nWhen to use:\n- Use REPORT after the relevant workflow stages have produced results, or rerun it to rebuild the summary.\nPrerequisites:\n- Keep the workflow output folders and selected model results available.\nSteps:\n1. Run REPORT or complete Full Workflow, then open Results > Report and select Best models or a named model.\nExpected result: With all_models enabled, REPORT archives each generated model and variant PDF in REPORT_models and keeps one overall-best PDF in the run folder. With all_models disabled, REPORT writes separate No PFI and PFI PDFs for the selected model when PFI filtering is enabled; it writes only No PFI when PFI filtering is disabled or CHECKML is used.\nNext steps:\n- Compare the available variant reports and read validation evidence rather than selecting a model from one metric.\nCommon issues:\n- REPORT cannot reconstruct missing evidence. An N/A score can result from non-standard validation settings such as a single repeated CV run; it does not mean predictions or metric values are absent. REPORT's single overall-best PDF can differ from GENERATE's per-variant Best_model selections.",
       "title": "REPORT module",
       "topic": "result reporting",
       "user_guidance": {
@@ -2931,7 +2931,7 @@
           "Keep the workflow output folders and selected model results available."
         ],
         "purpose": "Assemble the PDF report and interpretation from model, validation, prediction, and diagnostic outputs.",
-        "result": "With all_models enabled, REPORT archives each generated model and variant PDF in REPORT_models and keeps one overall-best PDF in the run folder. With all_models disabled, REPORT writes separate No PFI and PFI PDFs for the selected model when PFI filtering is enabled; it writes only No PFI when PFI filtering is disabled or EVALUATE is used.",
+        "result": "With all_models enabled, REPORT archives each generated model and variant PDF in REPORT_models and keeps one overall-best PDF in the run folder. With all_models disabled, REPORT writes separate No PFI and PFI PDFs for the selected model when PFI filtering is enabled; it writes only No PFI when PFI filtering is disabled or CHECKML is used.",
         "steps": [
           "Run REPORT or complete Full Workflow, then open Results > Report and select Best models or a named model."
         ],
@@ -3091,11 +3091,11 @@
     },
     {
       "audience": "developer_reference",
-      "id": "robert-code-docstrings-evaluate-evaluate-b26fab0f",
+      "id": "robert-code-docstrings-checkml-checkml-b26fab0f",
       "keywords": [
         "parameter",
         "parameters",
-        "evaluate",
+        "checkml",
         "robert",
         "parameter"
       ],
@@ -3104,21 +3104,21 @@
       "priority": 0.9,
       "program": "ROBERT",
       "question_patterns": [
-        "evaluate",
-        "what does evaluate do",
-        "what is evaluate"
+        "checkml",
+        "what does checkml do",
+        "what is checkml"
       ],
       "source": "robert_code_docstrings",
-      "source_file": "evaluate.py",
+      "source_file": "checkml.py",
       "source_tier": "generated",
       "tab": "Advanced Options",
-      "text": "Class containing all the functions from the EVALUATE module.\n\nParameters\nkwargs : argument class\n Specify any arguments from the EVALUATE module (for a complete list of variables, visit the ROBERT documentation)",
-      "title": "evaluate",
+      "text": "Class containing all the functions from the CHECKML module.\n\nParameters\nkwargs : argument class\n Specify any arguments from the CHECKML module (for a complete list of variables, visit the ROBERT documentation)",
+      "title": "checkml",
       "topic": "parameter"
     },
     {
       "audience": "developer_reference",
-      "id": "robert-code-docstrings-evaluate-evaluate-resolve-eval-model-09d39b3b",
+      "id": "robert-code-docstrings-checkml-checkml-resolve-eval-model-09d39b3b",
       "keywords": [
         "model",
         "models",
@@ -3138,16 +3138,16 @@
         "what is resolve eval model"
       ],
       "source": "robert_code_docstrings",
-      "source_file": "evaluate.py",
+      "source_file": "checkml.py",
       "source_tier": "generated",
       "tab": "Advanced Options",
-      "text": "Decide which model EVALUATE will evaluate, and its hyperparameters. Priority order\n(most specific/explicit first): an already-fitted model object (model_obj, Python API\nonly) -> a fitted model saved with joblib/pickle (model_file) -> a CSV naming a\nscikit-learn class and its hyperparameters (model_params) -> the legacy eval_model\noption (default 'MVL').\n\nA fitted model's own get_params() is read directly, so the user never has to retype\nhyperparameters by hand - only its class and hyperparameters are kept, since\nrepeated_kfold_cv() always refits fresh copies of the model per fold (the object's\nalready-fitted weights aren't reused as-is).\n\nSets self.args.eval_model to the resolved class name (used everywhere downstream -\nVERIFY/PREDICT load models the same way regardless of where the name came from) and\nreturns the resolved hyperparameters dict.",
+      "text": "Decide which model CHECKML will evaluate, and its hyperparameters. Priority order\n(most specific/explicit first): an already-fitted model object (model_obj, Python API\nonly) -> a fitted model saved with joblib/pickle (model_file) -> a CSV naming a\nscikit-learn class and its hyperparameters (model_params) -> the legacy eval_model\noption (default 'MVL').\n\nA fitted model's own get_params() is read directly, so the user never has to retype\nhyperparameters by hand - only its class and hyperparameters are kept, since\nrepeated_kfold_cv() always refits fresh copies of the model per fold (the object's\nalready-fitted weights aren't reused as-is).\n\nSets self.args.eval_model to the resolved class name (used everywhere downstream -\nVERIFY/PREDICT load models the same way regardless of where the name came from) and\nreturns the resolved hyperparameters dict.",
       "title": "resolve eval model",
       "topic": "parameter"
     },
     {
       "audience": "developer_reference",
-      "id": "robert-code-docstrings-evaluate-evaluate-save-generate-5209c248",
+      "id": "robert-code-docstrings-checkml-checkml-save-generate-5209c248",
       "keywords": [
         "model",
         "pfi",
@@ -3165,7 +3165,7 @@
         "what is save generate"
       ],
       "source": "robert_code_docstrings",
-      "source_file": "evaluate.py",
+      "source_file": "checkml.py",
       "source_tier": "generated",
       "tab": "Advanced Options",
       "text": "Saves database and model params in the /GENERATE/Best_model/No_PFI folder",
@@ -3174,7 +3174,7 @@
     },
     {
       "audience": "developer_reference",
-      "id": "robert-code-docstrings-evaluate-module-433ba5f9",
+      "id": "robert-code-docstrings-checkml-module-433ba5f9",
       "keywords": [
         "model",
         "models",
@@ -3194,7 +3194,7 @@
         "what is module"
       ],
       "source": "robert_code_docstrings",
-      "source_file": "evaluate.py",
+      "source_file": "checkml.py",
       "source_tier": "generated",
       "tab": "Advanced Options",
       "text": "Parameters\n\nGENERAL\n\n csv_name : str, default=''\n Name of the CSV file containing all the points used in the model (combining train + valid + test).\n A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). Include a 'Set' column with\n the value 'Test' on the rows that should be held out as the test set to control the\n split yourself - otherwise ROBERT splits it automatically (see the 'split'/'test_set'\n options), same as GENERATE.\n y : str, default=''\n Name of the column containing the response variable in the input CSV file (i.e. 'solubility').\n names : str, default=''\n Column of the names for each datapoint. Names are used to print outliers.\n eval_model : str, default='MVL'\n Legacy option, only used as a fallback when none of model_obj/model_file/model_params\n are provided. 'MVL' (Multivariate linear model, LinearRegression() in sklearn) is the\n only value accepted here - use model_obj/model_file/model_params for any other model.\n model_obj : object, default=None\n An already-fitted scikit-learn estimator object (Python API only, e.g. from a Jupyter\n notebook) to evaluate. Only its class and hyperparameters (via get_params()) are used -\n VERIFY/PREDICT's repeated cross-validation always refits fresh copies per fold, so the\n object's already-fitted weights themselves aren't reused.\n model_file : str, default=''\n Path to a fitted scikit-learn estimator saved with joblib/pickle. Same idea as\n model_obj, loaded from disk instead of passed directly.\n model_params : str, default=''\n Path to a CSV with two columns, 'param' and 'value', listing the exact scikit-learn\n class to use (a row with param='model', e.g. value='RandomForestRegressor') and its\n hyperparameters (one row each, e.g. param='n_estimators', value=200). Only scikit-learn's\n own registered estimators are accepted (see sklearn.utils.all_estimators()) - this never\n imports or executes anything outside sklearn.\n type : str, default='reg'\n Type of the pedictions. Options:\n 1. 'reg' (Regressor)\n 2. 'clas' (Classifier)\n seed : int, default=0\n Random seed used in the ML predictor models and other protocols.\n destination : str, default=None,\n Directory to create the output file(s).\n\nAffect VERIFY and PREDICT\n\n kfold : int, default=5\n Number of random data splits for the cross-validation of the models.\n repeat_kfolds : int, default=10\n Number of repetitions for the k-fold cross-validation of the models.",

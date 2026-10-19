@@ -721,7 +721,7 @@ def test_REPORT_pfi_filter_false_does_not_crash():
     when --pfi_filter False is used. GENERATE never creates a Best_model/PFI folder in that
     case, but REPORT's per-model PDF loop unconditionally tried the 'PFI' suffix too -
     get_transparency() found no CSV there and crashed instead of skipping it, the same way it
-    already skips PFI for EVALUATE runs (see skip_pfi in report.py).
+    already skips PFI for CHECKML runs (see skip_pfi in report.py).
     """
     path_scratch = os.path.join(path_main, "scratch_pfi_filter_false")
     if os.path.exists(path_scratch):

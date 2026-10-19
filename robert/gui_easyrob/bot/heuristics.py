@@ -609,9 +609,9 @@ def _format_live_gui_state_answer(question: str, snapshot: GuiSnapshot) -> str |
             )
             detail = f" ({variants})" if variants else ""
             return f"En Results está seleccionado **{model}**{detail}." if spanish else f"Results has **{model}** selected{detail}."
-        if snapshot.active_tab == "Check model" and snapshot.evaluate_model_source:
-            model = snapshot.evaluate_model_name or snapshot.evaluate_model_source
-            return f"En Check model está seleccionado **{model}**." if spanish else f"Check model has **{model}** selected."
+        if snapshot.active_tab == "CheckML" and snapshot.checkml_model_source:
+            model = snapshot.checkml_model_name or snapshot.checkml_model_source
+            return f"En CheckML está seleccionado **{model}**." if spanish else f"CheckML has **{model}** selected."
 
     if "workflow" in normalized and current_hint:
         value = snapshot.workflow or "unknown"

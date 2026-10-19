@@ -389,15 +389,15 @@ class GuiSnapshot:
     result_root_reports: tuple[str, ...] = field(default_factory=tuple)
     result_archived_report_count: int = 0
     workflow_stage_states: tuple[tuple[str, str], ...] = field(default_factory=tuple)
-    evaluate_model_source: str = ""
-    evaluate_model_name: str = ""
-    evaluate_model_settings: tuple[str, ...] = field(default_factory=tuple)
+    checkml_model_source: str = ""
+    checkml_model_name: str = ""
+    checkml_model_settings: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         """Keep the public snapshot valid even when tests construct it directly."""
         object.__setattr__(self, "ignored_columns", _normalize_text_items(self.ignored_columns))
         object.__setattr__(self, "advanced_settings", _normalize_text_items(self.advanced_settings))
-        object.__setattr__(self, "evaluate_model_settings", _normalize_text_items(self.evaluate_model_settings))
+        object.__setattr__(self, "checkml_model_settings", _normalize_text_items(self.checkml_model_settings))
         object.__setattr__(self, "popup_title", _bounded_popup_text(self.popup_title, _POPUP_TITLE_LIMIT))
         object.__setattr__(self, "popup_text", _bounded_popup_text(self.popup_text, _POPUP_TEXT_LIMIT))
         object.__setattr__(self, "popup_buttons", tuple(_popup_buttons({"buttons": self.popup_buttons})))
@@ -430,14 +430,14 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
 
     result_view = active_tab in {"Results", "Reports", "Images", "Predictions"}
     result_source = str(_get_attr(window, "_result_view_source_path", "") or "") if result_view else ""
-    evaluate_candidate = _get_attr(window, "evaluate_tab", None)
-    evaluate_tab = evaluate_candidate if (
-        active_tab == "Check model"
-        or (result_source and _get_attr(window, "_result_view_source_kind", "ROBERT") == "EVALUATE")
+    checkml_candidate = _get_attr(window, "checkml_tab", None)
+    checkml_tab = checkml_candidate if (
+        active_tab == "CheckML"
+        or (result_source and _get_attr(window, "_result_view_source_kind", "ROBERT") == "CHECKML")
     ) else None
-    input_view = evaluate_tab if evaluate_tab is not None else window
+    input_view = checkml_tab if checkml_tab is not None else window
     workflow_selector = _get_attr(window, "workflow_selector", None)
-    workflow = "EVALUATE" if evaluate_tab is not None else _text_from_widget(workflow_selector, "currentText", "")
+    workflow = "CHECKML" if checkml_tab is not None else _text_from_widget(workflow_selector, "currentText", "")
 
     main_csv_path = result_source or str(
         _get_attr(input_view, "csv_path", None)
@@ -466,42 +466,42 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
     stop_enabled = _is_enabled(_get_attr(input_view, "stop_button", None))
     process_running = _is_process_running(input_view, run_enabled, stop_enabled)
     active_process = (
-        "EVALUATE" if evaluate_tab is not None else str(_get_attr(window, "current_process", "") or "").strip()
+        "CHECKML" if checkml_tab is not None else str(_get_attr(window, "current_process", "") or "").strip()
     ) if process_running else ""
     run_aqme_enabled = _is_enabled(_get_attr(window, "run_aqme_button", None))
-    if evaluate_tab is not None:
-        ignored_columns = _collect_checked_list_widget_text(_get_attr(evaluate_tab, "ignore_list", None))
+    if checkml_tab is not None:
+        ignored_columns = _collect_checked_list_widget_text(_get_attr(checkml_tab, "ignore_list", None))
         advanced_settings = ()
     else:
         ignored_columns = _collect_list_widget_text(_get_attr(window, "ignore_list", None))
         advanced_settings = _collect_advanced_settings(_get_attr(window, "options_tab", None))
-    evaluate_model_source = _text_from_widget(
-        _get_attr(evaluate_tab, "model_source_dropdown", None), "currentText", "",
+    checkml_model_source = _text_from_widget(
+        _get_attr(checkml_tab, "model_source_dropdown", None), "currentText", "",
     )
-    evaluate_model_name = ""
-    evaluate_model_settings: tuple[str, ...] = ()
-    evaluate_source_index = _safe_maybe_call(
-        _get_attr(_get_attr(evaluate_tab, "model_source_dropdown", None), "currentIndex", None),
+    checkml_model_name = ""
+    checkml_model_settings: tuple[str, ...] = ()
+    checkml_source_index = _safe_maybe_call(
+        _get_attr(_get_attr(checkml_tab, "model_source_dropdown", None), "currentIndex", None),
         default=-1,
     )
-    if evaluate_source_index == 1:
-        evaluate_model_name = _text_from_widget(
-            _get_attr(evaluate_tab, "sklearn_model_dropdown", None), "currentText", "",
+    if checkml_source_index == 1:
+        checkml_model_name = _text_from_widget(
+            _get_attr(checkml_tab, "sklearn_model_dropdown", None), "currentText", "",
         )
-        fields = _get_attr(evaluate_tab, "sklearn_param_fields", {})
+        fields = _get_attr(checkml_tab, "sklearn_param_fields", {})
         if isinstance(fields, dict):
-            evaluate_model_settings = _normalize_text_items([
+            checkml_model_settings = _normalize_text_items([
                 f"{name}={value}" for name, widget in fields.items()
                 if (value := _text_from_widget(widget, "text", "").strip())
             ])
-    elif evaluate_source_index in {2, 3}:
-        attribute = "model_params_path" if evaluate_source_index == 2 else "model_file_path"
-        value = str(_get_attr(evaluate_tab, attribute, "") or "")
+    elif checkml_source_index in {2, 3}:
+        attribute = "model_params_path" if checkml_source_index == 2 else "model_file_path"
+        value = str(_get_attr(checkml_tab, attribute, "") or "")
         if value:
-            evaluate_model_settings = _normalize_text_items([f"{attribute}={value}"])
+            checkml_model_settings = _normalize_text_items([f"{attribute}={value}"])
 
     workflow_stage_states: tuple[tuple[str, str], ...] = ()
-    if evaluate_tab is None:
+    if checkml_tab is None:
         progress = _get_attr(window, "workflow_progress", None)
         if progress is not None:
             aqme_status = _safe_maybe_call(_get_attr(progress, "aqme_status", None), default="")
@@ -651,7 +651,7 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
         result_root_reports=result_root_reports,
         result_archived_report_count=result_archived_report_count,
         workflow_stage_states=workflow_stage_states,
-        evaluate_model_source=evaluate_model_source,
-        evaluate_model_name=evaluate_model_name,
-        evaluate_model_settings=evaluate_model_settings,
+        checkml_model_source=checkml_model_source,
+        checkml_model_name=checkml_model_name,
+        checkml_model_settings=checkml_model_settings,
     )

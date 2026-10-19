@@ -1214,7 +1214,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                 # Low/High folds are drawn from the whole dataset (see sort_n_load()), not just
                 # the train+validation pool, so the "points in extreme folds" line needs this
                 if 'Points CV (train+valid.):Test' in dat_predict[i+1]:
-                    data_score[f'cv_points_{suffix}'],data_score[f'test_points_{suffix}'] = dat_predict[i+1].split('=')[-1].split(':')
+                    # strip() removes the leading space and trailing newline from the log line,
+                    # which otherwise end up in the "Points = X (CV: Y, test: Z)" line of Section A
+                    data_score[f'cv_points_{suffix}'],data_score[f'test_points_{suffix}'] = [val.strip() for val in dat_predict[i+1].split('=')[-1].split(':')]
                     data_score[f'total_points_{suffix}'] = int(data_score[f'cv_points_{suffix}']) + int(data_score[f'test_points_{suffix}'])
 
                     # the score's thresholds (test_score, CV-vs-test consistency, etc.) were

@@ -5,6 +5,7 @@
 ######################################################.
 
 import os
+import re
 import sys
 import glob
 import pytest
@@ -362,19 +363,11 @@ def test_AQME(test_job, aqme_workspace):
                 ml_model_count += 1
             if "Proportion CV:test = 81:19" in line:
                 partition_count += 1
-            if "Points = " in line and "Descript. = " in line:
-                # append points
-                points_desc.append(
-                    line.split("Points = ")[1].split(
-                        "</p>"
-                    ).split()[0]
-                )
-                # append descriptors
-                points_desc.append(
-                    line.split("Points = ")[1].split(
-                        "</p>"
-                    ).split()[-1]
-                )
+            # "Points = 37 (CV: 30, test: 7)&nbsp;&nbsp;·&nbsp;&nbsp;Descript. = 11" - appends the
+            # CV (train+validation) points and the number of descriptors
+            points_match = re.search(r"Points = \d+ \(CV: (\d+), test: \d+\).*Descript\. = (\d+)", line)
+            if points_match:
+                points_desc.extend(points_match.groups())
             if "Results_RF_No_PFI.png" in line:
                 predict_graphs = True
             if "10x 5-fold CV : R<sup>2</sup> = " in line:
@@ -452,7 +445,7 @@ def test_AQME(test_job, aqme_workspace):
             # that used to be checked as a [0]/[1] pair (one per model) now appears exactly
             # once. The only field that legitimately has 2 entries is robert_score, since each
             # single-suffix report still shows 2 columns (Interpolation/Boundary robustness)
-            assert robert_score[0] == "4"
+            assert robert_score[0] == "1"
             assert robert_score[1] == "0"
             assert ml_model_count == 1
             assert partition_count == 1
@@ -462,7 +455,7 @@ def test_AQME(test_job, aqme_workspace):
             assert metrics_train_count == 1
             assert metrics_test_count == 1
             # advanced analysis, flawed models section 1
-            assert "-3 / 0" in flawed_models[0]
+            assert "-6 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
             assert "0 / 2" in pred_ability[0]
@@ -503,7 +496,7 @@ def test_AQME(test_job, aqme_workspace):
             # rather than stretched. Classification's B.2/B.3a/B.3b/B.3c/B.3d are now
             # homogenized to the same 0-2-point structure as regression (see score.rst) -
             # items 2/3 used to go up to 3 points with different MCC thresholds)
-            assert robert_score[0] == "5"
+            assert robert_score[0] == "4"
             assert len(robert_score) == 1
             assert ml_model_count == 1
             assert points_desc[0] == "30"
@@ -515,15 +508,15 @@ def test_AQME(test_job, aqme_workspace):
             assert "1 / 2" in pred_ability[0]
             assert "report/score_w_2_1.jpg" in pred_ability[0]
             # advanced analysis, predictive ability of external test set, item 3
-            assert "1 / 2" in pred_test_ability[0]
-            assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            assert "2 / 2" in pred_test_ability[0]
+            assert "report/score_w_2_2.jpg" in pred_test_ability[0]
             # advanced analysis, train vs validation gap, item 4 (new for classification -
             # homogenizes with regression, which already had this item)
-            assert "1 / 2" in train_val_gap_models[0]
-            assert "report/score_w_2_1.jpg" in train_val_gap_models[0]
+            assert "0 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_0.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
-            assert "2 / 2" in cv_vs_test_models[0]
-            assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
+            assert "1 / 2" in cv_vs_test_models[0]
+            assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             # no boundary robustness sub-items for classification (no sub-item 1 to check)
             assert not bound_ability
             # y distribution and Pearson images

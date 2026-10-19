@@ -52,7 +52,7 @@ Affect VERIFY and PREDICT
 
 """
 #####################################################.
-#        This file stores the EVALUATE class        #
+#        This file stores the CHECKML class        #
 #          used to evaluate existing models         #
 #####################################################.
 
@@ -69,14 +69,14 @@ from robert.utils import (load_variables, finish_print, load_database, prepare_s
 from robert.generate_utils import set_sets
 
 
-class evaluate:
+class checkml:
     """
-    Class containing all the functions from the EVALUATE module.
+    Class containing all the functions from the CHECKML module.
 
     Parameters
     ----------
     kwargs : argument class
-        Specify any arguments from the EVALUATE module (for a complete list of variables, visit the ROBERT documentation)
+        Specify any arguments from the CHECKML module (for a complete list of variables, visit the ROBERT documentation)
     """
 
     def __init__(self, **kwargs):
@@ -84,16 +84,16 @@ class evaluate:
         start_time = time.time()
 
         # load default and user-specified variables
-        self.args = load_variables(kwargs, "evaluate")
+        self.args = load_variables(kwargs, "checkml")
 
         # clean folders from previous runs
         _ = self.clean_eval()
 
         # load database, discard user-defined descriptors and perform data checks
-        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"generate",print_info=False)
+        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"checkml",print_info=False)
 
         # unlike the normal ROBERT pipeline (where CURATE explicitly fills in or removes
-        # missing data before GENERATE ever sees it), EVALUATE calls load_database() directly,
+        # missing data before GENERATE ever sees it), CHECKML calls load_database() directly,
         # and a descriptor with missing values would otherwise be silently dropped or imputed
         # with zero warning - quietly changing which descriptors the model is evaluated on.
         # Checked on the raw CSV (not csv_X, which load_database() may have already cleaned up
@@ -106,16 +106,16 @@ class evaluate:
         for column in expected_descriptors:
             rows_missing_x = raw_df[column].isna()
             if rows_missing_x.any():
-                self.args.log.write(f"\nx  The descriptor column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_x)} of {os.path.basename(self.args.csv_name)}! EVALUATE does not fill in missing descriptors automatically (unlike CURATE in the full ROBERT workflow), please fill them in (or remove those rows, or use --ignore/--discard to exclude that column) and run ROBERT again.")
+                self.args.log.write(f"\nx  The descriptor column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_x)} of {os.path.basename(self.args.csv_name)}! CHECKML does not fill in missing descriptors automatically (unlike CURATE in the full ROBERT workflow), please fill them in (or remove those rows, or use --ignore/--discard to exclude that column) and run ROBERT again.")
                 self.args.log.finalize()
                 sys.exit()
 
-        # EVALUATE scores the model on the descriptors exactly as they are in the CSV (unlike
+        # CHECKML scores the model on the descriptors exactly as they are in the CSV (unlike
         # CURATE, there is no one-hot encoding of categorical variables), so text columns such
         # as SMILES can't be used as descriptors
         text_columns = [col for col in csv_X.columns if not pd.api.types.is_numeric_dtype(csv_X[col])]
         if text_columns:
-            self.args.log.write(f"\nx  The columns {text_columns} contain text, and EVALUATE does not convert categorical variables (no one-hot encoding), so they can't be used as descriptors! Ignore them (i.e., --ignore \"[{','.join(text_columns)}]\") or convert them to numbers in the CSV.")
+            self.args.log.write(f"\nx  The columns {text_columns} contain text, and CHECKML does not convert categorical variables (no one-hot encoding), so they can't be used as descriptors! Ignore them (i.e., --ignore \"[{','.join(text_columns)}]\") or convert them to numbers in the CSV.")
             self.args.log.finalize()
             sys.exit()
 
@@ -138,8 +138,8 @@ class evaluate:
         # saves database and model params in the /GENERATE/Best_model/No_PFI folder
         _ = self.save_generate(csv_df,Xy_data)
 
-        # finish the printing of the EVALUATE info file
-        _ = finish_print(self,start_time,'EVALUATE')
+        # finish the printing of the CHECKML info file
+        _ = finish_print(self,start_time,'CHECKML')
 
     def clean_eval(self):
         '''
@@ -153,7 +153,7 @@ class evaluate:
 
     def resolve_eval_model(self):
         '''
-        Decide which model EVALUATE will evaluate, and its hyperparameters. Priority order
+        Decide which model CHECKML will evaluate, and its hyperparameters. Priority order
         (most specific/explicit first): an already-fitted model object (model_obj, Python API
         only) -> a fitted model saved with joblib/pickle (model_file) -> a CSV naming a
         scikit-learn class and its hyperparameters (model_params) -> the legacy eval_model

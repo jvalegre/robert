@@ -44,7 +44,7 @@ WORKFLOW_TEST_MODULES = {
     "test_2generate.py",
     "test_3verify.py",
     "test_4predict.py",
-    "test_6evaluate.py",
+    "test_6checkml.py",
 }
 
 

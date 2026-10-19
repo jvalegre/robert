@@ -76,7 +76,7 @@ def result_summary_issues(
         r"moderad[ao]|buen[ao]|mal[ao])\b[^.!?\n]{0,35}\b(?:performance|rendimiento|model|modelo)\b",
         text, re.I,
     ):
-        issues.append("A ROBERT score is a checklist summary, not an absolute label for predictive quality.")
+        issues.append("A CheckML score is a checklist summary, not an absolute label for predictive quality.")
     if re.search(
         r"\b(?:pass(?:ed|ing)?|superad[oa]s?)\b[^.!?\n]{0,100}\b(?:not|no)\s+(?:simply\s+)?"
         r"(?:memori[sz]\w*|overfit\w*|sobreajust\w*)\b",

@@ -156,6 +156,9 @@ class report:
         Specify any arguments from the REPORT module (for a complete list of variables, visit the ROBERT documentation)
     """
 
+    # lines available in the Section A warnings box on page 1 (see print_warnings())
+    WARNING_LINE_BUDGET = 6
+
     def __init__(self, **kwargs):
         # check if there is a problem with weasyprint (required for this module)
         # Suppress fontconfig warnings during import on Windows
@@ -183,26 +186,26 @@ class report:
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
 
-        # if EVALUATE is activated, no PFI models are ever generated (it always scores the
+        # if CHECKML is activated, no PFI models are ever generated (it always scores the
         # model as-is on the descriptors already in the input CSV, never re-curates them) - so
-        # the PFI PDF loop below is skipped whenever EVALUATE was involved
-        path_eval = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
+        # the PFI PDF loop below is skipped whenever CHECKML was involved
+        path_eval = Path(f'{os.getcwd()}/CHECKML/CHECKML_data.dat')
         eval_only = os.path.exists(path_eval)
         # with --pfi_filter False, GENERATE never creates a Best_model/PFI (or All_models/.../PFI)
         # folder, but the suffix loops below unconditionally tried 'PFI' too - get_transparency()
         # found no CSV there and crashed with UnboundLocalError instead of just skipping it, the
-        # same way it already does for EVALUATE (see eval_only above)
+        # same way it already does for CHECKML (see eval_only above)
         skip_pfi = eval_only or not self.args.pfi_filter
         # stored on self too (not just the local var) so module_lines() can add a provenance
         # note to Section A without needing this threaded through print_score()'s own call chain
         self.eval_only = eval_only
 
-        # detects whether EVALUATE evaluated a model with user-supplied hyperparameters
+        # detects whether CHECKML evaluated a model with user-supplied hyperparameters
         # (model_obj/model_file/model_params) rather than the trivial 'MVL' default - only
         # those carry the optimistic-scores risk flagged in print_warnings() below, since 'MVL'
         # has no hyperparameters that could have been tuned on data ROBERT now scores against.
         # The model name is read off the actual GENERATE output (not re-derived from CLI args,
-        # which aren't available here) - EVALUATE always narrows GENERATE to a single model, so
+        # which aren't available here) - CHECKML always narrows GENERATE to a single model, so
         # the first non-'_db' CSV in Best_model/No_PFI names it
         self.custom_model_used = False
         if eval_only:
@@ -297,11 +300,11 @@ class report:
                 # print header
                 report_html = self.print_header(citation_dat)
 
-                # print ROBERT score section
+                # print CheckML score section
                 score_dat, data_score = self.print_score(dat_files, pred_type, suffix, suffix_title)
                 report_html += score_dat
 
-                # print warnings in ROBERT score section
+                # print warnings in CheckML score section
                 warnings_dat, warnings_dict = self.print_warnings(dat_files, pred_type, data_score, suffix)
                 report_html += warnings_dat
 
@@ -466,7 +469,7 @@ class report:
         Retrieves the header for the HTML string
         """
 
-        # EVALUATE scores a model the user already chose (not one ROBERT's own Bayesian search
+        # CHECKML scores a model the user already chose (not one ROBERT's own Bayesian search
         # picked), so its reports use the CheckML logo instead of ROBERT's, to visually tell
         # the two apart at a glance
         logo_name = 'CheckML_logo.jpg' if getattr(self,'eval_only',False) else 'Robert_logo.jpg'
@@ -485,17 +488,17 @@ class report:
 
     def print_score(self,dat_files,pred_type,suffix,suffix_title):
         """
-        Generates the ROBERT score section (left = Interpolation, right = Boundary robustness)
+        Generates the CheckML score section (left = Interpolation, right = Boundary robustness)
         """
 
-        # calculates the ROBERT score (R2 is analogous for accuracy in classification)
+        # calculates the CheckML score (R2 is analogous for accuracy in classification)
         data_score = {}
         data_score = calc_score(dat_files,suffix,pred_type,data_score)
 
-        # a test set picked by the user (EVALUATE's 'Set' column) is never the systematic split
+        # a test set picked by the user (CHECKML's 'Set' column) is never the systematic split
         # the score was calibrated for, even if it happens to have ~20% of the points (in which
         # case the size check in calc_score() alone would still give a score)
-        path_eval_log = Path(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat')
+        path_eval_log = Path(f'{os.getcwd()}/CHECKML/CHECKML_data.dat')
         if path_eval_log.exists() and "Using the 'Set' column" in path_eval_log.read_text(encoding='utf-8'):
             data_score[f'score_available_{suffix}'] = False
             data_score[f'score_unavailable_reason_{suffix}'] = 'user_set'
@@ -513,7 +516,7 @@ class report:
         # for some reason, rather than hiding the score by mistake
         score_available = data_score.get(f'score_available_{suffix}', True)
 
-        # starts with the icon of ROBERT score - when the score isn't calibrated, the standing
+        # starts with the icon of CheckML score - when the score isn't calibrated, the standing
         # intro paragraph is replaced (not just dropped) with the shorter "Score not available"
         # notice, in the exact same slot/spacing (see explain_override in module_lines()) so the
         # Interpolation/Boundary robustness columns right below keep the same tight spacing they
@@ -524,13 +527,13 @@ class report:
             reason = data_score.get(f'score_unavailable_reason_{suffix}')
             if reason == 'cv':
                 cv_type = data_score.get(f'cv_type_{suffix}', '')
-                reason_txt = f"this model used {cv_type} instead of the standard 10x repeated 5-fold CV the ROBERT score was calibrated for. If you want a score, use the default --kfold 5 --repeat_kfolds 10"
+                reason_txt = f"this model used {cv_type} instead of the standard 10x repeated 5-fold CV the CheckML score was calibrated for. If you want a score, use the default --kfold 5 --repeat_kfolds 10"
             elif reason == 'user_set':
-                reason_txt = "the test set was chosen by the user (Set column) instead of ROBERT's systematic ~20% split the ROBERT score was calibrated for. If you want a score, remove the Set column"
+                reason_txt = "the test set was chosen by the user (Set column) instead of CheckML's systematic ~20% split the CheckML score was calibrated for. If you want a score, remove the Set column"
             else:
                 n_test = data_score.get(f'n_test_{suffix}')
-                reason_txt = f"this model's test set has {n_test} point(s), not the standard ~20% split the ROBERT score was calibrated for. If you want a score, use the default --test_set 0.2"
-            explain_override = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Score not available: {reason_txt} (see <a href="https://robert.readthedocs.io/en/latest/Report/score.html">the ROBERT score documentation</a>).</i>'
+                reason_txt = f"this model's test set has {n_test} point(s), not the standard ~20% split the CheckML score was calibrated for. If you want a score, use the default --test_set 0.2"
+            explain_override = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Score not available: {reason_txt} (see <a href="https://robert.readthedocs.io/en/latest/Report/score.html">the CheckML score documentation</a>).</i>'
 
         score_dat = ''
         score_dat = self.module_lines('score',score_dat,pred_type=pred_type,explain_override=explain_override)
@@ -639,7 +642,7 @@ class report:
 
     def print_warnings(self,dat_files,pred_type,data_score,suffix):
         """
-        Generates the warning box in the ROBERT score section. Always a single, complete box on
+        Generates the warning box in the CheckML score section. Always a single, complete box on
         page 1: severe warnings and the Overall assessment are never cut, moderate warnings show
         as many as reliably fit (see MODERATE_WARNINGS_BUDGET below) with a "..." marker if more
         were found than shown - never a second box, never spilling onto page 2
@@ -666,13 +669,13 @@ class report:
         # score display) is always about the same height, so the box gets a fixed line budget
         # and severe warnings (always shown in full) eat into it first - whatever's left goes
         # to moderate warnings, truncated with "..." if there isn't room for all of them.
-        # TOTAL_LINE_BUDGET=5 was measured directly against a real worst-case report (AQME
-        # citation line + a fully populated score display), where the box needed ~18.6pt per
-        # line and only ~183pt was left above the page-1 boundary - about 6 lines' worth, minus
-        # the Overall assessment title, which back then sat on its own line above its verdict
-        # (2 rendered lines total). Now that title+verdict share a single row (see title_row()
-        # above), that's only 1 rendered line - one more line fits, so the budget goes up by 1
-        TOTAL_LINE_BUDGET = 6
+        # Measured on a real worst-case report (no severe warnings, so the Overall assessment
+        # takes 2 lines: Interpolation + Boundary robustness; all moderate slots used by the
+        # longest warnings): ~246pt are left for the box on page 1, and a 6-line budget fits
+        # (box ~184pt of text + margins) while 7 does not. The QDESCP citation added to the
+        # header in AQME workflows wraps to 2 lines and leaves only ~214pt, where 6 no longer
+        # fits but 5 does - so one line less is used in that case
+        TOTAL_LINE_BUDGET = self.WARNING_LINE_BUDGET - (1 if getattr(self, 'qdescp_citation', False) else 0)
         moderate_budget = max(0, TOTAL_LINE_BUDGET - len(severe_list) - 1)  # -1 reserves the Overall assessment line
         if len(moderate_list) <= moderate_budget:
             moderate_shown = moderate_list
@@ -690,7 +693,7 @@ class report:
 
         # a big, impossible-to-miss banner (separate from the bulleted severe-warnings list
         # below, which uses a small 15px bullet) for the one risk ROBERT cannot itself measure
-        # or correct: hyperparameters supplied by the user (EVALUATE's model_obj/model_file/
+        # or correct: hyperparameters supplied by the user (CHECKML's model_obj/model_file/
         # model_params) rather than searched by ROBERT's own BO within a held-out split. If
         # those hyperparameters were chosen using a process that already saw data ROBERT now
         # scores against (CV folds or the test set), both scores are optimistic to an unknown
@@ -702,7 +705,7 @@ class report:
         #     warning_print += f'''
         # <div style="width:100%; box-sizing:border-box; background-color:{color_dict['red']}; padding:8px; margin-top:2px; margin-bottom:10px; text-align:center;">
         # <span style="font-size:17px; font-weight:bold; color:white;">&#9888; SCORES MAY BE OPTIMISTIC: user-provided hyperparameters</span><br>
-        # <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (EVALUATE), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
+        # <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (CHECKML), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
         # </div>'''
 
         # add severe warnings
@@ -1003,20 +1006,24 @@ class report:
         {space}{message}</p>'''
 
 
-    # (min_score, phrase, color_key) bands, checked highest-first, score on a 0-10 scale
+    # (min_score, phrase, color_key) bands, checked highest-first, score on a 0-10 scale.
+    # Each phrase is printed after its own bold label ("Interpolation:" / "Boundary robustness:",
+    # see print_assessment() below), so a high Interpolation score and a low Boundary robustness
+    # one are never read as a single general "this model is reliable" verdict. The label already
+    # names the score, so the phrases don't repeat it and stay short enough for one line each
     INTERP_BANDS = [
-        (9, 'The model seems reliable to explain trends in the current prediction range', 'blue'),
-        (7, 'Decent model, but it has limitations to explain trends in the current prediction range', 'yellow'),
-        (5, 'Moderate model, with important limitations to explain trends in the current prediction range', 'yellow'),
-        (3, 'Weak model, unable to explain trends in the current prediction range', 'red'),
-        (0, 'Very weak model, completely unable to explain trends in the current prediction range', 'red'),
+        (9, 'the model seems reliable within the current y range', 'blue'),
+        (7, 'decent model, with some limitations within the current y range', 'yellow'),
+        (5, 'moderate model, with important limitations within the current y range', 'yellow'),
+        (3, 'weak model, unable to capture the trends within the current y range', 'red'),
+        (0, 'very weak model, unable to capture any trend within the current y range', 'red'),
     ]
     EXTRAP_BANDS = [
-        (9, 'The model seems reliable outside the current prediction range of Y values', 'blue'),
-        (7, 'Decent model, but it has limitations outside the current prediction range of Y values', 'yellow'),
-        (5, 'Moderate model, with important limitations outside the current prediction range of Y values', 'yellow'),
-        (3, 'Weak model, unable to explain trends outside the current prediction range of Y values', 'red'),
-        (0, 'Very weak model, completely unable to explain trends outside the current prediction range of Y values', 'red'),
+        (9, 'the model seems reliable for extrapolation (predicting points outside the current y range)', 'blue'),
+        (7, 'decent model, with some limitations to predict points outside the current y range', 'yellow'),
+        (5, 'moderate model, with important limitations to predict points outside the current y range', 'yellow'),
+        (3, 'weak model, unable to predict points outside the current y range', 'red'),
+        (0, 'very weak model, completely unable to predict points outside the current y range', 'red'),
     ]
 
     def _pick_band(self,score,bands):
@@ -1028,7 +1035,7 @@ class report:
 
     def print_assessment(self,space,suffix,data_score,style_lines,warnings_dict,color_dict,pred_type):
         '''
-        Add overall assessment to the ROBERT score section: one phrase for Interpolation and
+        Add overall assessment to the CheckML score section: one phrase for Interpolation and
         (regression only) one phrase for Boundary robustness/extrapolation, each picked
         independently from its own 5-tier band (see INTERP_BANDS/EXTRAP_BANDS above).
         Classification has no Boundary robustness score (see print_score()), so only the
@@ -1064,15 +1071,16 @@ class report:
         n_moderate = len(warnings_dict[f'moderate_warnings_{suffix}'])
         moderate_threshold = 3 if pred_type == 'reg' else 2
         if interp_score >= 9 and n_moderate >= moderate_threshold:
-            interp_phrase,interp_color = 'Reliable model, but examine warnings','yellow'
+            interp_phrase,interp_color = 'the model seems reliable, but examine the warnings','yellow'
 
-        assessment_print = title_row(interp_phrase,color_dict[interp_color])
+        # one labeled sentence per score, so it's always clear which verdict is which
+        assessment_print = title_row(f'<strong>Interpolation:</strong> {interp_phrase}',color_dict[interp_color])
 
         if pred_type == 'reg':
             extrap_score = data_score.get(f'extrap_score_{suffix}', 0)
             extrap_phrase,extrap_color = self._pick_band(extrap_score,self.EXTRAP_BANDS)
             assessment_print += self.print_line_warning(
-                extrap_phrase,style_lines,color_dict[extrap_color],space)
+                f'<strong>Boundary robustness:</strong> {extrap_phrase}',style_lines,color_dict[extrap_color],space)
 
         return assessment_print
 
@@ -1242,7 +1250,9 @@ class report:
 
     def print_outliers(self,pred_type,suffix,suffix_title):
         """
-        Generates the outliers section (2 columns, same content on both sides for now)
+        Generates the outliers section - shown once, in the left column's position (the
+        content is the same regardless of suffix, there's no separate interpolation/boundary
+        version of it, so repeating it on the right was pure duplication)
         """
 
         # starts with the icon of outliers
@@ -1252,11 +1262,8 @@ class report:
         if pred_type == 'reg':
             # get information about outliers
             module_file = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
-            columns_outlier = []
-            for col in ['interpolation','boundary']:
-                spacing = '' if col == 'interpolation' else self.spacing_PFI
-                columns_outlier.append(get_outliers(module_file,suffix,spacing))
-            outlier_dat += combine_cols(columns_outlier)
+            column_outlier = get_outliers(module_file,suffix,'')
+            outlier_dat += combine_cols([column_outlier,''])
 
             # add corresponding image
             height = 217
@@ -1271,7 +1278,9 @@ class report:
 
     def print_y_distrib(self,warnings_dict,suffix,suffix_title):
         """
-        Generates the y distribution section (2 columns, same content on both sides for now)
+        Generates the y distribution section - shown once, in the left column's position (the
+        content is the same regardless of suffix, there's no separate interpolation/boundary
+        version of it, so repeating it on the right was pure duplication)
         """
 
         # starts with the icon of outliers
@@ -1282,21 +1291,16 @@ class report:
         height = 220
         distrib_dat += self.print_img('y_distribution',-5,height,'PREDICT',suffix_title)
 
-        columns_y_distrib = []
-        for col in ['interpolation','boundary']:
-            spacing = '' if col == 'interpolation' else self.spacing_PFI
+        # split the sentence into 1 column size and add spacing line by line
+        y_distrib_sentence = format_lines(warnings_dict[f'y_dist_info_{suffix}'],max_width=55,one_column=True,spacing='')
 
-            # split the sentence into 1 column size and add spacing line by line
-            y_distrib_sentence = format_lines(warnings_dict[f'y_dist_info_{suffix}'],max_width=55,one_column=True,spacing=spacing)
+        column_y_distrib = f"""
+        <p style='margin-top:25px; margin-bottom:-6px'><span style="font-weight:bold;">y distribution analysis</span></p>
+        {y_distrib_sentence}
+        <p style='margin-bottom:-15px'></p>
+        """
 
-            column = f"""
-            <p style='margin-top:25px; margin-bottom:-6px'><span style="font-weight:bold;">{spacing*3}y distribution analysis</span></p>
-            {y_distrib_sentence}
-            <p style='margin-bottom:-15px'></p>
-            """
-            columns_y_distrib.append(column)
-
-        distrib_dat += combine_cols(columns_y_distrib)
+        distrib_dat += combine_cols([column_y_distrib,''])
 
         distrib_dat += '<p style="margin-bottom: 30px;"></p>'
 
@@ -1352,27 +1356,25 @@ class report:
         }
         for label, images in [('SHAP', shap_images), ('PFI', pfi_images), ('Pearson', pearson_images)]:
             if len(images) == 1:
-                pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px"><img src="file:///{self._posix_uri(images[0])}" style="margin: 0; width: 100%;"/>'
-                pair_list += f'{("&nbsp;")*22}'
-                pair_list += f'<img src="file:///{self._posix_uri(images[0])}" style="margin: 0; width: 100%;"/></p>'
+                # shown once, in the left column's position - this suffix's PDF has only this
+                # one plot, not a second, different one to pair it with, so showing it twice
+                # (or centering it, which reads as its own third position) was duplication
+                pair_list = f'<p style="width: 91%; text-align: left; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px"><img src="file:///{self._posix_uri(images[0])}" style="margin: 0; width: 55%;"/></p>'
             else:
                 pair_list = f'<p style="width: 91%; margin-bottom: {margin_bottom}px; margin-top: {margin_top}px">{missing_messages[label]}</p>'
             feature_dat += pair_list
 
-        columns_pearson = []
-        for col in ['interpolation','boundary']:
-            spacing = '' if col == 'interpolation' else self.spacing_PFI
+        # split the sentence into 1 column size and add spacing line by line - shown once, in
+        # the left column's position (same content regardless of suffix, so repeating it on
+        # the right was pure duplication)
+        pearson_sentence = format_lines(warnings_dict[f'pearson_info_{suffix}'],max_width=55,one_column=True,spacing='')
 
-            # split the sentence into 1 column size and add spacing line by line
-            pearson_sentence = format_lines(warnings_dict[f'pearson_info_{suffix}'],max_width=55,one_column=True,spacing=spacing)
+        column_pearson = f"""
+        <p style='margin-top:-10px; margin-bottom:-6px'><span style="font-weight:bold;">Correlation analysis</span></p>
+        {pearson_sentence}
+        """
 
-            column = f"""
-            <p style='margin-top:-10px; margin-bottom:-6px'><span style="font-weight:bold;">{spacing*3}Correlation analysis</span></p>
-            {pearson_sentence}
-            """
-            columns_pearson.append(column)
-
-        feature_dat += combine_cols(columns_pearson)
+        feature_dat += combine_cols([column_pearson,''])
 
         # add separator line and page break
         feature_dat += '<hr style="margin-top: 10px;">'
@@ -1541,7 +1543,7 @@ class report:
         Generates the reproducibility section
         """
 
-        version_n_date, citation_main, citation_lowdata, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules,self.model_suffix)
+        version_n_date, citation_main, citation_second, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules,self.model_suffix)
         robert_version = version_n_date.split()[2]
 
         if self.args.csv_name == '' or self.args.csv_test == '':
@@ -1552,12 +1554,14 @@ class report:
         # version, date and citation - the main ROBERT paper and the low-data-regimes one each
         # get their own row (still 2 lines total, same as before) instead of one long paragraph
         citation_dat += f"""<p style="text-align: justify; margin-top: -9px;"><br>{version_n_date}</p>
-        <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">How to cite:</span> {citation_main}</p>
-        <p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;"><span style="font-weight:bold;">Low data regimes:</span> {citation_lowdata}</p>"""
+        <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">Please cite ROBERT:</span> {citation_main}</p>"""
+        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
 
         # QDESCP's own validation paper - only relevant when AQME generated the descriptors
         # (command_line already has the full "python -m robert ..." line at this point, so the
         # --aqme flag is checked here directly instead of waiting for aqme_workflow below)
+        # kept on self so print_warnings() can leave room for this extra (2-line) header row
+        self.qdescp_citation = '--aqme' in command_line
         if '--aqme' in command_line:
             qdescp_citation = "Dalmau, D.; Jacot-Descombes, L.; Kalikadien, A.; Manzanilla, B.; Pidko, E. A.; Jorner, K.; Sigman, M. S.; Alegre-Requena, J. V. ACS Catal. 2026, 16, 12565-12574."
             citation_dat += f"""
@@ -1724,8 +1728,9 @@ class report:
 
     def transpa_model_misc(self,section,suffix):
         """
-        Collects the data for model parameters and misc options in the Reproducibility section
-        (2 columns, same content on both sides for now)
+        Collects the data for model parameters and misc options in the Reproducibility section -
+        shown once, in the left column's position (same content regardless of suffix, so
+        repeating it on the right was pure duplication)
         """
 
         # set the parameters for the ML model
@@ -1744,11 +1749,8 @@ class report:
                 params_df = pd.read_csv(file_param, encoding='utf-8')
         params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
-        columns_repro = []
-        for col in ['interpolation','boundary']:
-            spacing = '' if col == 'interpolation' else self.spacing_PFI
-            columns_repro.append(get_col_transpa(params_dict,suffix,section,spacing))
-        section_dat = combine_cols(columns_repro)
+        column_repro = get_col_transpa(params_dict,suffix,section,'')
+        section_dat = combine_cols([column_repro,''])
         section_dat += '<p style="text-align: justify; margin-top: -70px;">'
 
         return section_dat,params_df
@@ -1778,7 +1780,8 @@ class report:
 
     def print_predictions(self,pred_type,suffix,suffix_title):
         """
-        Generates the new predictions section (2 columns, same content on both sides for now)
+        Generates the new predictions section - shown once, in the left column's position
+        (same content regardless of suffix, so repeating it on the right was pure duplication)
         """
 
         # detects whether there are predictions from an external test set
@@ -1789,18 +1792,14 @@ class report:
             pred_dat = ''
             pred_dat = self.module_lines('pred',pred_dat,pred_type=pred_type)
 
-            columns_metrics, columns_pred = [], []
-            for col in ['interpolation','boundary']:
-                spacing = '' if col == 'interpolation' else self.spacing_PFI
+            # add metrics
+            column_metrics = get_csv_metrics(module_file,suffix,'')
 
-                # add metrics
-                columns_metrics.append(get_csv_metrics(module_file,suffix,spacing))
+            # add predictions table
+            column_pred = get_csv_pred(suffix,path_csv_test,y_value,names,'')
 
-                # add predictions table
-                columns_pred.append(get_csv_pred(suffix,path_csv_test,y_value,names,spacing))
-
-            pred_dat += combine_cols(columns_metrics)
-            pred_dat += combine_cols(columns_pred)
+            pred_dat += combine_cols([column_metrics,''])
+            pred_dat += combine_cols([column_pred,''])
 
             # add corresponding image
             height = 217
@@ -1833,22 +1832,17 @@ class report:
         """
 
         if module == 'score':
-            module_name = 'Section A. ROBERT Score'
+            module_name = 'Section A. CheckML Score'
             if explain_override is not None:
                 section_explain = explain_override
             elif pred_type == 'clas':
                 # Boundary robustness isn't defined for classification (see print_score())
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on.</i>'
             else:
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on; Boundary robustness measures how well it holds up at the edges of that range, where predictions are hardest to trust.</i>'
-            if getattr(self,'eval_only',False):
-                # provenance note: this model came from EVALUATE (a user-supplied model/
-                # hyperparameters), not from ROBERT's own BO hyperparameter search - flagged
-                # here since it's the first thing a reader sees, for scientific transparency
-                section_explain += ' <b>Note:</b> this model was provided by the user through the EVALUATE module and was not optimized through ROBERT\'s own Bayesian search.'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on; Boundary robustness (related to extrapolation) measures how well it holds up at the edges of that range, where predictions are hardest to trust.</i>'
         elif module == 'adv_anal':
             module_name = 'Section B. Advanced Score Analysis'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the ROBERT score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the CheckML score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'
         elif module == 'y_distrib':
             module_name = 'Section C. Distribution of y Values'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the training and validation sets.</i>'
@@ -1864,7 +1858,7 @@ class report:
         elif module == 'generate':
             module_name = 'Section F. Model Screening'
             if eval_only:
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">The screening of models is disabled when using the EVALUATE module.</i>'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">The screening of models is disabled when using the CHECKML module.</i>'
             else:
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section compares different combinations of hyperoptimized algorithms and partition sizes. The combined error is calculated as the product of the training error, validation error, and cross-validation error.</i>'
         elif module == 'repro':
@@ -1951,8 +1945,8 @@ class report:
         """
         Finds the single image (matching suffix_title) for a given module/file_name prefix.
         'exclude' filters out filenames containing that substring, or any substring in a
-        list/tuple (e.g. so a search for 'CV_variability' doesn't also match
-        'CV_variability_boundary_...' files)
+        list/tuple (e.g. so a search for ``CV_variability`` doesn't also match
+        ``CV_variability_boundary_...`` files)
         """
 
         module_path = Path(f'{os.getcwd()}/{module}')
@@ -2027,11 +2021,16 @@ class report:
 
     def print_img(self,file_name,margin_top,height,module,suffix_title):
         """
-        Generates the row for a single image (matching suffix_title), duplicated on both sides
+        Generates the row for a single image (matching suffix_title), shown once in the left
+        column's position (not centered, not duplicated) - each suffix's PDF only ever has
+        this one plot (not a second, different one to pair it with), so showing it twice side
+        by side was pure visual duplication rather than an actual left/right comparison
         """
 
         tag = self.print_img_tag(self.find_img(file_name,module,suffix_title),height)
+        if not tag:
+            return ''
 
-        return self.print_img_row(tag,tag,margin_top)
+        return self.print_img_row(tag,'',margin_top)
 
 

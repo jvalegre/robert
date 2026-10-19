@@ -289,6 +289,16 @@ def _format_snapshot_for_intent(snapshot: GuiSnapshot, question_intent: str) -> 
         lines.append(f"- Ignored columns: {', '.join(snapshot.ignored_columns)}")
     if snapshot.advanced_settings and question_intent in {"diagnostic", "tutorial", "parameter"}:
         lines.append(f"- Advanced settings: {'; '.join(snapshot.advanced_settings)}")
+    if snapshot.workflow_stage_states:
+        lines.append("- Workflow progress: " + "; ".join(
+            f"{stage}={state}" for stage, state in snapshot.workflow_stage_states
+        ))
+    if snapshot.checkml_model_source:
+        lines.append(f"- Check ML model source: {snapshot.checkml_model_source}")
+    if snapshot.checkml_model_name:
+        lines.append(f"- Check ML estimator: {snapshot.checkml_model_name}")
+    if snapshot.checkml_model_settings:
+        lines.append(f"- Check ML model settings: {'; '.join(snapshot.checkml_model_settings)}")
     popup_is_stale = (
         not snapshot.popup_active
         and snapshot.popup_age_seconds is not None
@@ -344,6 +354,12 @@ def _format_snapshot_for_intent(snapshot: GuiSnapshot, question_intent: str) -> 
         lines.append(f"- Results model selection: {snapshot.result_model}")
     if snapshot.result_models:
         lines.append(f"- Available result models: {', '.join(snapshot.result_models)}")
+    if snapshot.result_root_reports:
+        lines.append(f"- Reports kept in the run folder: {', '.join(snapshot.result_root_reports)}")
+    if snapshot.result_archived_report_count:
+        lines.append(f"- Reports in REPORT_models: {snapshot.result_archived_report_count}")
+    if len(snapshot.result_root_reports) == 1 and snapshot.result_archived_report_count:
+        lines.append("- Result layout: the sole root report is the overall-best model and variant; REPORT_models stores the archived reports selectable by model.")
     if snapshot.result_selected_variants:
         lines.append("- Selected result variants: " + "; ".join(
             f"{variant}={model}" for variant, model in snapshot.result_selected_variants
@@ -439,7 +455,7 @@ def _system_prompt_for_intent(question_intent: str, *, full_summary: bool = True
                 "A onehot FAILED check means insufficient improvement over a zero/nonzero baseline; UNCLEAR is "
                 "inconclusive. It does not diagnose a categorical encoding problem or a descriptor to remove. "
                 "Do not advise feature deletion, re-encoding, settings changes, or retraining unless explicitly "
-                "supported by the workflow evidence. A higher ROBERT score is not proof of model reliability. "
+                "supported by the workflow evidence. A higher CheckML score is not proof of model reliability. "
                 "Do not use quality labels such as good, strong, reliable, or low error without an acceptable "
                 "error supplied by the user. A current GUI setting is not evidence about a past run. "
                 "Use short paragraphs or bullets, never a Markdown table, and state what is unknown. "
@@ -467,7 +483,7 @@ def _system_prompt_for_intent(question_intent: str, *, full_summary: bool = True
             "then uncertainty, outliers and other reported limitations. Tie every concern to a specific recorded "
             "check, value or warning; do not manufacture concerns to fill a template. Do not force positive findings "
             "when the evidence does not support them. Explain why a check matters without asserting a single cause. "
-            "A higher ROBERT score is not a probability of correct predictions or a guarantee of usefulness. "
+            "A higher CheckML score is not a probability of correct predictions or a guarantee of usefulness. "
             "Explain PFI as feature filtering when comparing variants, and discuss supported tradeoffs rather than "
             "automatically choosing the highest score. Define cross-validation, test set and error metrics at first "
             "use; keep units only when supplied. Do not delete outliers or change measured targets to improve a score. "
@@ -481,7 +497,7 @@ def _system_prompt_for_intent(question_intent: str, *, full_summary: bool = True
             "Do not call a large descriptor count a strength: more features alone do not establish useful information "
             "and can be a limitation for a small dataset. Passing y-shuffle or y-mean checks does not prove absence "
             "of memorization, leakage or overfitting. Explain only the specific check supported by the evidence. "
-            "Do not describe a ROBERT score as modest predictive performance without examining its individual "
+            "Do not describe a CheckML score as modest predictive performance without examining its individual "
             "components; separate validation warnings from process errors and preserve each model variant. "
             "ROBERT-specific definitions: scaled RMSE is a percentage of the target range, not error in target units; "
             "raw RMSE has the target's units. R2 is not percentage accuracy or a guarantee about individual predictions. "

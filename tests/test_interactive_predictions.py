@@ -281,3 +281,79 @@ def test_williams_model_variant_and_external_selection_share_matching_sidecar(tm
     assert panel.williams_data["leverage"].tolist() == [0.9]
     panel.selector.setCurrentIndex(2)
     assert panel.williams_data["leverage"].tolist() == [0.4]
+
+
+def _panel_with_prediction_groups(qapp):
+    panel = InteractivePredictions()
+    panel.paths = [Path("PREDICT/model_No_PFI.csv")]
+    panel.selector.addItem("PREDICT / model_No_PFI")
+    panel.data = prepare_prediction_data(pd.DataFrame({
+        "target": [1.0, 2.0], "target_pred": [1.2, 2.3],
+        "Set": ["CV", "Test"],
+    }), [])
+    panel._draw_charts()
+    return panel
+
+
+def test_prediction_and_outlier_legends_toggle_only_the_selected_points(qapp):
+    panel = _panel_with_prediction_groups(qapp)
+    for canvas in panel.canvases[:2]:
+        axis = canvas.figure.axes[0]
+        assert axis.get_legend() is not None
+        legend_artist = next(
+            proxy for proxy, (points, _, _) in panel._legend_artists.items()
+            if points.axes is axis and points.get_label() == "test"
+        )
+        points, _, _ = panel._legend_artists[legend_artist]
+        other_points = next(
+            artist for artist in panel._artists
+            if artist.axes is axis and artist.get_label() != "test"
+        )
+        assert legend_artist.get_picker()
+        panel._toggle_legend_artist(legend_artist)
+        assert not points.get_visible()
+        assert other_points.get_visible()
+        assert legend_artist.get_alpha() < 1
+        panel._toggle_legend_artist(legend_artist)
+        assert points.get_visible()
+        assert legend_artist.get_alpha() == 1
+
+
+def test_williams_legend_toggles_its_group(qapp):
+    panel = _panel_with_prediction_groups(qapp)
+    panel.williams_data = pd.DataFrame({
+        "group": ["Typical 80%", "High leverage 20%"],
+        "leverage": [0.1, 0.8], "standardized_residual": [0.5, 3.4],
+        "h_star": [0.6, 0.6],
+    })
+    panel._draw_charts()
+    axis = panel.canvases[2].figure.axes[0]
+    assert axis.get_legend() is not None
+    legend_artist = next(
+        proxy for proxy, (points, _, _) in panel._legend_artists.items()
+        if points.axes is axis and points.get_label() == "High leverage 20%"
+    )
+    points, _, _ = panel._legend_artists[legend_artist]
+    panel._toggle_legend_artist(legend_artist)
+    assert not points.get_visible()
+
+
+def test_external_legend_hides_uncertainty_bars_with_points(qapp):
+    panel = InteractivePredictions()
+    panel.paths = [Path("PREDICT/csv_test/external_model_No_PFI.csv")]
+    panel.selector.addItem("External / external_model_No_PFI")
+    panel.data = prepare_prediction_data(pd.DataFrame({
+        "target": [1.0], "target_pred": [1.4], "target_pred_sd": [0.2],
+    }), [])
+    panel._draw_charts()
+
+    axis = panel.canvases[0].figure.axes[0]
+    legend_artist = next(
+        proxy for proxy, (points, _, _) in panel._legend_artists.items()
+        if points.axes is axis and points.get_label() == "external"
+    )
+    points, related, _ = panel._legend_artists[legend_artist]
+    assert related and all(artist.get_visible() for artist in related)
+    panel._toggle_legend_artist(legend_artist)
+    assert not points.get_visible()
+    assert all(not artist.get_visible() for artist in related)

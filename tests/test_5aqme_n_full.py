@@ -5,6 +5,7 @@
 ######################################################.
 
 import os
+import re
 import sys
 import glob
 import pytest
@@ -75,7 +76,7 @@ def _regenerate_report_and_check(test_job, path_main):
         debug_lines = f.readlines()
     debug_text = "".join(debug_lines)
 
-    assert "Section A. ROBERT Score" in debug_text
+    assert "Section A. CheckML Score" in debug_text
 
     # score images ("report/score_N.jpg") are the Interpolation/Boundary robustness score bars
     # in Section A - classification only ever gets one (Interpolation), since Boundary
@@ -330,7 +331,7 @@ def test_AQME(test_job, aqme_workspace):
         if "External test metrics" in line:
             find_test += 1
 
-    # more specific tests to check content from the ROBERT score section
+    # more specific tests to check content from the CheckML score section
     if test_job in ["full_workflow", "full_clas"]:
         robert_score, points_desc = [], []
         ml_model_count, partition_count, metrics_train_count, metrics_test_count = (
@@ -360,14 +361,13 @@ def test_AQME(test_job, aqme_workspace):
                 robert_score.append(line.split("report/score_")[1][0])
             if "Model = RF" in line:
                 ml_model_count += 1
-            if "CV (train+valid.)" in line and "81:19" in line:
+            if "Proportion CV:test = 81:19" in line:
                 partition_count += 1
-            if "Points(train+validation):descriptors = " in line:
-                points_desc.append(
-                    line.split("Points(train+validation):descriptors = ")[1].split(
-                        "</p>"
-                    )[0]
-                )
+            # "Points = 37 (CV: 30, test: 7)&nbsp;&nbsp;·&nbsp;&nbsp;Descript. = 11" - appends the
+            # CV (train+validation) points and the number of descriptors
+            points_match = re.search(r"Points = \d+ \(CV: (\d+), test: \d+\).*Descript\. = (\d+)", line)
+            if points_match:
+                points_desc.extend(points_match.groups())
             if "Results_RF_No_PFI.png" in line:
                 predict_graphs = True
             if "10x 5-fold CV : R<sup>2</sup> = " in line:
@@ -438,23 +438,24 @@ def test_AQME(test_job, aqme_workspace):
                 break
 
         if test_job == "full_workflow":
-            # model summary, robert score, predict graphs and model metrics
+            # model summary, checkml score, predict graphs and model metrics
             # NOTE: report_debug_{suffix}.txt now holds a SINGLE model/suffix's report (one
             # PDF per suffix - see report.py's "generate one PDF per model (No PFI / PFI)"
             # loop), not a combined No_PFI+PFI report like before 2.2.0 - so every field below
             # that used to be checked as a [0]/[1] pair (one per model) now appears exactly
             # once. The only field that legitimately has 2 entries is robert_score, since each
             # single-suffix report still shows 2 columns (Interpolation/Boundary robustness)
-            assert robert_score[0] == "4"
+            assert robert_score[0] == "1"
             assert robert_score[1] == "0"
             assert ml_model_count == 1
             assert partition_count == 1
-            assert points_desc[0] == "30:11"
+            assert points_desc[0] == "30"
+            assert points_desc[1] == "11"
             assert predict_graphs
             assert metrics_train_count == 1
             assert metrics_test_count == 1
             # advanced analysis, flawed models section 1
-            assert "-3 / 0" in flawed_models[0]
+            assert "-6 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
             assert "0 / 2" in pred_ability[0]
@@ -486,7 +487,7 @@ def test_AQME(test_job, aqme_workspace):
             _regenerate_report_and_check(test_job, path_main)
 
         elif test_job == "full_clas":
-            # model summary, robert score, predict graphs and model metrics
+            # model summary, checkml score, predict graphs and model metrics
             # (see the NOTE above the full_workflow block: report_debug_{suffix}.txt now
             # holds a single model/suffix's report, so every field below appears once.
             # Unlike full_workflow, robert_score here has only 1 entry: classification
@@ -495,10 +496,11 @@ def test_AQME(test_job, aqme_workspace):
             # rather than stretched. Classification's B.2/B.3a/B.3b/B.3c/B.3d are now
             # homogenized to the same 0-2-point structure as regression (see score.rst) -
             # items 2/3 used to go up to 3 points with different MCC thresholds)
-            assert robert_score[0] == "5"
+            assert robert_score[0] == "4"
             assert len(robert_score) == 1
             assert ml_model_count == 1
-            assert points_desc[0] == "30:6"
+            assert points_desc[0] == "30"
+            assert points_desc[1] == "6"
             # advanced analysis, flawed models section 1
             assert "-2 / 0" in flawed_models[0]
             assert flawed_image
@@ -506,15 +508,15 @@ def test_AQME(test_job, aqme_workspace):
             assert "1 / 2" in pred_ability[0]
             assert "report/score_w_2_1.jpg" in pred_ability[0]
             # advanced analysis, predictive ability of external test set, item 3
-            assert "1 / 2" in pred_test_ability[0]
-            assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            assert "2 / 2" in pred_test_ability[0]
+            assert "report/score_w_2_2.jpg" in pred_test_ability[0]
             # advanced analysis, train vs validation gap, item 4 (new for classification -
             # homogenizes with regression, which already had this item)
-            assert "1 / 2" in train_val_gap_models[0]
-            assert "report/score_w_2_1.jpg" in train_val_gap_models[0]
+            assert "0 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_0.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
-            assert "2 / 2" in cv_vs_test_models[0]
-            assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
+            assert "1 / 2" in cv_vs_test_models[0]
+            assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             # no boundary robustness sub-items for classification (no sub-item 1 to check)
             assert not bound_ability
             # y distribution and Pearson images
@@ -712,7 +714,7 @@ def test_REPORT_pfi_filter_false_does_not_crash():
     when --pfi_filter False is used. GENERATE never creates a Best_model/PFI folder in that
     case, but REPORT's per-model PDF loop unconditionally tried the 'PFI' suffix too -
     get_transparency() found no CSV there and crashed instead of skipping it, the same way it
-    already skips PFI for EVALUATE runs (see skip_pfi in report.py).
+    already skips PFI for CHECKML runs (see skip_pfi in report.py).
     """
     path_scratch = os.path.join(path_main, "scratch_pfi_filter_false")
     if os.path.exists(path_scratch):

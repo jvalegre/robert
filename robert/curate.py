@@ -96,7 +96,7 @@ class curate:
         # adjust options of classification problems and detects whether the right type of problem was used
         self = check_clas_problem(self,csv_df)
 
-        if not self.args.evaluate:
+        if not self.args.checkml:
             # transform categorical descriptors
             csv_df = categorical_transform(self,csv_df,'curate')
 

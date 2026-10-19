@@ -84,3 +84,4 @@ Example
 .. autoclass:: robert.api.RobertModel
    :members:
    :no-inherited-members:
+   :exclude-members: set_fit_request, set_predict_request

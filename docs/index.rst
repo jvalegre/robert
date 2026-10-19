@@ -51,6 +51,9 @@ Special acknowledgments
 
    Tutorials/videos
    Tutorials/tutorials
+   Tutorials/checkml_database
+   Tutorials/checkml_evaluation
+
 .. toctree::
    :maxdepth: 1
    :caption: How does ROBERT work?

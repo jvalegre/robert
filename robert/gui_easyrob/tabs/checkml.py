@@ -1,5 +1,5 @@
 """
-EVALUATE tab for easyROB.
+CHECKML tab for easyROB.
 
 Lets a user evaluate their own scikit-learn model (regression or classification) under
 ROBERT's standard rigor - repeated CV, VERIFY's flawed-model tests, boundary robustness (for
@@ -15,7 +15,7 @@ Responsibilities:
   scikit-learn class and its hyperparameters, or a pre-fitted model saved with joblib/pickle
 - Score the model as-is on the descriptors already present in the input CSV - ROBERT never
   re-curates them, so the model is evaluated on exactly what the user provided
-- Build the equivalent "python -m robert --evaluate ..." command and run it with the same
+- Build the equivalent "python -m robert --checkml ..." command and run it with the same
   RobertWorker used by the main ROBERT tab, streaming output live
 - Refresh the Reports/Predictions/Images tabs once the run finishes successfully
 
@@ -151,7 +151,7 @@ def _sklearn_estimators(pred_type):
     """(name, class) pairs for every scikit-learn regressor/classifier registered via
     sklearn.utils.all_estimators() - imported lazily so sklearn's own import cost is only paid
     once the user actually opens this model-source option. Excludes the models in
-    _INCOMPATIBLE_REGRESSORS/_INCOMPATIBLE_CLASSIFIERS above, which can't work with EVALUATE's
+    _INCOMPATIBLE_REGRESSORS/_INCOMPATIBLE_CLASSIFIERS above, which can't work with CHECKML's
     plain param=value interface regardless of what the user fills in."""
 
     from sklearn.utils import all_estimators
@@ -186,8 +186,8 @@ def _constructor_params(model_cls):
     return params
 
 
-class EvaluateTab(QWidget):
-    """Tab dedicated to running EVALUATE."""
+class CheckMLTab(QWidget):
+    """Tab dedicated to running CHECKML."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -306,7 +306,7 @@ class EvaluateTab(QWidget):
 
         input_layout.addLayout(row1)
 
-        # columns to ignore (--ignore): EVALUATE evaluates the model on the descriptors exactly as
+        # columns to ignore (--ignore): CHECKML evaluates the model on the descriptors exactly as
         # they are in the CSV (no one-hot encoding, unlike CURATE), so text columns such as SMILES
         # must be ignored. They get pre-checked when the CSV is loaded
         ignore_label = QLabel("Columns to ignore (not used as descriptors) - text columns such as SMILES must be ignored")
@@ -325,7 +325,7 @@ class EvaluateTab(QWidget):
         outer.addWidget(input_box)
 
         # --- Model source group ---
-        model_box = QGroupBox("MODEL TO EVALUATE")
+        model_box = QGroupBox("MODEL TO CHECKML")
         model_box.setStyleSheet(BOX_STYLE)
         model_layout = QVBoxLayout(model_box)
         model_layout.setSpacing(10)
@@ -408,7 +408,7 @@ class EvaluateTab(QWidget):
         run_row = QHBoxLayout()
         run_row.addStretch(1)
 
-        self.run_button = QPushButton(" Run EVALUATE")
+        self.run_button = QPushButton(" Run CHECKML")
         self.run_button.setFixedSize(200, 40)
         self.run_button.setCursor(Qt.PointingHandCursor)
         with AssetLibrary.Play_icon.get_path() as icon_play_path:
@@ -437,7 +437,7 @@ class EvaluateTab(QWidget):
                 color: #AAA;
             }
         """)
-        self.run_button.clicked.connect(self.run_evaluate)
+        self.run_button.clicked.connect(self.run_checkml)
         run_row.addWidget(self.run_button)
 
         run_row.addSpacing(16)
@@ -498,7 +498,7 @@ class EvaluateTab(QWidget):
     def _warn_if_spaces(self, file_path, what="CSV"):
         """ROBERT rejects CSV file names with spaces (the folders can have them), so warn as soon
         as the file is picked instead of letting the run fail. Returns True if there are spaces."""
-        return warn_if_csv_name_has_spaces(self, file_path, what, "EVALUATE")
+        return warn_if_csv_name_has_spaces(self, file_path, what, "CHECKML")
 
     def set_csv_path(self, file_path):
         self.csv_path = None
@@ -509,7 +509,7 @@ class EvaluateTab(QWidget):
 
         df = smart_read_csv(file_path)
         if df is None:
-            QMessageBox.warning(self, "EVALUATE", f"Could not read CSV file:\n{file_path}")
+            QMessageBox.warning(self, "CHECKML", f"Could not read CSV file:\n{file_path}")
             return
 
         columns = list(df.columns)
@@ -522,7 +522,7 @@ class EvaluateTab(QWidget):
         if "code_name" in lower_map:
             self.names_dropdown.setCurrentText(lower_map["code_name"])
 
-        # text (non-numeric) columns can't be used as descriptors in EVALUATE, so they start
+        # text (non-numeric) columns can't be used as descriptors in CHECKML, so they start
         # checked in the ignore list (SMILES, names, categories...)
         self.csv_columns = columns
         self.text_columns = [col for col in columns if col != "Set" and not pd.api.types.is_numeric_dtype(df[col])]
@@ -532,7 +532,7 @@ class EvaluateTab(QWidget):
         """Rebuilds the ignore list (every column except y and names, which ROBERT already handles),
         keeping the user's checks. preselect=True checks the text columns (new CSV loaded)."""
         checked = set(self.text_columns) if preselect else set(self.get_ignored_columns())
-        # 'Set' (user-defined test set) is handled by EVALUATE itself, so it's never ignored
+        # 'Set' (user-defined test set) is handled by CHECKML itself, so it's never ignored
         skip = {self.y_dropdown.currentText(), self.names_dropdown.currentText(), "Set"}
         self.ignore_list.clear()
         for col in self.csv_columns:
@@ -637,33 +637,33 @@ class EvaluateTab(QWidget):
     # ------------------------------------------------------------------
     def _validate(self):
         if not self.csv_path:
-            QMessageBox.warning(self, "EVALUATE", "Please select an input CSV file (its name can't contain spaces).")
+            QMessageBox.warning(self, "CHECKML", "Please select an input CSV file (its name can't contain spaces).")
             return False
 
         if not self.y_dropdown.currentText():
-            QMessageBox.warning(self, "EVALUATE", "Please select the y (target) column.")
+            QMessageBox.warning(self, "CHECKML", "Please select the y (target) column.")
             return False
 
         if not self.names_dropdown.currentText():
-            QMessageBox.warning(self, "EVALUATE", "Please select the names (ID) column.")
+            QMessageBox.warning(self, "CHECKML", "Please select the names (ID) column.")
             return False
 
         source_index = self.model_source_dropdown.currentIndex()
         if source_index == 1 and not self.sklearn_model_dropdown.currentText():
             QMessageBox.warning(
-                self, "EVALUATE", "Please pick a scikit-learn model, or choose a "
+                self, "CHECKML", "Please pick a scikit-learn model, or choose a "
                 "different model source."
             )
             return False
         if source_index == 2 and not self.model_params_path:
             QMessageBox.warning(
-                self, "EVALUATE", "Please select a hyperparameters CSV, or choose a "
+                self, "CHECKML", "Please select a hyperparameters CSV, or choose a "
                 "different model source."
             )
             return False
         if source_index == 3 and not self.model_file_path:
             QMessageBox.warning(
-                self, "EVALUATE", "Please select a saved model file, or choose a "
+                self, "CHECKML", "Please select a saved model file, or choose a "
                 "different model source."
             )
             return False
@@ -686,7 +686,7 @@ class EvaluateTab(QWidget):
         python_pointer = self._resolve_python_executable()
 
         command = (
-            f'"{python_pointer}" -u -m robert --evaluate '
+            f'"{python_pointer}" -u -m robert --checkml '
             f'--csv_name "{os.path.basename(self.csv_path)}" '
             f'--y "{self.y_dropdown.currentText()}" '
             f'--names "{self.names_dropdown.currentText()}"'
@@ -717,7 +717,7 @@ class EvaluateTab(QWidget):
     # ------------------------------------------------------------------
     # Run / stop
     # ------------------------------------------------------------------
-    def run_evaluate(self):
+    def run_checkml(self):
         if not self._validate():
             return
 
@@ -730,7 +730,7 @@ class EvaluateTab(QWidget):
 
         self.console_output.clear()
         self.console_output.append(
-            "<b><span style='color:purple;'>Running EVALUATE...</span></b><br>"
+            "<b><span style='color:purple;'>Running CHECKML...</span></b><br>"
         )
         self.progress.show()
         self.progress.setRange(0, 0)
@@ -762,7 +762,7 @@ class EvaluateTab(QWidget):
         if self.manual_stop or exit_code == -1:
             self.manual_stop = False
             self._reset_ui_after_process()
-            QMessageBox.information(self, "EVALUATE", "EVALUATE has been stopped.")
+            QMessageBox.information(self, "CHECKML", "CHECKML has been stopped.")
             return
 
         self._reset_ui_after_process()
@@ -773,22 +773,22 @@ class EvaluateTab(QWidget):
         report_created = os.path.exists(os.path.join(run_dir, "ROBERT_report_No_PFI.pdf"))
         if exit_code == 0 and not report_created:
             self.console_output.append(
-                "<b><span style='color:red;'>EVALUATE stopped before creating the report. "
+                "<b><span style='color:red;'>CHECKML stopped before creating the report. "
                 "Check the messages above.</span></b>"
             )
         elif exit_code == 0:
             self.console_output.append(
-                "<b><span style='color:green;'>EVALUATE finished successfully.</span></b>"
+                "<b><span style='color:green;'>CHECKML finished successfully.</span></b>"
             )
             self._refresh_sibling_tabs()
             QMessageBox.information(
-                self, "EVALUATE",
-                "EVALUATE finished successfully.\n\n"
+                self, "CHECKML",
+                "CHECKML finished successfully.\n\n"
                 "Check the 'Results' tab for the PDF and prediction dashboard."
             )
         else:
             self.console_output.append(
-                "<b><span style='color:red;'>EVALUATE finished with errors "
+                "<b><span style='color:red;'>CHECKML finished with errors "
                 f"(exit code {exit_code}). Check the log above.</span></b>"
             )
 
@@ -797,4 +797,4 @@ class EvaluateTab(QWidget):
         main_window = self.window()
         if not self.csv_path or not hasattr(main_window, "refresh_tabs"):
             return
-        main_window.refresh_tabs(self.csv_path)
+        main_window.refresh_tabs(self.csv_path, source_kind="CHECKML")

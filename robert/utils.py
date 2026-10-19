@@ -66,8 +66,8 @@ warnings.filterwarnings("ignore")
 
 robert_version = "2.2.1"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733. Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Chem. Sci. 2025, 16, 8555-8560."
-
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
+checkml_ref = "CheckML citation TBD."
 
 def _parse_class_mapping_reverse(mapping):
     """
@@ -218,7 +218,7 @@ def command_line_args(exe_type,sys_args):
         "aqme",
         "report",
         "cheers",
-        "evaluate",
+        "checkml",
     ]
     list_args = [
         "discard",
@@ -260,7 +260,7 @@ def command_line_args(exe_type,sys_args):
             # uniqueness checks; a stray space here ("arg =") defeated that exact-match check,
             # which stayed silent as long as no other option shared a prefix with this one, but
             # started raising "option --model not a unique prefix" once model_obj/model_file/
-            # model_params (EVALUATE) were added as options sharing the "model" prefix
+            # model_params (CHECKML) were added as options sharing the "model" prefix
             available_args.append(f"{arg}=")
 
     try:
@@ -339,11 +339,12 @@ o Other common options:
   --descp_lvl (default="interpret") "interpret", "denovo" or "full" : type of descriptor calculation
 
 
-o How to cite ROBERT:
----------------------
+o How to cite ROBERT and CheckML:
+---------------------------------
 
-{robert_ref}
+ROBERT: {robert_ref}
 
+CheckML: {checkml_ref}
 
 o Complete documentation:
 -------------------------
@@ -467,18 +468,18 @@ def load_variables(kwargs, robert_module):
     if self.varfile is not None:
         self, txt_yaml = load_from_yaml(self)
 
-    # EVALUATE always scores exactly one, user-provided model - GENERATE never runs for it, so
+    # CHECKML always scores exactly one, user-provided model - GENERATE never runs for it, so
     # it never stages a GENERATE/All_models folder (see stage_all_models() in
-    # generate_utils.py). CURATE/VERIFY/PREDICT/REPORT chained after EVALUATE (the same
-    # EVALUATE/EVALUATE_data.dat marker report.py's eval_only uses) would otherwise keep
+    # generate_utils.py). CURATE/VERIFY/PREDICT/REPORT chained after CHECKML (the same
+    # CHECKML/CHECKML_data.dat marker report.py's eval_only uses) would otherwise keep
     # all_models's True default, have build_params_dirs() look for that folder, find nothing,
     # and silently skip every check instead of evaluating the model. Forced off unconditionally
     # (not just when unset by the caller) since even an explicit all_models=True can't do
     # anything useful here - the underlying per-model data simply doesn't exist.
-    # robert_module=='evaluate' is excluded so this never touches EVALUATE's own (unused)
-    # self.all_models: at that point EVALUATE_data.dat doesn't exist yet anyway (this call is
+    # robert_module=='checkml' is excluded so this never touches CHECKML's own (unused)
+    # self.all_models: at that point CHECKML_data.dat doesn't exist yet anyway (this call is
     # what's about to create it) - only the modules chained AFTER it are affected
-    if robert_module.lower() != 'evaluate' and os.path.exists(f'{os.getcwd()}/EVALUATE/EVALUATE_data.dat'):
+    if robert_module.lower() != 'checkml' and os.path.exists(f'{os.getcwd()}/CHECKML/CHECKML_data.dat'):
         self.all_models = False
 
     # check if user used .csv in csv_name
@@ -523,7 +524,7 @@ def load_variables(kwargs, robert_module):
                 sys.exit()
 
             self.log = Logger(self.destination / logger_1, logger_2)
-            self.log.write(f"ROBERT v {robert_version} {time_run} \nHow to cite: {robert_ref}\n")
+            self.log.write(f"ROBERT v {robert_version} {time_run} \nHow to cite: {robert_ref} {checkml_ref}\n")
 
             if self.command_line:
                 cmd_print = ''
@@ -575,7 +576,7 @@ def load_variables(kwargs, robert_module):
             # except (ModuleNotFoundError,ImportError):
             #     self.log.write(f"\nx  WARNING! The scikit-learn-intelex accelerator is not installed, the results might vary if it is installed and the execution times might become much longer (if available, use 'pip install scikit-learn-intelex')")
 
-        if robert_module.upper() in ['GENERATE', 'VERIFY', 'EVALUATE']:
+        if robert_module.upper() in ['GENERATE', 'VERIFY', 'CHECKML']:
             # adjust the default value of error_type for classification
             if self.type.lower() == 'clas':
                 if self.error_type not in ['acc', 'mcc', 'f1']:
@@ -740,7 +741,7 @@ def missing_inputs(self,module,print_err=False):
             if not print_err:
                 self.log.write(f"   -  y option set to {self.y} by the user")
 
-    if module.lower() in ['full_workflow','predict','curate','generate','evaluate']:
+    if module.lower() in ['full_workflow','predict','curate','generate','checkml']:
         if self.names == '':
             if print_err:
                 print(f'\nx  Specify the column with the entry names! (i.e. names="code_name")')
@@ -1149,7 +1150,7 @@ def check_csv_option(self,csv_option,print_err):
     return self
 
 
-def sanity_checks(self, type_checks, module, columns_csv):
+def sanity_checks(self, type_checks, module, csv_df):
     """
     Check that different variables are set correctly
     """
@@ -1158,23 +1159,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
     # adds manual inputs missing from the command line
     self = missing_inputs(self,module)
 
-    if module.lower() == 'evaluate':
-        curate_valid = locate_csv(self,self.csv_name,curate_valid)
-
-        # eval_model ('MVL', the legacy default) is only actually used as a fallback when none
-        # of model_obj/model_file/model_params are given - those resolve (and validate) an
-        # arbitrary scikit-learn model instead, see evaluate.py's resolve_eval_model()
-        using_custom_model = bool(self.model_obj is not None or self.model_file or self.model_params)
-        if not using_custom_model and self.eval_model.lower() not in ['mvl']:
-            self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL', or provide model_obj/model_file/model_params for an arbitrary scikit-learn model (i.e., --model_file model.pkl or --model_params model_params.csv)")
-            curate_valid = False
-
-        if self.type.lower() not in ['reg','clas']:
-            self.log.write(f"\nx  The type option used is not valid in EVALUATE! Options: 'reg', 'clas'")
-            curate_valid = False
-
-    elif type_checks == 'initial' and module.lower() not in ['verify','predict']:
-
+    if type_checks == 'initial' and module.lower() not in ['verify','predict']:
         curate_valid = locate_csv(self,self.csv_name,curate_valid)
 
         if module.lower() == 'curate':
@@ -1187,7 +1172,8 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     self.log.write(f"\nx  The {thres_name} option should be between 0 and 1!")
                     curate_valid = False
         
-        elif module.lower() == 'generate':
+        elif module.lower() in ['generate','checkml']:
+            
             if self.split.lower() not in ['kn','rnd','stratified','even','extra_q1','extra_q5','auto']:
                 self.log.write(f"\nx  The split option used is not valid! Options: 'KN', 'RND', 'stratified', 'even', 'extra_q1', 'extra_q5', 'auto'")
                 curate_valid = False
@@ -1201,31 +1187,41 @@ def sanity_checks(self, type_checks, module, columns_csv):
                     # leave a class under/over-represented, especially on small datasets
                     self.split = 'stratified'
 
-            if len(self.model) == 0:
-                self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
-                curate_valid = False
-            else:
-                for model_type in self.model:
-                    if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN','RIDGE','LOGISTIC']:
-                        self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
-                        curate_valid = False
-                    if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
-                        self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")
-                        curate_valid = False
-                    if model_type.upper() == 'RIDGE' and self.type.lower() == 'clas':
-                        self.log.write(f"\nx  Ridge regression (RIDGE in the model_type option) is not compatible with classification! Use LOGISTIC instead.")
-                        curate_valid = False
-                    if model_type.upper() == 'LOGISTIC' and self.type.lower() == 'reg':
-                        self.log.write(f"\nx  Logistic regression (LOGISTIC in the model_type option) is not compatible with regression, it's a classifier despite the name! Use RIDGE instead.")
-                        curate_valid = False
-
             if self.type.lower() not in ['reg','clas']:
-                self.log.write(f"\nx  The type option used is not valid! Options: 'reg', 'clas'")
+                self.log.write(f"\nx  The 'type' option used is not valid! Options: 'reg', 'clas'")
                 curate_valid = False
 
-    if type_checks == 'initial' and module.lower() in ['generate','verify','predict','report']:
+            if module.lower() == 'generate':
+                if len(self.model) == 0:
+                    self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
+                    curate_valid = False
+                else:
+                    for model_type in self.model:
+                        if model_type.upper() not in ['RF','MVL','GB','GP','ADAB','NN','RIDGE','LOGISTIC']:
+                            self.log.write(f"\nx  The model option used is not valid! Options: 'RF', 'MVL', 'GB', 'ADAB', 'NN', 'GP', 'RIDGE', 'LOGISTIC'")
+                            curate_valid = False
+                        if model_type.upper() == 'MVL' and self.type.lower() == 'clas':
+                            self.log.write(f"\nx  Multivariate linear models (MVL in the model_type option) are not compatible with classificaton!")
+                            curate_valid = False
+                        if model_type.upper() == 'RIDGE' and self.type.lower() == 'clas':
+                            self.log.write(f"\nx  Ridge regression (RIDGE in the model_type option) is not compatible with classification! Use LOGISTIC instead.")
+                            curate_valid = False
+                        if model_type.upper() == 'LOGISTIC' and self.type.lower() == 'reg':
+                            self.log.write(f"\nx  Logistic regression (LOGISTIC in the model_type option) is not compatible with regression, it's a classifier despite the name! Use RIDGE instead.")
+                            curate_valid = False
+            
+            if module.lower() == 'checkml':
+                # eval_model ('MVL', the legacy default) is only actually used as a fallback when none
+                # of model_obj/model_file/model_params are given - those resolve (and validate) an
+                # arbitrary scikit-learn model instead, see checkml.py's resolve_eval_model()
+                using_custom_model = bool(self.model_obj is not None or self.model_file or self.model_params)
+                if not using_custom_model and self.eval_model.lower() not in ['mvl']:
+                    self.log.write(f"\nx  The eval_model option used is not valid! Options: 'MVL', or provide model_obj/model_file/model_params for an arbitrary scikit-learn model (i.e., --model_file model.pkl or --model_params model_params.csv)")
+                    curate_valid = False
 
-        if type_checks == 'initial' and module.lower() in ['generate','verify']:
+    if type_checks == 'initial' and module.lower() in ['generate','verify','predict','report','checkml']:
+
+        if type_checks == 'initial' and module.lower() in ['generate','verify','checkml']:
             if self.type.lower() == 'reg' and self.error_type.lower() not in ['rmse','mae','r2']:
                 self.log.write(f"\nx  The error_type option is not valid! Options for regression: 'rmse', 'mae', 'r2'")
                 curate_valid = False
@@ -1244,7 +1240,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
                 self.log.write(f'\nx  The path of your CSV files doesn\'t exist! Set the folder containing the two CSV files with 1) the parameters of the model and 2) the Xy database with the params_dir option')
                 curate_valid = False
 
-        if module.lower() == 'predict':
+        if module.lower() in ['predict','checkml']:
             if self.t_value < 0:
                 self.log.write(f"\nx  t_value ({self.t_value}) should be higher 0!")
                 curate_valid = False
@@ -1270,20 +1266,7 @@ def sanity_checks(self, type_checks, module, columns_csv):
   
     elif type_checks == 'csv_db':
         if module.lower() != 'predict':
-            if self.y not in columns_csv:
-                if self.y.lower() in columns_csv: # accounts for upper/lowercase mismatches
-                    self.y = self.y.lower()
-                elif self.y.upper() in columns_csv:
-                    self.y = self.y.upper()
-                else:
-                    self.log.write(f"\nx  The y option specified ({self.y}) is not a column in the csv selected ({self.csv_name})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
-                    curate_valid = False
-
-            for option,option_name in zip([self.discard,self.ignore],['discard','ignore']):
-                for val in option:
-                    if val not in columns_csv:
-                        self.log.write(f"\nx  Descriptor {val} specified in the {option_name} option is not a column in the csv selected ({self.csv_name})!")
-                        curate_valid = False
+            self.y = check_y_column(self.y, self.log, self.discard, self.ignore, csv_df, self.csv_name)
 
     if not curate_valid:
         self.log.finalize()
@@ -1412,35 +1395,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         txt_load += f'\nx  WARNING! The original database was not a valid CSV (i.e., formatting issues from Microsoft Excel?). A new database using commas as separators was created and used instead, and the original database was stored as {new_csv_name}. To prevent this issue from happening again, you should use commas as separators: https://support.edapp.com/change-csv-separator.\n\n'
 
     csv_df = pd.read_csv(csv_load, encoding='utf-8')
-
-    # Missing data handling: robust strategy for columns and rows (optional KNN imputer)
-    target_col = self.args.y
-
     csv_name_load = os.path.basename(csv_load)
-
-    # Missing target (y) values can't be predicted or imputed and crash later steps (e.g. data
-    # splitting) in cryptic ways, and silently dropping those rows would hide a data-entry
-    # mistake the user almost certainly wants to know about - so stop with a message pointing
-    # to the offending rows instead. External test sets are skipped since their target column
-    # is often unknown on purpose (that's what's being predicted)
-    if not external_test and target_col in csv_df.columns:
-        y_values = csv_df[target_col]
-
-        rows_missing_y = y_values.isna()
-        if rows_missing_y.any():
-            self.args.log.write(f'\nx  The target column ({target_col}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_y)} of {csv_name_load}! Missing target values can not be predicted or imputed, please fill them in (or remove those rows) and run ROBERT again.')
-            self.args.log.finalize()
-            sys.exit()
-
-        # a column mixing numbers and text (i.e. a stray "N/A" or ">10" in a regression y) is read
-        # by pandas as all-text, so every value is tried as a number instead: all convert = numeric
-        # column, none convert = text class labels (valid in classification), only some = mixed
-        rows_non_numeric_y = pd.to_numeric(y_values, errors='coerce').isna()
-        if rows_non_numeric_y.any() and not rows_non_numeric_y.all():
-            offending_values = ', '.join(f'"{val}"' for val in y_values[rows_non_numeric_y].unique()[:5])
-            self.args.log.write(f'\nx  The target column ({target_col}) mixes numbers and text! Row(s) {_csv_row_numbers_txt(rows_non_numeric_y)} of {csv_name_load} contain non-numeric values ({offending_values}) while the rest of the column is numeric. Please fix these values (or remove those rows) and run ROBERT again.')
-            self.args.log.finalize()
-            sys.exit()
 
     # AQME workflows calculate descriptors from SMILES, so every row needs one: a missing SMILES
     # would either crash CSEARCH/QDESCP later or, when several are missing, get the whole SMILES
@@ -1454,6 +1409,18 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                     self.args.log.write(f'\nx  The SMILES column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_smiles)} of {csv_name_load}! Descriptors can not be calculated without a SMILES, please fill them in (or remove those rows) and run ROBERT again.')
                     self.args.log.finalize()
                     sys.exit()
+
+    # Sort rows by a stable per-datapoint key (names) for reproducibility across ALL modules -
+    # columns were already order-independent (see the alphabetical column sort below), but rows
+    # weren't: CV-based steps downstream (RFECV/permutation importance in CURATE, hyperparameter
+    # search in GENERATE, diagnostic folds in VERIFY/PREDICT) split the data by row POSITION, so
+    # simply reordering the rows of the input CSV silently changed which datapoints landed in
+    # which fold - and therefore the final score - even though the exact same datapoints were
+    # used. Done after the row-number diagnostics above (which report positions in the ORIGINAL
+    # file, so those need the original order) but before KNN imputation and any other
+    # order-sensitive step
+    if module.lower() not in ['aqme', 'aqme_test'] and self.args.names and self.args.names in csv_df.columns:
+        csv_df = csv_df.sort_values(by=self.args.names, kind='stable').reset_index(drop=True)
 
     descriptor_cols = [col for col in csv_df.columns if col not in self.args.ignore+self.args.discard and col != self.args.y]
     min_count = int(0.9 * len(csv_df))
@@ -1477,7 +1444,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     
     # Apply KNN imputer only to numeric columns with missing values (when auto_fill is activated)
     if self.args.auto_fill:
-        numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(target_col, errors='ignore')
+        numeric_columns = csv_df.select_dtypes(include=['float']).columns.drop(self.args.y, errors='ignore')
         if csv_df[numeric_columns].isna().any().any():
             imputer = KNNImputer(n_neighbors=5)
             csv_df[numeric_columns] = pd.DataFrame(imputer.fit_transform(csv_df[numeric_columns]), columns=numeric_columns, index=csv_df.index)
@@ -1491,8 +1458,8 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
             if module.lower() == 'curate':
                 txt_load += f"\n   - Removed {len(cols_with_missing)} column(s) with missing values\n"
 
-    if print_info:
-        sanity_checks(self.args,'csv_db',module,csv_df.columns)
+    if print_info or module.lower() == 'checkml':
+        sanity_checks(self.args,'csv_db',module,csv_df)
 
     discard_cols = [col for col in self.args.discard if col in csv_df.columns]
     if discard_cols:
@@ -1502,7 +1469,12 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         total_amount = len(csv_df.columns)
         ignored_descs = len(self.args.ignore)
         accepted_descs = total_amount - ignored_descs - 1 # the y column is substracted
-        if 'Set' in csv_df.columns: # removes the column that tracks sets
+        # removes the column that tracks sets - but only if it isn't already counted via
+        # self.args.ignore (CHECKML's robert.main() always appends 'Set' to ignore itself),
+        # otherwise it gets double-subtracted: accepted_descs undercounts by one, and for a
+        # model with exactly one real descriptor that false zero trips the hard "aren't any
+        # valid descriptors" exit below even though the descriptor is actually there and used
+        if 'Set' in csv_df.columns and 'Set' not in self.args.ignore:
             accepted_descs -= 1
             ignored_descs += 1
         if module.lower() not in ['aqme','aqme_test']:
@@ -1538,7 +1510,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
         csv_df = csv_df[sorted_all_cols]
     
     # ignore user-defined descriptors and assign X and y values (but keeps the original database)
-    if module.lower() == 'generate':
+    if module.lower() in ['generate','checkml']:
         # Only drop columns that actually exist in the dataframe (for model-specific CSVs from CURATE)
         cols_to_ignore = [col for col in self.args.ignore if col in csv_df.columns]
         # Also drop 'Set' column if it exists (for model-specific CSVs)
@@ -1560,6 +1532,65 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
             csv_y = csv_df[self.args.y]
 
     return csv_df,csv_X,csv_y
+
+
+def check_y_column(y_name, log_proc, discard_cols, ignore_cols, csv_df, csv_name_load):
+        """Validate target values, reporting missing or mixed numeric/text entries.
+
+        Checks the target column for missing values in the y column, for values that mix numeric
+        data with non-numeric text in y values, and for missing columns descriptors. 
+        On either issue, writes an error to the ROBERT
+        log, finalizes it, and exits the program. Text-only target columns are
+        allowed for classification.
+        """
+
+        if y_name not in csv_df.columns:
+            matching_columns = [
+                column for column in csv_df.columns
+                if isinstance(column, str) and column.casefold() == y_name.casefold()
+            ]
+            if len(matching_columns) == 1:
+                y_name = matching_columns[0]
+            elif len(matching_columns) > 1:
+                log_proc.write(
+                    f"\nx  The y option specified ({y_name}) matches multiple columns "
+                    f"in the csv selected ({csv_name_load}) when ignoring case: "
+                    f"{', '.join(str(column) for column in matching_columns)}. "
+                    "Please rename the columns so the target is unambiguous."
+                )
+                log_proc.finalize()
+                sys.exit()
+            else:
+                log_proc.write(f"\nx  The y option specified ({y_name}) is not a column in the csv selected ({csv_name_load})! If you are using command lines, make sure you add quotation marks like --y \"VALUE\"")
+                log_proc.finalize()
+                sys.exit()
+
+        for option,option_name in zip([discard_cols, ignore_cols],['discard','ignore']):
+            for val in option:
+                if val not in csv_df.columns:
+                    log_proc.write(f"\nx  Descriptor {val} specified in the {option_name} option is not a column in the csv selected ({csv_name_load})!")
+                    log_proc.finalize()
+                    sys.exit()
+
+        y_values = csv_df[y_name]
+
+        rows_missing_y = y_values.isna()
+        if rows_missing_y.any():
+            log_proc.write(f'\nx  The target column ({y_name}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_y)} of {csv_name_load}! Missing target values can not be predicted or imputed, please fill them in (or remove those rows) and run ROBERT again.')
+            log_proc.finalize()
+            sys.exit()
+
+        # a column mixing numbers and text (i.e. a stray "N/A" or ">10" in a regression y) is read
+        # by pandas as all-text, so every value is tried as a number instead: all convert = numeric
+        # column, none convert = text class labels (valid in classification), only some = mixed
+        rows_non_numeric_y = pd.to_numeric(y_values, errors='coerce').isna()
+        if rows_non_numeric_y.any() and not rows_non_numeric_y.all():
+            offending_values = ', '.join(f'"{val}"' for val in y_values[rows_non_numeric_y].unique()[:5])
+            log_proc.write(f'\nx  The target column ({y_name}) mixes numbers and text! Row(s) {_csv_row_numbers_txt(rows_non_numeric_y)} of {csv_name_load} contain non-numeric values ({offending_values}) while the rest of the column is numeric. Please fix these values (or remove those rows) and run ROBERT again.')
+            log_proc.finalize()
+            sys.exit()
+    
+        return y_name
 
 
 def categorical_transform(self,csv_df,module):
@@ -1696,7 +1727,7 @@ def test_select(self,X_scaled,csv_y):
     selected_size = max(test_input_size,min_test_size)
 
     # normally sanity_checks() resolves the 'auto' default into a real split method ('even' for
-    # regression, 'stratified' for classification) before this function ever runs - but EVALUATE's
+    # regression, 'stratified' for classification) before this function ever runs - but CHECKML's
     # lightweight path calls load_database() with print_info=False, which skips sanity_checks()
     # entirely, so 'auto' can still reach here literally. None of the branches below match it,
     # which left test_points unassigned before the final test_points.sort() (UnboundLocalError) -
@@ -1984,14 +2015,18 @@ def BO_hyperparams(model_name):
     assume - so several ranges deliberately sit in a more heavily-regularized/lower-capacity
     region than scikit-learn's generic defaults (e.g. NN's hidden_layer_1/2, RF/GB's shallower
     max_depth). A few parameters are intentionally left out of the search entirely:
+
     - GB's validation_fraction: only has any effect if n_iter_no_change is set, which ROBERT
       never does, so scikit-learn silently ignores it - searching it wastes BO budget on a
       parameter with zero effect on the fitted model.
+
     - RF/GB's min_weight_fraction_leaf: constrains leaf size by weighted sample fraction, but
       ROBERT never passes sample_weight to fit(), so with implicit uniform weights this is a
       weaker, redundant echo of min_samples_leaf/min_samples_split (already searched).
+
     - NN's tol (lbfgs convergence tolerance): affects when the solver stops, not the quality of
       the fit for the max_iter budget already given, so it's left at scikit-learn's default.
+
     '''
 
     model_BO_params = {
@@ -2065,7 +2100,7 @@ def resolve_sklearn_estimator(model_name, pred_type):
     Resolve a scikit-learn estimator CLASS (not yet instantiated) by its exact class name,
     restricted to sklearn's own registered estimators (sklearn.utils.all_estimators()) - this
     never imports/executes anything outside sklearn, even though the name can ultimately come
-    from a user-provided file (EVALUATE's --model_params/--model_file). Returns None if the
+    from a user-provided file (CHECKML's --model_params/--model_file). Returns None if the
     name isn't a real sklearn regressor/classifier (or isn't available in this sklearn version).
     '''
 
@@ -2113,7 +2148,7 @@ def model_adjust_params(self,model_name,params):
                 params['max_iter'] = 1000
 
     elif model_name != 'MVL':
-        # arbitrary scikit-learn model (see EVALUATE's --model_params/--model_file) - only fill
+        # arbitrary scikit-learn model (see CHECKML's --model_params/--model_file) - only fill
         # in a seed if this class actually accepts one (most linear/neighbor-based models don't
         # take random_state at all and would raise a TypeError on instantiation) AND the user
         # didn't already set their own random_state - unlike ROBERT's own BO-tuned models above
@@ -2189,7 +2224,7 @@ def load_model(self, model_name, **params):
 
     else:
         # not one of ROBERT's built-in short codes - resolve it as an arbitrary scikit-learn
-        # estimator by its exact class name instead (see EVALUATE's --model_params/
+        # estimator by its exact class name instead (see CHECKML's --model_params/
         # --model_file/--model_obj, which is where a name like this comes from)
         model_cls = resolve_sklearn_estimator(model_name, self.args.type)
         if model_cls is None:
@@ -2675,6 +2710,16 @@ def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y
     return np.array(temp_Xy_data['y_pred_train']), np.array(temp_Xy_data['y_pred_test']), np.array(temp_Xy_data['y_pred_test_sd'])
 
 
+def boundary_n_points(n_total):
+    '''
+    Number of points held out in each boundary robustness partition (Low/High extremes and
+    high-leverage points): 20% of the data, with a minimum of 4 points so small datasets
+    (i.e. 16 points, where 20% rounds to 3) still give a meaningful RMSE on the held-out points
+    '''
+
+    return max(4, round(n_total * 0.2))
+
+
 def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     '''
     Plots predicted vs actual values for the High extreme (top 20% of y) and Low extreme
@@ -2687,7 +2732,7 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     '''
 
     X_all,y_all = sort_n_load(Xy_data,include_test=True)
-    n_extreme = max(1, round(len(X_all) * 0.2))
+    n_extreme = boundary_n_points(len(X_all))
 
     X_bottom80,y_bottom = X_all[:-n_extreme], y_all[:-n_extreme]
     X_high,y_high = X_all[-n_extreme:], y_all[-n_extreme:]
@@ -2800,7 +2845,7 @@ def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
 
     X_all = np.concatenate([np.array(Xy_data['X_train_scaled']), np.array(Xy_data['X_test_scaled'])])
     y_all = np.concatenate([np.array(Xy_data['y_train']), np.array(Xy_data['y_test'])])
-    n_test = max(1, round(len(X_all) * 0.2))
+    n_test = boundary_n_points(len(X_all))
 
     def _leverage(X_ref,X_query):
         XtX_inv = np.linalg.pinv(X_ref.T @ X_ref)
@@ -3270,7 +3315,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     # set axis limits and graph PATH
     min_value_graph,max_value_graph,reg_plot_file,path_reduced = graph_vars(Xy_data,set_types,csv_test,path_n_suffix,sd_graph,sd_set)
 
-    # track the range of predictions (used in ROBERT score) - an empty internal test set
+    # track the range of predictions (used in CheckML score) - an empty internal test set
     # (e.g. --csv_test with --auto_test False) has no y_test values to fold in
     if len(Xy_data["y_test"]) > 0:
         pred_min = min(min(Xy_data["y_train"]),min(Xy_data["y_test"]))
@@ -4077,12 +4122,25 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
                 self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
-            self.args.log.write(f'\no  Before hyperoptimization, {int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set, using an even distribution of data points across the range of y values.')
             try:
                 test_points = test_select(self,X_scaled_df,csv_y)
             except TypeError:
                 self.args.log.write(f'   x The data split process failed! This is probably due to using strings/words as values (use --curate to curate the data first)')
                 sys.exit()
+
+            if self.args.checkml:
+                text_method = 'Before the CheckML evaluation, '
+            else: # for GENERATE
+                text_method = 'Before hyperoptimization, '
+            if self.args.split == 'even':
+                text_split = ', using an even distribution of data points across the range of y values.'
+            elif self.args.split == 'rnd':
+                text_split = ', using a random distribution of data points.'
+            elif self.args.split == 'stratified':
+                text_split = ', using a stratified distribution of data points.'
+            else:
+                text_split = '.'
+            self.args.log.write(f'\no  {text_method}{int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set{text_split}')
 
     # load predefined sets and save the info in Xy data
     Xy_data = Xy_split(csv_df,csv_X,X_scaled_df,csv_y,csv_external_df,csv_X_external,X_scaled_external_df,csv_y_external,test_points,column_names)
@@ -4193,7 +4251,7 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None,suffix_title=None):
     if module.lower() == 'curate': # only represent the final descriptors in CURATE
         csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
 
-    # numeric_only=True: in EVALUATE mode, CURATE's categorical_transform() is skipped (only
+    # numeric_only=True: in CHECKML mode, CURATE's categorical_transform() is skipped (only
     # this heatmap is drawn), so csv_df_pearson can still contain raw non-numeric descriptor
     # columns - .corr() raises ValueError outright on those instead of just excluding them
     corr_matrix = csv_df_pearson.corr(numeric_only=True)

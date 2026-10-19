@@ -1,6 +1,6 @@
-===============
-Interactive Tutorial Guides
-===============
+=======================
+easyROB Tutorial Guides
+=======================
 
 These tutorials guide you step-by-step through the **easyROB graphical interface**.
 

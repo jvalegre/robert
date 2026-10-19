@@ -1,68 +1,25 @@
-This workflow is used when you already have a trained ROBERT model
-and want to generate predictions for new candidate molecules.<br><br>
-
-For example, you may have trained a model previously and now want
-to evaluate new structures using that model.<br><br>
+<b>Goal: predict new molecules with an existing model.</b><br><br>Use this route only after a ROBERT project has produced model outputs. You are reusing that model rather than training from scratch. The new molecules must provide the same kind of input information used for the original model.
 
 ---
 
-To run predictions, provide a <b>CSV file</b> containing the molecules
-for which predictions should be calculated.<br><br>
-
-The CSV file must be placed in the <b>same directory where the ROBERT
-model was generated, as shown in the example. This allows the workflow
-to automatically detect the model and use it to generate predictions.<br><br>
+<b>Prepare the new data.</b><br><br>Save the external test CSV in the existing ROBERT project folder so the saved model can be found. Use a name column for each new molecule. If the trained model used AQME descriptors, include SMILES; if it used your own descriptors, provide the matching descriptor columns.
 
 ---
 
-Select the <b>Test CSV</b> file in the interface to load the
-molecules for prediction.<br><br>
-
-This dataset must contain the information required by the
-trained model.<br><br>
-
-If descriptors were originally generated using AQME, the
-CSV should contain an <b>ID column</b> and a <b>SMILES
-column</b> so descriptors can be generated automatically.
+<b>Select both CSVs.</b><br><br>On <b>ROBERT</b>, load the original project input CSV, then select the new file under <b>External Test CSV</b>. Check both displayed filenames. The first identifies the trained project's context; the second is the set for which predictions will be generated.
 
 ---
 
-Since the model has already been trained, only the
-<b>PREDICT</b> step needs to be executed.<br><br>
-
-Select the <b>PREDICT</b> option in the workflow
-configuration.
+<b>Run only the needed stage.</b><br><br>Open <b>What do you want to run?</b> and select <b>PREDICT</b>. The progress display will treat other ROBERT stages as unused for this run. This choice avoids starting a fresh model-building workflow.
 
 ---
 
-Once the test dataset is loaded and the <b>PREDICT</b>
-option is selected, press <b>Run ROBERT</b> to start
-the prediction workflow.
+<b>Start and watch PREDICT.</b><br><br>Click <b>Run ROBERT</b>. The PREDICT card becomes active; open <b>Live log</b> to follow file loading and descriptor handling. A green check indicates completion, while an error card points to the stage whose messages you should inspect.
 
 ---
 
-A pop-up window will ask how the descriptors should be handled
-for the prediction workflow.<br><br>
-
-If the original model was built using <b>AQME</b>, the GUI can
-generate the descriptors again automatically from the SMILES
-structures.<br><br>
-
-If the model was trained using <b>custom descriptors, then
-the test CSV must already contain the same descriptors that
-were used when training the model.<br><br>
-
-In this tutorial we use the <b>AQME</b> option, but you should
-select the option that matches how your model was originally
-trained.
+<b>Match the descriptor method.</b><br><br>If the dialog asks how to handle descriptors, choose <b>Generate descriptors with AQME</b> when the original model was trained with AQME-derived descriptors and your test CSV has SMILES. Choose <b>Descriptors already present</b> only when the test CSV already contains the descriptors expected by that model.
 
 ---
 
-Once the process finishes successfully, a confirmation
-message will appear.<br><br>
-
-The <b>Predictions</b> tab will become available, where
-the generated prediction results can be inspected.<br><br>
-
-More details about this results tab are explained in the
-<b>Overview</b> tutorial.
+<b>Review the prediction output.</b><br><br>Open <b>Results → Predictions</b> after successful external output is created. In the example image, Predictions is disabled because that project's external prediction CSV is still absent. Use the Model selector when several models exist; Interactive plots offers visual comparisons, and legend clicks show or hide point groups.

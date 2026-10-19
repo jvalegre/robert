@@ -55,6 +55,7 @@ from rdkit import Chem
 
 # Local project imports
 from robert.gui_easyrob.main.window import EasyROB
+from robert.gui_easyrob.workflow_progress import WorkflowProgress
 import robert.gui_easyrob.easyrob as easyrob_module
 import robert.gui_easyrob.main.window as window_module
 import robert.gui_easyrob.tabs.aqme as aqme_module
@@ -413,7 +414,7 @@ def test_all_tabs_created(easyrob_window):
     assert "Advanced Options" in tab_names
     assert "MolSSI Databases" in tab_names
     assert isinstance(window.molssi_tab.web_view, _InertWebView)
-    assert "Check model" in tab_names
+    assert "CheckML" in tab_names
     assert "Results" in tab_names
     assert window.bot_window.parent() is window
     assert window.bot_panel.api_setup_movie.parent() is window.bot_panel.api_setup_gif_label
@@ -628,15 +629,15 @@ def test_reset_ui_after_process_restores_buttons(easyrob_window):
     window.run_button.setDisabled(True)
     window.run_aqme_button.setDisabled(True)
     window.stop_button.setDisabled(False)
-    window.progress.setRange(0, 0)
+    window._set_workflow_activity("AQME is running")
 
     window._reset_ui_after_process()
 
     assert window.run_button.isEnabled()
     assert window.run_aqme_button.isEnabled()
     assert not window.stop_button.isEnabled()
-    assert window.progress.minimum() == 0
-    assert window.progress.maximum() == 100
+    assert window.workflow_activity_label.isHidden()
+    assert not window._workflow_spinner_timer.isActive()
 
 
 def test_open_external_url_uses_browser(easyrob_window, monkeypatch):
@@ -1587,7 +1588,7 @@ def test_workflow_selector_options(easyrob_window):
     """Workflow selector has all required entries and default."""
     window = easyrob_window
 
-    expected_workflows = ["Full Workflow", "CURATE", "GENERATE", "PREDICT", "VERIFY", "REPORT"]
+    expected_workflows = ["Full Workflow", "CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT"]
 
     workflow_items = [
         window.workflow_selector.itemText(i)
@@ -1611,13 +1612,14 @@ def test_console_output_widget_exists(easyrob_window):
     assert window.console_output.isReadOnly()
 
 
-def test_progress_bar_exists(easyrob_window):
-    """Progress bar exists and has 0–100 range."""
+def test_workflow_stage_cards_exist(easyrob_window):
+    """The workflow status contains every ROBERT stage."""
     window = easyrob_window
 
-    assert window.progress is not None
-    assert window.progress.minimum() == 0
-    assert window.progress.maximum() == 100
+    assert len(window.workflow_stage_cards) == 5
+    assert [label.text() for label in window.workflow_stage_labels] == [
+        "CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT"
+    ]
 
 
 # =====================================================
@@ -1948,7 +1950,7 @@ def test_full_user_workflow_end_to_end(
     # ------------------------------------------------------------------
     print("\n[STEP 7] EXECUTING run_robert() from GUI (real subprocess)...")
     initial_console_text = window.console_output.toPlainText()
-    initial_progress = window.progress.value()
+    initial_statuses = window.workflow_progress.statuses() if getattr(window, "workflow_progress", None) else None
 
     print("\n[STEP 8] Waiting for workflow to complete (with timeout)...")
     run_full_workflow_and_wait(window, qtbot, output_dir, expected_dirs, report_pdf)
@@ -1966,9 +1968,9 @@ def test_full_user_workflow_end_to_end(
     )
     dump_console_output("----- BEGIN FULL CONSOLE OUTPUT -----", final_console_text)
 
-    print("\n[STEP 10] Progress bar state...")
-    final_progress = window.progress.value()
-    print(f"Progress: {initial_progress} → {final_progress}")
+    print("\n[STEP 10] Workflow stage state...")
+    final_statuses = window.workflow_progress.statuses()
+    print(f"Stages: {initial_statuses} → {final_statuses}")
 
     print("\n[STEP 11] Final assertions...")
     assert window.file_path == str(csv_path)
@@ -2315,17 +2317,17 @@ def test_aqme_atom_selection_generates_mapped_smiles(
         assert s is None or ":" in s, "Expected atom mapping numbers in mapped SMILES"
 
 
-def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot, monkeypatch):
+def test_checkml_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot, monkeypatch):
     """
-    Same scenario as test_EVALUATE_custom_sklearn_model_and_user_split (test_6evaluate.py) but
-    driven through the EVALUATE tab like a real user: loads the CSV (with its own 'Set'
+    Same scenario as test_CHECKML_custom_sklearn_model_and_user_split (test_6checkml.py) but
+    driven through the CHECKML tab like a real user: loads the CSV (with its own 'Set'
     column), picks a scikit-learn model in the dropdown, types its hyperparameters in the
-    form fields and clicks "Run EVALUATE", which launches the real ROBERT subprocess.
+    form fields and clicks "Run CHECKML", which launches the real ROBERT subprocess.
     """
     install_message_box_stubs(monkeypatch)
-    tab = easyrob_window.evaluate_tab
+    tab = easyrob_window.checkml_tab
 
-    work_dir = Path(__file__).resolve().parent / "test-easyrob-evaluate-output"
+    work_dir = Path(__file__).resolve().parent / "test-easyrob-checkml-output"
     if work_dir.exists():
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True)
@@ -2334,11 +2336,11 @@ def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot,
         # train + valid rows in one CSV, relabeling the valid rows 'Test' (user-defined split)
         tests_dir = Path(__file__).resolve().parent
         combined = pd.concat(
-            [pd.read_csv(tests_dir / "Evaluate_train.csv"),
-             pd.read_csv(tests_dir / "Evaluate_valid.csv").assign(Set="Test")],
+            [pd.read_csv(tests_dir / "CheckML_train.csv"),
+             pd.read_csv(tests_dir / "CheckML_valid.csv").assign(Set="Test")],
             ignore_index=True,
         )
-        csv_path = work_dir / "evaluate_combined.csv"
+        csv_path = work_dir / "checkml_combined.csv"
         combined.to_csv(csv_path, index=False)
 
         # what a user does: load the CSV, pick y/names, pick the model source, model and
@@ -2355,7 +2357,7 @@ def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot,
         assert not tab.run_button.isEnabled()
         qtbot.waitUntil(lambda: tab.run_button.isEnabled(), timeout=int(WORKFLOW_MAX_WAIT_S * 1000))
         console_text = tab.console_output.toPlainText()
-        assert "EVALUATE finished successfully" in console_text, console_text
+        assert "CHECKML finished successfully" in console_text, console_text
 
         # the model picked in the GUI (not the default MVL) with the typed hyperparameters
         params_csv = work_dir / "GENERATE" / "Best_model" / "No_PFI" / "Ridge.csv"
@@ -2374,10 +2376,10 @@ def test_evaluate_tab_custom_sklearn_model_and_user_split(easyrob_window, qtbot,
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def test_evaluate_success_message_points_to_results_tab(easyrob_window, monkeypatch, tmp_path):
+def test_checkml_success_message_points_to_results_tab(easyrob_window, monkeypatch, tmp_path):
     """A completed evaluation directs users to the current results workspace."""
     calls = install_message_box_stubs(monkeypatch)
-    tab = easyrob_window.evaluate_tab
+    tab = easyrob_window.checkml_tab
     tab.csv_path = str(tmp_path / "input.csv")
     (tmp_path / "ROBERT_report_No_PFI.pdf").touch()
     monkeypatch.setattr(tab, "_refresh_sibling_tabs", lambda: None)
@@ -2388,21 +2390,21 @@ def test_evaluate_success_message_points_to_results_tab(easyrob_window, monkeypa
     assert "Results" in calls["info"][0][1]
 
 
-def test_evaluate_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monkeypatch):
+def test_checkml_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monkeypatch):
     """
-    EVALUATE tab: text columns (i.e. SMILES) start checked in the ignore list and are sent through
+    CHECKML tab: text columns (i.e. SMILES) start checked in the ignore list and are sent through
     --ignore, and a CSV whose name has spaces is refused with a warning as soon as it is loaded.
     """
     calls = install_message_box_stubs(monkeypatch)
-    tab = easyrob_window.evaluate_tab
+    tab = easyrob_window.checkml_tab
 
-    work_dir = Path(__file__).resolve().parent / "test-easyrob-evaluate-ignore"
+    work_dir = Path(__file__).resolve().parent / "test-easyrob-checkml-ignore"
     if work_dir.exists():
         shutil.rmtree(work_dir)
     work_dir.mkdir(parents=True)
 
     try:
-        df = pd.read_csv(Path(__file__).resolve().parent / "Evaluate_train.csv")
+        df = pd.read_csv(Path(__file__).resolve().parent / "CheckML_train.csv")
         df["smiles"] = ["C"] * len(df)
         good_csv = work_dir / "with_smiles.csv"
         df.to_csv(good_csv, index=False)
@@ -2413,7 +2415,7 @@ def test_evaluate_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monk
         tab.set_csv_path(str(bad_csv))
         assert tab.csv_path is None
         assert any("contains spaces" in text for _, text in calls["info"])
-        tab.run_evaluate()
+        tab.run_checkml()
         assert tab.worker is None
 
         # normal CSV: the text column is pre-checked in the ignore list and goes into --ignore
@@ -2445,3 +2447,81 @@ def test_main_window_rejects_csv_names_with_spaces(easyrob_window, monkeypatch):
     window.set_csv_test_path("some folder/my test data.csv")
     assert not window.csv_test_path
     assert any("contains spaces" in text and "external test CSV" in text for _, text in calls["info"])
+
+
+def test_full_workflow_advances_only_on_completion_markers():
+    progress = WorkflowProgress("Full Workflow")
+
+    assert progress.statuses() == ("active", "pending", "pending", "pending", "pending")
+    progress.observe("o  Starting data curation with the CURATE module")
+    assert progress.statuses() == ("active", "pending", "pending", "pending", "pending")
+
+    for stage, expected in (
+        ("CURATE", ("done", "active", "pending", "pending", "pending")),
+        ("GENERATE", ("done", "done", "active", "pending", "pending")),
+    ):
+        progress.observe(f"Time {stage}: 1.2 seconds")
+        assert progress.statuses() == expected
+
+    progress.observe("Time VERIFY: 1.2 seconds")
+    assert progress.statuses() == ("done", "done", "active", "pending", "pending")
+    progress.observe("o  Representation of predictions and analysis of ML models with the PREDICT module")
+    assert progress.statuses() == ("done", "done", "done", "active", "pending")
+
+    progress.observe("Time PREDICT: 1.2 seconds")
+    assert progress.statuses() == ("done", "done", "done", "active", "pending")
+    progress.observe("o  Starting REPORT module")
+    assert progress.statuses() == ("done", "done", "done", "done", "active")
+    progress.observe("o  ROBERT_report_No_PFI.pdf was created successfully")
+    assert progress.statuses()[-1] == "active"
+    progress.finish(0, report_created=True)
+    assert progress.statuses() == ("done",) * 5
+
+
+def test_standalone_stage_does_not_claim_other_stages():
+    progress = WorkflowProgress("VERIFY")
+    assert progress.statuses() == ("inactive", "inactive", "active", "inactive", "inactive")
+    progress.observe("Time VERIFY: 2 seconds")
+    assert progress.statuses() == ("inactive", "inactive", "active", "inactive", "inactive")
+    progress.finish(0)
+    assert progress.statuses() == ("inactive", "inactive", "done", "inactive", "inactive")
+
+
+def test_failure_keeps_completed_stages_and_marks_current_stage():
+    progress = WorkflowProgress("Full Workflow")
+    progress.observe("Time CURATE: 1 seconds")
+    progress.finish(1)
+    assert progress.statuses() == ("done", "failed", "pending", "pending", "pending")
+
+
+def test_report_requires_success_and_created_pdf():
+    progress = WorkflowProgress("REPORT")
+    progress.finish(0, report_created=False)
+    assert progress.statuses() == ("inactive", "inactive", "inactive", "inactive", "failed")
+
+
+def test_live_log_expands_inside_robert_tab_without_resizing_window(
+    easyrob_window, qapp,
+):
+    window = easyrob_window
+    window.resize(1100, 900)
+    window.show()
+    qapp.processEvents()
+    scroll_area = window.tab_widget.widget(0)
+    minimum_height = window.minimumSizeHint().height()
+    window_height = window.height()
+    closed_scroll_extent = scroll_area.verticalScrollBar().maximum()
+
+    window.live_log_toggle.setChecked(True)
+    qapp.processEvents()
+    assert window.console_output.isVisible()
+    assert scroll_area.widget().isAncestorOf(window.console_output)
+    assert window.minimumSizeHint().height() == minimum_height
+    assert window.height() == window_height
+    assert scroll_area.verticalScrollBar().maximum() > closed_scroll_extent
+
+    window.live_log_toggle.setChecked(False)
+    qapp.processEvents()
+    assert not window.console_output.isVisible()
+    assert window.minimumSizeHint().height() == minimum_height
+    assert scroll_area.verticalScrollBar().maximum() == closed_scroll_extent

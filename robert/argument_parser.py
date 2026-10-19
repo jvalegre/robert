@@ -16,7 +16,7 @@ var_dict = {
     "aqme": False,
     "report": False,
     "cheers": False,
-    "evaluate": False,
+    "checkml": False,
     "seed": 0,
     "destination": None,
     "csv_name" : '',

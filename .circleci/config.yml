@@ -258,7 +258,7 @@ jobs:
                 CORE_TESTS="tests/test_5aqme_n_full.py"
                 ;;
               2)
-                CORE_TESTS="tests/test_6evaluate.py"
+                CORE_TESTS="tests/test_6checkml.py"
                 ;;
               *)
                 CORE_TESTS=""

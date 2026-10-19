@@ -55,7 +55,7 @@ _TUTORIAL_TAB_HINTS = (
     ("MolSSI Databases", ("molssi databases", "descriptor libraries", "molssi")),
     ("Advanced Options", ("advanced options", "general", "curate", "generate", "predict settings")),
     ("Results", ("results tab", "results view", "result views")),
-    ("Check model", ("check model tab", "evaluate tab", "evaluate my model")),
+    ("CheckML", ("check model tab", "checkml tab", "evaluate my model")),
     ("Predictions", ("predictions tab", "prediction results", "predict workflow", "external test")),
     ("Images", ("images tab", "generated figures", "browse these figures")),
     ("Reports", ("reports tab", "pdf report", "report summarizes")),
@@ -64,7 +64,7 @@ _TUTORIAL_TAB_HINTS = (
 )
 _AQME_MODULES = {"AQME", "QDESCP", "CSEARCH", "CMIN", "QCORR", "QPREP"}
 _ROBERT_ML_MODULES = {"ROBERT", "CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "FULL_WORKFLOW"}
-_UI_TAB_NAMES = {"ROBERT", "AQME", "Advanced Options", "Results", "Reports", "Predictions", "Images", "MolSSI Databases", "Check model"}
+_UI_TAB_NAMES = {"ROBERT", "AQME", "Advanced Options", "Results", "Reports", "Predictions", "Images", "MolSSI Databases", "CheckML"}
 _LOW_SIGNAL_TITLES = {"overview", "developement", "reference", "module", "main"}
 _STOP_WORDS = {
     "a", "about", "an", "and", "are", "do", "does", "for", "how", "i", "in",

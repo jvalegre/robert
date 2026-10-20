@@ -60,12 +60,11 @@ import os
 import sys
 import shutil
 import time
-import json
-import ast
 import pandas as pd
 from pathlib import Path
 from robert.utils import (load_variables, finish_print, load_database, prepare_sets,
-    check_clas_problem, resolve_sklearn_estimator, model_adjust_params, _csv_row_numbers_txt)
+    check_clas_problem, resolve_sklearn_estimator, model_adjust_params, _csv_row_numbers_txt,
+    serialize_model_params, parse_param_value)
 from robert.generate_utils import set_sets
 
 
@@ -124,6 +123,8 @@ class checkml:
         # check_clas_problem() converts csv_df's y column to integer class codes in place;
         # csv_y was captured before that conversion, so it needs refreshing to stay in sync
         csv_y = csv_df[self.args.y]
+        # class codes the model is trained on (used to translate/check class_weight keys)
+        self.class_values = sorted(csv_y.unique().tolist()) if self.args.type.lower() == 'clas' else []
 
         # resolve which model to evaluate (an already-fitted object/file, a CSV of
         # hyperparameters, or the legacy 'MVL' default) and validate it against --type
@@ -169,10 +170,13 @@ class checkml:
         returns the resolved hyperparameters dict.
         '''
 
+        # deep=False: only the estimator's own constructor arguments - the default deep=True
+        # also returns nested keys (i.e. 'kernel__k1' of a GP kernel or 'estimator__max_depth'
+        # of a Bagging/AdaBoost base estimator), which the constructor doesn't accept
         if self.args.model_obj is not None:
             model_obj = self.args.model_obj
             model_name = type(model_obj).__name__
-            params = model_obj.get_params()
+            params = model_obj.get_params(deep=False)
             self.args.log.write(f"\no  Using the model object passed directly (model_obj): {model_name}")
 
         elif self.args.model_file:
@@ -182,7 +186,7 @@ class checkml:
                 sys.exit()
             model_obj = joblib.load(self.args.model_file)
             model_name = type(model_obj).__name__
-            params = model_obj.get_params()
+            params = model_obj.get_params(deep=False)
             self.args.log.write(f"\no  Loaded a pre-fitted model from {self.args.model_file}: {model_name}")
 
         elif self.args.model_params:
@@ -193,19 +197,18 @@ class checkml:
             if not {'param','value'}.issubset(params_df.columns):
                 self.args.log.write(f"\nx  WARNING! The model_params CSV must have 'param' and 'value' columns!")
                 sys.exit()
-            rows = dict(zip(params_df['param'], params_df['value']))
+            # stray spaces around names (i.e. " max_depth") would otherwise make the
+            # constructor reject the hyperparameter
+            rows = {str(param).strip(): value for param, value in zip(params_df['param'], params_df['value'])
+                    if not pd.isna(param) and str(param).strip() != ''}
             if 'model' not in rows:
                 self.args.log.write(f"\nx  WARNING! The model_params CSV must include a row with param='model' naming the scikit-learn class to use (e.g. value='RandomForestRegressor')!")
                 sys.exit()
-            model_name = str(rows.pop('model'))
+            model_name = str(rows.pop('model')).strip()
             # values come from a CSV as plain text - recover their real type (int/float/bool/
-            # None/list) where possible, otherwise keep the literal string (e.g. solver names)
-            params = {}
-            for param, value in rows.items():
-                try:
-                    params[param] = ast.literal_eval(str(value))
-                except (ValueError, SyntaxError):
-                    params[param] = value
+            # None/list/dict) where possible, otherwise keep the literal string (e.g. solver
+            # names). Empty cells/none/null -> None and TRUE/FALSE (Excel) -> bool
+            params = {param: parse_param_value(value) for param, value in rows.items()}
             self.args.log.write(f"\no  Using the model and hyperparameters from {self.args.model_params}: {model_name}")
 
         else:
@@ -231,7 +234,65 @@ class checkml:
         # already set their own - an explicit value is respected as-is (see model_adjust_params())
         params = model_adjust_params(self, model_name, params)
 
+        if model_name != 'MVL':
+            params = self.adjust_class_weight(params)
+            self.validate_params(model_name, params)
+
         return params
+
+    def adjust_class_weight(self,params):
+        '''
+        ROBERT trains classifiers on integer class codes. A class_weight dict typed with the
+        original labels (i.e. {'active': 3, 'inactive': 1}, when the y column has text labels
+        that check_clas_problem() converted to 0/1) is translated to those codes, and keys that
+        match no class stop the run with a clear message instead of scikit-learn's
+        "The classes, [0, 1], are not in class_weight" in the middle of VERIFY.
+        '''
+
+        class_weight = params.get('class_weight')
+        if self.args.type.lower() != 'clas' or not isinstance(class_weight, dict):
+            return params
+
+        mapping = getattr(self.args, 'class_mapping', None) or {}
+        mapping_txt = {str(label): code for label, code in mapping.items()}
+        codes_txt = {str(code): code for code in self.class_values}
+        translated = {}
+        for key, weight in class_weight.items():
+            if key in self.class_values:
+                translated[key] = weight
+            elif key in mapping:
+                translated[mapping[key]] = weight
+            elif str(key) in mapping_txt:
+                translated[mapping_txt[str(key)]] = weight
+            elif str(key) in codes_txt:
+                translated[codes_txt[str(key)]] = weight
+            else:
+                valid = list(mapping) if mapping else self.class_values
+                self.args.log.write(f"\nx  WARNING! The class_weight key {key!r} doesn't match any class of the y column (classes: {valid})! Use the class values of the y column as keys (i.e. class_weight={{{valid[0]!r}: 1, {valid[-1]!r}: 2}}) or class_weight='balanced'.")
+                self.args.log.finalize()
+                sys.exit()
+        if mapping and translated != class_weight:
+            self.args.log.write(f"\no  class_weight keys converted to the class codes used by ROBERT: {class_weight} -> {translated}")
+        params['class_weight'] = translated
+        return params
+
+    def validate_params(self,model_name,params):
+        '''
+        Check the hyperparameters with scikit-learn's own validation before running anything, so
+        a typo (i.e. criterion='ginni' or an unknown parameter name) gives a clear message here
+        instead of a traceback in the middle of VERIFY.
+        '''
+
+        model_cls = resolve_sklearn_estimator(model_name, self.args.type)
+        try:
+            estimator = model_cls(**params)
+            # sklearn >= 1.2 (constraint-based validation, otherwise only checked during fit())
+            if hasattr(estimator, '_validate_params'):
+                estimator._validate_params()
+        except (TypeError, ValueError) as error:
+            self.args.log.write(f"\nx  WARNING! Invalid hyperparameters for {model_name}: {error}")
+            self.args.log.finalize()
+            sys.exit()
 
     def get_user_defined_test_points(self,csv_df):
         '''
@@ -279,7 +340,10 @@ class checkml:
         df_params['y'] = [self.args.y]
         df_params['names'] = [self.args.names]
         df_params['error_type'] = [self.args.error_type]
-        df_params['params'] = json.dumps(self.model_params_dict, default=str)
+        # serialize_model_params() keeps objects (i.e. GP kernels, base estimators), tuples and
+        # dicts with numeric keys (i.e. class_weight) exactly as they are - plain JSON would turn
+        # them into text that VERIFY/PREDICT can't use to rebuild the model
+        df_params['params'] = serialize_model_params(self.model_params_dict)
         df_params['X_descriptors'] = [list(Xy_data['X_descriptors'])]
 
         _ = df_params.to_csv(f'{generate_folder}/{self.args.eval_model}.csv', index = None, header=True)

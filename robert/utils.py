@@ -4471,11 +4471,136 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results,show_titl
     return print_ver
 
 
+_PICKLED_PARAM_KEY = '__robert_pickled_param__'
+
+
+def _is_json_native(value):
+    '''
+    True if JSON stores the value exactly as it is (str/int/float/bool/None, and lists or
+    str-keyed dicts of those). Tuples, dicts with non-string keys (i.e. class_weight={0: 1, 1: 3})
+    and objects (kernels, base estimators) don't survive a JSON round trip unchanged.
+    '''
+
+    if value is None or type(value) in (str, int, float, bool):
+        return True
+    if type(value) is list:
+        return all(_is_json_native(val) for val in value)
+    if type(value) is dict:
+        return all(type(key) is str for key in value) and all(_is_json_native(val) for val in value.values())
+    return False
+
+
+def _to_builtin(value):
+    '''
+    numpy scalars/arrays (common in hyperparameters from grid searches or optuna) to plain
+    Python types - otherwise json.dumps(default=str) saves i.e. np.int64(3) as the text '3',
+    which scikit-learn then rejects (max_depth must be an int, got '3')
+    '''
+
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
+
+def serialize_model_params(params):
+    '''
+    Text version of a model's hyperparameters, saved in the GENERATE CSV and read back by
+    VERIFY/PREDICT/REPORT (see deserialize_model_params()). Values JSON can't store exactly
+    (objects such as GP kernels or base estimators, tuples, dicts with numeric keys such as
+    class_weight) are pickled and base64-encoded so they come back exactly as they were.
+    '''
+
+    import base64
+    import pickle
+
+    serializable = {}
+    for param, value in params.items():
+        value = _to_builtin(value)
+        if _is_json_native(value):
+            serializable[param] = value
+        else:
+            serializable[param] = {_PICKLED_PARAM_KEY: base64.b64encode(pickle.dumps(value)).decode('ascii')}
+    return json.dumps(serializable)
+
+
+def _restore_numeric_keys(value):
+    '''
+    Params saved before serialize_model_params() existed stored dict keys as text (JSON), so
+    class_weight={0: 1, 1: 3} came back as {"0": 1, "1": 3} and scikit-learn failed with
+    "The classes, [0, 1], are not in class_weight". Numeric-looking keys are converted back
+    to int/float, and any other key (i.e. a class name) is kept as it is.
+    '''
+
+    if not isinstance(value, dict):
+        return value
+    restored = {}
+    for key, val in value.items():
+        if isinstance(key, str):
+            for cast in (int, float):
+                try:
+                    key = cast(key)
+                    break
+                except ValueError:
+                    pass
+        restored[key] = val
+    return restored
+
+
+def deserialize_model_params(params):
+    '''
+    Inverse of serialize_model_params(): accepts the saved text (JSON, or the older
+    Python-literal format) or an already-parsed dict, and returns the hyperparameters with
+    their original Python types.
+    '''
+
+    import base64
+    import pickle
+
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except (json.JSONDecodeError, TypeError):
+            params = ast.literal_eval(params)
+    if not isinstance(params, dict):
+        return params
+
+    restored = {}
+    for param, value in params.items():
+        if isinstance(value, dict) and set(value) == {_PICKLED_PARAM_KEY}:
+            restored[param] = pickle.loads(base64.b64decode(value[_PICKLED_PARAM_KEY]))
+        else:
+            restored[param] = _restore_numeric_keys(value)
+    return restored
+
+
+def parse_param_value(value):
+    '''
+    Recover the Python type of a hyperparameter typed in a CSV (CHECKML's --model_params):
+    numbers, lists, tuples, dicts and quoted strings via ast.literal_eval, plus the spellings
+    literal_eval doesn't understand - empty cells and none/null -> None, true/false in any case
+    (Excel writes TRUE/FALSE) -> bool. Anything else is kept as a plain string (i.e. 'gini').
+    '''
+
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    text = str(value).strip()
+    if text.lower() in ('', 'none', 'null', 'nan'):
+        return None
+    if text.lower() in ('true', 'false'):
+        return text.lower() == 'true'
+    try:
+        return ast.literal_eval(text)
+    except (ValueError, SyntaxError):
+        return text
+
+
 def dict_formating(dict_csv):
     '''
     Adapt format of dictionaries that come from dataframes loaded from CSV
     '''
-    
+
     import json
 
     if 'X_descriptors' in dict_csv:
@@ -4484,13 +4609,9 @@ def dict_formating(dict_csv):
             dict_csv['X_descriptors'] = json.loads(dict_csv['X_descriptors'])
         except (json.JSONDecodeError, TypeError):
             dict_csv['X_descriptors'] = ast.literal_eval(dict_csv['X_descriptors'])
-            
+
     if 'params' in dict_csv:
-        # Try JSON first (new format), fall back to ast.literal_eval (old format)
-        try:
-            dict_csv['params'] = json.loads(dict_csv['params'])
-        except (json.JSONDecodeError, TypeError):
-            dict_csv['params'] = ast.literal_eval(dict_csv['params'])
+        dict_csv['params'] = deserialize_model_params(dict_csv['params'])
 
     if 'class_mapping_reverse' in dict_csv:
         dict_csv['class_mapping_reverse'] = _parse_class_mapping_reverse(

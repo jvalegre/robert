@@ -648,3 +648,44 @@ def test_CHECKML_row_and_column_order_do_not_change_results():
     assert original["predict"] and original["predict"] == reordered["predict"]
     pd.testing.assert_frame_equal(original["predictions"][sorted(original["predictions"].columns)],
                                   reordered["predictions"][sorted(reordered["predictions"].columns)])
+
+
+# ---------------------------------------------------------------------------------------------
+# VERIFY onehot test with binary descriptors
+# ---------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("with_binary_descriptor", [True, False])
+def test_CHECKML_onehot_test_disabled_with_binary_descriptors(with_binary_descriptor):
+    """
+    Binarizing can't remove information from a descriptor that only has 2 values, so with one
+    such column the onehot "flawed model" keeps that information and can predict as well as the
+    original model - the test would fail without the model being flawed. It is disabled (N/A,
+    like the cluster test in classification) as soon as one descriptor has only 2 values, and
+    REPORT must score the remaining tests without crashing on the N/A line
+    """
+    _clean_checkml_run()
+    df = pd.read_csv("tests/Robert_example.csv")[["Name", "Target_values", "x2", "x5", "x6"]].drop_duplicates("Name")
+    if with_binary_descriptor:
+        df["flag"] = (df["x2"] > df["x2"].median()).astype(int)
+    df.to_csv("onehot_check.csv", index=False)
+    try:
+        checkml(y="Target_values", names="Name", csv_name="onehot_check.csv")
+        verify(ignore=["Set"])
+        predict(ignore=["Set"])
+        report(ignore=["Set"], debug_report=True)
+
+        with open(os.path.join(path_main, "VERIFY", "VERIFY_data.dat"), encoding="utf-8") as verify_file:
+            onehot_line = next(line for line in verify_file if "onehot:" in line)
+        if with_binary_descriptor:
+            assert "onehot: N/A, descriptor(s) with only 2 values (flag)" in onehot_line
+        else:
+            assert "N/A" not in onehot_line and "% difference." in onehot_line
+
+        # REPORT reads the flawed-model tests (skipping the N/A line) and finishes the PDF
+        assert os.path.exists(os.path.join(path_main, "ROBERT_report_No_PFI.pdf"))
+        with open(os.path.join(path_main, "report_debug_No_PFI.txt"), encoding="utf-8") as debug_file:
+            assert '1. Model vs "flawed" models' in debug_file.read()
+    finally:
+        if os.path.exists("onehot_check.csv"):
+            os.remove("onehot_check.csv")
+        _clean_checkml_run()

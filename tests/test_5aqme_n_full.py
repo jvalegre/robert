@@ -755,3 +755,62 @@ def test_REPORT_pfi_filter_false_does_not_crash():
     finally:
         os.chdir(path_main)
         shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def _workflow_fingerprint(path_main):
+    """Everything a full ROBERT run produces that must not depend on the row/column order of the CSV"""
+    result = {}
+    for folder in ["No_PFI", "PFI"]:
+        best = os.path.join(path_main, "GENERATE", "Best_model", folder)
+        params_csv = [f for f in glob.glob(os.path.join(best, "*.csv")) if not f.endswith("_db.csv")][0]
+        params = pd.read_csv(params_csv).iloc[0]
+        db = pd.read_csv(glob.glob(os.path.join(best, "*_db.csv"))[0])
+        result[f"{folder}_model"] = (params["model"], params["params"], params["X_descriptors"])
+        result[f"{folder}_sets"] = dict(zip(db["Name"].astype(str), db["Set"]))
+    for module, tags in [("GENERATE", ["combined", "RMSE"]),
+                         ("VERIFY", ["y_mean", "y_shuffle", "onehot", "cluster", "Sorted"]),
+                         ("PREDICT", ["10x 5-fold CV :", "Test :", "Sorted CV extremes", "Applicability domain",
+                                      "Spearman rank", "Degradation baseline"])]:
+        with open(os.path.join(path_main, module, f"{module}_data.dat"), encoding="utf-8") as dat_file:
+            result[module] = [line.strip() for line in dat_file if any(tag in line for tag in tags)
+                              and "Time" not in line and "Command line" not in line]
+    for suffix in ["No_PFI", "PFI"]:
+        with open(os.path.join(path_main, f"report_debug_{suffix}.txt"), encoding="utf-8") as debug_file:
+            result[f"scores_{suffix}"] = re.findall(r"(report/score_(?:w_)?[\d_]+\.jpg|\(-?[\d.]+ / \d)", debug_file.read())
+    return result
+
+
+def test_full_workflow_row_and_column_order_do_not_change_results():
+    """
+    The same database with its rows and columns shuffled must give exactly the same results
+    through the whole workflow (CURATE -> GENERATE -> VERIFY -> PREDICT -> REPORT): ROBERT sorts
+    rows by the names column and descriptors alphabetically when loading a database, so CV folds,
+    train/test splits, hyperparameter search and scores can't depend on the order of the CSV.
+    Robert_example.csv includes a categorical descriptor (x4), so CURATE's one-hot encoding is
+    covered too
+    """
+    original = pd.read_csv(test_data / "Robert_example.csv")
+    shuffled = original.sample(frac=1, random_state=7)
+    columns = list(shuffled.columns)
+    shuffled = shuffled[columns[::-1]]
+    assert list(shuffled["Name"]) != list(original["Name"]) and list(shuffled.columns) != list(original.columns)
+
+    fingerprints = []
+    for df in [original, shuffled]:
+        with aqme_test_workspace() as workspace:
+            df.to_csv(workspace / "order_check.csv", index=False)
+            cmd_robert = [sys.executable, "-m", "robert", "--csv_name", "order_check.csv", "--y", "Target_values",
+                          "--names", "Name", "--discard", "['xtest']", "--model", "['RF']", "--init_points", "1",
+                          "--n_iter", "1", "--pfi_epochs", "1", "--debug_report", "True", "--all_models", "False"]
+            subprocess_environment = os.environ.copy()
+            subprocess_environment["PYTHONPATH"] = os.pathsep.join(
+                filter(None, [str(repository_root), subprocess_environment.get("PYTHONPATH", "")]))
+            subprocess.run(cmd_robert, cwd=workspace, env=subprocess_environment, check=True)
+            fingerprints.append(_workflow_fingerprint(str(workspace)))
+
+    first, second = fingerprints
+    assert first.keys() == second.keys()
+    for key in first:
+        assert first[key], f"nothing found for {key}"
+        assert first[key] == second[key], f"{key} changes with the row/column order of the CSV"
+

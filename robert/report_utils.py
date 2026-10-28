@@ -1092,6 +1092,10 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                 failed_threshold = int(line.split('threshold')[0].split()[-3].replace('%',''))
                 unclear_threshold = int(line.split('threshold')[0].split()[-1].replace('%',''))
                 for j in range(i+1,i+5): # y-mean, y-shuffle, onehot and cluster tests
+                    # tests that don't apply (onehot with binary descriptors, cluster in
+                    # classification) are logged as N/A without a % difference and aren't scored
+                    if ': N/A' in dat_verify[j]:
+                        continue
                     error_difference = float(dat_verify[j].split(f'% difference.')[0].split()[-1])
                     threshold_gap = unclear_threshold - failed_threshold
                     zero_penalty_threshold = unclear_threshold + threshold_gap

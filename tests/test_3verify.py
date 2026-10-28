@@ -131,9 +131,14 @@ def test_VERIFY(test_job):
                     assert 0 < original_rmse < 1
                     assert math.isclose(lower_threshold, original_rmse * 1.15, abs_tol=0.02)
                     assert math.isclose(upper_threshold, original_rmse * 1.30, abs_tol=0.02)
-                    for offset, label in enumerate(
-                        ("y_mean", "y_shuffle", "onehot", "cluster"), start=2
-                    ):
+                    # the one-hot encoded categorical descriptors from CURATE (Csub-H, Csub-Csub)
+                    # only have 2 values, so the onehot test is disabled (N/A) - binarizing can't
+                    # remove information from them (see onehot_test() in verify.py)
+                    assert (
+                        "- onehot: N/A, descriptor(s) with only 2 values (Csub-H, Csub-Csub)"
+                        in outlines[i + 4]
+                    )
+                    for offset, label in zip((2, 3, 5), ("y_mean", "y_shuffle", "cluster")):
                         line = outlines[i + offset]
                         assert f"{label}: PASSED, RMSE = " in line
                         flawed_rmse = re.search(r"RMSE = ([0-9.]+)", line)

@@ -2816,14 +2816,36 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
         y_bottom,y_pred_bottom,y_high,y_pred_high,'Bottom 80%','Top 20%')
     _boundary_scatter(self,model_data,path_n_suffix,'low_',
         y_top,y_pred_top,y_low,y_pred_low,'Top 80%','Bottom 20%')
+    
+    # calculate SD
+    sd_high = np.std(y_high)
+    sd_pred_high = np.std(y_pred_high)
+    spread_ratio_high = sd_pred_high/sd_high
+    sd_low = np.std(y_low)
+    sd_pred_low = np.std(y_pred_low)
+    spread_ratio_low = sd_pred_low/sd_low
+    
+    # calculate ranges y
+    range_high = max(y_high) - min(y_high)
+    range_pred_high = max(y_pred_high) - min(y_pred_high)
+    range_ratio_high = range_pred_high/range_high
+    range_low = max(y_low) - min(y_low)
+    range_pred_low = max(y_pred_low) - min(y_pred_low)
+    range_ratio_low = range_pred_low/range_low
 
-    self.args.log.write(f"      -  Sorted CV extremes (repeated) : RMSE Low = {rmse_low:.2}, RMSE High = {rmse_high:.2}")
-    self.args.log.write(f"      -  Real range extension (Low/High) : Low crossing = {crossing_low:.2}, High crossing = {crossing_high:.2}")
-    self.args.log.write(f"      -  Degradation baseline (remaining 80%) : vs Low (top 80%) RMSE = {rmse_top80:.2}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2}")
-    self.args.log.write(f"      -  Spearman rank (Low/High) : Low (internal) = {spearman_low:.2}, High (internal) = {spearman_high:.2}, global = {spearman_global:.2}")
-    self.args.log.write(f"      -  Uncertainty coverage (+/-2SD band) : {coverage:.2}")
-    self.args.log.write(f"      -  Uncertainty RMSE ratio (high-SD/low-SD) : {sd_rmse_ratio:.3}")
-
+    # print results
+    high_low_text = ''
+    high_low_text += f"      -  Sorted CV extremes (repeated) : RMSE Low = {rmse_low:.2f}, RMSE High = {rmse_high:.2f}\n"
+    high_low_text += f"      -  Real range extension (Low/High) : Low crossing = {crossing_low:.2f}, High crossing = {crossing_high:.2f}\n"
+    high_low_text += f"      -  Degradation baseline (remaining 80%) : vs Low (top 80%) RMSE = {rmse_top80:.2f}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2f}\n"
+    high_low_text += f"      -  y SD at high extreme : Measured = {sd_high:.2f}; Predicted = {sd_pred_high:.2f}. Spread ratio = {spread_ratio_high:.2f}\n"
+    high_low_text += f"      -  y SD at low extreme : Measured = {sd_low:.2f}; Predicted = {sd_pred_low:.2f}. Spread ratio = {spread_ratio_low:.2f}\n"
+    high_low_text += f"      -  y range at high extreme : Measured = {range_high:.2f}; Predicted = {range_pred_high:.2f}. Range ratio = {range_ratio_high:.2f}\n"
+    high_low_text += f"      -  y range at low extreme : Measured = {range_low:.2f}; Predicted = {range_pred_low:.2f}. Range ratio = {range_ratio_low:.2f}\n"
+    high_low_text += f"      -  Spearman rank (Low/High) : Low (internal) = {spearman_low:.2f}, High (internal) = {spearman_high:.2f}, global = {spearman_global:.2f}\n"
+    high_low_text += f"      -  Uncertainty coverage (+/-2SD band) : {coverage:.2f}\n"
+    high_low_text += f"      -  Uncertainty RMSE ratio (high-SD/low-SD) : {sd_rmse_ratio:.3f}\n"
+    self.args.log.write(high_low_text)
 
 def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
     '''

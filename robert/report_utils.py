@@ -674,11 +674,18 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
         rmse_cv_pct = data_score.get(f'rmse_cv_pct_{suffix}',0)
 
         cv_sd_result = (
-            f'(a) Test SD, 4*SD = {cv_4sd} ({y_range_covered}% y-range).'
-            f'<br>{spacing}(b) CV SD, 4*SD = {cv_4sd_train} ({y_range_covered_train}% y-range).'
-            f'<br>{spacing}(c) RMSE coef. of variation = {rmse_cv_pct}%.'
+            f'(a) Test SD, 4*SD = {cv_4sd} ({y_range_covered}% y-range)'
+            f'<br>{spacing}(b) CV SD, 4*SD = {cv_4sd_train} ({y_range_covered_train}% y-range)'
+            f'<br>{spacing}(c) RMSE coef. of variation = {rmse_cv_pct}%'
+            f'<br>{spacing} Normalized RMSE ratio = {data_score[f"absol_rmse_50_ratio_{suffix}"]}'
+            f'<br>{spacing} Normalized R<sup>2</sup> ratio = {data_score[f"absol_r2_50_ratio_{suffix}"]}'
+        )            
+
+        thres_line = (
+            f'(a)/(b) 4*SD ≤25%/≤50%. (c) ≤15%/≤25%. Avg. rounded'
+            f'<br>{spacing}Diff. top/down 50% ratio:'
+            f'<br>{spacing}R<sup>2</sup> or RMSE ratio ≥ 1.75: -2, ratio ≥ 1.5: -1'
         )
-        thres_line = '(a)/(b) 4*SD ≤25%/≤50%. (c) ≤15%/≤25%. Avg., rounded.'
     else:
         disagree_a = data_score.get(f'clas_disagree_a_{suffix}',0)
         disagree_b = data_score.get(f'clas_disagree_b_{suffix}',0)
@@ -689,7 +696,7 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
             f'<br>{spacing}(b) CV disagreement (10 repeats) = {disagree_b}%.'
             f'<br>{spacing}(c) MCC coef. of variation = {mcc_cv_pct}%.'
         )
-        thres_line = '(a)/(b)/(c) ≤15%/≤25%. Avg., rounded.'
+        thres_line = '(a)/(b)/(c) ≤15%/≤25%. Avg. rounded'
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">6. Prediction stability</span> &nbsp;({score_label} &nbsp;<img src="file:///{cv_r2_image}" alt="CheckML Score" style="width: 13%">)</p>
@@ -796,11 +803,15 @@ def adv_spearman(self,suffix,data_score,spacing):
     if spearman_low is None or spearman_high is None:
         spearman_result = 'Not available.'
     else:
-        spearman_result = f'Spearman rank : Low = {spearman_low}, High = {spearman_high}.'
+        spearman_result = (
+            f'Spearman rank: Low = {spearman_low}, High = {spearman_high}.'
+            f'<br>{spacing}SD ratio: Low = {data_score[f"spread_ratio_low_{suffix}"]}, High = {data_score[f"spread_ratio_high_{suffix}"]}.'
+            f'<br>{spacing}Range ratio: Low = {data_score[f"range_ratio_low_{suffix}"]}, High = {data_score[f"range_ratio_high_{suffix}"]}.'
+        )
 
     score_adv_spearman = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Spearman rank</span> &nbsp;({score_label} &nbsp;<img src="file:///{spearman_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_spearman}{spearman_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≥ 0.5: +1. High ≥ 0.5: +1.</p>
+    {score_adv_spearman}{spearman_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≥ 0.5: +1. High ≥ 0.5: +1.<br>{spacing}Spread/range ratio ≤ 0.2: -1, ≥ 0.5: 0</p>
     """
 
     return column
@@ -1053,6 +1064,7 @@ def calc_score(dat_files,suffix,pred_type,data_score):
             + data_score.get(f'diff_mcc_score_{suffix}', 0)
             + data_score.get(f'cv_sd_score_{suffix}', 0)
         )
+        interp_score = convert_2_decimal(interp_score)
         if interp_score < 0:
             interp_score = 0
 
@@ -1065,6 +1077,22 @@ def calc_score(dat_files,suffix,pred_type,data_score):
 
     return data_score
     
+
+def calc_degrad_score(degrad_ratio):
+    '''Score +1 at ratios <= 1.5, decreasing linearly to 0 at 1.75.'''
+    return convert_2_decimal(max(0.0, min(1.0, (1.75 - degrad_ratio) / 0.25)))
+
+
+def calc_spearman_score(spearman_coef):
+    '''Score +1 at coefficients >= 0.5, decreasing linearly to 0 at 0.2.
+    This scale is analogous to MCC, since Spearman coefficients go from +1 to -1'''
+    return convert_2_decimal(max(0.0, min(1.0, (spearman_coef - 0.2) / 0.3)))
+
+
+def spearman_ratio_penalty(spread_value):
+    '''Score -1 at ratios <= 0.2, increasing linearly to 0 at 0.5.'''
+    return convert_2_decimal(max(-1.0, min(0.0, (spread_value - 0.5) / 0.3))) 
+
 
 def get_verify_scores(dat_verify,suffix,pred_type,data_score):
     """
@@ -1099,7 +1127,10 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                     error_difference = float(dat_verify[j].split(f'% difference.')[0].split()[-1])
                     threshold_gap = unclear_threshold - failed_threshold
                     zero_penalty_threshold = unclear_threshold + threshold_gap
-                    flawed_score += max(-2, min(0, (error_difference - zero_penalty_threshold)/threshold_gap))
+                    # RMSE increases when a VERIFY test degrades, while MCC decreases.
+                    # Convert both to a positive degradation direction before scoring.
+                    degradation_difference = error_difference if pred_type.lower() == 'reg' else -error_difference
+                    flawed_score += max(-2, min(0, (degradation_difference - zero_penalty_threshold)/threshold_gap))
                     flawed_score = convert_2_decimal(flawed_score)
                     if 'FAILED' in dat_verify[j]:
                         failed_tests += 1
@@ -1183,8 +1214,9 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                         if scaled_rmse_bottom80 is not None and scaled_rmse_top80 is not None:
                             data_score[f'degradation_ratio_high_{suffix}'] = safe_ratio(scaled_high,scaled_rmse_bottom80)
                             data_score[f'degradation_ratio_low_{suffix}'] = safe_ratio(scaled_low,scaled_rmse_top80)
-                            data_score[f'degradation_score_{suffix}'] = int(data_score[f'degradation_ratio_low_{suffix}'] <= 1.5) + int(data_score[f'degradation_ratio_high_{suffix}'] <= 1.5)
-
+                            degradation_score_low = calc_degrad_score(data_score[f'degradation_ratio_low_{suffix}'])
+                            degradation_score_high = calc_degrad_score(data_score[f'degradation_ratio_high_{suffix}'])
+                            data_score[f'degradation_score_{suffix}'] = degradation_score_low + degradation_score_high
     # stores data
     data_score[f'flawed_mod_score_{suffix}'] = flawed_score
     data_score[f'failed_tests_{suffix}'] = failed_tests
@@ -1197,6 +1229,12 @@ def score_overfit(factor):
     '''Equation for the score: 0 if factor >= 1.75, +2 if factor <= 1.25, linear in between'''
     diff_score = max(0, min(2, 4*(1.75 - factor)))
     return diff_score
+
+
+def part_50_penalty(factor):
+    '''Equation for the penalty: 0 if factor <= 1.25, -2 if factor >= 1.75, linear in between'''
+    diff_score = max(-2, min(0, 4*(1.25 - factor)))
+    return convert_2_decimal(diff_score)
 
 
 def get_predict_scores(dat_predict,suffix,pred_type,data_score):
@@ -1370,17 +1408,40 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # replaced there by the range-extension crossing rate - see get_verify_scores())
                     spearman_global = 0
                     for j in range(i,i+30):
+                        # calculate spread and range ratio penalties (these penalties tackle models with flat predictions)
+                        if 'y SD at low extreme' in dat_predict[j]:
+                            spread_ratio_low = float(dat_predict[j].split()[-1])
+                            data_score[f'spread_ratio_low_{suffix}'] = spread_ratio_low
+                            spread_penalty_low = spearman_ratio_penalty(spread_ratio_low)
+                        if 'y SD at high extreme' in dat_predict[j]:
+                            spread_ratio_high = float(dat_predict[j].split()[-1])
+                            data_score[f'spread_ratio_high_{suffix}'] = spread_ratio_high
+                            spread_penalty_high = spearman_ratio_penalty(spread_ratio_high)
+                        if 'y range at low extreme' in dat_predict[j]:
+                            range_ratio_low = float(dat_predict[j].split()[-1])
+                            data_score[f'range_ratio_low_{suffix}'] = range_ratio_low
+                            range_penalty_low = spearman_ratio_penalty(range_ratio_low)
+                        if 'y range at high extreme' in dat_predict[j]:
+                            range_ratio_high = float(dat_predict[j].split()[-1])
+                            data_score[f'range_ratio_high_{suffix}'] = range_ratio_high
+                            range_penalty_high = spearman_ratio_penalty(range_ratio_high)
+                        # calculate Spearman coefficient scores
                         if 'Spearman rank (Low/High)' in dat_predict[j]:
-                            spearman_line = dat_predict[j]
-                            spearman_low = float(spearman_line.split('Low (internal) = ')[-1].split(',')[0].strip())
-                            spearman_high = float(spearman_line.split('High (internal) = ')[-1].split(',')[0].strip())
+                            spearman_low = float(dat_predict[j].split('Low (internal) = ')[-1].split(',')[0].strip())
+                            spearman_high = float(dat_predict[j].split('High (internal) = ')[-1].split(',')[0].strip())
                             data_score[f'spearman_low_{suffix}'] = spearman_low
                             data_score[f'spearman_high_{suffix}'] = spearman_high
-                            spearman_global = float(spearman_line.split('global = ')[-1].strip())
+                            spearman_global = float(dat_predict[j].split('global = ')[-1].strip())
                             data_score[f'spearman_global_{suffix}'] = spearman_global
-                            data_score[f'spearman_score_{suffix}'] = int(spearman_low >= 0.5) + int(spearman_high >= 0.5)
+                            spearman_score_low = calc_spearman_score(spearman_low)
+                            spearman_score_high = calc_spearman_score(spearman_high)
+                            # get the most negative penalty between SD and range
+                            spearman_penalty_low = min(spread_penalty_low, range_penalty_low)
+                            spearman_penalty_high = min(spread_penalty_high, range_penalty_high)
+                            final_spearman_low = max(0, min(1, (spearman_score_low + spearman_penalty_low)))
+                            final_spearman_high = max(0, min(1, (spearman_score_high + spearman_penalty_high)))
+                            data_score[f'spearman_score_{suffix}'] = final_spearman_high + final_spearman_low
                             break
-
                     # boundary robustness sub-metric 4 (degradation ratio) is scored in
                     # get_verify_scores() instead of here - degradation_ratio_low/high_{suffix}
                     # are computed from VERIFY's own sorted-CV data, which calc_score() only
@@ -1516,9 +1577,24 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     facet_scores = [data_score.get(f'cv_sd_score_a_{suffix}',0),
                                      data_score.get(f'cv_sd_score_b_{suffix}',0),
                                      cv_sd_score_c]
-                    avg_facet_score = sum(facet_scores)/3
-                    avg_facet_score = convert_2_decimal(avg_facet_score)
-                    data_score[f'cv_sd_score_{suffix}'] = avg_facet_score
+                    avg_sd_score = sum(facet_scores)/3
+                    avg_sd_score = convert_2_decimal(avg_sd_score)
+                    data_score[f'cv_sd_score_{suffix}'] = avg_sd_score + sd_score_penalty
+                
+                # penalty
+                if f'-  Ratio 50% lowest/highest' in line:
+                    rmse_50_ratio = float(line.split()[-1])
+                    absol_rmse_50_diff = np.abs(1-rmse_50_ratio)  
+                    data_score[f'absol_rmse_50_ratio_{suffix}'] = 1+absol_rmse_50_diff               
+                    rmse_50_penalty = part_50_penalty(1+absol_rmse_50_diff)
+                    r2_50_ratio = float(line.split()[-4].split(',')[0])
+                    if r2_50_ratio == 'N/A':
+                        r2_50_ratio = 1
+                    absol_r2_50_diff = np.abs(1-r2_50_ratio)
+                    data_score[f'absol_r2_50_ratio_{suffix}'] = 1+absol_r2_50_diff               
+                    r2_50_penalty = part_50_penalty(1+absol_r2_50_diff)
+                    
+                    sd_score_penalty = min(rmse_50_penalty, r2_50_penalty)
 
             elif pred_type == 'clas':
                 # Interpolation item 6 for classification: same "how much does this depend

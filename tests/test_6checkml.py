@@ -654,19 +654,22 @@ def test_CHECKML_row_and_column_order_do_not_change_results():
 # VERIFY onehot test with binary descriptors
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize("with_binary_descriptor", [True, False])
-def test_CHECKML_onehot_test_disabled_with_binary_descriptors(with_binary_descriptor):
+@pytest.mark.parametrize("extra_descriptor", ["binary", "none", "constant"])
+def test_CHECKML_onehot_test_disabled_with_binary_descriptors(extra_descriptor):
     """
     Binarizing can't remove information from a descriptor that only has 2 values, so with one
     such column the onehot "flawed model" keeps that information and can predict as well as the
     original model - the test would fail without the model being flawed. It is disabled (N/A,
     like the cluster test in classification) as soon as one descriptor has only 2 values, and
-    REPORT must score the remaining tests without crashing on the N/A line
+    REPORT must score the remaining tests without crashing on the N/A line. A constant descriptor
+    (1 value) carries no information, so it must not disable the test
     """
     _clean_checkml_run()
     df = pd.read_csv("tests/Robert_example.csv")[["Name", "Target_values", "x2", "x5", "x6"]].drop_duplicates("Name")
-    if with_binary_descriptor:
+    if extra_descriptor == "binary":
         df["flag"] = (df["x2"] > df["x2"].median()).astype(int)
+    elif extra_descriptor == "constant":
+        df["flag"] = 1
     df.to_csv("onehot_check.csv", index=False)
     try:
         checkml(y="Target_values", names="Name", csv_name="onehot_check.csv")
@@ -676,7 +679,7 @@ def test_CHECKML_onehot_test_disabled_with_binary_descriptors(with_binary_descri
 
         with open(os.path.join(path_main, "VERIFY", "VERIFY_data.dat"), encoding="utf-8") as verify_file:
             onehot_line = next(line for line in verify_file if "onehot:" in line)
-        if with_binary_descriptor:
+        if extra_descriptor == "binary":
             assert "onehot: N/A, descriptor(s) with only 2 values (flag)" in onehot_line
         else:
             assert "N/A" not in onehot_line and "% difference." in onehot_line

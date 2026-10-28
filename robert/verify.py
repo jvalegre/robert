@@ -234,14 +234,16 @@ class verify:
         collapses any strictly-positive continuous descriptor (e.g. a molecular weight) into
         a constant, useless column instead of a genuine two-way split.
 
-        If any descriptor already has 2 or fewer unique values, the test is skipped (marked N/A,
-        like the cluster test in classification). Binarizing can't remove information from
-        such a descriptor, so the "onehot" model keeps everything that descriptor carries and
+        If any descriptor of the model already has exactly 2 unique values, the test is skipped
+        (marked N/A, like the cluster test in classification). Binarizing can't remove information
+        from such a descriptor, so the "onehot" model keeps everything that descriptor carries and
         can still predict as well as the original model - the test would then fail without the
         model being flawed (i.e. a model driven by a 0/1 flag, or a dataset of on/off features).
+        A constant descriptor (1 value) carries no information at all, so it doesn't disable the
+        test (it's dropped below, like any descriptor that ends up constant after binarizing).
         '''
 
-        binary_descs = [desc for desc in Xy_data['X_train'] if Xy_data['X_train'][desc].dropna().nunique() <= 2]
+        binary_descs = [desc for desc in Xy_data['X_train'] if Xy_data['X_train'][desc].dropna().nunique() == 2]
         if binary_descs:
             verify_results['onehot'] = verify_results['CV_score']
             verify_results['onehot_skipped'] = True

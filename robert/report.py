@@ -230,6 +230,16 @@ class report:
                 for f in glob.glob(f'{os.getcwd()}/VERIFY/VERIFY_*_data.dat')
                 if os.path.exists(f"{os.getcwd()}/PREDICT/PREDICT_{os.path.basename(f)[len('VERIFY_'):-len('_data.dat')]}_data.dat")
             )
+            # A REPORT-only run can follow a workflow that was generated with
+            # --all_models False. Those runs have shared VERIFY_data.dat and
+            # PREDICT_data.dat logs rather than per-model logs. If no paired
+            # per-model logs were found, process the shared logs as the single
+            # model report instead of silently producing no reports.
+            if not model_names and all(
+                os.path.exists(f'{os.getcwd()}/{module}/{module}_data.dat')
+                for module in ('VERIFY', 'PREDICT')
+            ):
+                model_names = [None]
         else:
             model_names = [None]
 
@@ -1788,7 +1798,6 @@ class report:
         # detects whether there are predictions from an external test set
         module_file = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
         csv_test_exists, y_value, names, path_csv_test = detect_predictions(module_file)
-
         if csv_test_exists:
             pred_dat = ''
             pred_dat = self.module_lines('pred',pred_dat,pred_type=pred_type)

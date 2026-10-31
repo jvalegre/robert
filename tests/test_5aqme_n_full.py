@@ -333,7 +333,8 @@ def test_AQME(test_job, aqme_workspace):
 
     # more specific tests to check content from the CheckML score section
     if test_job in ["full_workflow", "full_clas"]:
-        robert_score, points_desc = [], []
+        score_interpolation, score_boundary, points_desc = [], [], []
+        image_interpolation, image_boundary = [], []
         ml_model_count, partition_count, metrics_train_count, metrics_test_count = (
             0,
             0,
@@ -347,8 +348,16 @@ def test_AQME(test_job, aqme_workspace):
             train_val_gap_models,
             cv_sd_models,
             cv_vs_test_models,
-            bound_ability,
-        ) = [], [], [], [], [], [], []
+        ) = [], [], [], [], [], []
+        (
+            high_fold,
+            low_fold,
+            spearman,
+            degradation,
+            applic_domain,
+            addit_diag,
+        ) = [], [], [], [], [], []
+
         predict_graphs, flawed_image, cv_sd_image = False, False, False
         y_distrib_image, pearson_pred_image = False, False
         find_severe_red = False
@@ -357,8 +366,12 @@ def test_AQME(test_job, aqme_workspace):
         find_assess_red = False
 
         for i, line in enumerate(outlines):
-            if "report/score_" in line and "report/score_w" not in line:
-                robert_score.append(line.split("report/score_")[1][0])
+            if "Interpolation&" in line:
+                image_interpolation.append(outlines[i+3].split("score_")[1][0])
+                score_interpolation.append(line.split("Interpolation&")[1].split()[1][0:3])
+            if "Boundary robustness&" in line:
+                image_boundary.append(outlines[i+3].split("score_")[1][0])
+                score_boundary.append(line.split("Boundary robustness&")[1].split()[1][0:3])
             if "Model = RF" in line:
                 ml_model_count += 1
             if "Proportion CV:test = 81:19" in line:
@@ -374,6 +387,7 @@ def test_AQME(test_job, aqme_workspace):
                 metrics_train_count += 1
             if "Test : R<sup>2</sup> = " in line:
                 metrics_test_count += 1
+            # interpolation
             if '1. Model vs "flawed" models' in line:
                 flawed_models.append(line)
             if (
@@ -396,8 +410,20 @@ def test_AQME(test_job, aqme_workspace):
                 or "PREDICT\\CV_variability_RF_No_PFI.png" in line
             ):
                 cv_sd_image = True
+            # boundary robustness
             if "1. Sorted CV, top 20% (High)" in line:
-                bound_ability.append(line)
+                high_fold.append(line)
+            if "2. Sorted CV, bottom 20% (Low)" in line:
+                low_fold.append(line)
+            if "3. Spearman rank" in line:
+                spearman.append(line)
+            if "4. Degradation ratio" in line:
+                degradation.append(line)
+            if "5. Applicability domain (leverage)" in line:
+                applic_domain.append(line)
+            if "6. Additional diagnostics" in line:
+                addit_diag.append(outlines[i+1])
+            # others
             if "y_distribution_RF_No_PFI.png" in line:
                 y_distrib_image = True
             if "Pearson_heatmap_RF_No_PFI.png" in line:
@@ -445,8 +471,10 @@ def test_AQME(test_job, aqme_workspace):
             # that used to be checked as a [0]/[1] pair (one per model) now appears exactly
             # once. The only field that legitimately has 2 entries is robert_score, since each
             # single-suffix report still shows 2 columns (Interpolation/Boundary robustness)
-            assert robert_score[0] == "1"
-            assert robert_score[1] == "0"
+            assert score_interpolation[0] == "2.9"
+            assert image_interpolation[0] == "3"
+            assert score_boundary[0] == "0.0"
+            assert image_boundary[0] == "0"
             assert ml_model_count == 1
             assert partition_count == 1
             assert points_desc[0] == "30"
@@ -455,27 +483,41 @@ def test_AQME(test_job, aqme_workspace):
             assert metrics_train_count == 1
             assert metrics_test_count == 1
             # advanced analysis, flawed models section 1
-            assert "-6 / 0" in flawed_models[0]
+            assert "-4.2 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
-            assert "0 / 2" in pred_ability[0]
+            assert "0.0 / 2" in pred_ability[0]
             assert "report/score_w_2_0.jpg" in pred_ability[0]
             # advanced analysis, predictive ability of external test set, item 3
-            assert "1 / 2" in pred_test_ability[0]
+            assert "1.1 / 2" in pred_test_ability[0]
             assert "report/score_w_2_1.jpg" in pred_test_ability[0]
             # advanced analysis, train vs validation gap, item 4
-            assert "2 / 2" in train_val_gap_models[0]
+            assert "2.0 / 2" in train_val_gap_models[0]
             assert "report/score_w_2_2.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
-            assert "2 / 2" in cv_vs_test_models[0]
+            assert "2.0 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
             # advanced analysis, prediction stability, item 6
-            assert "2 / 2" in cv_sd_models[0]
+            assert "2.0 / 2" in cv_sd_models[0]
             assert "report/score_w_2_2.jpg" in cv_sd_models[0]
             assert cv_sd_image
-            # advanced analysis, boundary robustness, sub-item 1 (Sorted CV, top 20% / High)
-            assert "0 / 2" in bound_ability[0]
-            assert "report/score_w_2_0.jpg" in bound_ability[0]
+            # advanced analysis, boundary robustness, item 1 (Sorted CV, top 20% / High)
+            assert "0.0 / 2" in high_fold[0]
+            assert "report/score_w_2_0.jpg" in high_fold[0]
+            # advanced analysis, boundary robustness, item 2
+            assert "0.0 / 2" in low_fold[0]
+            assert "report/score_w_2_0.jpg" in low_fold[0]
+            # advanced analysis, boundary robustness, item 3
+            assert "0.0 / 2" in spearman[0]
+            assert "report/score_w_2_0.jpg" in spearman[0]
+            # advanced analysis, boundary robustness, item 4
+            assert "0.0 / 2" in degradation[0]
+            assert "report/score_w_2_0.jpg" in degradation[0]
+            # advanced analysis, boundary robustness, item 5
+            assert "0.0 / 2" in applic_domain[0]
+            assert "report/score_w_2_0.jpg" in applic_domain[0]
+            # advanced analysis, boundary robustness, item 6
+            assert "Global Spearman rank (whole dataset) = 0.9" in addit_diag[0]
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -496,29 +538,31 @@ def test_AQME(test_job, aqme_workspace):
             # rather than stretched. Classification's B.2/B.3a/B.3b/B.3c/B.3d are now
             # homogenized to the same 0-2-point structure as regression (see score.rst) -
             # items 2/3 used to go up to 3 points with different MCC thresholds)
-            assert robert_score[0] == "4"
-            assert len(robert_score) == 1
+            assert score_interpolation[0] == "5.1"
+            assert len(score_interpolation) == 1
+            assert image_interpolation[0] == "5"
             assert ml_model_count == 1
             assert points_desc[0] == "30"
             assert points_desc[1] == "6"
             # advanced analysis, flawed models section 1
-            assert "-2 / 0" in flawed_models[0]
+            assert "-2.0 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
-            assert "1 / 2" in pred_ability[0]
-            assert "report/score_w_2_1.jpg" in pred_ability[0]
+            assert "1.5 / 2" in pred_ability[0]
+            assert "report/score_w_2_2.jpg" in pred_ability[0]
             # advanced analysis, predictive ability of external test set, item 3
-            assert "2 / 2" in pred_test_ability[0]
+            assert "2.0 / 2" in pred_test_ability[0]
             assert "report/score_w_2_2.jpg" in pred_test_ability[0]
             # advanced analysis, train vs validation gap, item 4 (new for classification -
             # homogenizes with regression, which already had this item)
-            assert "0 / 2" in train_val_gap_models[0]
-            assert "report/score_w_2_0.jpg" in train_val_gap_models[0]
+            assert "0.6 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_1.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
-            assert "1 / 2" in cv_vs_test_models[0]
+            assert "1.0 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             # no boundary robustness sub-items for classification (no sub-item 1 to check)
-            assert not bound_ability
+            assert not score_boundary
+            assert not high_fold
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image

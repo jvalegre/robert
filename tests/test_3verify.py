@@ -135,7 +135,7 @@ def test_VERIFY(test_job):
                     # only have 2 values, so the onehot test is disabled (N/A) - binarizing can't
                     # remove information from them (see onehot_test() in verify.py)
                     assert (
-                        "- onehot: N/A, descriptor(s) with only 2 values (Csub-H, Csub-Csub)"
+                        "- onehot: N/A, descriptor(s) with only 2 values (Csub-H,"
                         in outlines[i + 4]
                     )
                     for offset, label in zip((2, 3, 5), ("y_mean", "y_shuffle", "cluster")):

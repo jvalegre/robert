@@ -167,14 +167,14 @@ def get_csv_metrics(file,suffix,spacing):
         for i,line in enumerate(lines):
             if suffix == 'No PFI':
                 if 'o  Summary of results' in line and 'No_PFI:' in line:
-                    for j in range(i,i+15):
+                    for j in range(i,len(lines)):
                         if 'o  SHAP' in lines[j]:
                             break
                         elif '-  External test : ' in lines[j]:
                             results_line = lines[j][25:]
             if suffix == 'PFI':
                 if 'o  Summary of results' in line and 'No_PFI:' not in line:
-                    for j in range(i,i+15):
+                    for j in range(i,len(lines)):
                         if 'o  SHAP' in lines[j]:
                             break
                         elif '-  External test : ' in lines[j]:
@@ -182,11 +182,9 @@ def get_csv_metrics(file,suffix,spacing):
 
     # start the csv_test section
     metrics_dat = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>External test metrics</u></p>'
-
     # add line with model metrics (if any)
     if results_line != '':
         metrics_dat += f'<p style="text-align: justify; margin-bottom: 35px;">{spacing*2}{results_line}</p>'
-    
         return metrics_dat
     
     else:
@@ -1585,13 +1583,13 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                 if f'-  Ratio 50% lowest/highest' in line:
                     rmse_50_ratio = float(line.split()[-1])
                     absol_rmse_50_diff = np.abs(1-rmse_50_ratio)  
-                    data_score[f'absol_rmse_50_ratio_{suffix}'] = 1+absol_rmse_50_diff               
+                    data_score[f'absol_rmse_50_ratio_{suffix}'] = float(Decimal(str(1+absol_rmse_50_diff)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
                     rmse_50_penalty = part_50_penalty(1+absol_rmse_50_diff)
                     r2_50_ratio = float(line.split()[-4].split(',')[0])
                     if r2_50_ratio == 'N/A':
                         r2_50_ratio = 1
                     absol_r2_50_diff = np.abs(1-r2_50_ratio)
-                    data_score[f'absol_r2_50_ratio_{suffix}'] = 1+absol_r2_50_diff               
+                    data_score[f'absol_r2_50_ratio_{suffix}'] =float(Decimal(str(1+absol_r2_50_diff)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
                     r2_50_penalty = part_50_penalty(1+absol_r2_50_diff)
                     
                     sd_score_penalty = min(rmse_50_penalty, r2_50_penalty)

@@ -333,7 +333,8 @@ def test_AQME(test_job, aqme_workspace):
 
     # more specific tests to check content from the CheckML score section
     if test_job in ["full_workflow", "full_clas"]:
-        robert_score, points_desc = [], []
+        score_interpolation, score_boundary, points_desc = [], [], []
+        image_interpolation, image_boundary = [], []
         ml_model_count, partition_count, metrics_train_count, metrics_test_count = (
             0,
             0,
@@ -347,8 +348,16 @@ def test_AQME(test_job, aqme_workspace):
             train_val_gap_models,
             cv_sd_models,
             cv_vs_test_models,
-            bound_ability,
-        ) = [], [], [], [], [], [], []
+        ) = [], [], [], [], [], []
+        (
+            high_fold,
+            low_fold,
+            spearman,
+            degradation,
+            applic_domain,
+            addit_diag,
+        ) = [], [], [], [], [], []
+
         predict_graphs, flawed_image, cv_sd_image = False, False, False
         y_distrib_image, pearson_pred_image = False, False
         find_severe_red = False
@@ -357,8 +366,12 @@ def test_AQME(test_job, aqme_workspace):
         find_assess_red = False
 
         for i, line in enumerate(outlines):
-            if "report/score_" in line and "report/score_w" not in line:
-                robert_score.append(line.split("report/score_")[1][0])
+            if "Interpolation&" in line:
+                image_interpolation.append(outlines[i+3].split("score_")[1][0])
+                score_interpolation.append(line.split("Interpolation&")[1].split()[1][0:3])
+            if "Boundary robustness&" in line:
+                image_boundary.append(outlines[i+3].split("score_")[1][0])
+                score_boundary.append(line.split("Boundary robustness&")[1].split()[1][0:3])
             if "Model = RF" in line:
                 ml_model_count += 1
             if "Proportion CV:test = 81:19" in line:
@@ -374,6 +387,7 @@ def test_AQME(test_job, aqme_workspace):
                 metrics_train_count += 1
             if "Test : R<sup>2</sup> = " in line:
                 metrics_test_count += 1
+            # interpolation
             if '1. Model vs "flawed" models' in line:
                 flawed_models.append(line)
             if (
@@ -396,8 +410,20 @@ def test_AQME(test_job, aqme_workspace):
                 or "PREDICT\\CV_variability_RF_No_PFI.png" in line
             ):
                 cv_sd_image = True
+            # boundary robustness
             if "1. Sorted CV, top 20% (High)" in line:
-                bound_ability.append(line)
+                high_fold.append(line)
+            if "2. Sorted CV, bottom 20% (Low)" in line:
+                low_fold.append(line)
+            if "3. Spearman rank" in line:
+                spearman.append(line)
+            if "4. Degradation ratio" in line:
+                degradation.append(line)
+            if "5. Applicability domain (leverage)" in line:
+                applic_domain.append(line)
+            if "6. Additional diagnostics" in line:
+                addit_diag.append(outlines[i+1])
+            # others
             if "y_distribution_RF_No_PFI.png" in line:
                 y_distrib_image = True
             if "Pearson_heatmap_RF_No_PFI.png" in line:
@@ -445,8 +471,10 @@ def test_AQME(test_job, aqme_workspace):
             # that used to be checked as a [0]/[1] pair (one per model) now appears exactly
             # once. The only field that legitimately has 2 entries is robert_score, since each
             # single-suffix report still shows 2 columns (Interpolation/Boundary robustness)
-            assert robert_score[0] == "1"
-            assert robert_score[1] == "0"
+            assert score_interpolation[0] == "2.9"
+            assert image_interpolation[0] == "3"
+            assert score_boundary[0] == "0.0"
+            assert image_boundary[0] == "0"
             assert ml_model_count == 1
             assert partition_count == 1
             assert points_desc[0] == "30"
@@ -455,27 +483,41 @@ def test_AQME(test_job, aqme_workspace):
             assert metrics_train_count == 1
             assert metrics_test_count == 1
             # advanced analysis, flawed models section 1
-            assert "-6 / 0" in flawed_models[0]
+            assert "-4.2 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
-            assert "0 / 2" in pred_ability[0]
+            assert "0.0 / 2" in pred_ability[0]
             assert "report/score_w_2_0.jpg" in pred_ability[0]
             # advanced analysis, predictive ability of external test set, item 3
-            assert "1 / 2" in pred_test_ability[0]
+            assert "1.1 / 2" in pred_test_ability[0]
             assert "report/score_w_2_1.jpg" in pred_test_ability[0]
             # advanced analysis, train vs validation gap, item 4
-            assert "2 / 2" in train_val_gap_models[0]
+            assert "2.0 / 2" in train_val_gap_models[0]
             assert "report/score_w_2_2.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
-            assert "2 / 2" in cv_vs_test_models[0]
+            assert "2.0 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_2.jpg" in cv_vs_test_models[0]
             # advanced analysis, prediction stability, item 6
-            assert "2 / 2" in cv_sd_models[0]
+            assert "2.0 / 2" in cv_sd_models[0]
             assert "report/score_w_2_2.jpg" in cv_sd_models[0]
             assert cv_sd_image
-            # advanced analysis, boundary robustness, sub-item 1 (Sorted CV, top 20% / High)
-            assert "0 / 2" in bound_ability[0]
-            assert "report/score_w_2_0.jpg" in bound_ability[0]
+            # advanced analysis, boundary robustness, item 1 (Sorted CV, top 20% / High)
+            assert "0.0 / 2" in high_fold[0]
+            assert "report/score_w_2_0.jpg" in high_fold[0]
+            # advanced analysis, boundary robustness, item 2
+            assert "0.0 / 2" in low_fold[0]
+            assert "report/score_w_2_0.jpg" in low_fold[0]
+            # advanced analysis, boundary robustness, item 3
+            assert "0.0 / 2" in spearman[0]
+            assert "report/score_w_2_0.jpg" in spearman[0]
+            # advanced analysis, boundary robustness, item 4
+            assert "0.0 / 2" in degradation[0]
+            assert "report/score_w_2_0.jpg" in degradation[0]
+            # advanced analysis, boundary robustness, item 5
+            assert "0.0 / 2" in applic_domain[0]
+            assert "report/score_w_2_0.jpg" in applic_domain[0]
+            # advanced analysis, boundary robustness, item 6
+            assert "Global Spearman rank (whole dataset) = 0.9" in addit_diag[0]
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -496,29 +538,31 @@ def test_AQME(test_job, aqme_workspace):
             # rather than stretched. Classification's B.2/B.3a/B.3b/B.3c/B.3d are now
             # homogenized to the same 0-2-point structure as regression (see score.rst) -
             # items 2/3 used to go up to 3 points with different MCC thresholds)
-            assert robert_score[0] == "4"
-            assert len(robert_score) == 1
+            assert score_interpolation[0] == "5.1"
+            assert len(score_interpolation) == 1
+            assert image_interpolation[0] == "5"
             assert ml_model_count == 1
             assert points_desc[0] == "30"
             assert points_desc[1] == "6"
             # advanced analysis, flawed models section 1
-            assert "-2 / 0" in flawed_models[0]
+            assert "-2.0 / 0" in flawed_models[0]
             assert flawed_image
             # advanced analysis, predictive ability section 2
-            assert "1 / 2" in pred_ability[0]
-            assert "report/score_w_2_1.jpg" in pred_ability[0]
+            assert "1.5 / 2" in pred_ability[0]
+            assert "report/score_w_2_2.jpg" in pred_ability[0]
             # advanced analysis, predictive ability of external test set, item 3
-            assert "2 / 2" in pred_test_ability[0]
+            assert "2.0 / 2" in pred_test_ability[0]
             assert "report/score_w_2_2.jpg" in pred_test_ability[0]
             # advanced analysis, train vs validation gap, item 4 (new for classification -
             # homogenizes with regression, which already had this item)
-            assert "0 / 2" in train_val_gap_models[0]
-            assert "report/score_w_2_0.jpg" in train_val_gap_models[0]
+            assert "0.6 / 2" in train_val_gap_models[0]
+            assert "report/score_w_2_1.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
-            assert "1 / 2" in cv_vs_test_models[0]
+            assert "1.0 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             # no boundary robustness sub-items for classification (no sub-item 1 to check)
-            assert not bound_ability
+            assert not score_boundary
+            assert not high_fold
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -755,3 +799,62 @@ def test_REPORT_pfi_filter_false_does_not_crash():
     finally:
         os.chdir(path_main)
         shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def _workflow_fingerprint(path_main):
+    """Everything a full ROBERT run produces that must not depend on the row/column order of the CSV"""
+    result = {}
+    for folder in ["No_PFI", "PFI"]:
+        best = os.path.join(path_main, "GENERATE", "Best_model", folder)
+        params_csv = [f for f in glob.glob(os.path.join(best, "*.csv")) if not f.endswith("_db.csv")][0]
+        params = pd.read_csv(params_csv).iloc[0]
+        db = pd.read_csv(glob.glob(os.path.join(best, "*_db.csv"))[0])
+        result[f"{folder}_model"] = (params["model"], params["params"], params["X_descriptors"])
+        result[f"{folder}_sets"] = dict(zip(db["Name"].astype(str), db["Set"]))
+    for module, tags in [("GENERATE", ["combined", "RMSE"]),
+                         ("VERIFY", ["y_mean", "y_shuffle", "onehot", "cluster", "Sorted"]),
+                         ("PREDICT", ["10x 5-fold CV :", "Test :", "Sorted CV extremes", "Applicability domain",
+                                      "Spearman rank", "Degradation baseline"])]:
+        with open(os.path.join(path_main, module, f"{module}_data.dat"), encoding="utf-8") as dat_file:
+            result[module] = [line.strip() for line in dat_file if any(tag in line for tag in tags)
+                              and "Time" not in line and "Command line" not in line]
+    for suffix in ["No_PFI", "PFI"]:
+        with open(os.path.join(path_main, f"report_debug_{suffix}.txt"), encoding="utf-8") as debug_file:
+            result[f"scores_{suffix}"] = re.findall(r"(report/score_(?:w_)?[\d_]+\.jpg|\(-?[\d.]+ / \d)", debug_file.read())
+    return result
+
+
+def test_full_workflow_row_and_column_order_do_not_change_results():
+    """
+    The same database with its rows and columns shuffled must give exactly the same results
+    through the whole workflow (CURATE -> GENERATE -> VERIFY -> PREDICT -> REPORT): ROBERT sorts
+    rows by the names column and descriptors alphabetically when loading a database, so CV folds,
+    train/test splits, hyperparameter search and scores can't depend on the order of the CSV.
+    Robert_example.csv includes a categorical descriptor (x4), so CURATE's one-hot encoding is
+    covered too
+    """
+    original = pd.read_csv(test_data / "Robert_example.csv")
+    shuffled = original.sample(frac=1, random_state=7)
+    columns = list(shuffled.columns)
+    shuffled = shuffled[columns[::-1]]
+    assert list(shuffled["Name"]) != list(original["Name"]) and list(shuffled.columns) != list(original.columns)
+
+    fingerprints = []
+    for df in [original, shuffled]:
+        with aqme_test_workspace() as workspace:
+            df.to_csv(workspace / "order_check.csv", index=False)
+            cmd_robert = [sys.executable, "-m", "robert", "--csv_name", "order_check.csv", "--y", "Target_values",
+                          "--names", "Name", "--discard", "['xtest']", "--model", "['RF']", "--init_points", "1",
+                          "--n_iter", "1", "--pfi_epochs", "1", "--debug_report", "True", "--all_models", "False"]
+            subprocess_environment = os.environ.copy()
+            subprocess_environment["PYTHONPATH"] = os.pathsep.join(
+                filter(None, [str(repository_root), subprocess_environment.get("PYTHONPATH", "")]))
+            subprocess.run(cmd_robert, cwd=workspace, env=subprocess_environment, check=True)
+            fingerprints.append(_workflow_fingerprint(str(workspace)))
+
+    first, second = fingerprints
+    assert first.keys() == second.keys()
+    for key in first:
+        assert first[key], f"nothing found for {key}"
+        assert first[key] == second[key], f"{key} changes with the row/column order of the CSV"
+

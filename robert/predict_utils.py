@@ -15,6 +15,7 @@ from robert.utils import (
     graph_clas,
     get_error_labels,
     mcc_scorer_clf,
+    get_prediction_results,
     )
 
 
@@ -235,23 +236,49 @@ def print_predict(self,Xy_data,model_data,suffix_title):
         if 'r2_train_infold' in Xy_data:
             print_results += f"\n      -  Train fit (in-fold) : R2 = {Xy_data['r2_train_infold']:.2}, MAE = {Xy_data['mae_train_infold']:.2}, RMSE = {Xy_data['rmse_train_infold']:.2}"
 
-        # Interpolation item 6, facets (b)/(c): stability of the out-of-fold CV predictions
-        # themselves (not just the test set - facet (a) above), across the repeated-CV
-        # repetitions. (b) average per-point SD of the out-of-fold predictions in
-        # train+validation; (c) how much the AGGREGATE RMSE itself varies from repeat to
-        # repeat (coefficient of variation = SD/mean of the 10 per-repeat RMSEs) - a
-        # complementary, dataset-wide view of the same "how much does this depend on which
-        # random split we happened to get" question that (a)/(b) ask per-point
+         # Interpolation item 6, facets (b) and (c), and penalty
         print_results += f"\n      -  Average SD in train+validation (out-of-fold) = {np.mean(Xy_data['y_pred_train_sd']):.2}"
         if 'y_pred_train_all' in Xy_data:
             y_pred_train_all = np.array(Xy_data['y_pred_train_all'])
+            if y_pred_train_all.ndim == 1:
+                y_pred_train_all = y_pred_train_all[:, None]
             y_train_actual = np.array(Xy_data['y_train'])
+
+            # Split by actual y, with the extra point (when odd) assigned to the high half.
+            # Sort indices only, so y_pred_train_all and its original point ordering stay intact.
+            sorted_y_indices = np.argsort(y_train_actual, kind='stable')
+            midpoint = len(sorted_y_indices) // 2
+            low_50_indices = sorted_y_indices[:midpoint]
+            high_50_indices = sorted_y_indices[midpoint:]
+            n_repeats = y_pred_train_all.shape[1]
+
+            def get_half_metrics(indices):
+                y_actual_half = np.repeat(y_train_actual[indices], n_repeats)
+                y_pred_half = y_pred_train_all[indices].reshape(-1)
+                return get_prediction_results(model_data, y_actual_half, y_pred_half)
+
+            high_50_r2, _, high_50_rmse = get_half_metrics(high_50_indices)
+            low_50_r2, _, low_50_rmse = get_half_metrics(low_50_indices)
+            ratio_50_r2 = low_50_r2 / high_50_r2 if high_50_r2 != 0 else 'N/A'
+            ratio_50_rmse = low_50_rmse / high_50_rmse if high_50_rmse != 0 else 'N/A'
+
+            print_results += f"\n      -  50% highest data points, R2 = {high_50_r2:.2f}, RMSE = {high_50_rmse:.2f}"
+            print_results += f"\n      -  50% lowest data points, R2 = {low_50_r2:.2f}, RMSE = {low_50_rmse:.2f}"
+            print_results += f"\n      -  Ratio 50% lowest/highest data points, R2 = {ratio_50_r2:.2f}, RMSE = {ratio_50_rmse:.2f}"
+
+            # Interpolation item 6, facets (b)/(c): stability of the out-of-fold CV predictions
+            # themselves (not just the test set - facet (a) above), across the repeated-CV
+            # repetitions. (b) average per-point SD of the out-of-fold predictions in
+            # train+validation; (c) how much the AGGREGATE RMSE itself varies from repeat to
+            # repeat (coefficient of variation = SD/mean of the 10 per-repeat RMSEs) - a
+            # complementary, dataset-wide view of the same "how much does this depend on which
+            # random split we happened to get" question that (a)/(b) ask per-point
             repeat_rmses = np.sqrt(np.mean((y_train_actual[:,None]-y_pred_train_all)**2,axis=0))
             if len(repeat_rmses) > 1 and np.mean(repeat_rmses) > 0:
                 rmse_cv_pct = 100*np.std(repeat_rmses,ddof=1)/np.mean(repeat_rmses)
             else:
                 rmse_cv_pct = 0
-            print_results += f"\n      -  RMSE coefficient of variation (10 repeats) = {rmse_cv_pct:.1f}"
+            print_results += f"\n      -  RMSE coefficient of variation (10 repeats) = {rmse_cv_pct:.2f}"
 
         if 'r2_external' in Xy_data:
             print_results += f"\n      -  External test : R2 = {Xy_data['r2_external']:.2}, MAE = {Xy_data['mae_external']:.2}, RMSE = {Xy_data['rmse_external']:.2}"

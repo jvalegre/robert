@@ -26,6 +26,7 @@ import json
 import platform
 import pandas as pd
 from pathlib import Path
+from decimal import Decimal, ROUND_HALF_UP
 from robert.utils import (load_variables,
     pd_to_dict,
     create_score_heatmap,
@@ -229,6 +230,16 @@ class report:
                 for f in glob.glob(f'{os.getcwd()}/VERIFY/VERIFY_*_data.dat')
                 if os.path.exists(f"{os.getcwd()}/PREDICT/PREDICT_{os.path.basename(f)[len('VERIFY_'):-len('_data.dat')]}_data.dat")
             )
+            # A REPORT-only run can follow a workflow that was generated with
+            # --all_models False. Those runs have shared VERIFY_data.dat and
+            # PREDICT_data.dat logs rather than per-model logs. If no paired
+            # per-model logs were found, process the shared logs as the single
+            # model report instead of silently producing no reports.
+            if not model_names and all(
+                os.path.exists(f'{os.getcwd()}/{module}/{module}_data.dat')
+                for module in ('VERIFY', 'PREDICT')
+            ):
+                model_names = [None]
         else:
             model_names = [None]
 
@@ -551,7 +562,7 @@ class report:
             # only integer score_N.jpg icons exist - both interp_score and extrap_score are
             # already plain integer sums of 0/2 sub-scores (see calc_score()), this round()
             # is just a defensive cast
-            score_icon = int(round(score_val))
+            score_icon = int(float(Decimal(str(score_val)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
             icon_name = f'score_{score_icon}' if score_available else f'score_gray_{score_icon}'
             score_info = f"""<img src="file:///{self._posix_uri(self.args.path_icons)}/{icon_name}.jpg" style="width: 100%; margin-top:7px; margin-bottom:-18px;"></p>"""
             columns_score.append(get_col_score(score_info,data_score,suffix,col,spacing))
@@ -789,7 +800,7 @@ class report:
             if data_score[f'failed_tests_{suffix}'] > 0:
                 severe.append('Failing required tests (Section B.1)')
             else:
-                moderate.append('Some tests are unclear (Section B.1)')
+                moderate.append('Some tests are unclear or close to the thresholds (Section B.1)')
 
         # train-vs-validation and CV-vs-test gaps at 0/2 both point to the same underlying
         # problem an inexperienced user is unlikely to recognize from the number alone: the
@@ -1787,7 +1798,6 @@ class report:
         # detects whether there are predictions from an external test set
         module_file = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
         csv_test_exists, y_value, names, path_csv_test = detect_predictions(module_file)
-
         if csv_test_exists:
             pred_dat = ''
             pred_dat = self.module_lines('pred',pred_dat,pred_type=pred_type)

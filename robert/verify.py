@@ -234,39 +234,25 @@ class verify:
         collapses any strictly-positive continuous descriptor (e.g. a molecular weight) into
         a constant, useless column instead of a genuine two-way split.
 
-        Descriptors that already have 2 or fewer unique values are left untouched instead of
-        being median-split: for an imbalanced already-binary descriptor (e.g. a flag that only
-        30% of points have), the median can fall on the majority value, so "value >= median"
-        is true for both classes and collapses the column to a constant - the same failure
-        mode the median split was meant to fix for continuous descriptors, just triggered by
-        class imbalance instead of the literal-zeros case.
-
-        If every descriptor already has 2 or fewer unique values, there's no continuous
-        variation left to destroy anywhere in the dataset: the "onehot" model ends up trained
-        on essentially the same information as the original, so its error comes out
-        indistinguishable from the original CV score, which would always trip the "FAILED"
-        threshold (no degradation from binarizing) regardless of whether the model is
-        actually flawed. In that case the test is skipped (marked N/A) instead of being
-        forced to a spurious fail.
+        If any descriptor of the model already has exactly 2 unique values, the test is skipped
+        (marked N/A, like the cluster test in classification). Binarizing can't remove information
+        from such a descriptor, so the "onehot" model keeps everything that descriptor carries and
+        can still predict as well as the original model - the test would then fail without the
+        model being flawed (i.e. a model driven by a 0/1 flag, or a dataset of on/off features).
+        A constant descriptor (1 value) carries no information at all, so it doesn't disable the
+        test (it's dropped below, like any descriptor that ends up constant after binarizing).
         '''
 
-        already_binary = all(
-            Xy_data['X_train'][desc].dropna().nunique() <= 2
-            for desc in Xy_data['X_train']
-        )
-        if already_binary:
+        binary_descs = [desc for desc in Xy_data['X_train'] if Xy_data['X_train'][desc].dropna().nunique() == 2]
+        if binary_descs:
             verify_results['onehot'] = verify_results['CV_score']
             verify_results['onehot_skipped'] = True
+            verify_results['onehot_binary_descs'] = binary_descs
             return verify_results
 
         Xy_onehot = Xy_data.copy()
         constant_descs = []
         for desc in Xy_onehot['X_train']:
-            # already binary/categorical: median split could collapse an imbalanced
-            # minority class to a constant, so this descriptor is kept as-is
-            if Xy_onehot['X_train'][desc].dropna().nunique() <= 2:
-                continue
-
             desc_median = Xy_onehot['X_train'][desc].median()
             new_vals = [1 if val >= desc_median else 0 for val in Xy_onehot['X_train'][desc]]
 
@@ -373,11 +359,17 @@ class verify:
         for i,test_ver in enumerate(test_names):
             metrics[i] = verify_results[test_ver]
 
-            # onehot test skipped (all descriptors already binary - see onehot_test()): not
-            # scored, shown as N/A instead of being forced through the pass/fail thresholds
+            # onehot test skipped (a descriptor is already binary, or every descriptor collapsed
+            # to a constant - see onehot_test()): not scored, shown as N/A instead of being
+            # forced through the pass/fail thresholds
             if test_ver == 'onehot' and verify_results.get('onehot_skipped',False):
                 colors[i] = gray_color
-                results_print[i] = f'\n         - {test_ver}: N/A, all descriptors are already binary (0/1)'
+                binary_descs = verify_results.get('onehot_binary_descs', [])
+                if binary_descs:
+                    shown = ', '.join(binary_descs[:3]) + (', ...' if len(binary_descs) > 3 else '')
+                    results_print[i] = f'\n         - {test_ver}: N/A, descriptor(s) with only 2 values ({shown})'
+                else:
+                    results_print[i] = f'\n         - {test_ver}: N/A, all descriptors collapse to a constant when binarized'
                 continue
 
             # cluster test skipped for classification (see cluster_test()): not scored
@@ -385,28 +377,29 @@ class verify:
                 colors[i] = gray_color
                 results_print[i] = f'\n         - {test_ver}: N/A, not defined for classification'
                 continue
-
+            
+            error_difference = f'{((verify_results[test_ver]/verify_results["CV_score"])-1)*100:.2f}'.rstrip('0').rstrip('.')
             if verify_results['error_type'].lower() in ['mae','rmse']:
                 if verify_results[test_ver] <= verify_results['unclear_higher_thres']:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than threshold'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than threshold. {error_difference}% difference.'
                 elif verify_results[test_ver] <= verify_results['higher_thres']:
                         colors[i] = yellow_color
-                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than original, but close to fail'
+                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than original, but close to fail. {error_difference}% difference.'
                 else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds. {error_difference}% difference.'
 
             else:
                 if verify_results[test_ver] >= verify_results['unclear_lower_thres']:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds. {error_difference}% difference.'
                 elif verify_results[test_ver] >= verify_results['lower_thres']:
                         colors[i] = yellow_color
-                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than original, but close to fail'
+                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than original, but close to fail. {error_difference}% difference.'
                 else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thresholds'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thresholds. {error_difference}% difference.'
 
         # store metrics and colors to represent in comparison graph, adding the metrics of the 
         # original model first

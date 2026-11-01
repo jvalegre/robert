@@ -83,10 +83,10 @@ class WorkflowReportAssessment:
     variant: str
     model: str
     prediction_type: str
-    interpolation_score: int | None
-    boundary_score: int | None
+    interpolation_score: float | None
+    boundary_score: float | None
     score_unavailable_reason: str = ""
-    component_scores: tuple[tuple[str, int, int], ...] = field(default_factory=tuple)
+    component_scores: tuple[tuple[str, float, float], ...] = field(default_factory=tuple)
     details: tuple[tuple[str, str], ...] = field(default_factory=tuple)
 
 
@@ -412,20 +412,20 @@ def _report_assessments_for_pair(model: str, predict_path: Path, verify_path: Pa
         try:
             data = calc_score(dat_files, variant, pred_type, data)
             score_available = bool(data.get(f"score_available_{variant}", True))
-            interpolation_score = int(data[f"interp_score_{variant}"]) if score_available else None
+            interpolation_score = float(data[f"interp_score_{variant}"]) if score_available else None
             boundary_score = (
-                int(data[f"extrap_score_{variant}"])
+                float(data[f"extrap_score_{variant}"])
                 if score_available and pred_type == "reg" else None
             )
         except (KeyError, TypeError, ValueError, IndexError, SyntaxError, ZeroDivisionError):
             continue
         components = (
-            ("Cross-validation", int(data.get(f"cv_score_combined_{variant}", 0)), 2),
-            ("Test set", int(data.get(f"test_score_combined_{variant}", 0)), 2),
-            ("Test vs CV", int(data.get(f"diff_scaled_rmse_score_{variant}", data.get(f"diff_mcc_score_{variant}", 0))), 2),
-            ("Train vs validation", int(data.get(f"train_val_gap_score_{variant}", 0)), 2),
-            ("CV variability", int(data.get(f"cv_sd_score_{variant}", 0)), 2),
-            ("VERIFY tests", int(data.get(f"flawed_mod_score_{variant}", 0)), 0),
+            ("Cross-validation", float(data.get(f"cv_score_combined_{variant}", 0)), 2.0),
+            ("Test set", float(data.get(f"test_score_combined_{variant}", 0)), 2.0),
+            ("Test vs CV", float(data.get(f"diff_scaled_rmse_score_{variant}", data.get(f"diff_mcc_score_{variant}", 0))), 2.0),
+            ("Train vs validation", float(data.get(f"train_val_gap_score_{variant}", 0)), 2.0),
+            ("CV variability", float(data.get(f"cv_sd_score_{variant}", 0)), 2.0),
+            ("VERIFY tests", float(data.get(f"flawed_mod_score_{variant}", 0)), 0.0),
         )
         detail_keys = (
             ("CV R2" if pred_type == "reg" else "CV MCC", f"r2_cv_{variant}"),
@@ -772,7 +772,7 @@ def _render_model_summary_evidence(snapshot: WorkflowResultSnapshot, max_chars: 
                 name: value for name, value, context, metric_source in snapshot.metrics
                 if metric_source == source and context == f"Test ({variant})" and name in {"R2", "MCC", "RMSE"}
             }
-            score = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score}/10"
+            score = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score:.1f}/10"
             reason = " (non-standard CV)" if assessment.score_unavailable_reason == "cv" else ""
             metrics = ", ".join(f"{name}={value}" for name, value in test_values.items())
             candidates.append(f"{assessment.model} {variant}: Interpolation={score}{reason}; Test {metrics or 'metrics absent'}.")
@@ -780,8 +780,8 @@ def _render_model_summary_evidence(snapshot: WorkflowResultSnapshot, max_chars: 
     else:
         candidates.extend(f"PDF: {item.path}" for item in snapshot.artifacts if item.kind == "pdf")
         for item in snapshot.report_assessments:
-            interp = "N/A" if item.interpolation_score is None else f"{item.interpolation_score}/10"
-            boundary = "N/A" if item.boundary_score is None else f"{item.boundary_score}/10"
+            interp = "N/A" if item.interpolation_score is None else f"{item.interpolation_score:.1f}/10"
+            boundary = "N/A" if item.boundary_score is None else f"{item.boundary_score:.1f}/10"
             reason = f" ({item.score_unavailable_reason} setting)" if item.score_unavailable_reason else ""
             candidates.append(f"REPORT {item.model} {item.variant}: Interpolation={interp}; Boundary={boundary}{reason}.")
         for item in snapshot.metrics:
@@ -907,11 +907,11 @@ def render_workflow_evidence(
         for assessment in snapshot.report_assessments:
             if requested_variants and assessment.variant.replace(" ", "_") not in requested_variants:
                 continue
-            interpolation = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score}/10"
+            interpolation = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score:.1f}/10"
             boundary = (
                 "not defined for classification" if assessment.prediction_type == "classification"
                 else "N/A" if assessment.boundary_score is None
-                else f"{assessment.boundary_score}/10"
+                else f"{assessment.boundary_score:.1f}/10"
             )
             lines.append(
                 f"Report-derived assessment {assessment.variant}: Interpolation score={interpolation}; "
@@ -921,7 +921,7 @@ def render_workflow_evidence(
             if assessment.score_unavailable_reason:
                 lines.append(f"  Score unavailable because of non-standard {assessment.score_unavailable_reason} settings.")
             lines.append("  Score components: " + "; ".join(
-                f"{label}={value}/{maximum}" if maximum else f"{label}={value}"
+                f"{label}={value:.1f}/{maximum:.1f}" if maximum else f"{label}={value:.1f}"
                 for label, value, maximum in assessment.component_scores
             ))
             if assessment.details:
@@ -1044,7 +1044,7 @@ def _render_many_models_answer(snapshot: WorkflowResultSnapshot) -> str:
             name: value for name, value, context, metric_source in snapshot.metrics
             if metric_source == source and context == f"Test ({variant})" and name in {"R2", "MCC", "RMSE"}
         }
-        score = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score}/10"
+        score = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score:.1f}/10"
         reason = " (non-standard CV settings)" if assessment.score_unavailable_reason == "cv" else ""
         metrics = ", ".join(f"{name} {value}" for name, value in values.items())
         pdf = f"REPORT_models/ROBERT_report_{assessment.model}_{variant}.pdf"
@@ -1081,8 +1081,8 @@ def render_workflow_answer(
             if requested_variants and assessment.variant.replace(" ", "_") not in requested_variants:
                 continue
             details = dict(assessment.details)
-            interpolation = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score}/10"
-            boundary = "N/A" if assessment.boundary_score is None else f"{assessment.boundary_score}/10"
+            interpolation = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score:.1f}/10"
+            boundary = "N/A" if assessment.boundary_score is None else f"{assessment.boundary_score:.1f}/10"
             values = [f"interpolation {interpolation}", f"boundary robustness {boundary}"]
             for label in ("CV R2", "Test R2", "CV MCC", "Test MCC", "Failed VERIFY tests"):
                 if label in details:
@@ -1122,11 +1122,11 @@ def render_workflow_answer(
             if requested_variants and assessment.variant.replace(" ", "_") not in requested_variants:
                 continue
             model = f" · {assessment.model}" if assessment.model else ""
-            interpolation = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score}/10"
+            interpolation = "N/A" if assessment.interpolation_score is None else f"{assessment.interpolation_score:.1f}/10"
             boundary = (
                 "not defined for classification" if assessment.prediction_type == "classification"
                 else "N/A" if assessment.boundary_score is None
-                else f"{assessment.boundary_score}/10"
+                else f"{assessment.boundary_score:.1f}/10"
             )
             lines.append(
                 f"- **{assessment.variant}{model}:** Interpolation score: **{interpolation}**; "
@@ -1137,7 +1137,7 @@ def render_workflow_answer(
                     f"  - Scores are not calibrated because of non-standard {assessment.score_unavailable_reason} settings."
                 )
             lines.append("  - " + "; ".join(
-                f"{label}: {value}/{maximum}" if maximum else f"{label}: {value}"
+                f"{label}: {value:.1f}/{maximum:.1f}" if maximum else f"{label}: {value:.1f}"
                 for label, value, maximum in assessment.component_scores
             ))
         lines.append(

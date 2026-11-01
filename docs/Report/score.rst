@@ -99,6 +99,10 @@ The numerical thresholds used to assign points across the different sections wer
 representative models. Their suitability was further assessed based on the diverse perspectives of the 
 chemical ML community represented among the co-authors of the CheckML manuscript.
 
+Where a table shows linear interpolation, scores change gradually between the listed thresholds rather
+than jumping between integer values. Component scores and section totals are displayed to one decimal
+place. Score bars, colors, and overall assessment tiers still use the nearest integer.
+
 Importantly, the resulting scores should not be interpreted as replacements for the underlying statistical 
 metrics or as universal guarantees of predictive validity. Rather, they provide a standardized, quantitative 
 quality-control layer that integrates multiple diagnostics. By explicitly testing performance against 
@@ -138,13 +142,20 @@ on the presence of such values (i.e., reaction datasets filled with 0s where com
 The cluster test identifies models that succeed only by exploiting a coarse split in descriptor space
 rather than a genuine structure-property relationship.
 
-============== ========================================================
-Points         Condition
-============== ========================================================
--••  -2         Each of the VERIFY tests failed
--• -1           Each of the unclear VERIFY tests
-0               Each of the VERIFY tests passed (4 for regression, 3 for classification)
-============== ========================================================
+For each applicable test, ROBERT converts the relative degradation from the original CV result
+into a penalty. Degradation means an increase in RMSE for regression, or a decrease in MCC for
+classification. The penalty is capped at -2 and reaches zero at 45% degradation:
+
+============== ======================================================================
+Penalty        Relative degradation from the original CV result
+============== ======================================================================
+-2             ≤ 15%
+0 to -2        15% < degradation < 45% (linear interpolation; -1 at 30%)
+0              ≥ 45%
+============== ======================================================================
+
+The penalties are summed across applicable tests. Tests marked N/A are skipped; when the original
+CV score is zero, the test status is still reported but no relative penalty can be calculated.
 
 The following examples might help clarify these points:
 
@@ -162,29 +173,35 @@ The following examples might help clarify these points:
 
 **Section B.2. CV predictions of the model (2 points):**
 
-In regression, two metrics (RMSE and R\ :sup:`2`) are used to ensure a more robust assessment, as a model may show low R\ :sup:`2` while maintaining an acceptable RMSE. In classification, points are assigned based on the MCC, on the same 0-2 scale as regression.
+In regression, the scaled RMSE score is combined with an R\ :sup:`2` penalty. In classification,
+MCC is scored on the same 0-2 scale.
 
-============ =======================================================
-Points       Scaled RMSE
-============ =======================================================
-|br|         **Regression**
-•• 2         ≤ 10% (high predictive ability)
-•\ |space| 1 ≤ 20% (moderate predictive ability)
-0            > 20% (low predictive ability)
-|br|         **Classification**
-•• 2         MCC > 0.60 (high predictive ability)
-•\ |space| 1 0.60 ≥ MCC ≥ 0.30 (moderate predictive ability)
-0            MCC < 0.30 (low predictive ability)
-============ =======================================================
+============ ================================================================
+Score        Scaled RMSE (regression)
+============ ================================================================
+2            ≤ 10%
+0 to 2       10% < scaled RMSE < 30% (linear interpolation; 1 at 20%)
+0            ≥ 30%
+============ ================================================================
 
-============ =======================================================
-Points        R\ :sup:`2` (penalty)
-============ =======================================================
-|br|         **Regression**
--•• -2          R\ :sup:`2` < 0.5
--• -1           R\ :sup:`2` < 0.7
-0               R\ :sup:`2` >= 0.70
-============ =======================================================
+============ ================================================================
+Penalty       R\ :sup:`2` (regression)
+============ ================================================================
+0             ≥ 0.9
+0 to -2       0.5 < R\ :sup:`2` < 0.9 (linear interpolation; -1 at 0.7)
+-2            ≤ 0.5
+============ ================================================================
+
+The RMSE score and R\ :sup:`2` penalty are added and the result is floored at zero.
+For classification, MCC is scored as follows:
+
+============ ================================================================
+Score        MCC (classification)
+============ ================================================================
+0            ≤ 0
+0 to 2       0 < MCC < 0.6 (linear interpolation; 1 at 0.3)
+2            ≥ 0.6
+============ ================================================================
 
 |br|
 
@@ -196,30 +213,28 @@ otherwise use RMSE/y-range.
 
 |u| Section B.3a. Predictions test set (2 points) |/u|
 
-In regression, two metrics (RMSE and R\ :sup:`2`) are used to ensure a more robust assessment, as a model may show low R\ :sup:`2` while maintaining an acceptable RMSE. In classification, points are assigned based on the MCC, on the same 0-2 scale as regression.
+In regression, the test-set scaled RMSE score is combined with an R\ :sup:`2` penalty. In
+classification, MCC is scored on the same 0-2 scale.
 
-============ =======================================================
-Points       Scaled RMSE
-============ =======================================================
-|br|         **Regression**
-•• 2         ≤ 10% (high predictive ability)
-•\ |space| 1 ≤ 20% (moderate predictive ability)
-0            > 20% (low predictive ability)
-|br|         **Classification**
-•• 2         MCC > 0.60 (high predictive ability)
-•\ |space| 1 0.60 ≥ MCC ≥ 0.30 (moderate predictive ability)
-0            MCC < 0.30 (low predictive ability)
-============ =======================================================
+============ ================================================================
+Score        Scaled RMSE (regression)
+============ ================================================================
+2            ≤ 10%
+0 to 2       10% < scaled RMSE < 30% (linear interpolation; 1 at 20%)
+0            ≥ 30%
+============ ================================================================
 
 
-============ =======================================================
-Points        R\ :sup:`2` (penalty)
-============ =======================================================
-|br|         **Regression**
--•• -2          R\ :sup:`2` < 0.5
--• -1           R\ :sup:`2` < 0.7
-0               R\ :sup:`2` >= 0.70
-============ =======================================================
+============ ================================================================
+Penalty       R\ :sup:`2` (regression)
+============ ================================================================
+0             ≥ 0.9
+0 to -2       0.5 < R\ :sup:`2` < 0.9 (linear interpolation; -1 at 0.7)
+-2            ≤ 0.5
+============ ================================================================
+
+The RMSE score and R\ :sup:`2` penalty are added and the result is floored at zero. For
+classification, the MCC score follows the same 0 / 0-2 / 2 gradual scale shown in Section B.2.
 
 |u| Section B.3b. Train vs validation gap (2 points) |/u|
 
@@ -229,82 +244,106 @@ Compares the out-of-fold validation RMSE with the in-fold training RMSE, both av
 and repeats of the CV, to catch a model that fits its training data much better than it generalizes to
 held-out points — a classic sign of overfitting that the CV-average metrics in B.2 can otherwise hide.
 
-============== ======================================================
-Points         Scaled RMSE ratio
-============== ======================================================
-•• 2            Validation RMSE ≤ 1.25*train RMSE
-•\ |space| 1    Validation RMSE ≤ 1.50*train RMSE
-0               Validation RMSE > 1.50*train RMSE
-============== ======================================================
+The score decreases linearly from 2 at a validation/train RMSE ratio of 1.25 to 0 at 1.75:
+
+============== ======================================================================
+Score          Validation/train RMSE ratio
+============== ======================================================================
+2              ≤ 1.25
+0 to 2         1.25 < ratio < 1.75 (linear interpolation; 1 at 1.5)
+0              ≥ 1.75
+============== ======================================================================
 
 **Classification**
 
 Same idea, expressed as a ΔMCC instead of an RMSE ratio (a discrete label has no RMSE): compares the
-in-fold training MCC against the out-of-fold CV MCC from Section B.2, using the same ΔMCC thresholds as
-B.3c below.
+in-fold training MCC against the out-of-fold CV MCC from Section B.2. This gap receives a gradual
+score over the 0.15-0.45 range.
 
-============ ==============================================
-Points       Condition
-============ ==============================================
-•• 2         MCC difference (ΔMCC) < 0.15 (low overfitting)
-•\ |space| 1 0.15 ≤ ΔMCC ≤ 0.30 (moderate overfitting)
-0            ΔMCC > 0.30 (high overfitting)
-============ ==============================================
+The score decreases linearly from 2 at ΔMCC = 0.15 to 0 at ΔMCC = 0.45:
 
-|u| Section B.3c. CV vs test consistency (2 points, or MCC difference for classification) |/u|
+============ ============================================================
+Score        MCC difference (ΔMCC)
+============ ============================================================
+2            ≤ 0.15
+0 to 2       0.15 < ΔMCC < 0.45 (linear interpolation; 1 at 0.30)
+0            ≥ 0.45
+============ ============================================================
+
+|u| Section B.3c. CV vs test consistency (2 points) |/u|
 
 **Regression**
 
 Differences in scaled RMSE between CV predictions of the model and Predictions test set.
 
-============== ================================
-Points         Scaled RMSE ratio
-============== ================================
-•• 2            Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV)
-•\ |space| 1    Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV)
-0               Scaled RMSE (test) >1.50*scaled RMSE (CV)
-============== ================================
+The test/CV scaled RMSE ratio uses the same gradual 0-2 scale as Section B.3b:
+
+============== ======================================================================
+Score          Test/CV scaled RMSE ratio
+============== ======================================================================
+2              ≤ 1.25
+0 to 2         1.25 < ratio < 1.75 (linear interpolation; 1 at 1.5)
+0              ≥ 1.75
+============== ======================================================================
 
 **Classification**
 
-Calculates the model's uncertainty by comparing the MCC obtained from the model with the MCC of the CV from Section 3a.
+The MCC difference uses the same gradual 0-2 scale as Section B.3b:
 
-============ ==============================================
-Points       Condition
-============ ==============================================
-•• 2         MCC difference (ΔMCC) < 0.15 (low uncertainty)
-•\ |space| 1 0.15 ≤ ΔMCC ≤ 0.30 (moderate uncertainty)
-0            ΔMCC > 0.30 (high uncertainty)
-============ ==============================================
+============ ============================================================
+Score        MCC difference (ΔMCC)
+============ ============================================================
+2            ≤ 0.15
+0 to 2       0.15 < ΔMCC < 0.45 (linear interpolation; 1 at 0.30)
+0            ≥ 0.45
+============ ============================================================
 
 |u| Section B.3d. Prediction stability (2 points) |/u|
 
 **Regression**
 
 The model's uncertainty is estimated from the 10 repetitions of the 10x 5-fold CV, combining three facets
-of stability into one averaged, rounded score:
+of stability into one averaged score, shown to one decimal place:
 
 *  **(a) Test-set stability:** SD of the repeated-CV predictions on the test set, ×4 to approximate a 95% CI, as a percentage of the y range.
 *  **(b) Train/validation stability:** the same SD-based check, computed instead on the out-of-fold train+validation predictions.
 *  **(c) RMSE stability:** the coefficient of variation (SD / mean) of the aggregate RMSE across the 10 CV repeats.
 
-============ ======================================================================
-Points       Condition — facets (a) and (b)
-============ ======================================================================
-•• 2         95% CI (or 4*SD) spans less than 25% of the y range (low uncertainty)
-•\ |space| 1 95% CI spans between 25% and 50% of the y range (moderate uncertainty)
-0            95% CI spans more than 50% of the y range (high uncertainty)
-============ ======================================================================
+For facets (a) and (b), the score decreases linearly from 2 at 25% y-range coverage to 0 at 75%:
 
 ============ ======================================================================
-Points       Condition — facet (c)
+Score        4*SD as a percentage of the y range
 ============ ======================================================================
-•• 2         RMSE coefficient of variation ≤ 15%
-•\ |space| 1 RMSE coefficient of variation ≤ 25%
-0            RMSE coefficient of variation > 25%
+2            ≤ 25%
+0 to 2       25% < coverage < 75% (linear interpolation; 1 at 50%)
+0            ≥ 75%
 ============ ======================================================================
 
-The final score for this item is the average of (a), (b) and (c), rounded to the nearest point.
+For facet (c), the score decreases linearly from 2 at 15% RMSE coefficient of variation to 0 at 35%:
+
+============ ======================================================================
+Score        RMSE coefficient of variation
+============ ======================================================================
+2            ≤ 15%
+0 to 2       15% < CV < 35% (linear interpolation; 1 at 25%)
+0            ≥ 35%
+============ ======================================================================
+
+The final score starts with the average of (a), (b) and (c), rounded to one decimal place. It then
+applies the more severe penalty from the symmetric RMSE and R² ratios between the lowest and
+highest halves of y. For a positive ratio ``r``, the factor is ``max(r, 1/r)``.
+
+============== ======================================================================
+Penalty        Symmetric RMSE or R² ratio factor
+============== ======================================================================
+0              ≤ 1.25
+0 to -2        1.25 < factor < 1.75 (linear interpolation; -1 at 1.5)
+-2             ≥ 1.75
+============== ======================================================================
+
+An undefined RMSE or R² ratio, or a zero or negative R² ratio, receives the maximum penalty. For
+R², this indicates a zero score or a change in sign between halves. The final stability score is
+clamped to 0-2 points.
 
 .. figure:: images/stability_real.jpg
    :width: 560
@@ -335,17 +374,19 @@ repeated-CV predictions, using the majority-voted class already reported in Sect
 *  **(b) Train/validation stability:** the same disagreement-rate check, computed on the out-of-fold train+validation predictions.
 *  **(c) MCC stability:** the coefficient of variation of the MCC computed separately for each of the 10 CV repeats.
 
-============ ======================================================================
-Points       Condition — facets (a), (b) and (c)
-============ ======================================================================
-•• 2         ≤ 15% (low uncertainty)
-•\ |space| 1 ≤ 25% (moderate uncertainty)
-0            > 25% (high uncertainty)
-============ ======================================================================
+Each classification facet decreases linearly from 2 at 15% disagreement or coefficient of variation
+to 0 at 35%:
 
-The final score is the average of (a), (b) and (c), rounded to the nearest point — the same combination
-rule as regression, reusing regression facet (c)'s 15%/25% thresholds directly for all three, since all
-three are now plain percentages rather than a percentage of the y-range.
+============ ===================================================================
+Score        Disagreement or MCC coefficient of variation
+============ ===================================================================
+2            ≤ 15%
+0 to 2       15% < value < 35% (linear interpolation; 1 at 25%)
+0            ≥ 35%
+============ ===================================================================
+
+The final score is the average of (a), (b) and (c), rounded to one decimal place. All three facets
+use percentages, so they share the same scale.
 
 |br|
 
@@ -373,27 +414,29 @@ below come from these two extreme folds; the fifth uses a different, X-descripto
 *Not statistical outliers — simply the most extreme 20% of real values in the dataset. Sub-metrics 1-4*
 *below all follow this Low/High fold pattern; sub-metric 5 breaks it on purpose (see* |u| 5. Applicability domain (leverage) |/u| *below).*
 
-|u| 1-2. Low / High — scaled RMSE (2 points each) |/u|
+|u| 1-2. Low / High — scaled RMSE (up to 2 points each) |/u|
 
-============== ================================
-Points         Scaled RMSE (Low or High fold)
-============== ================================
-•• 2            ≤ 10%
-•\ |space| 1    ≤ 20%
-0               > 20%
-============== ================================
+The scaled RMSE score decreases linearly from 2 at 10% to 0 at 30%:
+
+============== ======================================================================
+Score          Scaled RMSE (Low or High fold)
+============== ======================================================================
+2              ≤ 10%
+0 to 2         10% < scaled RMSE < 30% (linear interpolation; 1 at 20%)
+0              ≥ 30%
+============== ======================================================================
 
 Each of these two items also carries a **crossing-rate penalty**, based on the fraction of Low/High
 predictions that actually extrapolate past the training range instead of being clipped back into it
 (a model that never truly leaves the training range at the boundary is not really being tested there):
 
-============== ================================================
+============== =================================================================
 Penalty        Crossing rate (Low or High fold)
-============== ================================================
--•• -2          < 20% cross the boundary
--• -1           < 50% cross the boundary
-0               ≥ 50% of predictions cross the training boundary
-============== ================================================
+============== =================================================================
+-2             ≤ 20%
+0 to -2        20% < crossing rate < 80% (linear interpolation; -1 at 50%)
+0              ≥ 80%
+============== =================================================================
 
 .. figure:: images/crossing_rate_diagram.svg
    :width: 560
@@ -431,12 +474,29 @@ the order wrong is a worse sign than getting the scale wrong.
 
 *Parallel lines mean the model's predicted order matches the true order; crossings mean it doesn't.*
 
-============== ================================
-Points         Spearman (Low or High fold)
-============== ================================
-•\ |space| 1    ≥ 0.5
-0               < 0.5
-============== ================================
+============== =======================================================
+Score          Spearman (Low or High fold)
+============== =======================================================
+1              ≥ 0.5
+0 to 1         0.2 < Spearman < 0.5 (linear interpolation)
+0              ≤ 0.2
+============== =======================================================
+
+Each fold's Spearman score is reduced by a penalty for compressed predictions. ROBERT calculates
+both the predicted/measured standard-deviation ratio and predicted/measured y-range ratio, then
+uses the more severe penalty for that fold. For either ratio ``r``, the penalty is
+``clamp((r - 0.5) / 0.3, -1, 0)``:
+
+============== ==============================================================
+Penalty        More severe of the SD and range ratios
+============== ==============================================================
+0              Both ratios ≥ 0.5
+0 to -1        Lower ratio is between 0.2 and 0.5 (linear interpolation)
+-1             Either ratio ≤ 0.2
+============== ==============================================================
+
+The penalty is added to the Spearman score for each fold, then that adjusted score is clamped to
+0-1. The Low and High fold scores are added for a total of 0-2 points.
 
 |u| 4. Degradation ratio (2 points) |/u|
 
@@ -451,12 +511,16 @@ model can't hide a badly-degraded boundary behind a fine-looking interior.
 *Reported in the PDF as e.g.* ``Degradation vs 80% RMSE: High 1.65x, Low 1.61x`` *— both sides scored*
 *independently against the same 1.5x line, so one badly-degraded side can't hide behind a fine one.*
 
-============== ================================
-Points         RMSE vs remaining 80% (Low or High fold)
-============== ================================
-•\ |space| 1    ≤ 1.5x
-0               > 1.5x
-============== ================================
+Each fold receives up to 1 point: its score is 1 at ratios up to 1.5x, then decreases linearly to
+0 at 1.75x.
+
+============== ======================================================
+Score          RMSE vs remaining 80% (Low or High fold)
+============== ======================================================
+1              ≤ 1.5x
+0 to 1         1.5x < ratio < 1.75x (linear interpolation)
+0              ≥ 1.75x
+============== ======================================================
 
 |u| 5. Applicability domain (leverage) (2 points) |/u|
 
@@ -483,13 +547,15 @@ a Williams plot, with the usual warning threshold :math:`h^* = 3(p+1)/n`.
 *Williams plot itself — leverage on the x-axis, standardized residual on the y-axis, with the*
 *h\* threshold marked as a vertical dashed line (right).*
 
-============== ================================
-Points         Scaled RMSE (high-leverage 20%)
-============== ================================
-•• 2            ≤ 10%
-•\ |space| 1    ≤ 20%
-0               > 20%
-============== ================================
+The scaled RMSE score decreases linearly from 2 at 10% to 0 at 30%, as in Section B.2:
+
+============== ======================================================================
+Score          Scaled RMSE (high-leverage 20%)
+============== ======================================================================
+2              ≤ 10%
+0 to 2         10% < scaled RMSE < 30% (linear interpolation; 1 at 20%)
+0              ≥ 30%
+============== ======================================================================
 
 Score ranges
 ++++++++++++
@@ -497,6 +563,19 @@ Score ranges
 For regression, each of the two scores (Interpolation and Boundary robustness) is rated independently on
 the same five-tier scale below — a model can, for example, be a "very strong" interpolator while only
 "moderate" at the boundary. For classification, only Interpolation is rated (see above).
+
+The numeric scores are displayed to one decimal place. The score bar, color, and overall assessment
+phrase use the score rounded half up to the nearest integer:
+
+============== =====================
+Rounded score  Tier
+============== =====================
+0-2            Very weak
+3-4            Weak
+5-6            Moderate
+7-8            Strong
+9-10           Very strong
+============== =====================
 
 Some of the most common reasons for getting low scores are:
 

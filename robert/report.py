@@ -26,11 +26,11 @@ import json
 import platform
 import pandas as pd
 from pathlib import Path
-from decimal import Decimal, ROUND_HALF_UP
 from robert.utils import (load_variables,
     pd_to_dict,
     create_score_heatmap,
 )
+from robert.checkml_score import round_checkml_score
 from robert.report_utils import (
     BOUNDARY_INDENT,
     get_csv_names,
@@ -410,9 +410,9 @@ class report:
         return sorted(items, key=sort_key)[0]
 
 
-    # a candidate with either score below this is "Very weak" on ROBERT's own scale (see
-    # INTERP_BANDS/EXTRAP_BANDS below) - too weak on that axis to be a sensible "best overall"
-    # pick no matter how good its other axis is
+    # A candidate whose displayed integer tier is below this is "Very weak" on ROBERT's own
+    # scale (see INTERP_BANDS/EXTRAP_BANDS below) - too weak on that axis to be a sensible
+    # "best overall" pick no matter how good its other axis is.
     OVERALL_FLOOR = 3
 
     def _pick_best_overall(self,items):
@@ -430,8 +430,8 @@ class report:
         _pick_best_model() instead of calling this.
         """
         survivors = [item for item in items
-                     if item[1] is not None and item[1] >= self.OVERALL_FLOOR
-                     and item[2] is not None and item[2] >= self.OVERALL_FLOOR]
+                     if item[1] is not None and round_checkml_score(item[1]) >= self.OVERALL_FLOOR
+                     and item[2] is not None and round_checkml_score(item[2]) >= self.OVERALL_FLOOR]
         pool = survivors if survivors else items
         return self._pick_best_model(pool,1,2,3)
 
@@ -559,10 +559,9 @@ class report:
             spacing = '' if col == 'interpolation' else self.spacing_PFI
             score_key = 'interp_score' if col == 'interpolation' else 'extrap_score'
             score_val = data_score.get(f'{score_key}_{suffix}', 0)
-            # only integer score_N.jpg icons exist - both interp_score and extrap_score are
-            # already plain integer sums of 0/2 sub-scores (see calc_score()), this round()
-            # is just a defensive cast
-            score_icon = int(float(Decimal(str(score_val)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
+            # Only integer score_N.jpg icons exist. Use the same half-up integer tier for the
+            # icon, assessment phrase, model-selection floor, and CheckML app display.
+            score_icon = round_checkml_score(score_val)
             icon_name = f'score_{score_icon}' if score_available else f'score_gray_{score_icon}'
             score_info = f"""<img src="file:///{self._posix_uri(self.args.path_icons)}/{icon_name}.jpg" style="width: 100%; margin-top:7px; margin-bottom:-18px;"></p>"""
             columns_score.append(get_col_score(score_info,data_score,suffix,col,spacing))
@@ -818,7 +817,7 @@ class report:
 
         # variation in CV (existing - unstable predictions across repeated CV runs)
         if pred_type == 'reg':
-            if data_score[f'cv_sd_score_{suffix}'] == 0:
+            if data_score[f'cv_sd_score_{suffix}'] <= 0: # due to the penalty, it might get lowwer than 0 (but in the final score it only adds 0-2 points)
                 moderate.append('Imprecise predictions (Section B.6)')
         elif pred_type == 'clas':
             if data_score[f'diff_mcc_score_{suffix}'] == 0:
@@ -1038,7 +1037,8 @@ class report:
     ]
 
     def _pick_band(self,score,bands):
-        '''Returns (phrase,color_key) for the highest band whose min_score the score clears'''
+        '''Returns the phrase/color for the displayed integer score tier.'''
+        score = round_checkml_score(score)
         for min_score,phrase,color_key in bands:
             if score >= min_score:
                 return phrase,color_key
@@ -1081,7 +1081,7 @@ class report:
         # specifically rather than the old combined min(interp,bound) verdict)
         n_moderate = len(warnings_dict[f'moderate_warnings_{suffix}'])
         moderate_threshold = 3 if pred_type == 'reg' else 2
-        if interp_score >= 9 and n_moderate >= moderate_threshold:
+        if round_checkml_score(interp_score) >= 9 and n_moderate >= moderate_threshold:
             interp_phrase,interp_color = 'the model seems reliable, but examine the warnings','yellow'
 
         # one labeled sentence per score, so it's always clear which verdict is which

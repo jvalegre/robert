@@ -31,6 +31,8 @@ from io import BytesIO
 from pathlib import Path
 import re
 
+from robert.checkml_score import checkml_score_color, checkml_score_tier, checkml_tier_color, round_checkml_score
+
 # ------------------------------------------------------------
 # Third-party libraries
 # ------------------------------------------------------------
@@ -177,13 +179,13 @@ def _parse_boundary_block(text: str) -> dict | None:
 
     lines = _normalize_boundary_lines(text)
     title_line = next(
-        (line for line in lines if "Boundary robustness" in line and re.search(r"\bScore\s+\d+\b", line, re.IGNORECASE)),
+        (line for line in lines if "Boundary robustness" in line and re.search(r"\bScore\s+\d+(?:\.\d+)?\b", line, re.IGNORECASE)),
         None,
     )
     if not title_line:
         return None
 
-    score_match = re.search(r"\bScore\s+(\d+)\b", title_line, re.IGNORECASE)
+    score_match = re.search(r"\bScore\s+(\d+(?:\.\d+)?)\b", title_line, re.IGNORECASE)
     if not score_match:
         return None
 
@@ -192,7 +194,7 @@ def _parse_boundary_block(text: str) -> dict | None:
 
     return {
         "title": "Boundary robustness",
-        "score": int(score_match.group(1)),
+        "score": round_checkml_score(score_match.group(1)),
         "model_line": low_line,
         "points_line": high_line,
     }
@@ -225,29 +227,29 @@ def _parse_robert_score_block(text: str) -> dict | None:
     if not lines:
         return None
 
-    title_line = next((line for line in lines if re.search(r"\bScore\s+\d+\b", line, re.IGNORECASE)), None)
+    title_line = next((line for line in lines if re.search(r"\bScore\s+\d+(?:\.\d+)?\b", line, re.IGNORECASE)), None)
     if not title_line:
         joined_text = " ".join(lines)
-        score_match = re.search(r"\bScore\s+(\d+)\b", joined_text, re.IGNORECASE)
+        score_match = re.search(r"\bScore\s+(\d+(?:\.\d+)?)\b", joined_text, re.IGNORECASE)
         if not score_match:
             return None
-        title_match = re.search(r"(.+?)\s*[.\-·]?\s*Score\s+\d+\b", joined_text, re.IGNORECASE)
+        title_match = re.search(r"(.+?)\s*[.\-·]?\s*Score\s+\d+(?:\.\d+)?\b", joined_text, re.IGNORECASE)
         title = title_match.group(1).strip() if title_match else "CheckML Score"
         return {
             "title": title,
-            "score": int(score_match.group(1)),
+            "score": round_checkml_score(score_match.group(1)),
             "model_line": _extract_robert_model_line(lines, title),
             "points_line": _extract_robert_points_line(lines, title),
         }
 
-    score_match = re.search(r"\bScore\s+(\d+)\b", title_line, re.IGNORECASE)
+    score_match = re.search(r"\bScore\s+(\d+(?:\.\d+)?)\b", title_line, re.IGNORECASE)
     if not score_match:
         return None
 
-    title = re.sub(r"\s*[·\.-]?\s*Score\s+\d+\b.*$", "", title_line, flags=re.IGNORECASE).strip()
+    title = re.sub(r"\s*[·\.-]?\s*Score\s+\d+(?:\.\d+)?\b.*$", "", title_line, flags=re.IGNORECASE).strip()
     return {
         "title": title,
-        "score": int(score_match.group(1)),
+        "score": round_checkml_score(score_match.group(1)),
         "model_line": _extract_robert_model_line(lines, title),
         "points_line": _extract_robert_points_line(lines, title),
     }
@@ -298,15 +300,14 @@ def _robert_score_style(score: int | None) -> dict:
     """Return the visual style associated with a CheckML score."""
     if score is None:
         return {"label": "UNKNOWN", "segments": 0, "fill": (0.92, 0.90, 0.96), "text": (0.35, 0.35, 0.35)}
+    score = round_checkml_score(score)
+    tier = checkml_score_tier(score)
+    color = checkml_score_color(score)
     if score <= 0:
-        return {"label": "VERY WEAK", "segments": 0, "fill": (1.0, 0.42, 0.42), "text": (1.0, 0.42, 0.42)}
-    if score <= 3:
-        return {"label": "VERY WEAK", "segments": score, "fill": (1.0, 0.42, 0.42), "text": (1.0, 0.42, 0.42)}
-    if score <= 6:
-        return {"label": "WEAK", "segments": score, "fill": (1.0, 0.79, 0.38), "text": (1.0, 0.79, 0.38)}
-    if score <= 8:
-        return {"label": "MODERATE", "segments": score, "fill": (0.60, 0.78, 0.95), "text": (0.60, 0.78, 0.95)}
-    return {"label": "STRONG", "segments": min(score, 10), "fill": (0.38, 0.60, 0.80), "text": (0.38, 0.60, 0.80)}
+        segments = 0
+    else:
+        segments = min(score, 10)
+    return {"label": tier, "segments": segments, "fill": color, "text": color}
 
 
 def _render_robert_score_pixmap(details: dict) -> QPixmap | None:
@@ -524,14 +525,15 @@ class PredictionDashboardPanel(QWidget):
         self.collapsed_width = 48
         self._expanded = True
 
+        unknown_color = checkml_tier_color("UNKNOWN", output="text_hex")
         state_colors = {
-            "FAILED": "#b00020",
-            "WEAK": "#8a6d00",
-            "DECENT": "#276dd6",
-            "STRONG": "#1b5e20",
-            "UNKNOWN": "#666666",
+            "FAILED": checkml_tier_color("VERY WEAK", output="text_hex"),
+            "WEAK": checkml_tier_color("WEAK", output="text_hex"),
+            "DECENT": checkml_tier_color("STRONG", output="text_hex"),
+            "STRONG": checkml_tier_color("VERY STRONG", output="text_hex"),
+            "UNKNOWN": unknown_color,
         }
-        self.main_color = state_colors.get(scenario.get("state", "UNKNOWN"), "#666666")
+        self.main_color = state_colors.get(scenario.get("state", "UNKNOWN"), unknown_color)
         self._build_ui(scenario)
         self._apply_initial_state()
 
@@ -694,33 +696,33 @@ class PredictionDashboardPanel(QWidget):
             container_layout.addWidget(image_frame)
 
         # Boundary robustness is scored 0-10 (regression only), the same scale used for the
-        # main CheckML score - see _robert_score_style() for the VERY WEAK/WEAK/MODERATE/STRONG
-        # bands it's built from
+        # main CheckML score - see _robert_score_style() for the five displayed score tiers
         if score is not None:
             label = _robert_score_style(score)["label"]
+            color = checkml_score_color(score, output="text_hex")
             summary_texts = {
                 "VERY WEAK": (
                     "No boundary robustness" if score <= 0 else "Very weak boundary robustness",
-                    "#b00020",
                     "The model is unreliable at the edges of the training range and beyond. Predictions outside the original data range are unreliable.",
                 ),
                 "WEAK": (
                     "Weak boundary robustness",
-                    "#8a6d00",
                     "The model may tolerate slight deviations beyond the training range, but predictions near extremes can become unstable.",
                 ),
                 "MODERATE": (
                     "Moderate boundary robustness",
-                    "#276dd6",
                     "The model holds up reasonably well at the edges of the training range, although uncertainty increases further from the original data distribution.",
                 ),
                 "STRONG": (
                     "Strong boundary robustness",
-                    "#1b5e20",
+                    "The model remains reliable at the edges of the training range and beyond, showing robust predictions even for extreme values.",
+                ),
+                "VERY STRONG": (
+                    "Very strong boundary robustness",
                     "The model remains reliable at the edges of the training range and beyond, showing robust predictions even for extreme values.",
                 ),
             }
-            summary, color, explanation = summary_texts[label]
+            summary, explanation = summary_texts[label]
 
             summary_label = QLabel(summary)
             summary_label.setStyleSheet(f"color: {color}; font-weight: bold;")

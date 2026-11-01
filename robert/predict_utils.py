@@ -264,7 +264,9 @@ def print_predict(self,Xy_data,model_data,suffix_title):
 
             print_results += f"\n      -  50% highest data points, R2 = {high_50_r2:.2f}, RMSE = {high_50_rmse:.2f}"
             print_results += f"\n      -  50% lowest data points, R2 = {low_50_r2:.2f}, RMSE = {low_50_rmse:.2f}"
-            print_results += f"\n      -  Ratio 50% lowest/highest data points, R2 = {ratio_50_r2:.2f}, RMSE = {ratio_50_rmse:.2f}"
+            ratio_50_r2_display = f"{ratio_50_r2:.2f}" if ratio_50_r2 != 'N/A' else ratio_50_r2
+            ratio_50_rmse_display = f"{ratio_50_rmse:.2f}" if ratio_50_rmse != 'N/A' else ratio_50_rmse
+            print_results += f"\n      -  Ratio 50% lowest/highest data points, R2 = {ratio_50_r2_display}, RMSE = {ratio_50_rmse_display}"
 
             # Interpolation item 6, facets (b)/(c): stability of the out-of-fold CV predictions
             # themselves (not just the test set - facet (a) above), across the repeated-CV

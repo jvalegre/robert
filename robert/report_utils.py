@@ -479,9 +479,9 @@ def score_badge_2(self,data_score,suffix,score_val):
     its thresholds assume the standard 10x repeated 5-fold CV / ~20% test split
     '''
 
+    score_val_badge = int(float(Decimal(str(score_val)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
     if not data_score.get(f'score_available_{suffix}', True):
         return 'N/A',f'{self._posix_uri(self.args.path_icons)}/score_w_2_gray_{score_val}.jpg'
-    score_val_badge = int(float(Decimal(str(score_val)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
     return f'{score_val:.1f} / 2',f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_val_badge}.jpg'
 
 
@@ -675,14 +675,14 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
             f'(a) Test SD, 4*SD = {cv_4sd} ({y_range_covered}% y-range)'
             f'<br>{spacing}(b) CV SD, 4*SD = {cv_4sd_train} ({y_range_covered_train}% y-range)'
             f'<br>{spacing}(c) RMSE coef. of variation = {rmse_cv_pct}%'
-            f'<br>{spacing} Normalized RMSE ratio = {data_score[f"absol_rmse_50_ratio_{suffix}"]}'
-            f'<br>{spacing} Normalized R<sup>2</sup> ratio = {data_score[f"absol_r2_50_ratio_{suffix}"]}'
+            f'<br>{spacing} Symmetric RMSE ratio = {data_score[f"absol_rmse_50_ratio_{suffix}"]}'
+            f'<br>{spacing} Symmetric R<sup>2</sup> ratio = {data_score[f"absol_r2_50_ratio_{suffix}"]}'
         )            
 
         thres_line = (
             f'(a)/(b) 4*SD ≤25%/≤50%. (c) ≤15%/≤25%. Avg. rounded'
             f'<br>{spacing}Diff. top/down 50% ratio:'
-            f'<br>{spacing}R<sup>2</sup> or RMSE ratio ≥ 1.75: -2, ratio ≥ 1.5: -1'
+            f'<br>{spacing}Symmetric RMSE or R<sup>2</sup> ratio ≥ 1.75: -2, ≥ 1.5: -1'
         )
     else:
         disagree_a = data_score.get(f'clas_disagree_a_{suffix}',0)
@@ -1041,12 +1041,8 @@ def calc_score(dat_files,suffix,pred_type,data_score):
         mcc_test = data_score.get(f'r2_test_{suffix}', 0)
         diff_mcc = round(np.abs(mcc_test - mcc_cv), 2)
 
-        # Assign a score based on the MCC gap (e.g., ±2, ±1, 0)
-        data_score[f'diff_mcc_score_{suffix}'] = 0
-        if diff_mcc < 0.15:
-            data_score[f'diff_mcc_score_{suffix}'] += 2
-        elif diff_mcc <= 0.30:
-            data_score[f'diff_mcc_score_{suffix}'] += 1
+        # Use the gradual 0-2 score for the MCC gap, matching Section B.3b.
+        data_score[f'diff_mcc_score_{suffix}'] = score_mcc_difference(diff_mcc)
 
         # Interpolation: flawed-model gate + CV + test + train-vs-validation gap (item 4) +
         # MCC-diff (item 5) + prediction stability (item 6, see the 'clas' branch in
@@ -1121,6 +1117,13 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                     # tests that don't apply (onehot with binary descriptors, cluster in
                     # classification) are logged as N/A without a % difference and aren't scored
                     if ': N/A' in dat_verify[j]:
+                        continue
+                    # A zero CV score makes a relative percentage undefined. VERIFY still
+                    # classifies the test from its absolute score and thresholds; preserve
+                    # its FAILED count, but there is no percentage to use for this penalty.
+                    if 'percentage difference unavailable (CV score is 0)' in dat_verify[j]:
+                        if 'FAILED' in dat_verify[j]:
+                            failed_tests += 1
                         continue
                     error_difference = float(dat_verify[j].split(f'% difference.')[0].split()[-1])
                     threshold_gap = unclear_threshold - failed_threshold
@@ -1229,10 +1232,32 @@ def score_overfit(factor):
     return diff_score
 
 
+def score_mcc_difference(difference):
+    """Score an MCC gap on a gradual 0-2 scale: 2 at 0.15, 0 at 0.45."""
+    score_diff = max(0, min(2, (0.45 - difference) / 0.15))
+    return convert_2_decimal(score_diff)
+
+
 def part_50_penalty(factor):
     '''Equation for the penalty: 0 if factor <= 1.25, -2 if factor >= 1.75, linear in between'''
+    if factor == 'N/A':
+        factor = 999
     diff_score = max(-2, min(0, 4*(1.25 - factor)))
     return convert_2_decimal(diff_score)
+
+
+def symmetric_50_ratio_factor(ratio):
+    """Return the symmetric factor for a low/high half-set metric ratio.
+
+    RMSE ratios are non-negative. For R2, a zero or negative ratio means the
+    halves have a zero or opposite-sign score, so treat it as the maximum factor.
+    """
+    if ratio == 'N/A':
+        return 'N/A'
+    ratio = float(ratio)
+    if ratio <= 0:
+        return float('inf')
+    return max(ratio, 1 / ratio)
 
 
 def get_predict_scores(dat_predict,suffix,pred_type,data_score):
@@ -1440,6 +1465,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                             final_spearman_high = max(0, min(1, (spearman_score_high + spearman_penalty_high)))
                             data_score[f'spearman_score_{suffix}'] = final_spearman_high + final_spearman_low
                             break
+
                     # boundary robustness sub-metric 4 (degradation ratio) is scored in
                     # get_verify_scores() instead of here - degradation_ratio_low/high_{suffix}
                     # are computed from VERIFY's own sorted-CV data, which calc_score() only
@@ -1514,9 +1540,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                                 data_score[f'mcc_trainfit_{suffix}'] = mcc_trainfit
                                 diff_trainfit = round(abs(data_score.get(f'r2_cv_{suffix}', 0) - mcc_trainfit), 2)
                                 data_score[f'diff_trainfit_{suffix}'] = diff_trainfit
-                                # equation for the score: 0 if diff_trainfit >= 0.45, +2 if diff_trainfit <= 0.15, linear in between
-                                train_val_gap_score = max(0, min(2, (0.45 - diff_trainfit)/0.15))
-                                train_val_gap_score = convert_2_decimal(train_val_gap_score)
+                                train_val_gap_score = score_mcc_difference(diff_trainfit)
                                 data_score[f'train_val_gap_score_{suffix}'] = train_val_gap_score
                             break
 
@@ -1577,22 +1601,32 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                                      cv_sd_score_c]
                     avg_sd_score = sum(facet_scores)/3
                     avg_sd_score = convert_2_decimal(avg_sd_score)
-                    data_score[f'cv_sd_score_{suffix}'] = avg_sd_score + sd_score_penalty
+                    # This is a 0-2 sub-score; the extra half-set penalty must not push it
+                    # below zero (which would also produce a non-existent score badge image).
+                    data_score[f'cv_sd_score_{suffix}'] = max(0, min(2, avg_sd_score + sd_score_penalty))
                 
                 # penalty
                 if f'-  Ratio 50% lowest/highest' in line:
-                    rmse_50_ratio = float(line.split()[-1])
-                    absol_rmse_50_diff = np.abs(1-rmse_50_ratio)  
-                    data_score[f'absol_rmse_50_ratio_{suffix}'] = float(Decimal(str(1+absol_rmse_50_diff)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
-                    rmse_50_penalty = part_50_penalty(1+absol_rmse_50_diff)
-                    r2_50_ratio = float(line.split()[-4].split(',')[0])
-                    if r2_50_ratio == 'N/A':
-                        r2_50_ratio = 1
-                    absol_r2_50_diff = np.abs(1-r2_50_ratio)
-                    data_score[f'absol_r2_50_ratio_{suffix}'] =float(Decimal(str(1+absol_r2_50_diff)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
-                    r2_50_penalty = part_50_penalty(1+absol_r2_50_diff)
-                    
-                    sd_score_penalty = min(rmse_50_penalty, r2_50_penalty)
+                    rmse_50_ratio_text = line.split()[-1]
+                    r2_50_ratio_text = line.split('R2 = ')[1].split(',')[0]
+                    rmse_50_factor = symmetric_50_ratio_factor(rmse_50_ratio_text)
+                    r2_50_factor = symmetric_50_ratio_factor(r2_50_ratio_text)
+
+                    for metric, factor in [('rmse', rmse_50_factor), ('r2', r2_50_factor)]:
+                        if factor == 'N/A' or not np.isfinite(factor):
+                            data_score[f'absol_{metric}_50_ratio_{suffix}'] = factor
+                        else:
+                            data_score[f'absol_{metric}_50_ratio_{suffix}'] = float(
+                                Decimal(str(factor)).quantize(
+                                    Decimal('0.01'), rounding=ROUND_HALF_UP
+                                )
+                            )
+
+                    # Apply whichever of the two symmetric ratio penalties is more severe.
+                    sd_score_penalty = min(
+                        part_50_penalty(rmse_50_factor),
+                        part_50_penalty(r2_50_factor),
+                    )
 
             elif pred_type == 'clas':
                 # Interpolation item 6 for classification: same "how much does this depend

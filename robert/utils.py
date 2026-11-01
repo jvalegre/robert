@@ -2835,13 +2835,15 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
 
     # print results
     high_low_text = ''
-    high_low_text += f"      -  Sorted CV extremes (repeated) : RMSE Low = {rmse_low:.2f}, RMSE High = {rmse_high:.2f}\n"
+    # REPORT parses these RMSE values to calculate scale-independent scores. Use significant
+    # digits rather than fixed decimal places so small target scales don't round them to zero.
+    high_low_text += f"      -  Sorted CV extremes (repeated) : RMSE Low = {rmse_low:.2g}, RMSE High = {rmse_high:.2g}\n"
     high_low_text += f"      -  Real range extension (Low/High) : Low crossing = {crossing_low:.2f}, High crossing = {crossing_high:.2f}\n"
-    high_low_text += f"      -  Degradation baseline (remaining 80%) : vs Low (top 80%) RMSE = {rmse_top80:.2f}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2f}\n"
+    high_low_text += f"      -  Degradation baseline (remaining 80%) : vs Low (top 80%) RMSE = {rmse_top80:.2g}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2g}\n"
     high_low_text += f"      -  y SD at high extreme : Measured = {sd_high:.2f}; Predicted = {sd_pred_high:.2f}. Spread ratio = {spread_ratio_high:.2f}\n"
     high_low_text += f"      -  y SD at low extreme : Measured = {sd_low:.2f}; Predicted = {sd_pred_low:.2f}. Spread ratio = {spread_ratio_low:.2f}\n"
-    high_low_text += f"      -  y range at high extreme : Measured = {range_high:.2f}; Predicted = {range_pred_high:.2f}. Range ratio = {range_ratio_high:.2f}\n"
-    high_low_text += f"      -  y range at low extreme : Measured = {range_low:.2f}; Predicted = {range_pred_low:.2f}. Range ratio = {range_ratio_low:.2f}\n"
+    high_low_text += f"      -  y range at high extreme : Measured = {range_high:.2g}; Predicted = {range_pred_high:.2g}. Range ratio = {range_ratio_high:.2f}\n"
+    high_low_text += f"      -  y range at low extreme : Measured = {range_low:.2g}; Predicted = {range_pred_low:.2g}. Range ratio = {range_ratio_low:.2f}\n"
     high_low_text += f"      -  Spearman rank (Low/High) : Low (internal) = {spearman_low:.2f}, High (internal) = {spearman_high:.2f}, global = {spearman_global:.2f}\n"
     high_low_text += f"      -  Uncertainty coverage (+/-2SD band) : {coverage:.2f}\n"
     high_low_text += f"      -  Uncertainty RMSE ratio (high-SD/low-SD) : {sd_rmse_ratio:.3f}\n"

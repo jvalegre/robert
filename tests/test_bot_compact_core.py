@@ -892,5 +892,5 @@ def test_snapshot_reuses_report_score_logic_instead_of_reading_pdf(tmp_path: Pat
     assert ('VERIFY tests', -2, 0) in assessment.component_scores
     assert ('Test vs CV', 2, 2) in assessment.component_scores
     evidence = render_workflow_evidence(snapshot, 'Summarize this workflow', full=True)
-    assert 'Report-derived assessment No PFI: Interpolation score=3/10; Boundary robustness=0/10' in evidence
+    assert 'Report-derived assessment No PFI: Interpolation score=3.0/10; Boundary robustness=0.0/10' in evidence
     assert 'The PDFs themselves were not parsed or sent' in evidence""", ('test_discovers_aqme_outputs_and_descriptor_counts', 'test_snapshot_reuses_report_score_logic_instead_of_reading_pdf'), ())

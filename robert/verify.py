@@ -378,28 +378,41 @@ class verify:
                 results_print[i] = f'\n         - {test_ver}: N/A, not defined for classification'
                 continue
             
-            error_difference = f'{((verify_results[test_ver]/verify_results["CV_score"])-1)*100:.2f}'.rstrip('0').rstrip('.')
+            cv_score = verify_results['CV_score']
+            if cv_score == 0:
+                # A relative percentage is undefined when the reference score is zero.
+                # Keep the threshold comparisons below (which remain well-defined) and
+                # say why the percentage cannot be reported.
+                error_difference = 'percentage difference unavailable (CV score is 0)'
+            else:
+                if verify_results['error_type'].lower() in ['mae','rmse']:
+                    relative_difference = (verify_results[test_ver]/cv_score - 1)*100
+                else:
+                    # For higher-is-better metrics (including negative MCC), normalize by
+                    # |CV_score| so the sign still reflects whether the test score rose or fell.
+                    relative_difference = ((verify_results[test_ver]-cv_score)/abs(cv_score))*100
+                error_difference = f'{relative_difference:.2f}'.rstrip('0').rstrip('.') + '% difference'
             if verify_results['error_type'].lower() in ['mae','rmse']:
                 if verify_results[test_ver] <= verify_results['unclear_higher_thres']:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than threshold. {error_difference}% difference.'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than threshold. {error_difference}.'
                 elif verify_results[test_ver] <= verify_results['higher_thres']:
                         colors[i] = yellow_color
-                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than original, but close to fail. {error_difference}% difference.'
+                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than original, but close to fail. {error_difference}.'
                 else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds. {error_difference}% difference.'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds. {error_difference}.'
 
             else:
                 if verify_results[test_ver] >= verify_results['unclear_lower_thres']:
                         colors[i] = red_color
-                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds. {error_difference}% difference.'
+                        results_print[i] = f'\n         x {test_ver}: FAILED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, higher than thresholds. {error_difference}.'
                 elif verify_results[test_ver] >= verify_results['lower_thres']:
                         colors[i] = yellow_color
-                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than original, but close to fail. {error_difference}% difference.'
+                        results_print[i] = f'\n         - {test_ver}: UNCLEAR, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than original, but close to fail. {error_difference}.'
                 else:
                         colors[i] = blue_color
-                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thresholds. {error_difference}% difference.'
+                        results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thresholds. {error_difference}.'
 
         # store metrics and colors to represent in comparison graph, adding the metrics of the 
         # original model first

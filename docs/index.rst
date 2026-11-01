@@ -45,14 +45,21 @@ Special acknowledgments
    Install/note
    Install/gui
 
+.. toctree:: 
+   :maxdepth: 1
+   :caption: CheckML PDF report
+
+   Report/score
+   Tutorials/checkml_database
+   Tutorials/checkml_evaluation
+   Report/repro
+
 .. toctree::
    :maxdepth: 2
    :caption: Tutorials
 
    Tutorials/videos
    Tutorials/tutorials
-   Tutorials/checkml_database
-   Tutorials/checkml_evaluation
 
 .. toctree::
    :maxdepth: 1
@@ -64,13 +71,6 @@ Special acknowledgments
    Modules/predict
    Modules/verify
    Modules/aqme
-
-.. toctree:: 
-   :maxdepth: 1
-   :caption: ROBERT PDF report
-
-   Report/score
-   Report/repro
 
 .. toctree::
    :maxdepth: 2

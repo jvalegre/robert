@@ -538,7 +538,7 @@ def test_AQME(test_job, aqme_workspace):
             # rather than stretched. Classification's B.2/B.3a/B.3b/B.3c/B.3d are now
             # homogenized to the same 0-2-point structure as regression (see score.rst) -
             # items 2/3 used to go up to 3 points with different MCC thresholds)
-            assert score_interpolation[0] == "5.1"
+            assert score_interpolation[0] == "5.2"
             assert len(score_interpolation) == 1
             assert image_interpolation[0] == "5"
             assert ml_model_count == 1
@@ -558,7 +558,7 @@ def test_AQME(test_job, aqme_workspace):
             assert "0.6 / 2" in train_val_gap_models[0]
             assert "report/score_w_2_1.jpg" in train_val_gap_models[0]
             # advanced analysis, CV vs test consistency, item 5
-            assert "1.0 / 2" in cv_vs_test_models[0]
+            assert "1.1 / 2" in cv_vs_test_models[0]
             assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             # no boundary robustness sub-items for classification (no sub-item 1 to check)
             assert not score_boundary

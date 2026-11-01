@@ -21,7 +21,7 @@ Automated protocols
 
 *  y-mean test: Calculates the accuracy of the model when all the predicted y values are fixed to the mean of the measured y values (straight line when plotting measured vs predicted y values).  
 *  y-shuffle test: Calculates the accuracy of the model after shuffling randomly all the measured y values.
-*  onehot test: Calculates the accuracy of the model when replacing all descriptors for 0s and 1s. If the x value is 0, the value will be 0, otherwise it will be 1.
+*  onehot test: Calculates the accuracy of the model when replacing all descriptors for 0s and 1s. Continuous descriptors are binarized using their own median as the cutoff (value ≥ median → 1, otherwise → 0). This test is not included when the dataset contains descriptors that are already binary.
 
 Technical information
 +++++++++++++++++++++

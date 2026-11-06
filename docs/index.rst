@@ -50,8 +50,8 @@ Special acknowledgments
    :caption: CheckML PDF report
 
    Report/score
-   Tutorials/checkml_database
-   Tutorials/checkml_evaluation
+   Report/checkml_database
+   Report/checkml_evaluation
    Report/repro
 
 .. toctree::

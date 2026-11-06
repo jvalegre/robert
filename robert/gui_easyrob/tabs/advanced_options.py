@@ -237,7 +237,8 @@ class AdvancedOptionsTab(QWidget):
             if self.type.currentText() == "Regression":
                 default_checked_models = ["RF", "GB", "NN", "MVL"]  # Regression defaults
             else:
-                default_checked_models = ["RF", "GB", "NN", "AdaB"]  # Classification defaults
+                # Classification defaults: Logistic is the linear counterpart of MVL
+                default_checked_models = ["RF", "GB", "NN", "Logistic"]
 
             # Update check states instead of recreating widgets
             for model, checkbox in self.modellist.items():
@@ -261,8 +262,8 @@ class AdvancedOptionsTab(QWidget):
                     f"{self.type.currentText().lower()}. It has been deselected."
                 )
 
-        # Create checkboxes (only once) - Ridge/Logistic aren't checked by default (keeps
-        # existing default runs unchanged), but are available to opt into
+        # Create checkboxes (only once) - Ridge isn't checked by default, but is available to
+        # opt into; Logistic is a classification default (see update_model_options())
         all_models = ["RF", "MVL", "GB", "NN", "GP", "AdaB", "Ridge", "Logistic"]
         row, col = 0, 0
         for model in all_models:

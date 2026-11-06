@@ -66,12 +66,33 @@ from robert.report_utils import (
 # suffixes -> output PDF filenames, one PDF per model
 PDF_NAMES = {'No PFI': 'ROBERT_report_No_PFI.pdf', 'PFI': 'ROBERT_report_PFI.pdf'}
 
+# grey section separators always CLOSE a section (never open one), so the line can't end up
+# at the top of a page. Only Section A opens with one, below the header on page 1. Sections
+# whose own HTML doesn't already end with a line + page break get one in the main loop
+# (see _close_section())
+def _close_section(section_html):
+    '''
+    Closes a section that doesn't end with its own line/page break with a grey line. The line
+    is the bottom border of a wrapper around the section (not a separate <hr>), so it's always
+    attached to the section's last line and can't end up alone at the top of the next page.
+    The 20px gap above it is a margin, which is dropped automatically at a page break
+    '''
+    tail = section_html[-400:]
+    if 'page-break-after: always' in tail or '<hr' in tail:
+        return section_html
+    # trailing empty spacer paragraphs could be pushed alone onto the next page, taking the
+    # border with them - the gap above the line is the wrapper's padding instead
+    section_html = re.sub(r'(\s*(<p[^>]*>\s*</p>|</p>))+\s*$', '', section_html)
+    return (f'<div style="border-bottom: 1px solid #a0a0a0; padding-bottom: 15px; margin-bottom: 25px;">'
+            f'{section_html}</div>')
+
 # a descriptor whose importance is this small a fraction of the top descriptor's (or below
 # this absolute value) contributes essentially nothing - used by _has_low_relevance_descp()
 # below to flag when trimming near-irrelevant descriptors is worth trying (fewer, more
 # relevant descriptors often generalize better than many diluted ones)
 LOW_RELEVANCE_RELATIVE_THRESHOLD = 0.04
 LOW_RELEVANCE_ABSOLUTE_THRESHOLD = 0.05
+
 
 
 def _has_low_relevance_descp(lines,start_idx,shap=False):
@@ -169,20 +190,22 @@ class report:
             old_stderr = os.dup(2)
             os.dup2(temp_stderr.fileno(), 2)
 
+        weasyprint_missing = False
         try:
             from weasyprint import HTML
         except (OSError, ModuleNotFoundError):
+            weasyprint_missing = True
+        finally:
+            # stderr is restored only here (it used to be restored in the except block too, so
+            # the finally block then called os.dup2() on the already-closed descriptor and the
+            # run crashed with "OSError: Bad file descriptor" instead of the message below)
             if platform.system() == 'Windows':
                 os.dup2(old_stderr, 2)
                 os.close(old_stderr)
                 temp_stderr.close()
+        if weasyprint_missing:
             print(f"\nx The REPORT module requires some libraries that are missing, the PDF with the summary of the results has not been created. Try installing the libraries with 'conda install -y -c conda-forge glib gtk3 pango mscorefonts'")
             sys.exit()
-        finally:
-            if platform.system() == 'Windows':
-                os.dup2(old_stderr, 2)
-                os.close(old_stderr)
-                temp_stderr.close()
 
         # load default and user-specified variables
         self.args = load_variables(kwargs, "report")
@@ -307,6 +330,8 @@ class report:
                 # Transparency section
                 transpa_dat, params_df = self.get_transparency(suffix)
                 pred_type = params_df['type'][0].lower()
+                # model of this PDF, used by analyze_warnings() for the tree-based model warning
+                self.report_model_name = str(params_df['model'][0]) if 'model' in params_df.columns else ''
 
                 # print header
                 report_html = self.print_header(citation_dat)
@@ -319,35 +344,25 @@ class report:
                 warnings_dat, warnings_dict = self.print_warnings(dat_files, pred_type, data_score, suffix)
                 report_html += warnings_dat
 
-                # print advanced score analysis
-                report_html += self.print_adv_anal(pred_type, data_score, suffix, suffix_title)
+                # page 2: results summary with every warning (see print_summary_page())
+                report_html += self.print_summary_page(pred_type, data_score, warnings_dict, suffix, params_df)
 
-                # print y distribution
-                report_html += self.print_y_distrib(warnings_dict, suffix, suffix_title)
-
-                # print feature importances
-                report_html += self.print_features(warnings_dict, suffix, suffix_title)
-
-                # print outlier analysis
-                report_html += self.print_outliers(pred_type, suffix, suffix_title)
-
-                # print model screening
-                report_html += self.print_generate(eval_only, suffix_title)
-
-                # print reproducibility section
-                report_html += repro_dat
-
-                # print transparency section
-                report_html += transpa_dat
-
-                # print abbreviation section
-                report_html += self.get_abbrev()
-
-                # print new predictions
-                report_html += self.print_predictions(pred_type, suffix, suffix_title)
-
-                # print miscellaneous section
-                report_html += self.print_misc()
+                # sections B onwards, each one closed by its own grey line (see _close_section())
+                sections = [
+                    self.print_adv_anal(pred_type, data_score, suffix, suffix_title),  # B
+                    self.print_y_distrib(warnings_dict, suffix, suffix_title),  # C
+                    self.print_features(warnings_dict, suffix, suffix_title),  # D
+                    self.print_outliers(pred_type, suffix, suffix_title),  # E
+                    self.print_generate(eval_only, suffix_title),  # F
+                    repro_dat,  # G
+                    transpa_dat,  # H
+                    self.get_abbrev(),  # I
+                    self.print_predictions(pred_type, suffix, suffix_title),  # J (if any)
+                    self.print_misc(),  # Miscellaneous
+                ]
+                for section_html in sections:
+                    if section_html:
+                        report_html += _close_section(section_html)
 
                 if self.args.debug_report:
                     with open(f"report_debug{self.model_suffix}_{suffix_title}.txt", "w", encoding="utf-8") as debug_text:
@@ -672,34 +687,10 @@ class report:
         # - see analyze_warnings() for the ordering rationale)
         warnings_dict = self.analyze_warnings(data_score,suffix,warnings_dict,pred_type)
 
-        severe_list = warnings_dict[f'severe_warnings_{suffix}']
-        moderate_list = warnings_dict[f'moderate_warnings_{suffix}']
-
-        # simple proportional rule: the content above this box (header/citation + Section A's
-        # score display) is always about the same height, so the box gets a fixed line budget
-        # and severe warnings (always shown in full) eat into it first - whatever's left goes
-        # to moderate warnings, truncated with "..." if there isn't room for all of them.
-        # Measured on a real worst-case report (no severe warnings, so the Overall assessment
-        # takes 2 lines: Interpolation + Boundary robustness; all moderate slots used by the
-        # longest warnings): ~246pt are left for the box on page 1, and a 6-line budget fits
-        # (box ~184pt of text + margins) while 7 does not. The QDESCP citation added to the
-        # header in AQME workflows wraps to 2 lines and leaves only ~214pt, where 6 no longer
-        # fits but 5 does - so one line less is used in that case
-        TOTAL_LINE_BUDGET = self.WARNING_LINE_BUDGET - (1 if getattr(self, 'qdescp_citation', False) else 0)
-        moderate_budget = max(0, TOTAL_LINE_BUDGET - len(severe_list) - 1)  # -1 reserves the Overall assessment line
-        if len(moderate_list) <= moderate_budget:
-            moderate_shown = moderate_list
-        else:
-            moderate_shown = moderate_list[:max(0, moderate_budget - 1)]  # -1 reserves the "..." line
-        moderate_hidden = len(moderate_list) - len(moderate_shown)
-
-        # add box (full width now that it's a single box, not paired with a PFI column) - a
-        # small min-height so a mostly-empty box (few/no warnings) doesn't look collapsed,
-        # without artificially inflating the common case. page-break-inside:avoid guarantees
-        # this box (severe + capped moderate + assessment) always renders as one complete,
-        # self-contained block on page 1 - it never splits and never spills onto page 2
-        warning_print = f'''
-        <div style="width:100%; box-sizing:border-box; border:0.5px solid Gray; padding:4px 4px 6px 4px; margin-top: 8px; margin-bottom: 15px; min-height: 60px; text-align: justify; page-break-inside: avoid;">'''
+        # every warning and the Overall assessment are in the results summary on page 2 (see
+        # print_summary_page()), so page 1 shows radar plots of the score components instead
+        interp_radar,bound_radar = self.save_radar_plots(data_score,suffix,pred_type)
+        radar_h = self.RADAR_SIZE[1]
 
         # a big, impossible-to-miss banner (separate from the bulleted severe-warnings list
         # below, which uses a small 15px bullet) for the one risk ROBERT cannot itself measure
@@ -718,48 +709,354 @@ class report:
         # <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (CHECKML), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
         # </div>'''
 
-        # add severe warnings
-        warning_print += f'''
-        <p style="margin: 3px 0;"><strong>{space}Severe warnings</strong></p>'''
-        if len(severe_list) == 0:
-            warning_print += self.print_line_warning(
-                'No severe warnings detected',
-                style_lines,color_dict['blue'],space)
-        else:
-            for sev_warning in severe_list:
-                warning_print += self.print_line_warning(
-                    sev_warning,
-                    style_lines,color_dict['red'],space)
-
-        # add moderate warnings (capped - see MODERATE_WARNINGS_BUDGET above)
-        warning_print += f'''
-        <p style="margin: 6px 0 3px 0;"><strong>{space}Moderate warnings</strong></p>'''
-        if len(moderate_list) == 0:
-            warning_print += self.print_line_warning(
-                'No moderate warnings detected',
-                style_lines,color_dict['blue'],space)
-        else:
-            for mode_warning in moderate_shown:
-                warning_print += self.print_line_warning(
-                    mode_warning,
-                    style_lines,color_dict['yellow'],space)
-            if moderate_hidden:
-                warning_print += self.print_line_warning(
-                    '...',
-                    style_lines,color_dict['yellow'],space)
-
-        # add overall assessment
-        warning_print += self.print_assessment(space,suffix,data_score,style_lines,warnings_dict,color_dict,pred_type)
-
-        # end box
-        warning_print += '''</div>'''
-
-        warnings_dat += warning_print
-
-        # page break
-        warnings_dat += f"""<p style="page-break-after: always;"></p>"""
+        # radars side by side (classification: Interpolation only). The page break is on this
+        # block itself (not on an empty <p> after it, which could spill onto page 2 and leave
+        # it blank when page 1 is full)
+        warnings_dat += f'''
+        <div style="page-break-inside: avoid; page-break-after: always; margin-top: 16px;">
+        {self.print_img_row_indent(self.print_img_tag(interp_radar,radar_h),self.print_img_tag(bound_radar,radar_h),0)}
+        </div>'''
 
         return warnings_dat,warnings_dict
+
+
+    # displayed size (px) of each radar plot on page 1 - 270px wide like every other report image
+    RADAR_SIZE = (270, 215)
+
+    def save_radar_plots(self,data_score,suffix,pred_type):
+        '''
+        Saves the radar plots of the 0-2 components behind the Interpolation and Boundary
+        robustness scores (same values as Section B). The flawed-model tests are a penalty
+        (<= 0) rather than a 0-2 component, so they're summarized in text instead (see
+        print_warnings()). Classification has no Boundary robustness, so only one radar is made.
+        Returns (interpolation_png, boundary_png or '')
+        '''
+
+        import numpy as np
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+
+        diff_key = 'diff_scaled_rmse_score' if pred_type == 'reg' else 'diff_mcc_score'
+        radars = [('interpolation', 'Interpolation components', f'interp_score_{suffix}', [
+            # short names (numbered as in Section B) so the labels don't crowd the plot
+            ('2. CV', f'cv_score_combined_{suffix}'),
+            ('3. Test', f'test_score_combined_{suffix}'),
+            ('4. Train-val gap', f'train_val_gap_score_{suffix}'),
+            ('5. CV vs test', f'{diff_key}_{suffix}'),
+            ('6. Stability', f'cv_sd_score_{suffix}'),
+        ])]
+        if pred_type == 'reg':
+            radars.append(('boundary', 'Boundary robustness components', f'extrap_score_{suffix}', [
+                ('1. High (sorted CV)', f'sorted_cv_high_score_{suffix}'),
+                ('2. Low (sorted CV)', f'sorted_cv_low_score_{suffix}'),
+                ('3. Spearman', f'spearman_score_{suffix}'),
+                ('4. Degradation', f'degradation_score_{suffix}'),
+                ('5. Applic. domain', f'applicability_domain_score_{suffix}'),
+            ]))
+
+        score_available = data_score.get(f'score_available_{suffix}', True)
+        out_folder = Path(f'{os.getcwd()}/PREDICT')
+        out_folder.mkdir(exist_ok=True)
+        suffix_title = '_'.join(suffix.split())
+        paths = {'interpolation': '', 'boundary': ''}
+
+        for key,title,total_key,components in radars:
+            labels = [label for label,_ in components]
+            values = [max(0.0,min(2.0,float(data_score.get(score_key,0) or 0))) for _,score_key in components]
+            # same 5-colour scale as the score cards on page 2; grey when the score isn't
+            # calibrated for this run (non-standard CV/test, see print_score())
+            colour = self._summary_score_style(data_score.get(total_key))[0] if score_available else '#9e9e9e'
+
+            angles = np.linspace(0, 2*np.pi, len(values), endpoint=False).tolist()
+            # figure inches = displayed px / 96, so font sizes in pt read as in the rest of the PDF
+            fig = plt.figure(figsize=(self.RADAR_SIZE[0]/96, self.RADAR_SIZE[1]/96), dpi=300)
+            ax = fig.add_axes([0.29, 0.12, 0.42, 0.68], polar=True)
+            ax.set_theta_offset(np.pi/2)
+            ax.set_theta_direction(-1)
+            # shaded disc + dark outline polygon, 0 at the centre
+            ax.set_facecolor(colour + '33')
+            ax.plot(angles + angles[:1], values + values[:1], color='#0f172a', linewidth=1.2, zorder=3)
+            ax.fill(angles + angles[:1], values + values[:1], color=colour, alpha=0.45, zorder=2)
+            ax.set_ylim(0, 2)
+            ax.set_yticks([0.5, 1, 1.5, 2])
+            # ring values sit just inside each ring, halfway between the first two spokes, so
+            # neither a ring nor a spoke runs through them
+            ax.set_yticklabels([])
+            mid_angle = np.pi/len(values)
+            for ring in (0.5, 1, 1.5, 2):
+                # translucent patch: the data outline can still pass there (value-dependent)
+                ax.text(mid_angle, ring - 0.17, f'{ring:g}', ha='center', va='center', fontsize=4.5,
+                        color='#475569', zorder=6,
+                        bbox=dict(facecolor='white', alpha=0.65, edgecolor='none', pad=0.4))
+            ax.set_xticks(angles)
+            ax.set_xticklabels([])
+            # each axis label = component name + its value in bold underneath, both centred on
+            # each other and placed away from the circle (side labels aligned outwards; top/
+            # bottom ones shifted up/down so the two lines never touch the circle). Clockwise
+            # from the top, the screen direction of angle a is (sin a, cos a)
+            name_texts = []
+            for label,angle in zip(labels,angles):
+                dx,dy = np.sin(angle),np.cos(angle)
+                ha = 'left' if dx > 0.1 else 'right' if dx < -0.1 else 'center'
+                name_texts.append(ax.annotate(label, xy=(angle, 2), xytext=(5*dx, 11*dy + 0.5),
+                                              textcoords='offset points', ha=ha, va='bottom', fontsize=6,
+                                              color='#1e293b', annotation_clip=False))
+            # the value is centred under the name as actually drawn (its measured box, after a
+            # first draw so the positions are final), so both lines stay centred on each other
+            # whatever the name's length/alignment
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            for name_txt,value in zip(name_texts,values):
+                name_box = name_txt.get_window_extent(renderer)
+                fx,fy = fig.transFigure.inverted().transform(((name_box.x0 + name_box.x1)/2, name_box.y0))
+                fig.text(fx, fy - 0.004, f'{value:.1f} / 2', ha='center', va='top', fontsize=6,
+                         fontweight='bold', color='#0f172a')
+            ax.grid(color='#64748b', linewidth=0.35, alpha=0.6)
+            ax.spines['polar'].set_color('#0f172a')
+            ax.spines['polar'].set_linewidth(1.2)
+            fig.suptitle(title + (' (0-2 each)' if score_available else ' (N/A)'), fontsize=7.5, fontweight='bold', y=0.985)
+
+            radar_path = out_folder / f'CheckML_radar_{key}{getattr(self,"model_suffix","")}_{suffix_title}.png'
+            fig.savefig(radar_path, dpi=300)
+            plt.close(fig)
+            paths[key] = str(radar_path)
+
+        return paths['interpolation'],paths['boundary']
+
+
+    SUMMARY_MODEL_NAMES = {
+        'RF': 'RandomForest', 'GB': 'GradientBoosting', 'NN': 'MLP',
+        'GP': 'GaussianProcess', 'ADAB': 'AdaBoost',
+    }
+    # report palette used by the summary page (same colours as the VERIFY bar chart and the
+    # warning bullets used elsewhere in the report)
+    SUMMARY_BLUE = '#1f77b4'
+    SUMMARY_WARNING_STYLES = {
+        # kind: (stripe colour, background tint, label colour)
+        'severe': ('#c56666', '#f7e6e6', '#9e3a3a'),
+        'moderate': ('#c5c57d', '#f5f5e6', '#6f6f2c'),
+        'none': ('#9ba5e3', '#eceefb', '#4a5596'),
+    }
+
+    def _summary_score_style(self,score):
+        '''
+        Fill colour, text colour and rating of a 0-10 score - the same five tiers and colours
+        as the score bars of Section A (see checkml_score.py)
+        '''
+        from robert.checkml_score import checkml_score_tier, checkml_tier_color
+        if score is None:
+            return '#9e9e9e','#666666','Not available'
+        tier = checkml_score_tier(max(0,min(10,score)))
+        return checkml_tier_color(tier,'hex'),checkml_tier_color(tier,'text_hex'),tier.title()
+
+
+    def _summary_model_label(self,params_df,pred_type):
+        '''Full scikit-learn name of the model (ROBERT short codes translated)'''
+        model = str(params_df['model'][0]) if 'model' in params_df.columns else 'Not available'
+        if model.upper() == 'MVL':
+            return 'LinearRegression (MVL)'
+        if model.upper() in ('RIDGE','LOGISTIC'):
+            return {'RIDGE': 'Ridge', 'LOGISTIC': 'LogisticRegression'}[model.upper()]
+        if model.upper() in self.SUMMARY_MODEL_NAMES:
+            model_type = 'Regressor' if pred_type == 'reg' else 'Classifier'
+            return f'{self.SUMMARY_MODEL_NAMES[model.upper()]}{model_type}'
+        return model
+
+
+    def print_summary_page(self,pred_type,data_score,warnings_dict,suffix,params_df):
+        '''
+        Results summary page (page 2): same content as the CheckML web summary sheet - evaluation
+        setup, target distribution, hyperparameters, overall assessment, both scores and EVERY
+        warning (the Section A box on page 1 may truncate moderate warnings with "..."), with
+        each warning placed under the score it describes (Interpolation / Boundary robustness)
+        '''
+
+        from html import escape
+        from robert.utils import deserialize_model_params
+
+        navy, muted = self.SUMMARY_BLUE, '#555555'
+        y_name = str(params_df['y'][0]) if 'y' in params_df.columns else ''
+        names_col = str(params_df['names'][0]) if 'names' in params_df.columns else ''
+
+        # dataset information (from the database saved with the model, which has the Set column)
+        dataset = pd.DataFrame()
+        db_file = getattr(self,'report_db_file',None)
+        if db_file and os.path.exists(db_file):
+            try:
+                dataset = pd.read_csv(db_file, encoding='utf-8')
+            except Exception:
+                dataset = pd.DataFrame()
+        descriptors = []
+        if 'X_descriptors' in params_df.columns:
+            try:
+                descriptors = json.loads(params_df['X_descriptors'][0])
+            except (json.JSONDecodeError, TypeError):
+                import ast
+                try:
+                    descriptors = ast.literal_eval(params_df['X_descriptors'][0])
+                except (ValueError, SyntaxError):
+                    descriptors = []
+        set_txt = ''
+        if 'Set' in dataset.columns:
+            set_counts = dataset['Set'].value_counts()
+            set_txt = ' | '.join(f'{name}: {count:,}' for name,count in set_counts.items())
+
+        # target distribution (classification labels restored with the saved class mapping)
+        distribution = 'No target values available'
+        if y_name in dataset.columns:
+            if pred_type == 'clas':
+                class_map = {}
+                if 'class_mapping_reverse' in params_df.columns and pd.notna(params_df['class_mapping_reverse'][0]):
+                    try:
+                        class_map = {int(k): v for k,v in json.loads(params_df['class_mapping_reverse'][0]).items()}
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        class_map = {}
+                counts = dataset[y_name].map(lambda v: class_map.get(int(v), v) if pd.notna(v) else v).value_counts()
+                distribution = '; '.join(f'{label}: {count:,}' for label,count in counts.items())
+            else:
+                values = pd.to_numeric(dataset[y_name], errors='coerce').dropna()
+                if not values.empty:
+                    distribution = (f'n = {len(values):,}; range = {values.min():.4g} to {values.max():.4g}; '
+                                    f'mean = {values.mean():.4g}; SD = {values.std(ddof=0):.4g}')
+
+        # hyperparameters actually used by the model
+        hyper_rows = ''
+        if 'params' in params_df.columns:
+            try:
+                hyperparams = deserialize_model_params(params_df['params'][0])
+            except Exception:
+                hyperparams = {}
+            if isinstance(hyperparams, dict):
+                for name,value in hyperparams.items():
+                    value_txt = str(value)
+                    if len(value_txt) > 90:
+                        value_txt = value_txt[:87] + '...'
+                    hyper_rows += f'<tr><td>{escape(str(name))}</td><td>{escape(value_txt)}</td></tr>'
+
+        # assessment, with the same phrases as page 1 (see _assessment_verdict()). With severe
+        # warnings page 1 only says "The model is unreliable"; here the boundary phrase is kept
+        # too so both verdicts are always visible, as in the web summary
+        severe_list = warnings_dict[f'severe_warnings_{suffix}']
+        moderate_list = warnings_dict[f'moderate_warnings_{suffix}']
+        verdict = self._assessment_verdict(suffix,data_score,warnings_dict,pred_type)
+        if verdict['status'] == 'not_available':
+            assessment_txt = f'Not available ({verdict["reason"]})'
+        else:
+            interp_txt = 'the model is unreliable (severe warnings)' if verdict['status'] == 'unreliable' else verdict['interp'][0]
+            assessment_txt = f'<b>Interpolation:</b> {interp_txt}'
+            if verdict['extrap'] is not None:
+                assessment_txt += f'<br><b>Boundary robustness (extrapolation):</b> {verdict["extrap"][0]}'
+        assessment_kind = 'severe' if severe_list else 'moderate' if moderate_list else 'none'
+        assess_stripe,assess_bg,_ = self.SUMMARY_WARNING_STYLES[assessment_kind]
+
+        # score cards (same tier colours as Section A's score bars)
+        def score_card(title,score,disabled=False):
+            if disabled:
+                return f'''<td style="width:50%; border:2px solid #b0b0b0; border-radius:9px; background:white; text-align:center; padding:10px 6px;">
+<div style="font-weight:bold; color:#222222; font-size:13px;">{title}</div>
+<div style="font-weight:bold; color:{muted}; font-size:12px; margin:22px 0;">Disabled for classification</div></td>'''
+            fill,text_col,rating = self._summary_score_style(score)
+            score_txt = f'{score:.1f}' if score is not None else '-'
+            return f'''<td style="width:50%; border:2px solid {fill}; border-radius:9px; background:{fill}22; text-align:center; padding:8px 6px;">
+<div style="font-weight:bold; color:#222222; font-size:13px;">{title}</div>
+<div style="font-weight:bold; color:{text_col}; font-size:30px; line-height:1.2;">{score_txt}</div>
+<div style="font-size:9px; color:{muted};">out of 10</div>
+<div style="font-weight:bold; color:{text_col}; font-size:11px; letter-spacing:0.5px;">{rating.upper()}</div></td>'''
+
+        interp_score = data_score.get(f'interp_score_{suffix}')
+        extrap_score = data_score.get(f'extrap_score_{suffix}')
+        cards = score_card('Interpolation',interp_score)
+        cards += '<td style="width:12px; border:none;"></td>'
+        cards += score_card('Boundary robustness<br><span style="font-size:10px; font-weight:normal;">(related to extrapolation)</span>',
+                            extrap_score,disabled=pred_type != 'reg')
+
+        # warnings, each one under the score it describes (all of them, never truncated)
+        def warning_area(warning):
+            text = warning.lower()
+            is_boundary = 'boundary robustness' in text or 'extrapolat' in text
+            # a warning about both scores (i.e. "...in Interpolation and Boundary robustness")
+            # goes in both columns
+            if is_boundary and 'interpolation' in text:
+                return ['interpolation','boundary']
+            return ['boundary'] if is_boundary else ['interpolation']
+
+        groups = {'interpolation': [], 'boundary': []}
+        for warning in severe_list:
+            for area in warning_area(warning):
+                groups[area].append(('Severe warning',warning,'severe'))
+        for warning in moderate_list:
+            for area in warning_area(warning):
+                groups[area].append(('Moderate warning',warning,'moderate'))
+
+        def warning_cards(items,empty_txt):
+            if not items:
+                stripe,bg,label_col = self.SUMMARY_WARNING_STYLES['none']
+                return f'''<div style="background:{bg}; border-left:4px solid {stripe}; border-radius:4px; padding:6px 8px; font-size:10px; color:{label_col};">{empty_txt}</div>'''
+            cards_html = ''
+            for kind,warning,style_key in items:
+                stripe,bg,label_col = self.SUMMARY_WARNING_STYLES[style_key]
+                # the "(Section X)"/"(Boundary robustness)" pointers are kept: they tell the
+                # reader where in the report each warning is explained
+                cards_html += f'''<div style="background:{bg}; border-left:4px solid {stripe}; border-radius:4px; padding:4px 8px 5px 8px; margin-bottom:5px; color:#222222; page-break-inside:avoid;">
+<div style="font-size:8px; font-weight:bold; letter-spacing:0.3px; color:{label_col};">{kind.upper()}</div>
+<div style="font-size:10px; line-height:1.3;">{escape(warning)}</div></div>'''
+            return cards_html
+
+        interp_col_html = warning_cards(groups['interpolation'],'No interpolation warnings detected.')
+        if pred_type == 'reg':
+            bound_col_html = warning_cards(groups['boundary'],'No boundary robustness warnings detected.')
+        else:
+            bound_col_html = f'<div style="font-size:10px; color:{muted};">Boundary robustness is not evaluated for classification.</div>'
+
+        section_title = lambda txt: f'<p style="font-weight:bold; color:{navy}; font-size:14px; margin:12px 0 5px 0;">{txt}</p>'
+        problem_txt = 'Regression' if pred_type == 'reg' else 'Classification'
+
+        # model hyperparameters, right after the evaluation setup they belong to
+        hyper_html = ''
+        if hyper_rows:
+            hyper_html = f'''
+{section_title('Model hyperparameters')}
+<table style="width:100%; border-collapse:collapse; font-size:9.5px;">
+<tr style="background:{navy}; color:white;"><th style="text-align:left; padding:3px 6px; width:40%;">Parameter</th><th style="text-align:left; padding:3px 6px;">Value</th></tr>
+{hyper_rows.replace('<td>', '<td style="border:1px solid #c8c8c8; padding:2px 6px;">')}
+</table>'''
+        dataset_name = os.path.basename(str(getattr(self.args,'csv_name','')))
+
+        summary = f'''
+<div style="page-break-inside:avoid;">
+<div style="background:{navy}; color:white; border-radius:9px; padding:10px 14px; margin-top:4px;">
+<div style="font-size:19px; font-weight:bold;">Results summary</div>
+<div style="font-size:10px;">All scores and warnings of this report at a glance. Details of each item are in the sections that follow.</div>
+</div>
+
+{section_title('Evaluation setup')}
+<div style="background:#eef4fa; border-left:4px solid {navy}; border-radius:4px; padding:7px 14px; font-size:11px; line-height:1.6;">
+<b>Dataset:</b> {escape(dataset_name) or 'Not available'}<br>
+<b>Datapoints:</b> {len(dataset):,}{f' ({escape(set_txt)})' if set_txt else ''} | <b>Descriptors:</b> {len(descriptors):,}<br>
+<b>Target:</b> {escape(y_name) or 'Not available'} | <b>Name / ID:</b> {escape(names_col) or 'Not available'} | <b>Problem type:</b> {problem_txt}<br>
+<b>Model:</b> {escape(self._summary_model_label(params_df,pred_type))}
+</div>
+{hyper_html}
+{section_title('Target distribution')}
+<div style="border:1px solid #c8c8c8; border-radius:4px; padding:5px 10px; font-size:11px; color:{muted};">{escape(distribution)}</div>
+
+{section_title('Overall assessment')}
+<div style="background:{assess_bg}; border-left:5px solid {assess_stripe}; border-radius:4px; color:#222222; padding:8px 14px; font-size:12.5px; line-height:1.45;">{assessment_txt}</div>
+
+<table style="width:100%; border-collapse:separate; border-spacing:0; margin-top:12px;"><tr>{cards}</tr></table>
+
+{section_title('Warnings')}
+<table style="width:100%; border-collapse:collapse;"><tr>
+<td style="width:50%; vertical-align:top; padding-right:6px;">
+<div style="font-weight:bold; color:{navy}; font-size:11px; margin-bottom:4px;">Interpolation warnings</div>{interp_col_html}</td>
+<td style="width:50%; vertical-align:top; padding-left:6px;">
+<div style="font-weight:bold; color:{navy}; font-size:11px; margin-bottom:4px;">Boundary robustness warnings</div>{bound_col_html}</td>
+</tr></table>
+</div>'''
+
+        summary += '<p style="page-break-after: always;"></p>'
+        return summary
 
 
     def get_warning_params(self):
@@ -793,6 +1090,12 @@ class report:
 
         severe = warnings_dict[f'severe_warnings_{suffix}']
         moderate = warnings_dict[f'moderate_warnings_{suffix}']
+
+        # hyperparameters given as the integer 1 where scikit-learn also accepts the fraction 1.0
+        # (one sample/feature instead of all of them) - a likely input error that can make the
+        # predictions nearly constant, so it's listed first (see validate_params() in checkml.py)
+        for param in warnings_dict.get('ambiguous_params', []):
+            moderate.append(f'{param} = 1 (integer) means ONE sample/feature in scikit-learn, use 1.0 if all of them were intended (Section H)')
 
         # tests from flawed models
         if data_score[f'flawed_mod_score_{suffix}'] < 0:
@@ -846,6 +1149,15 @@ class report:
 
         # Boundary robustness / extrapolation (regression only - not defined for classification)
         if pred_type == 'reg':
+            # shown first in the Boundary robustness group and regardless of the boundary
+            # metrics: a tree-based model can score well on one split's edges and still be
+            # structurally unable to predict y values outside the training range
+            # tree-based and nearest-neighbour models (see extrapolation_limitation())
+            from robert.report_utils import extrapolation_limitation
+            limitation = extrapolation_limitation(getattr(self, 'report_model_name', ''))
+            if limitation:
+                moderate.append(f'{limitation[0]} algorithm, not designed to extrapolate outside the training range (Boundary robustness)')
+
             if data_score.get(f'applicability_domain_score_{suffix}', 1) == 0:
                 moderate.append('Poor extrapolation to descriptors very different from training (Boundary robustness)')
 
@@ -877,6 +1189,20 @@ class report:
                         zone_txt = 'the lower zone'
                     moderate.append(f'Difficult to prioritize new predictions (maximize/minimize) in {zone_txt} (Boundary robustness)')
 
+        # simpler MVL model as good as this one: from Section F when several models were
+        # screened (MVL included), otherwise from VERIFY's MVL baseline comparison (Section B.1)
+        # (classification: logistic regression, ROBERT's LOGISTIC, instead of MVL)
+        base_txt,base_code = ('MVL','MVL') if pred_type == 'reg' else ('logistic regression','LOGISTIC')
+        mvl_warning = self._mvl_screening_warning(suffix,pred_type)
+        if mvl_warning is None:
+            mvl_status = warnings_dict.get(f'mvl_baseline_{suffix}')
+            if mvl_status == 'similar':
+                mvl_warning = f'A simpler {base_txt} model performs similarly (Section B.1), consider trying {base_code} with the same descriptors'
+            elif mvl_status == 'baseline_better':
+                mvl_warning = f'A simpler {base_txt} model performs better (Section B.1), consider trying {base_code} with the same descriptors'
+        if mvl_warning:
+            moderate.append(mvl_warning)
+
         # y distribution (existing)
         if 'WARNING! Your data is not uniform' in warnings_dict[f'y_dist_info_{suffix}']:
             if pred_type == 'reg':
@@ -905,6 +1231,69 @@ class report:
                 moderate.append('More than 5% of points are outliers, check and explain them (Section E)')
 
         return warnings_dict
+
+
+    # an MVL within this fraction of the chosen model's error in the model screening counts as
+    # "similar" (same tolerance as VERIFY's MVL baseline comparison, thres_mvl_baseline)
+    MVL_SCREENING_TOLERANCE = 0.15
+
+    def _mvl_screening_warning(self,suffix,pred_type='reg'):
+        '''
+        When the linear baseline (MVL, or LOGISTIC for classification) was screened together
+        with other models (Section F), compares it with the model of this report: with
+        --all_models, through their Interpolation/Boundary robustness scores; otherwise,
+        through GENERATE's combined error. Returns the warning text, '' when the baseline is
+        clearly worse (no warning), or None when Section F has no baseline to compare with
+        (then VERIFY's baseline comparison is used instead)
+        '''
+
+        from robert.verify import _is_linear_model, linear_baseline_code
+
+        base_code,_ = linear_baseline_code(pred_type)
+        base_txt = 'MVL' if pred_type == 'reg' else 'logistic regression'
+        model_name = str(getattr(self, 'report_model_name', '') or '')
+        if not model_name or _is_linear_model(model_name):
+            return None
+
+        # --all_models: compare the final CheckML scores
+        scores = getattr(self, 'model_scores', {}).get(suffix, {})
+        current = getattr(self, 'model_suffix', '')[1:] or model_name
+        mvl_key = next((key for key in scores if str(key).upper() == base_code), None)
+        if mvl_key is not None and current in scores:
+            mvl_scores,cur_scores = scores[mvl_key],scores[current]
+            better_in = []
+            if mvl_scores[0] is not None and cur_scores[0] is not None and mvl_scores[0] >= cur_scores[0]:
+                better_in.append('Interpolation')
+            # Boundary robustness only exists in regression (it's 0 for every classifier)
+            if (pred_type == 'reg' and mvl_scores[1] is not None and cur_scores[1] is not None
+                    and mvl_scores[1] >= cur_scores[1]):
+                better_in.append('Boundary robustness')
+            if not better_in:
+                return ''
+            return f'A simpler {base_txt} model scores as high or higher in {" and ".join(better_in)} (Section F)'
+
+        # default mode: GENERATE's combined error of each screened model
+        raw_dir = Path(f'{os.getcwd()}/GENERATE/Raw_data/{"_".join(suffix.split())}')
+        error_type = str(getattr(self.args, 'error_type', 'rmse')).lower()
+        model_errors = {}
+        for csv_file in glob.glob(str(raw_dir / '*.csv')):
+            if '_db' in os.path.basename(csv_file):
+                continue
+            try:
+                params_df = pd.read_csv(csv_file, encoding='utf-8')
+                model_errors[str(params_df['model'][0]).upper()] = float(params_df[f'combined_{error_type}'][0])
+            except (KeyError, IndexError, ValueError, pd.errors.EmptyDataError):
+                continue
+        if base_code not in model_errors or model_name.upper() not in model_errors:
+            return None
+        mvl_err,cur_err = model_errors[base_code],model_errors[model_name.upper()]
+        if error_type in ['mae','rmse']:
+            similar_or_better = mvl_err <= (1+self.MVL_SCREENING_TOLERANCE)*cur_err
+        else:
+            similar_or_better = mvl_err >= cur_err - self.MVL_SCREENING_TOLERANCE*abs(cur_err)
+        if not similar_or_better:
+            return ''
+        return f'A simpler {base_txt} model has a similar or lower error in the model screening (Section F)'
 
 
     def get_warning_lines(self,pred_type,dat_verify=None):
@@ -1003,6 +1392,32 @@ class report:
                     if 'cluster' in cluster_line and 'FAILED' in cluster_line:
                         warnings_dict[f'cluster_test_failed_{active_suffix}'] = True
 
+        # ambiguous integer hyperparameters flagged by CHECKML (i.e. max_samples = 1 meaning ONE
+        # sample instead of all of them, see validate_params() in checkml.py)
+        warnings_dict['ambiguous_params'] = []
+        checkml_log = Path(f'{os.getcwd()}/CHECKML/CHECKML_data.dat')
+        if checkml_log.exists():
+            for line in checkml_log.read_text(encoding='utf-8', errors='replace').splitlines():
+                if 'WARNING! Ambiguous hyperparameter:' in line:
+                    param = line.split('Ambiguous hyperparameter:')[1].split('=')[0].strip()
+                    if param and param not in warnings_dict['ambiguous_params']:
+                        warnings_dict['ambiguous_params'].append(param)
+
+        # VERIFY's unscored MVL baseline comparison (see mvl_baseline_test() in verify.py),
+        # logged after the Sorted CV line: SIMILAR / MVL_BETTER trigger a warning
+        for suf_key in ('No PFI','PFI'):
+            warnings_dict[f'mvl_baseline_{suf_key}'] = None
+        active_suffix = None
+        for line in (dat_verify or []):
+            if '------- ' in line and '(No PFI)' in line:
+                active_suffix = 'No PFI'
+            elif '------- ' in line and 'with PFI' in line:
+                active_suffix = 'PFI'
+            # "MVL baseline" (regression) or "Logistic baseline" (classification)
+            if active_suffix and 'baseline (not scored):' in line:
+                status = line.split('baseline (not scored):')[1].split(',')[0].strip().lower()
+                warnings_dict[f'mvl_baseline_{active_suffix}'] = status
+
         return warnings_dict
 
 
@@ -1063,15 +1478,44 @@ class report:
 <span style="font-size: 11px; margin-left: 12px;"><span style='font-size:15px; color: {color};'>&#9673;</span>{space}{message}</span>
 </p>'''
 
+        verdict = self._assessment_verdict(suffix,data_score,warnings_dict,pred_type)
+        if verdict['status'] == 'not_available':
+            return title_row(f'Not available ({verdict["reason"]})',color_dict['blue'])
+        if verdict['status'] == 'unreliable':
+            return title_row('The model is unreliable',color_dict['red'])
+
+        interp_phrase,interp_color = verdict['interp']
+        # one labeled sentence per score, so it's always clear which verdict is which
+        assessment_print = title_row(f'<strong>Interpolation:</strong> {interp_phrase}',color_dict[interp_color])
+
+        if verdict['extrap'] is not None:
+            extrap_phrase,extrap_color = verdict['extrap']
+            assessment_print += self.print_line_warning(
+                f'<strong>Boundary robustness:</strong> {extrap_phrase}',style_lines,color_dict[extrap_color],space)
+
+        return assessment_print
+
+
+    def _assessment_verdict(self,suffix,data_score,warnings_dict,pred_type):
+        '''
+        Overall assessment phrases shared by the Section A box (print_assessment()) and the
+        results summary page (print_summary_page()), so both always say the same thing.
+        Returns {'status': 'ok'|'unreliable'|'not_available', 'reason', 'interp': (phrase,
+        color_key), 'extrap': (phrase,color_key) or None for classification}
+        '''
+
+        verdict = {'status': 'ok', 'reason': '', 'interp': None, 'extrap': None}
+
         # the verdict below leans on interp_score/extrap_score, which fold in the (unavailable)
         # test-set score component - see print_score() for how score_available is derived
         if not data_score.get(f'score_available_{suffix}', True):
             reason = data_score.get(f'score_unavailable_reason_{suffix}')
-            reason_txt = 'non-standard CV' if reason == 'cv' else 'no standard test set'
-            return title_row(f'Not available ({reason_txt})',color_dict['blue'])
+            verdict['status'] = 'not_available'
+            verdict['reason'] = 'non-standard CV' if reason == 'cv' else 'no standard test set'
+            return verdict
 
         if len(warnings_dict[f'severe_warnings_{suffix}']) > 0:
-            return title_row('The model is unreliable',color_dict['red'])
+            verdict['status'] = 'unreliable'
 
         interp_score = data_score.get(f'interp_score_{suffix}', 0)
         interp_phrase,interp_color = self._pick_band(interp_score,self.INTERP_BANDS)
@@ -1083,17 +1527,13 @@ class report:
         moderate_threshold = 3 if pred_type == 'reg' else 2
         if round_checkml_score(interp_score) >= 9 and n_moderate >= moderate_threshold:
             interp_phrase,interp_color = 'the model seems reliable, but examine the warnings','yellow'
-
-        # one labeled sentence per score, so it's always clear which verdict is which
-        assessment_print = title_row(f'<strong>Interpolation:</strong> {interp_phrase}',color_dict[interp_color])
+        verdict['interp'] = (interp_phrase,interp_color)
 
         if pred_type == 'reg':
             extrap_score = data_score.get(f'extrap_score_{suffix}', 0)
-            extrap_phrase,extrap_color = self._pick_band(extrap_score,self.EXTRAP_BANDS)
-            assessment_print += self.print_line_warning(
-                f'<strong>Boundary robustness:</strong> {extrap_phrase}',style_lines,color_dict[extrap_color],space)
+            verdict['extrap'] = self._pick_band(extrap_score,self.EXTRAP_BANDS)
 
-        return assessment_print
+        return verdict
 
 
     def print_adv_anal(self,pred_type,data_score,suffix,suffix_title):
@@ -1334,7 +1774,9 @@ class report:
         # Add the linear model equation (only shown when the model is MVL). Located within this
         # suffix's own "Summary of results" section instead of picking the Nth equation found in
         # the whole file by position, since only one of No_PFI/PFI may actually be an MVL model
-        equation = None
+        # PREDICT logs it twice: with standardized descriptors (z = (x - mean)/SD, what the model
+        # is fitted on) and in the original units of the descriptors (see linear_equation())
+        equations = []
         with open(f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat', 'r', encoding='utf-8') as file:
             lines = file.readlines()
         for i, line in enumerate(lines):
@@ -1342,14 +1784,18 @@ class report:
                 for j in range(i, len(lines)):
                     if 'o  SHAP' in lines[j]:
                         break
-                    if 'o  Linear model equation' in lines[j]:
-                        equation = lines[j + 1].strip().lstrip('- ')
-                        break
+                    if 'o  Linear model equation' in lines[j] and j + 1 < len(lines):
+                        header = lines[j].strip().replace('o  Linear model equation','').strip()
+                        equations.append((header, lines[j + 1].strip().lstrip('- ')))
                 break
 
-        if equation:
+        if equations:
             feature_dat += "<p style='margin-top:-5px; margin-bottom:-6px'><span style='font-weight:bold;'>Linear model equation</span></p>"
-            feature_dat += f"<p style='margin-top:10px; margin-bottom:35px'>{equation}</p>"
+            for k,(header,equation) in enumerate(equations):
+                # older logs only have the standardized equation, without a header
+                label = f'<i>{header.strip("()")}:</i><br>' if header else ''
+                bottom = 35 if k == len(equations)-1 else 0
+                feature_dat += f"<p style='margin-top:10px; margin-bottom:{bottom}px'>{label}{equation}</p>"
 
         # add corresponding images
         module_path = Path(f'{os.getcwd()}/PREDICT')
@@ -1758,6 +2204,9 @@ class report:
         for file_param in files_param:
             if '_db' not in file_param:
                 params_df = pd.read_csv(file_param, encoding='utf-8')
+            else:
+                # database (with its Set column) of this model, used by print_summary_page()
+                self.report_db_file = file_param
         params_dict = pd_to_dict(params_df) # (using a dict to keep the same format of load_model)
 
         column_repro = get_col_transpa(params_dict,suffix,section,'')
@@ -1855,7 +2304,7 @@ class report:
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the CheckML score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'
         elif module == 'y_distrib':
             module_name = 'Section C. Distribution of y Values'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the training and validation sets.</i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the training and validation sets. In regression, Q1-Q4 are four equal-width intervals of the y range (from the lowest to the highest y value), not quartiles of the data: a uniform dataset would have about 25% of the points in each.</i>'
         elif module == 'features':
             module_name = 'Section D. Feature Importances'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section presents feature importances measured using the validation set.</i>'
@@ -1891,11 +2340,19 @@ class report:
             module_data = format_lines(module_data)
         module_data = '<div class="aqme-content"><pre>' + module_data + '</pre></div>'
 
-        separator_section = '<hr><p style="margin-top:25px;"></p>'
+        # only Section A opens with a line (below the header on page 1); every other section
+        # is separated by the closing line of the previous one (see _close_section())
+        if module == 'score':
+            separator_section = '<hr><p style="margin-top:25px;"></p>'
+        else:
+            separator_section = '<p style="margin-top:0px;"></p>'
 
+        # page-break-after: avoid keeps the title (and its explanation line) on the same page
+        # as the start of the section, instead of stranding it at the bottom of a page
+        section_explain = section_explain.replace('<p style="', '<p style="page-break-after: avoid; ', 1)
         title_line = f"""
             {separator_section}
-            <p><span style="font-weight:bold;">
+            <p style="page-break-after: avoid;"><span style="font-weight:bold;">
                 <img src="file:///{self._posix_uri(self.args.path_icons)}/{module}.png" alt="" style="width:20px; height:20px; margin-right:5px;">
                 {module_name}
             </span></p>{section_explain}

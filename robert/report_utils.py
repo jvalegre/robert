@@ -153,6 +153,14 @@ def get_boundary_metrics(data_score,suffix,spacing):
     <pre style="margin-top: 10px; {indent} box-sizing: border-box;">{metric_line}</pre>
     """
 
+    # architectural limitation of the algorithm itself (tree-based, nearest-neighbour), shown
+    # right below the Boundary robustness score: it holds whatever that score is on this split
+    limitation = extrapolation_limitation(data_score.get('ML_model',''))
+    if limitation:
+        column += f"""
+    <p style="margin-top: 2px; margin-bottom: 0px; {indent} box-sizing: border-box; font-size: 10.5px; color: #9e3a3a;"><i><b>Note:</b> {limitation[0].lower()} models can't predict values outside the training y range by design ({limitation[1]}).</i></p>
+    """
+
     return column
 
 
@@ -198,15 +206,19 @@ def get_csv_pred(suffix,path_csv_test,y_value,names,spacing):
     
     pred_line = ''
     csv_test_file = None
-    csv_test_folder = f'{os.getcwd()}/{os.path.dirname(path_csv_test)}'
-    csv_test_list = glob.glob(f'{csv_test_folder}/*.csv')
-    for file in csv_test_list:
-        if suffix == 'No PFI':
-            if '_No_PFI.csv' in file:
-                csv_test_file = file
-        if suffix == 'PFI':
-            if '_No_PFI.csv' not in file and '_PFI.csv' in file:
-                csv_test_file = file
+    # path_csv_test: the predictions files logged in THIS model's PREDICT dat file (see
+    # detect_predictions()). Picking from them - instead of listing every CSV in
+    # PREDICT/csv_test, which holds the files of every model with --all_models - keeps each
+    # report on its own model's predictions (i.e. MVL_PFI never shows RF_PFI's values)
+    paths = path_csv_test if isinstance(path_csv_test,(list,tuple)) else [path_csv_test]
+    for path in paths:
+        file = f'{os.getcwd()}/{path}'
+        if not os.path.exists(file):
+            continue
+        if suffix == 'No PFI' and file.endswith('_No_PFI.csv'):
+            csv_test_file = file
+        elif suffix == 'PFI' and file.endswith('_PFI.csv') and not file.endswith('_No_PFI.csv'):
+            csv_test_file = file
 
     # this suffix has no matching csv_test predictions file (e.g. a model with no PFI variant
     # under --all_models), skip the section instead of crashing with a NameError
@@ -218,10 +230,8 @@ def get_csv_pred(suffix,path_csv_test,y_value,names,spacing):
     # start the csv_test section
     pred_line = f'<p style="text-align: justify; margin-top: -15px; margin-bottom: -3px;">{spacing*2}<u>External test predictions (sorted, max. 20 shown)</u></p>'
 
-    if suffix == 'No PFI':
-        pred_line += f'<p style="text-align: justify; margin-bottom: 20px;">{spacing*2}From /PREDICT/csv_test/...No_PFI.csv</p>'
-    elif suffix == 'PFI':
-        pred_line += f'<p style="text-align: justify; margin-bottom: 20px;">{spacing*2}From /PREDICT/csv_test/..._PFI.csv</p>'
+    # the actual file (this model and PFI variant), so it's clear which predictions are shown
+    pred_line += f'<p style="text-align: justify; margin-bottom: 20px;">{spacing*2}From /PREDICT/csv_test/{os.path.basename(csv_test_file)}</p>'
 
     pred_line += '''<style>
     th, td {
@@ -333,8 +343,10 @@ def detect_predictions(module_file):
     
     csv_test_exists = False
 
-    # summary of the external CSV test set (if any)
-    y_value, names, path_csv_test = '','',''
+    # summary of the external CSV test set (if any). Every predictions file this model wrote
+    # (No_PFI and PFI) is collected: get_csv_pred() picks the one of each report from this
+    # list, so a report can never show another model's predictions
+    y_value, names, paths_csv_test = '','',[]
     with open(module_file, 'r', encoding= 'utf-8') as datfile:
         lines = datfile.readlines()
         for _,line in enumerate(lines):
@@ -343,10 +355,10 @@ def detect_predictions(module_file):
             elif '- Names:' in line:
                 names = line.split()[-1]
             elif 'External set with predicted results:' in line:
-                path_csv_test = line.split()[-1]
+                paths_csv_test.append(line.split('External set with predicted results:')[-1].strip())
                 csv_test_exists = True
 
-    return csv_test_exists, y_value, names, path_csv_test
+    return csv_test_exists, y_value, names, paths_csv_test
 
 
 def locate_outliers(i,lines):
@@ -407,6 +419,35 @@ def combine_cols(columns,align_top=False):
     """
 
     return combined_data
+
+
+# model families that can't predict outside the range of y values seen in training, by their
+# architecture (not by how well a particular model was fitted): checked by name against
+# ROBERT's own codes and scikit-learn/XGBoost/LightGBM/CatBoost class names (CHECKML)
+EXTRAPOLATION_LIMITED_FAMILIES = [
+    # (family label, ROBERT codes, name patterns, why)
+    ('Tree-based', {'RF','GB','ADAB'},
+     ('forest','tree','boost','bagging','xgb','lgbm','catboost'),
+     'their predictions are piecewise constant and bounded by the y values seen in training'),
+    ('Nearest-neighbour', set(),
+     ('neighbor','neighbour','knn'),
+     'their predictions are averages of the y values seen in training'),
+]
+
+
+def extrapolation_limitation(model_name):
+    '''
+    Returns (family label, reason) when the model can't extrapolate outside the training y
+    range by its architecture, otherwise None
+    '''
+
+    name = str(model_name or '').strip()
+    if not name:
+        return None
+    for family,codes,patterns,reason in EXTRAPOLATION_LIMITED_FAMILIES:
+        if name.upper() in codes or any(pattern in name.lower() for pattern in patterns):
+            return family,reason
+    return None
 
 
 def get_col_score(score_info,data_score,suffix,col,spacing):
@@ -911,17 +952,20 @@ def get_col_text(type_thres):
 
     elif type_thres == 'abbrev_2':
         abbrev_list = ['<strong>KN:</strong> k-nearest neighbors',
-                        '<strong>MAE:</strong> root-mean-square error', 
+                        '<strong>LOGISTIC:</strong> logistic regression',
+                        '<strong>MAE:</strong> mean absolute error',
                         "<strong>MCC:</strong> Matthew's correl. coefficient",
-                        '<strong>ML:</strong> machine learning',                          
-                        '<strong>MVL:</strong> multivariate lineal models',
+                        '<strong>ML:</strong> machine learning',
+                        '<strong>MVL:</strong> multivariate linear models',
                         '<strong>NN:</strong> neural network',
                         '<strong>PFI:</strong> permutation feature importance',
-                        '<strong>R2:</strong> coefficient of determination'
+                        # what get_prediction_results() computes: stats.linregress(y, y_pred).rvalue**2
+                        '<strong>R2:</strong> squared Pearson correlation between observed and predicted values'
         ]
     elif type_thres == 'abbrev_3':
         abbrev_list = ['<strong>REG:</strong> Regression',
                         '<strong>RF:</strong> random forest',
+                        '<strong>RIDGE:</strong> ridge regression',
                         '<strong>RMSE:</strong> root mean square error',
                         '<strong>RND:</strong> random',
                         '<strong>SHAP:</strong> Shapley additive explanations',
@@ -966,6 +1010,8 @@ def get_col_transpa(params_dict,suffix,section,spacing):
                     'NN': f'MLP{model_type}',
                     'GP': f'GaussianProcess{model_type}',
                     'ADAB': f'AdaBoost{model_type}',
+                    'RIDGE': 'Ridge',
+                    'LOGISTIC': 'LogisticRegression',
                     }
 
     col_info,sklearn_model = '',''

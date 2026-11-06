@@ -3582,15 +3582,52 @@ class EasyROB(QMainWindow):
                 self._reset_ui_after_process()
                 return
 
+            # try every folder (not only up to the first failure) so the pop-up below can
+            # list all the ones left to delete by hand
+            failed_folders = []
             for folder in existing_folders:
                 try:
                     shutil.rmtree(os.path.join(run_dir, folder))
                 except Exception as e:
+                    # same console line as before (the assistant's heuristics look for it)
                     self.console_output.append(
                         f"[ERROR] Could not delete folder '{folder}': {e}"
                     )
-                    self._reset_ui_after_process()
-                    return   
+                    failed_folders.append((folder, e))
+
+            if failed_folders:
+                # the log is hidden by default, so the console line alone goes unnoticed and
+                # the run just doesn't start - tell the user in a pop-up what to do instead
+                popup_title = "Could not delete previous run folders"
+                folder_lines = "\n".join(
+                    f"  •  {folder}  ({type(error).__name__})" for folder, error in failed_folders
+                )
+                popup_text = (
+                    # "could not delete folder" is what the assistant's heuristics look for
+                    "ROBERT could not delete folder(s) from the previous run:\n\n"
+                    f"{folder_lines}\n\n"
+                    "They are usually locked because a file inside them is open (i.e. a PDF, "
+                    "CSV or image in another program, or the folder in File Explorer), or "
+                    "because a sync service (i.e. OneDrive) is using them.\n\n"
+                    "Close those files, delete the folders manually from:\n"
+                    f"{run_dir}\n\n"
+                    "and run ROBERT again."
+                )
+                popup = QMessageBox(self)
+                popup.setIcon(QMessageBox.Critical)
+                popup.setWindowTitle(popup_title)
+                popup.setText(popup_text)
+                popup.setStandardButtons(QMessageBox.Ok)
+                self._exec_tracked_message_box(
+                    popup,
+                    title=popup_title,
+                    text=popup_text,
+                    buttons=["OK"],
+                    kind="critical",
+                    source="previous_run_folders_delete_failed",
+                )
+                self._reset_ui_after_process()
+                return
       
         # --------------------------------------------------
         # Collect GUI values
@@ -4139,7 +4176,7 @@ class EasyROB(QMainWindow):
 
         self.default_models = (
             {"RF", "GB", "NN", "MVL"} if type_mode == "Regression"
-            else {"RF", "GB", "NN", "AdaB"}
+            else {"RF", "GB", "NN", "Logistic"}
         )
 
         self.default_error_type = (

@@ -34,7 +34,15 @@ release = 'v2.2'
 # ones.
 extensions = ['sphinx.ext.autodoc',
               'sphinx_design',
+              'sphinx_reredirects',
               ]
+
+# Pages that moved keep their old URLs working (links in papers, the CheckML
+# web app and earlier easyROB versions point to them).
+redirects = {
+    'Tutorials/checkml_database': '../Report/checkml_database.html',
+    'Tutorials/checkml_evaluation': '../Report/checkml_evaluation.html',
+}
 # Add any paths that contain templates here, relative to this directory.
 html_theme_options = {
     'collapse_navigation': False,

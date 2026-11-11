@@ -24,8 +24,11 @@ Version 2.2.1
 
 **Report**
 
-- New results summary page (page 2) with the evaluation setup, overall assessment, both
-  scores and every warning, grouped by Interpolation and Boundary robustness
+- New results summary page (page 2) with the evaluation setup, both scores and every
+  warning, grouped by Interpolation and Boundary robustness
+- The "Overall assessment" phrases ("decent model", "weak model"...) were removed: they
+  changed with small score differences (i.e. 6.9 vs 7.0). The scores and the warnings on
+  page 2 are used instead
 - Page 1 shows radar plots of the score components instead of the warning list
 - New moderate warning for tree-based models (RF, GB, AdaBoost, ExtraTrees, XGBoost...),
   which are not designed to extrapolate outside the training range

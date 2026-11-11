@@ -426,7 +426,7 @@ class report:
 
 
     # A candidate whose displayed integer tier is below this is "Very weak" on ROBERT's own
-    # scale (see INTERP_BANDS/EXTRAP_BANDS below) - too weak on that axis to be a sensible
+    # scale (see checkml_score_tier()) - too weak on that axis to be a sensible
     # "best overall" pick no matter how good its other axis is.
     OVERALL_FLOOR = 3
 
@@ -668,7 +668,7 @@ class report:
     def print_warnings(self,dat_files,pred_type,data_score,suffix):
         """
         Generates the warning box in the CheckML score section. Always a single, complete box on
-        page 1: severe warnings and the Overall assessment are never cut, moderate warnings show
+        page 1: severe warnings are never cut, moderate warnings show
         as many as reliably fit (see MODERATE_WARNINGS_BUDGET below) with a "..." marker if more
         were found than shown - never a second box, never spilling onto page 2
         """
@@ -687,7 +687,7 @@ class report:
         # - see analyze_warnings() for the ordering rationale)
         warnings_dict = self.analyze_warnings(data_score,suffix,warnings_dict,pred_type)
 
-        # every warning and the Overall assessment are in the results summary on page 2 (see
+        # every warning is in the results summary on page 2 (see
         # print_summary_page()), so page 1 shows radar plots of the score components instead
         interp_radar,bound_radar = self.save_radar_plots(data_score,suffix,pred_type)
         radar_h = self.RADAR_SIZE[1]
@@ -764,57 +764,62 @@ class report:
         for key,title,total_key,components in radars:
             labels = [label for label,_ in components]
             values = [max(0.0,min(2.0,float(data_score.get(score_key,0) or 0))) for _,score_key in components]
-            # same 5-colour scale as the score cards on page 2; grey when the score isn't
+            # each bar coloured by its own 0-2 value with the score-card palette: red (<0.5),
+            # orange (0.5-1), light blue (1-1.5), blue (>=1.5); grey when the score isn't
             # calibrated for this run (non-standard CV/test, see print_score())
-            colour = self._summary_score_style(data_score.get(total_key))[0] if score_available else '#9e9e9e'
+            from robert.checkml_score import checkml_tier_color
+            def bar_colour(value):
+                if not score_available:
+                    return '#9e9e9e'
+                tier = 'VERY WEAK' if value < 0.5 else 'WEAK' if value < 1 else 'STRONG' if value < 1.5 else 'VERY STRONG'
+                return checkml_tier_color(tier,'hex')
 
-            angles = np.linspace(0, 2*np.pi, len(values), endpoint=False).tolist()
+            n = len(values)
+            angles = np.linspace(0, 2*np.pi, n, endpoint=False)
+            slot = 2*np.pi/n
             # figure inches = displayed px / 96, so font sizes in pt read as in the rest of the PDF
             fig = plt.figure(figsize=(self.RADAR_SIZE[0]/96, self.RADAR_SIZE[1]/96), dpi=300)
-            ax = fig.add_axes([0.29, 0.12, 0.42, 0.68], polar=True)
+            ax = fig.add_axes([0.24, 0.1, 0.52, 0.7], polar=True)
             ax.set_theta_offset(np.pi/2)
             ax.set_theta_direction(-1)
-            # shaded disc + dark outline polygon, 0 at the centre
-            ax.set_facecolor(colour + '33')
-            ax.plot(angles + angles[:1], values + values[:1], color='#0f172a', linewidth=1.2, zorder=3)
-            ax.fill(angles + angles[:1], values + values[:1], color=colour, alpha=0.45, zorder=2)
+            ax.set_facecolor('#f2f2f2')
             ax.set_ylim(0, 2)
-            ax.set_yticks([0.5, 1, 1.5, 2])
-            # ring values sit just inside each ring, halfway between the first two spokes, so
-            # neither a ring nor a spoke runs through them
+            # small hole in the middle (r=0 sits a bit off the centre), drawn as a white disc
+            ax.set_rorigin(-0.18)
+            # dash-dot rings behind the bars, no ring numbers (each bar carries its value)
+            ax.set_axisbelow(True)
+            ax.set_yticks([0.5, 1, 1.5])
             ax.set_yticklabels([])
-            mid_angle = np.pi/len(values)
-            for ring in (0.5, 1, 1.5, 2):
-                # translucent patch: the data outline can still pass there (value-dependent)
-                ax.text(mid_angle, ring - 0.17, f'{ring:g}', ha='center', va='center', fontsize=4.5,
-                        color='#475569', zorder=6,
-                        bbox=dict(facecolor='white', alpha=0.65, edgecolor='none', pad=0.4))
+            ax.yaxis.grid(True, color='#7f7f7f', linewidth=0.45, linestyle='-.')
             ax.set_xticks(angles)
             ax.set_xticklabels([])
-            # each axis label = component name + its value in bold underneath, both centred on
-            # each other and placed away from the circle (side labels aligned outwards; top/
-            # bottom ones shifted up/down so the two lines never touch the circle). Clockwise
-            # from the top, the screen direction of angle a is (sin a, cos a)
-            name_texts = []
+            ax.xaxis.grid(False)
+            # polar bar chart: one wedge per component, no outline, a bit narrower than its
+            # slot so a strip of background shows on each side before the black separators
+            ax.bar(angles, values, width=slot*0.78, color=[bar_colour(v) for v in values],
+                   edgecolor='none', zorder=2.5)
+            # thin black radial lines separating the slots, out to the outer circle
+            for edge in angles + slot/2:
+                ax.plot([edge, edge], [0, 2], color='black', linewidth=0.4, zorder=3)
+            theta = np.linspace(0, 2*np.pi, 200)
+            ax.fill(theta, np.zeros_like(theta), facecolor='white', edgecolor='black', linewidth=0.5, zorder=4)
+            ax.spines['polar'].set_color('black')
+            ax.spines['polar'].set_linewidth(0.5)
+            # value badge near the tip of each bar (kept clear of the central hole), framed
+            # and filled with the bar's colour
+            for angle,value in zip(angles,values):
+                ax.text(angle, max(value - 0.2, 0.3), f'{value:.1f}', ha='center', va='center',
+                        fontsize=5, color='#0f172a', zorder=6,
+                        bbox=dict(boxstyle='round,pad=0.2', facecolor=bar_colour(value),
+                                  edgecolor='black', linewidth=0.4))
+            # component names around the circle, rotated along it (flipped on the bottom half
+            # so they never read upside down)
             for label,angle in zip(labels,angles):
-                dx,dy = np.sin(angle),np.cos(angle)
-                ha = 'left' if dx > 0.1 else 'right' if dx < -0.1 else 'center'
-                name_texts.append(ax.annotate(label, xy=(angle, 2), xytext=(5*dx, 11*dy + 0.5),
-                                              textcoords='offset points', ha=ha, va='bottom', fontsize=6,
-                                              color='#1e293b', annotation_clip=False))
-            # the value is centred under the name as actually drawn (its measured box, after a
-            # first draw so the positions are final), so both lines stay centred on each other
-            # whatever the name's length/alignment
-            fig.canvas.draw()
-            renderer = fig.canvas.get_renderer()
-            for name_txt,value in zip(name_texts,values):
-                name_box = name_txt.get_window_extent(renderer)
-                fx,fy = fig.transFigure.inverted().transform(((name_box.x0 + name_box.x1)/2, name_box.y0))
-                fig.text(fx, fy - 0.004, f'{value:.1f} / 2', ha='center', va='top', fontsize=6,
-                         fontweight='bold', color='#0f172a')
-            ax.grid(color='#64748b', linewidth=0.35, alpha=0.6)
-            ax.spines['polar'].set_color('#0f172a')
-            ax.spines['polar'].set_linewidth(1.2)
+                rotation = -np.degrees(angle)
+                if np.pi/2 < angle < 3*np.pi/2:
+                    rotation += 180
+                ax.text(angle, 2.28, label, ha='center', va='center', rotation=rotation,
+                        rotation_mode='anchor', fontsize=5.5, color='#1e293b')
             fig.suptitle(title + (' (0-2 each)' if score_available else ' (N/A)'), fontsize=7.5, fontweight='bold', y=0.985)
 
             radar_path = out_folder / f'CheckML_radar_{key}{getattr(self,"model_suffix","")}_{suffix_title}.png'
@@ -867,7 +872,7 @@ class report:
     def print_summary_page(self,pred_type,data_score,warnings_dict,suffix,params_df):
         '''
         Results summary page (page 2): same content as the CheckML web summary sheet - evaluation
-        setup, target distribution, hyperparameters, overall assessment, both scores and EVERY
+        setup, target distribution, hyperparameters, both scores and EVERY
         warning (the Section A box on page 1 may truncate moderate warnings with "..."), with
         each warning placed under the score it describes (Interpolation / Boundary robustness)
         '''
@@ -934,21 +939,10 @@ class report:
                         value_txt = value_txt[:87] + '...'
                     hyper_rows += f'<tr><td>{escape(str(name))}</td><td>{escape(value_txt)}</td></tr>'
 
-        # assessment, with the same phrases as page 1 (see _assessment_verdict()). With severe
-        # warnings page 1 only says "The model is unreliable"; here the boundary phrase is kept
-        # too so both verdicts are always visible, as in the web summary
+        # no written verdict ("decent model", "weak model"...): it flipped on tiny score changes
+        # (e.g. 6.9 vs 7.0), so the page relies on the scores and the warnings below instead
         severe_list = warnings_dict[f'severe_warnings_{suffix}']
         moderate_list = warnings_dict[f'moderate_warnings_{suffix}']
-        verdict = self._assessment_verdict(suffix,data_score,warnings_dict,pred_type)
-        if verdict['status'] == 'not_available':
-            assessment_txt = f'Not available ({verdict["reason"]})'
-        else:
-            interp_txt = 'the model is unreliable (severe warnings)' if verdict['status'] == 'unreliable' else verdict['interp'][0]
-            assessment_txt = f'<b>Interpolation:</b> {interp_txt}'
-            if verdict['extrap'] is not None:
-                assessment_txt += f'<br><b>Boundary robustness (extrapolation):</b> {verdict["extrap"][0]}'
-        assessment_kind = 'severe' if severe_list else 'moderate' if moderate_list else 'none'
-        assess_stripe,assess_bg,_ = self.SUMMARY_WARNING_STYLES[assessment_kind]
 
         # score cards (same tier colours as Section A's score bars)
         def score_card(title,score,disabled=False):
@@ -1041,10 +1035,8 @@ class report:
 {section_title('Target distribution')}
 <div style="border:1px solid #c8c8c8; border-radius:4px; padding:5px 10px; font-size:11px; color:{muted};">{escape(distribution)}</div>
 
-{section_title('Overall assessment')}
-<div style="background:{assess_bg}; border-left:5px solid {assess_stripe}; border-radius:4px; color:#222222; padding:8px 14px; font-size:12.5px; line-height:1.45;">{assessment_txt}</div>
-
-<table style="width:100%; border-collapse:separate; border-spacing:0; margin-top:12px;"><tr>{cards}</tr></table>
+{section_title('Scores')}
+<table style="width:100%; border-collapse:separate; border-spacing:0;"><tr>{cards}</tr></table>
 
 {section_title('Warnings')}
 <table style="width:100%; border-collapse:collapse;"><tr>
@@ -1429,111 +1421,6 @@ class report:
         return f'''
         {style_lines}<span style='font-size:15px; color: {color};'>{space}&#9673;</span>
         {space}{message}</p>'''
-
-
-    # (min_score, phrase, color_key) bands, checked highest-first, score on a 0-10 scale.
-    # Each phrase is printed after its own bold label ("Interpolation:" / "Boundary robustness:",
-    # see print_assessment() below), so a high Interpolation score and a low Boundary robustness
-    # one are never read as a single general "this model is reliable" verdict. The label already
-    # names the score, so the phrases don't repeat it and stay short enough for one line each
-    INTERP_BANDS = [
-        (9, 'the model seems reliable within the current y range', 'blue'),
-        (7, 'decent model, with some limitations within the current y range', 'yellow'),
-        (5, 'moderate model, with important limitations within the current y range', 'yellow'),
-        (3, 'weak model, unable to capture the trends within the current y range', 'red'),
-        (0, 'very weak model, unable to capture any trend within the current y range', 'red'),
-    ]
-    EXTRAP_BANDS = [
-        (9, 'the model seems reliable for extrapolation (predicting points outside the current y range)', 'blue'),
-        (7, 'decent model, with some limitations to predict points outside the current y range', 'yellow'),
-        (5, 'moderate model, with important limitations to predict points outside the current y range', 'yellow'),
-        (3, 'weak model, unable to predict points outside the current y range', 'red'),
-        (0, 'very weak model, completely unable to predict points outside the current y range', 'red'),
-    ]
-
-    def _pick_band(self,score,bands):
-        '''Returns the phrase/color for the displayed integer score tier.'''
-        score = round_checkml_score(score)
-        for min_score,phrase,color_key in bands:
-            if score >= min_score:
-                return phrase,color_key
-        return bands[-1][1],bands[-1][2]
-
-    def print_assessment(self,space,suffix,data_score,style_lines,warnings_dict,color_dict,pred_type):
-        '''
-        Add overall assessment to the CheckML score section: one phrase for Interpolation and
-        (regression only) one phrase for Boundary robustness/extrapolation, each picked
-        independently from its own 5-tier band (see INTERP_BANDS/EXTRAP_BANDS above).
-        Classification has no Boundary robustness score (see print_score()), so only the
-        Interpolation phrase is shown there.
-        '''
-
-        # title and its first (always-present) verdict share one row - title on the left,
-        # colored bullet + phrase on the right - instead of the title sitting on its own line
-        # above the bullet, like the Severe/Moderate warning lists above it do
-        def title_row(message,color):
-            return f'''
-<p style="margin: 6px 0 3px 0; display: flex; align-items: baseline;">
-<strong>{space}Overall assessment</strong>
-<span style="font-size: 11px; margin-left: 12px;"><span style='font-size:15px; color: {color};'>&#9673;</span>{space}{message}</span>
-</p>'''
-
-        verdict = self._assessment_verdict(suffix,data_score,warnings_dict,pred_type)
-        if verdict['status'] == 'not_available':
-            return title_row(f'Not available ({verdict["reason"]})',color_dict['blue'])
-        if verdict['status'] == 'unreliable':
-            return title_row('The model is unreliable',color_dict['red'])
-
-        interp_phrase,interp_color = verdict['interp']
-        # one labeled sentence per score, so it's always clear which verdict is which
-        assessment_print = title_row(f'<strong>Interpolation:</strong> {interp_phrase}',color_dict[interp_color])
-
-        if verdict['extrap'] is not None:
-            extrap_phrase,extrap_color = verdict['extrap']
-            assessment_print += self.print_line_warning(
-                f'<strong>Boundary robustness:</strong> {extrap_phrase}',style_lines,color_dict[extrap_color],space)
-
-        return assessment_print
-
-
-    def _assessment_verdict(self,suffix,data_score,warnings_dict,pred_type):
-        '''
-        Overall assessment phrases shared by the Section A box (print_assessment()) and the
-        results summary page (print_summary_page()), so both always say the same thing.
-        Returns {'status': 'ok'|'unreliable'|'not_available', 'reason', 'interp': (phrase,
-        color_key), 'extrap': (phrase,color_key) or None for classification}
-        '''
-
-        verdict = {'status': 'ok', 'reason': '', 'interp': None, 'extrap': None}
-
-        # the verdict below leans on interp_score/extrap_score, which fold in the (unavailable)
-        # test-set score component - see print_score() for how score_available is derived
-        if not data_score.get(f'score_available_{suffix}', True):
-            reason = data_score.get(f'score_unavailable_reason_{suffix}')
-            verdict['status'] = 'not_available'
-            verdict['reason'] = 'non-standard CV' if reason == 'cv' else 'no standard test set'
-            return verdict
-
-        if len(warnings_dict[f'severe_warnings_{suffix}']) > 0:
-            verdict['status'] = 'unreliable'
-
-        interp_score = data_score.get(f'interp_score_{suffix}', 0)
-        interp_phrase,interp_color = self._pick_band(interp_score,self.INTERP_BANDS)
-
-        # top-tier interpolation score but still plenty of moderate warnings - flag it instead
-        # of giving a clean bill of health (same nuance as before, now scoped to interpolation
-        # specifically rather than the old combined min(interp,bound) verdict)
-        n_moderate = len(warnings_dict[f'moderate_warnings_{suffix}'])
-        moderate_threshold = 3 if pred_type == 'reg' else 2
-        if round_checkml_score(interp_score) >= 9 and n_moderate >= moderate_threshold:
-            interp_phrase,interp_color = 'the model seems reliable, but examine the warnings','yellow'
-        verdict['interp'] = (interp_phrase,interp_color)
-
-        if pred_type == 'reg':
-            extrap_score = data_score.get(f'extrap_score_{suffix}', 0)
-            verdict['extrap'] = self._pick_band(extrap_score,self.EXTRAP_BANDS)
-
-        return verdict
 
 
     def print_adv_anal(self,pred_type,data_score,suffix,suffix_title):

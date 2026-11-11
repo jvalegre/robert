@@ -1095,7 +1095,7 @@ def calc_score(dat_files,suffix,pred_type,data_score):
         # get_predict_scores()) - same 5-item structure as regression, homogenized to the same
         # 0-2 scale per item. Max achievable is 10: cv_score_combined(2) + test_score_combined(2)
         # + flawed_mod_score(0, never positive) + train_val_gap_score(2) + diff_mcc_score(2)
-        # + cv_sd_score(2) - see interp_max in print_assessment()
+        # + cv_sd_score(2)
         interp_score = (
             data_score.get(f'cv_score_combined_{suffix}', 0)
             + data_score.get(f'test_score_combined_{suffix}', 0)

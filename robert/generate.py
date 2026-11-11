@@ -19,7 +19,7 @@ Parameters
         Option to parse the variables using a yaml file (specify the filename, i.e. varfile=FILE.yaml).  
     auto_type : bool, default=True
         If there are only two y values, the program automatically changes the type of problem to classification.
-    model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','AdaB'] (classification) 
+    model : list, default=['RF','GB','NN','MVL'] (regression) and default=['RF','GB','NN','LOGISTIC'] (classification, MVL is replaced by its linear counterpart LOGISTIC)
         ML models available: 
         1. 'RF' (Random forest)
         2. 'MVL' (Multivariate lineal models)

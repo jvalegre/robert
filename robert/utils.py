@@ -588,8 +588,11 @@ def load_variables(kwargs, robert_module):
 
         if robert_module.upper() in ['CURATE','GENERATE']:
             if self.type.lower() == 'clas':
+                # MVL is a regressor: its linear counterpart for classification is LOGISTIC,
+                # so the default screening always keeps one simple linear model (like MVL in
+                # regression) next to the tree ensembles and NN
                 if any(x.upper() == 'MVL' for x in self.model):
-                    self.model = [x if x.upper() != 'MVL' else 'AdaB' for x in self.model]
+                    self.model = [x if x.upper() != 'MVL' else 'LOGISTIC' for x in self.model]
 
             models_gen = [] # use capital letters in all the models
             for model_type in self.model:
@@ -1304,8 +1307,9 @@ def check_clas_problem(self,csv_df):
             self.args.type = 'clas'
             if self.args.error_type not in ['acc', 'mcc', 'f1']:
                 self.args.error_type = 'mcc'
+            # linear counterpart of MVL for classification (see load_variables())
             if any(x.upper() == 'MVL' for x in self.args.model):
-                self.args.model = [x if x.upper() != 'MVL' else 'ADAB' for x in self.args.model]
+                self.args.model = [x if x.upper() != 'MVL' else 'LOGISTIC' for x in self.args.model]
 
             # sorted (not list(set(...))) for deterministic output regardless of string-hash
             # randomization, matching this file's reproducibility guarantees elsewhere
@@ -3355,6 +3359,20 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
     # Add gridlines
     ax.grid(linestyle='--', linewidth=1)
 
+    # main graphs: SD of each point's predictions across the CV repeats as thin gray error
+    # bars behind the points (the ± SD graphs already draw their own). Added after the legend
+    # so its labels stay the same
+    if not sd_graph:
+        for set_sd in ('train','test'):
+            if len(Xy_data.get(f'y_{set_sd}',[])) > 0 and len(Xy_data.get(f'y_pred_{set_sd}_sd',[])) == len(Xy_data[f'y_{set_sd}']):
+                _ = ax.errorbar(Xy_data[f"y_{set_sd}"], Xy_data[f"y_pred_{set_sd}"], yerr=Xy_data[f"y_pred_{set_sd}_sd"],
+                                fmt='none', ecolor='#a0a0a0', elinewidth=0.8, capsize=2, alpha=0.7, zorder=1)
+
+    # ideal y = y_pred diagonal (perfect predictions) behind every other object, so it's clear
+    # the R2/errors compare predictions directly against the targets (no fitted intercept)
+    ax.plot([min_value_graph, max_value_graph], [min_value_graph, max_value_graph],
+            color='#7f7f7f', linestyle='-', linewidth=1.2, zorder=0.5)
+
     # set axis limits
     plt.xlim(min_value_graph, max_value_graph)
     plt.ylim(min_value_graph, max_value_graph)
@@ -3533,12 +3551,38 @@ def linear_equation(self,Xy_data,model_data,loaded_model):
     model isn't refit 3 times in a row for the same data)
     '''
 
-    terms = [f'{coef:.3f}*{desc}' for coef,desc in zip(loaded_model.coef_, Xy_data['X_train_scaled'].columns)]
-    equation = f"y = {loaded_model.intercept_:.3f} + " + ' + '.join(terms)
-    equation = equation.replace('+ -', '- ')
+    descriptors = list(Xy_data['X_train_scaled'].columns)
+    coefs = np.ravel(loaded_model.coef_)
+    intercept = float(np.ravel([loaded_model.intercept_])[0])
 
-    print_eq = f"\n   o  Linear model equation"
-    print_eq += f"\n      -  {equation}"
+    def build_equation(intercept_val,coef_vals,desc_labels,fmt='.3f'):
+        terms = [f'{coef:{fmt}}*{desc}' for coef,desc in zip(coef_vals,desc_labels)]
+        return (f"y = {intercept_val:{fmt}} + " + ' + '.join(terms)).replace('+ -', '- ')
+
+    # the model is fitted on STANDARDIZED descriptors, z = (x - mean)/SD (see scale_df(), fitted
+    # on the whole database, train + test), so its coefficients apply to z, not to x - a
+    # descriptor below its mean has a negative z and lowers the prediction even when the
+    # coefficient and the original value are both positive
+    equation_std = build_equation(intercept,coefs,[f'z({desc})' for desc in descriptors])
+
+    # same equation in the original units of each descriptor: coef/SD per descriptor and
+    # intercept - sum(coef*mean/SD). Mean/SD are recomputed exactly like StandardScaler did
+    # (population SD, and SD = 1 for constant columns)
+    X_all = pd.concat([Xy_data['X_train'][descriptors], Xy_data['X_test'][descriptors]])
+    means = X_all.mean().to_numpy(dtype=float)
+    sds = X_all.std(ddof=0).to_numpy(dtype=float)
+    sds[sds == 0] = 1.0
+    coefs_orig = coefs/sds
+    intercept_orig = intercept - float(np.sum(coefs*means/sds))
+    # 4 significant figures: original-unit coefficients can be small (i.e. 0.087 per ppm) and
+    # 3 fixed decimals would lose most of their precision
+    equation_orig = build_equation(intercept_orig,coefs_orig,descriptors,fmt='.4g')
+
+    # REPORT's print_features() reads the line right after each "o  Linear model equation" header
+    print_eq = f"\n   o  Linear model equation (standardized descriptors, z = (x - mean)/SD)"
+    print_eq += f"\n      -  {equation_std}"
+    print_eq += f"\n   o  Linear model equation (original units of the descriptors)"
+    print_eq += f"\n      -  {equation_orig}"
 
     self.args.log.write(print_eq)
 
@@ -3555,19 +3599,25 @@ def shap_analysis(self,Xy_data,model_data,path_n_suffix,loaded_model):
     shap_plot_file = f'{os.path.dirname(path_n_suffix)}/SHAP_{os.path.basename(path_n_suffix)}.png'
 
     # run the SHAP analysis and save the plot
+    shap_values = None
     if model_data['model'].upper() in ['RF', 'GB']:
         # exact Shapley values for tree ensembles in polynomial time, instead of
         # the Exact/Permutation fallback that shap.Explainer(model.predict, X) uses
         # (that fallback can't detect the tree structure and gets very slow on
-        # datasets with many rows and/or descriptors)
-        explainer = shap.TreeExplainer(loaded_model)
-        shap_values = explainer(Xy_data['X_train_scaled'])
+        # datasets with many rows and/or descriptors). Some tree models aren't supported by
+        # TreeExplainer (i.e. GradientBoostingClassifier with more than two classes) - those
+        # use the generic fallback below instead of crashing PREDICT
+        try:
+            explainer = shap.TreeExplainer(loaded_model)
+            shap_values = explainer(Xy_data['X_train_scaled'])
+        except Exception:
+            shap_values = None
     elif model_data['model'].upper() == 'MVL':
         # exact Shapley values in closed form for linear models (no repeated
         # model evaluations), instead of the black-box Exact/Permutation fallback
         explainer = shap.LinearExplainer(loaded_model, Xy_data['X_train_scaled'])
         shap_values = explainer(Xy_data['X_train_scaled'])
-    else:
+    if shap_values is None:
         # black-box models (NN, GP, AdaB) still need the generic Exact/Permutation
         # fallback, which gets slow because its cost scales with the size of the
         # background data. Summarizing the background speeds this up a lot on large
@@ -3874,9 +3924,12 @@ def distribution_plot(self,Xy_data,path_n_suffix,params_dict):
 
     # print the quartile results
     if params_dict['type'].lower() == 'reg':
-        print_distrib += f"\n      Ideally, the number of datapoints in the four quartiles of the y-range should be uniform (25% population in each quartile) to have similar confidence intervals in the predictions across the y-range"
+        # Q1-Q4 are four EQUAL-WIDTH intervals of the y range (see plot_quartiles()), not
+        # quartiles of the data (which would hold 25% of the points each by definition). The
+        # "Ideally, the number of datapoints in" start and the 3-line layout are read by REPORT
+        print_distrib += f"\n      Ideally, the number of datapoints in the four equal-width intervals of the y range (Q1-Q4, from the lowest to the highest y values; not quartiles of the data) should be uniform (25% population in each) to have similar confidence intervals in the predictions across the y-range"
         quartile_pops = [len(y_dist_dict['q1_points']),len(y_dist_dict['q2_points']),len(y_dist_dict['q3_points']),len(y_dist_dict['q4_points'])]
-        print_distrib += f"\n      -  The number of points in each quartile is Q1: {quartile_pops[0]}, Q2: {quartile_pops[1]}, Q3: {quartile_pops[2]}, Q4: {quartile_pops[3]}"
+        print_distrib += f"\n      -  The number of points in each interval is Q1: {quartile_pops[0]}, Q2: {quartile_pops[1]}, Q3: {quartile_pops[2]}, Q4: {quartile_pops[3]}"
         quartile_min_idx = quartile_pops.index(min(quartile_pops))
         quartile_max_idx = quartile_pops.index(max(quartile_pops))
         if 4*min(quartile_pops) < max(quartile_pops):
@@ -4156,15 +4209,22 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
                 text_method = 'Before the CheckML evaluation, '
             else: # for GENERATE
                 text_method = 'Before hyperoptimization, '
-            if self.args.split == 'even':
-                text_split = ', using an even distribution of data points across the range of y values.'
-            elif self.args.split == 'rnd':
-                text_split = ', using a random distribution of data points.'
-            elif self.args.split == 'stratified':
-                text_split = ', using a stratified distribution of data points.'
+            # case-insensitive: --split may arrive as "RND"/"rnd", and classification sets
+            # 'STRATIFIED' in upper case (see test_select())
+            split_mode = str(self.args.split).lower()
+            text_split = {
+                # (EVEN's text is checked verbatim in test_2generate.py)
+                'even': ', using an even distribution of data points across the range of y values.',
+                'rnd': ', using a random distribution of data points.',
+                'stratified': ', using a stratified distribution of data points.',
+                'kn': ', using k-means clustering to keep the most diverse points in the training set.',
+            }.get(split_mode, '.')
+            if split_mode in ['extra_q1','extra_q5']:
+                # EXTRA_Q1/Q5 always take a fixed 20% at one end of the y range, regardless of test_set
+                zone = 'lowest' if split_mode == 'extra_q1' else 'highest'
+                self.args.log.write(f'\no  {text_method}the 20% of the data with the {zone} y values was separated as test set.')
             else:
-                text_split = '.'
-            self.args.log.write(f'\no  {text_method}{int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set{text_split}')
+                self.args.log.write(f'\no  {text_method}{int(self.args.test_set*100)}% of the data (or 4 points at least) was separated as test set{text_split}')
 
     # load predefined sets and save the info in Xy data
     Xy_data = Xy_split(csv_df,csv_X,X_scaled_df,csv_y,csv_external_df,csv_X_external,X_scaled_external_df,csv_y_external,test_points,column_names)
@@ -4393,9 +4453,13 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results,show_titl
     base_csv_path = f"{Path(os.getcwd()).joinpath(base_csv_name)}"
     path_n_suffix = f'{base_csv_path}_{suffix_title}'
 
+    # unscored MVL baseline bar (see verify.mvl_baseline_test()), drawn apart from the tests
+    baseline = verify_metrics.get('baseline')
+    all_vals = list(verify_metrics['metrics']) + ([baseline['value']] if baseline else [])
+
     # axis limits
-    max_val = max(verify_metrics['metrics'])
-    min_val = min(verify_metrics['metrics'])
+    max_val = max(all_vals)
+    min_val = min(all_vals)
     range_vals = np.abs(max_val - min_val)
     if verify_results['error_type'].lower() in ['mae','rmse']:
         max_lim = 1.2*max_val
@@ -4429,9 +4493,28 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results,show_titl
                 txt_bar = 'unclear'
             elif test_color == '#a9a9a9':
                 txt_bar = 'N/A'
-            ax.text(label_count, offset_txt, txt_bar, color=test_color, 
+            ax.text(label_count, offset_txt, txt_bar, color=test_color,
                     fontstyle='italic', horizontalalignment='center')
         label_count += 1
+    n_scored_bars = label_count
+
+    if baseline:
+        # dotted divider: the MVL bar isn't a flawed-model test and isn't scored. Its reference
+        # is the model's own score +-band (shaded), not the dashed pass/unclear limits
+        ax.axvline(n_scored_bars - 0.5, color='#7f7f7f', ls=':', linewidth=1.5, zorder=1)
+        cv_score = verify_metrics['metrics'][0]
+        band = baseline['band']*abs(cv_score)
+        ax.fill_between([n_scored_bars - 0.42, n_scored_bars + 0.42], cv_score - band, cv_score + band,
+                        color='#7f7f7f', alpha=0.18, linewidth=0, zorder=1)
+        ax.hlines(cv_score, n_scored_bars - 0.42, n_scored_bars + 0.42, colors='#7f7f7f',
+                  linestyles='-', linewidth=1, zorder=1)
+        ax.bar(baseline['name'], baseline['value'], width=width_bar, linewidth=1, edgecolor='k',
+               color=baseline['color'], hatch='//' if baseline['label'] == 'N/A' else None, zorder=2)
+        base_val = baseline['value']
+        base_offset = base_val + (0.05*range_vals) if base_val >= 0 else base_val - (0.05*range_vals)
+        ax.text(n_scored_bars, max(base_offset, cv_score + band + 0.03*range_vals) if base_val >= 0 else base_offset,
+                baseline['label'], color=baseline['color'], fontstyle='italic', horizontalalignment='center',
+                verticalalignment='bottom', linespacing=1.0)
 
     # Set tick sizes
     plt.xticks(fontsize=14)
@@ -4456,9 +4539,15 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results,show_titl
         arrow_length = -arrow_length
 
     width = 2
-    xmin = 0.237
-    thres = ax.axhline(thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
-    thres = ax.axhline(unclear_thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
+    if baseline:
+        # limits only over the scored tests (from between Model/y_mean to the MVL divider)
+        thres = ax.hlines(thres_line, 0.5, n_scored_bars - 0.5, color='black', ls='--', label='thres', zorder=0)
+        thres = ax.hlines(unclear_thres_line, 0.5, n_scored_bars - 0.5, color='black', ls='--', label='thres', zorder=0)
+        ax.set_xlim(-0.5, n_scored_bars + 0.5)
+    else:
+        xmin = 0.237
+        thres = ax.axhline(thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
+        thres = ax.axhline(unclear_thres_line,xmin=xmin, color='black',ls='--', label='thres', zorder=0)
 
     x_arrow = 0.5
     style = mpatches.ArrowStyle('simple', head_length=4.5*width, head_width=3.5*width, tail_width=width)

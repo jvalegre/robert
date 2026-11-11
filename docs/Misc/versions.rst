@@ -4,6 +4,37 @@
 Versions
 ========
 
+Version 2.2.1
+
+**Default models in classification**
+
+- The default model screening for classification is now ['RF','GB','NN','LOGISTIC']
+  instead of ['RF','GB','NN','AdaB']: MVL (a regressor) is replaced by its linear
+  counterpart LOGISTIC, so the default screening always includes one simple linear model,
+  as in regression. Default classification runs may therefore select a different model than
+  in previous versions
+
+**Comparison with a simple linear baseline**
+
+- VERIFY compares the model with a plain linear baseline (MVL in regression, logistic
+  regression in classification) trained with the same descriptors and repeated CV. It's
+  shown as a separate bar in the VERIFY tests chart and is not scored. When the baseline
+  performs similarly or better, a moderate warning recommends trying it. If the baseline
+  was already screened with other models, the comparison uses Section F instead
+
+**Report**
+
+- New results summary page (page 2) with the evaluation setup, both scores and every
+  warning, grouped by Interpolation and Boundary robustness
+- The "Overall assessment" phrases ("decent model", "weak model"...) were removed: they
+  changed with small score differences (i.e. 6.9 vs 7.0). The scores and the warnings on
+  page 2 are used instead
+- Page 1 shows radar plots of the score components instead of the warning list
+- New moderate warning for tree-based models (RF, GB, AdaBoost, ExtraTrees, XGBoost...),
+  which are not designed to extrapolate outside the training range
+- Classification reports from CHECKML show the original class names (i.e. "active" /
+  "inactive") instead of 0/1 codes in confusion matrices and prediction CSVs
+
 Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
 
 *The ROBERT score is now split into two fully independent scores, Interpolation and

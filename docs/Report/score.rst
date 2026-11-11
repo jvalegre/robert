@@ -110,7 +110,7 @@ CheckML score
 
             Where a table shows linear interpolation, scores change gradually between the listed thresholds rather
             than jumping between integer values. Component scores and section totals are displayed to one decimal
-            place. Score bars, colors, and overall assessment tiers still use the nearest integer.
+            place. Score bars and colors still use the nearest integer.
 
             Importantly, the resulting scores should not be interpreted as replacements for the underlying statistical
             metrics or as universal guarantees of predictive validity. Rather, they provide a standardized, quantitative
@@ -518,8 +518,8 @@ CheckML score
             the same five-tier scale below — a model can, for example, be a "very strong" interpolator while only
             "moderate" at the boundary. For classification, only Interpolation is rated (see above).
 
-            The numeric scores are displayed to one decimal place. The score bar, color, and overall assessment
-            phrase use the score rounded half up to the nearest integer:
+            The numeric scores are displayed to one decimal place. The score bar and color use the score rounded
+            half up to the nearest integer:
 
             ============== =====================
             Rounded score  Tier

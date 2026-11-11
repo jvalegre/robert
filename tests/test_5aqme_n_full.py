@@ -230,11 +230,12 @@ def test_AQME(test_job, aqme_workspace):
     assert len(glob.glob(f"{path_main}/VERIFY/*.png")) == 2
     assert len(glob.glob(f"{path_main}/VERIFY/*.dat")) == 1
 
-    # PREDICT folder
+    # PREDICT folder (includes REPORT's radar plots of the score components: 2 per PFI variant
+    # in regression - Interpolation and Boundary robustness - and 1 in classification)
     if test_job in ["full_clas", "full_clas_test"]:
-        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 12
+        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 14
     else:
-        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 24
+        assert len(glob.glob(f"{path_main}/PREDICT/*.png")) == 28
     assert len(glob.glob(f"{path_main}/PREDICT/*.dat")) == 1
 
     if test_job == "full_clas_test":
@@ -362,8 +363,6 @@ def test_AQME(test_job, aqme_workspace):
         y_distrib_image, pearson_pred_image = False, False
         find_severe_red = False
         find_moder_correl, find_moder_y_dist = False, False
-        find_moder_truncated = False
-        find_assess_red = False
 
         for i, line in enumerate(outlines):
             if "Interpolation&" in line:
@@ -428,38 +427,24 @@ def test_AQME(test_job, aqme_workspace):
                 y_distrib_image = True
             if "Pearson_heatmap_RF_No_PFI.png" in line:
                 pearson_pred_image = True
+            # warnings are listed (all of them, never truncated) as cards on the results
+            # summary page (page 2, see print_summary_page() in report.py): the card's
+            # "SEVERE WARNING"/"MODERATE WARNING" label sits on the line right before its text
             if (
                 "Failing required tests (Section B.1)" in line
-                and "color: #c56666" in outlines[i - 1]
+                and "SEVERE WARNING" in outlines[i - 1]
             ):
                 find_severe_red = True
             if (
                 "Moderately correlated features (Section D)" in line
-                and "color: #c5c57d" in outlines[i - 1]
+                and "MODERATE WARNING" in outlines[i - 1]
             ):
                 find_moder_correl = True
             if (
                 "Slightly uneven y distribution (Section C)" in line
-                and "color: #c5c57d" in outlines[i - 1]
+                and "MODERATE WARNING" in outlines[i - 1]
             ):
                 find_moder_y_dist = True
-            # the Section A warnings box only shows as many moderate warnings as reliably
-            # fit on page 1 (see MODERATE_WARNINGS_BUDGET / TOTAL_LINE_BUDGET in report.py),
-            # truncating the rest with a single "..." line - with enough OTHER moderate
-            # warnings triggered first (higher priority - see analyze_warnings()), either of
-            # the two specific warnings above can legitimately end up hidden behind "...", so
-            # a truncated moderate list is accepted as equivalent evidence that warning
-            # detection worked, even though this particular run can't confirm which ones
-            if (
-                "&nbsp;...</p>" in line
-                and "color: #c5c57d" in outlines[i - 1]
-            ):
-                find_moder_truncated = True
-            # unlike the Severe/Moderate warning list items above (still print_line_warning(),
-            # unchanged), the Overall assessment title and its verdict now share a single row
-            # (see title_row() in report.py) - color and message are on the SAME line
-            if "The model is unreliable" in line and "color: #c56666" in line:
-                find_assess_red = True
             if "How to predict new values with these models?" in line:
                 break
 
@@ -523,8 +508,7 @@ def test_AQME(test_job, aqme_workspace):
             assert pearson_pred_image
             # warnings
             assert find_severe_red
-            assert find_moder_y_dist or find_moder_truncated
-            assert find_assess_red
+            assert find_moder_y_dist
 
             _regenerate_report_and_check(test_job, path_main)
 
@@ -568,8 +552,7 @@ def test_AQME(test_job, aqme_workspace):
             assert pearson_pred_image
             # warnings
             assert find_severe_red
-            assert find_moder_correl or find_moder_truncated
-            assert find_assess_red
+            assert find_moder_correl
 
             _regenerate_report_and_check(test_job, path_main)
 

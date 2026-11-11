@@ -58,6 +58,7 @@ Affect VERIFY and PREDICT
 
 import os
 import sys
+import json
 import shutil
 import time
 import pandas as pd
@@ -66,6 +67,32 @@ from robert.utils import (load_variables, finish_print, load_database, prepare_s
     check_clas_problem, resolve_sklearn_estimator, model_adjust_params, _csv_row_numbers_txt,
     serialize_model_params, parse_param_value)
 from robert.generate_utils import set_sets
+
+
+def _accepts_count_and_fraction(model_cls, param):
+    '''
+    True when scikit-learn's own parameter constraints of the estimator accept both an integer
+    count and a real-valued fraction for this hyperparameter (so 1 and 1.0 mean different things)
+    '''
+
+    import numbers
+    try:
+        from sklearn.utils._param_validation import Interval
+    except ImportError:
+        return False
+    constraints = getattr(model_cls, '_parameter_constraints', {}).get(param, [])
+    has_int, has_fraction = False, False
+    for constraint in constraints:
+        if not isinstance(constraint, Interval):
+            continue
+        if constraint.type is numbers.Integral:
+            has_int = True
+        elif (getattr(constraint.type, '__name__', '') == 'RealNotInt'
+              or (constraint.right is not None and constraint.right <= 1)):
+            # RealNotInt is how scikit-learn marks "a float, not an int" (the fraction form);
+            # its upper bound varies across versions (i.e. max_samples has none in 1.9)
+            has_fraction = True
+    return has_int and has_fraction
 
 
 class checkml:
@@ -294,6 +321,16 @@ class checkml:
             self.args.log.finalize()
             sys.exit()
 
+        # parameters that accept BOTH a count (int) and a fraction (float in (0, 1]) - i.e.
+        # max_samples, max_features, min_samples_split - mean very different things for 1 and
+        # 1.0: the integer 1 is ONE sample/feature, 1.0 is ALL of them. A CSV edited in Excel
+        # saves 1.0 as 1, which silently turns "all" into "one" and makes near-constant
+        # predictions. The value is valid, so it's kept as given, but flagged (REPORT reads
+        # this line, see get_warning_lines())
+        for param, value in params.items():
+            if type(value) is int and value == 1 and _accepts_count_and_fraction(model_cls, param):
+                self.args.log.write(f"\nx  WARNING! Ambiguous hyperparameter: {param} = 1 is an integer, so scikit-learn reads it as ONE (sample/feature), not all of them. If all of them were intended, use the fraction 1.0 (spreadsheet programs like Excel may save 1.0 as 1 in CSV files).")
+
     def get_user_defined_test_points(self,csv_df):
         '''
         Detects a user-provided 'Set' column marking which points to hold out as the test set
@@ -345,5 +382,16 @@ class checkml:
         # them into text that VERIFY/PREDICT can't use to rebuild the model
         df_params['params'] = serialize_model_params(self.model_params_dict)
         df_params['X_descriptors'] = [list(Xy_data['X_descriptors'])]
+
+        # class label mapping for text targets (i.e. "active"/"inactive"), saved the same way
+        # as in GENERATE so VERIFY/PREDICT restore the original labels in confusion matrices
+        # and prediction CSVs instead of showing the 0/1/2... codes
+        if hasattr(self.args, 'class_mapping_reverse'):
+            df_params['class_mapping_reverse'] = [json.dumps(
+                {int(code): str(label) for code, label in self.args.class_mapping_reverse.items()}
+            )]
+        if hasattr(self.args, 'class_0_label'):
+            df_params['class_0_label'] = [self.args.class_0_label]
+            df_params['class_1_label'] = [self.args.class_1_label]
 
         _ = df_params.to_csv(f'{generate_folder}/{self.args.eval_model}.csv', index = None, header=True)

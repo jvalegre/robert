@@ -68,6 +68,53 @@ class _ClusterMeanBaseline:
 thres_test_pass = 0.3
 thres_test_unclear = 0.15
 
+# MVL baseline comparison (not scored): the model is "better" than a plain linear baseline when
+# the baseline's CV error is this fraction worse than the model's, "similar" within +-this
+# fraction, and the baseline is "better" when its error is this fraction lower
+thres_mvl_baseline = 0.15
+
+# models that are already linear: comparing them against a linear baseline is meaningless
+_LINEAR_MODEL_CODES = {'MVL', 'RIDGE', 'LOGISTIC'}
+
+
+def _is_linear_model(model_name):
+    '''
+    True for ROBERT's linear codes and any scikit-learn estimator from sklearn.linear_model
+    '''
+
+    from sklearn import linear_model
+    name = str(model_name or '').strip()
+    return name.upper() in _LINEAR_MODEL_CODES or name in getattr(linear_model, '__all__', [])
+
+
+def linear_baseline_code(pred_type):
+    '''
+    ROBERT code and display name of the plain linear baseline: MVL (LinearRegression) for
+    regression, LOGISTIC (LogisticRegression) for classification
+    '''
+
+    return ('MVL','MVL') if str(pred_type).lower() == 'reg' else ('LOGISTIC','Logistic')
+
+
+def _mvl_screened_in_generate(baseline_code='MVL'):
+    '''
+    True when GENERATE screened the linear baseline (MVL, or LOGISTIC for classification)
+    together with at least one other model (its Raw_data folder only exists in the full
+    ROBERT workflow, not in CHECKML)
+    '''
+
+    import glob
+    import pandas as pd
+    models = set()
+    for csv_file in glob.glob(f'{os.getcwd()}/GENERATE/Raw_data/**/*.csv', recursive=True):
+        if '_db' in os.path.basename(csv_file):
+            continue
+        try:
+            models.add(str(pd.read_csv(csv_file, nrows=1)['model'][0]).upper())
+        except Exception:
+            continue
+    return baseline_code in models and len(models) > 1
+
 class verify:
     """
     Class containing all the functions from the VERIFY module.
@@ -158,6 +205,11 @@ class verify:
                 # point clouds, where a model can look good while only learning "which side
                 # of the gap is this point on")
                 verify_results = self.cluster_test(verify_results,copy.deepcopy(Xy_data_pristine),model_data)
+
+                # comparison with a plain linear (MVL) baseline - shown next to the tests above
+                # but not scored: a model that is no better than MVL isn't flawed, it's just
+                # more complex than the data justify
+                verify_results = self.mvl_baseline_test(verify_results,copy.deepcopy(Xy_data_pristine),model_data)
 
                 # analysis of results
                 results_print,verify_results,verify_metrics = self.analyze_tests(verify_results)
@@ -328,6 +380,78 @@ class verify:
         return verify_results
 
 
+    def mvl_baseline_test(self,verify_results,Xy_data,model_data):
+        '''
+        Compares the model with a plain linear baseline trained on the same descriptors with
+        the same repeated CV (same folds/seed as CV_score): LinearRegression (ROBERT's MVL) for
+        regression, LogisticRegression for classification. If the baseline does as well or
+        better, a more complex algorithm isn't justified by the data.
+
+        Not scored (unlike the flawed-model tests): the model's own predictions are as good as
+        its metrics say, it's a question of parsimony. Skipped (N/A) when the model is already
+        linear, or when a CV training fold has as many descriptors as points (an unregularized
+        linear fit is then underdetermined and the comparison would be meaningless).
+
+        Sets verify_results['mvl'] (baseline CV score) and verify_results['mvl_status'] in
+        'model_better' / 'similar' / 'baseline_better' / 'na' (+ 'mvl_na_reason')
+        '''
+
+        from sklearn.linear_model import LinearRegression, LogisticRegression
+
+        verify_results['mvl'] = verify_results['CV_score']
+        baseline_code,baseline_name = linear_baseline_code(model_data['type'])
+        verify_results['mvl_name'] = baseline_name
+        # baseline already screened together with other models in GENERATE: REPORT compares
+        # them in Section F, so the bar isn't drawn here
+        if _mvl_screened_in_generate(baseline_code):
+            verify_results['mvl_status'] = 'na'
+            verify_results['mvl_na_reason'] = f'{baseline_code} was screened with the other models (Section F)'
+            verify_results['mvl_hide'] = True
+            return verify_results
+        if _is_linear_model(model_data.get('model')):
+            verify_results['mvl_status'] = 'na'
+            verify_results['mvl_na_reason'] = 'the model is already linear'
+            return verify_results
+
+        n_train_fold = int(len(Xy_data['y_train']) * (1 - 1/int(model_data['kfold'])))
+        n_descp = Xy_data['X_train_scaled'].shape[1]
+        if n_descp >= n_train_fold:
+            verify_results['mvl_status'] = 'na'
+            verify_results['mvl_na_reason'] = f'{n_descp} descriptors for ~{n_train_fold} points per CV fold'
+            return verify_results
+
+        if model_data['type'].lower() == 'reg':
+            baseline_model = LinearRegression()
+        else:
+            baseline_model = LogisticRegression(max_iter=1000, random_state=model_data['seed'])
+        Xy_mvl = repeated_kfold_cv(model_data, baseline_model, Xy_data.copy(), BO_opt=True)
+
+        y_all_list,y_pred_all_list = [],[]
+        for y_val,y_pred_vals in zip(Xy_mvl['y_train'], Xy_mvl['y_pred_train_all']):
+            for y_pred_val in y_pred_vals:
+                y_all_list.append(y_val)
+                y_pred_all_list.append(y_pred_val)
+        metrics_mvl = get_prediction_results(model_data, y_all_list, y_pred_all_list)
+        if model_data['type'].lower() == 'reg':
+            metric_names = ['r2', 'mae', 'rmse']
+        else:
+            metric_names = ['acc', 'f1', 'mcc']
+        mvl_score = dict(zip(metric_names, metrics_mvl))[verify_results['error_type']]
+        verify_results['mvl'] = mvl_score
+
+        # lower-is-better errors (MAE/RMSE) vs higher-is-better scores (R2/acc/F1/MCC)
+        cv_score = verify_results['CV_score']
+        if verify_results['error_type'].lower() in ['mae','rmse']:
+            model_better = mvl_score >= (1+thres_mvl_baseline)*cv_score
+            mvl_better = mvl_score <= (1-thres_mvl_baseline)*cv_score
+        else:
+            model_better = mvl_score <= cv_score - thres_mvl_baseline*abs(cv_score)
+            mvl_better = mvl_score >= cv_score + thres_mvl_baseline*abs(cv_score)
+        verify_results['mvl_status'] = 'model_better' if model_better else 'baseline_better' if mvl_better else 'similar'
+
+        return verify_results
+
+
     def analyze_tests(self,verify_results):
         '''
         Function to check whether the tests pass and retrieve the corresponding colors:
@@ -414,11 +538,30 @@ class verify:
                         colors[i] = blue_color
                         results_print[i] = f'\n         o {test_ver}: PASSED, {verify_results["error_type"].upper()} = {verify_results[test_ver]:.2}, lower than thresholds. {error_difference}.'
 
-        # store metrics and colors to represent in comparison graph, adding the metrics of the 
+        # store metrics and colors to represent in comparison graph, adding the metrics of the
         # original model first
         test_names = ['Model'] + test_names
         colors = [blue_color] + colors
         metrics = [verify_results['CV_score']] + metrics
+
+        # MVL baseline (not scored, see mvl_baseline_test()): own colour/label and log line.
+        # The log line goes after the "Sorted CV" line (see print_verify()) so REPORT's parser
+        # of the 4 scored tests (fixed positions after the "Original ..." line) is unaffected
+        mvl_status = verify_results.get('mvl_status','na')
+        err = verify_results['error_type'].upper()
+        # MVL (regression) or Logistic (classification), see linear_baseline_code()
+        base_name = verify_results.get('mvl_name','MVL')
+        # two-line bar labels so they fit above the last bar of the chart
+        mvl_info = {'model_better': (blue_color, 'model\nbetter', 'o', 'the model is better than the linear baseline'),
+                    'similar': (yellow_color, 'similar', '-', 'similar performance, a simpler linear model may suffice'),
+                    'baseline_better': (red_color, f'{base_name}\nbetter', 'x', 'the linear baseline is better than the model'),
+                    'na': (gray_color, 'N/A', '-', None)}[mvl_status]
+        if mvl_status == 'na':
+            verify_results['mvl_print'] = f'\n         - {base_name} baseline (not scored): N/A, {verify_results.get("mvl_na_reason","")}'
+        else:
+            verify_results['mvl_print'] = (f'\n         {mvl_info[2]} {base_name} baseline (not scored): {mvl_status.upper()}, '
+                                           f'{err} = {verify_results["mvl"]:.2} vs {verify_results["CV_score"]:.2} (model), {mvl_info[3]}.')
+
         verify_metrics = {'test_names': test_names,
                           'colors': colors,
                           'metrics': metrics,
@@ -426,8 +569,14 @@ class verify:
                           'lower_thres': verify_results['lower_thres'],
                           'unclear_higher_thres': verify_results['unclear_higher_thres'],
                           'unclear_lower_thres': verify_results['unclear_lower_thres'],
-                          }        
-        
+                          # drawn as a separate, unscored bar (see plot_metrics()) - not drawn
+                          # when Section F already compares MVL with the other models
+                          'baseline': None if verify_results.get('mvl_hide') else
+                                      {'name': base_name, 'value': verify_results['mvl'],
+                                       'color': mvl_info[0], 'label': mvl_info[1],
+                                       'band': thres_mvl_baseline},
+                          }
+
         return results_print,verify_results,verify_metrics
 
 
@@ -451,5 +600,7 @@ class verify:
             print_ver += f"\n         - Sorted {model_data['kfold']}-fold CV : R2 = {verify_results['r2_train_sorted_CV']}, MAE = {verify_results['mae_train_sorted_CV']}, RMSE = {verify_results['rmse_train_sorted_CV']}"
         elif model_data['type'].lower() == 'clas':
             print_ver += f"\n         - Sorted CV : Accuracy = {verify_results['acc_train_sorted_CV']}, F1 score = {verify_results['f1_train_sorted_CV']}, MCC = {verify_results['mcc_train_sorted_CV']}"
+        # after the Sorted CV line on purpose (REPORT reads the 4 scored tests by position)
+        print_ver += verify_results.get('mvl_print','')
 
         self.args.log.write(print_ver)

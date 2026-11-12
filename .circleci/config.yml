@@ -380,6 +380,8 @@ jobs:
               xvfb-run -a -s "-screen 0 1920x1080x24" \
                 python -m pytest \
                   -vv \
+                  --setup-show \
+                  -o faulthandler_timeout=90 \
                   --durations=20 \
                   --cov=robert/gui_easyrob \
                   --cov-append \

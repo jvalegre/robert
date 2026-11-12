@@ -170,6 +170,8 @@ class aqme:
                         shutil.move(sdf_file, new_sdf)
                     shutil.rmtree(path_sdf)
 
+        aqme_db = f'AQME-ROBERT_{self.args.descp_lvl}_{Path(csv_target).name}'
+
         # if AQME-ROBERT_AQME_indiv_n.csv >0 in folder:
         if len(glob.glob(f'AQME-ROBERT_{self.args.descp_lvl}_AQME_indiv*.csv')) > 0:
 
@@ -183,12 +185,10 @@ class aqme:
                 df_temp = df_temp.drop(columns=columns_to_drop)
                 df_concat = pd.concat([df_temp, df_concat], axis=1)
             df_concat = pd.concat([csv_df, df_concat], axis=1)
-            df_concat.to_csv(f'AQME-ROBERT_{self.args.descp_lvl}_{csv_target}', index=False)
+            df_concat.to_csv(aqme_db, index=False)
 
 
         # if no qdesc_atom is set, only keep molecular properties and discard atomic properties
-        aqme_db = f'AQME-ROBERT_{self.args.descp_lvl}_{csv_target}'
-
         # ensure that the AQME database was successfully created
         if not os.path.exists(aqme_db):
             self.args.log.write(f"\nx  The initial AQME descriptor protocol did not create any CSV output!")

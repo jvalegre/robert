@@ -713,7 +713,7 @@ class report:
         # block itself (not on an empty <p> after it, which could spill onto page 2 and leave
         # it blank when page 1 is full)
         warnings_dat += f'''
-        <div style="page-break-inside: avoid; page-break-after: always; margin-top: 16px;">
+        <div style="page-break-inside: avoid; page-break-after: always; margin-top: 8px;">
         {self.print_img_row_indent(self.print_img_tag(interp_radar,radar_h),self.print_img_tag(bound_radar,radar_h),0)}
         </div>'''
 
@@ -738,8 +738,9 @@ class report:
         import matplotlib.pyplot as plt
 
         diff_key = 'diff_scaled_rmse_score' if pred_type == 'reg' else 'diff_mcc_score'
-        radars = [('interpolation', 'Interpolation components', f'interp_score_{suffix}', [
+        radars = [('interpolation', 'Interpolation', f'interp_score_{suffix}', [
             # short names (numbered as in Section B) so the labels don't crowd the plot
+            ('1. Flawed models', f'flawed_mod_score_{suffix}'),
             ('2. CV', f'cv_score_combined_{suffix}'),
             ('3. Test', f'test_score_combined_{suffix}'),
             ('4. Train-val gap', f'train_val_gap_score_{suffix}'),
@@ -747,7 +748,7 @@ class report:
             ('6. Stability', f'cv_sd_score_{suffix}'),
         ])]
         if pred_type == 'reg':
-            radars.append(('boundary', 'Boundary robustness components', f'extrap_score_{suffix}', [
+            radars.append(('boundary', 'Boundary robustness', f'extrap_score_{suffix}', [
                 ('1. High (sorted CV)', f'sorted_cv_high_score_{suffix}'),
                 ('2. Low (sorted CV)', f'sorted_cv_low_score_{suffix}'),
                 ('3. Spearman', f'spearman_score_{suffix}'),
@@ -763,15 +764,33 @@ class report:
 
         for key,title,total_key,components in radars:
             labels = [label for label,_ in components]
-            values = [max(0.0,min(2.0,float(data_score.get(score_key,0) or 0))) for _,score_key in components]
+            raw_values = [float(data_score.get(score_key,0) or 0) for _,score_key in components]
+            flawed_score_key = f'flawed_mod_score_{suffix}'
+            # The flawed-model component can be negative. Keep its bar pinned at zero,
+            # while retaining the raw score for the value badge.
+            values = [max(0.0,min(2.0,value)) for value in raw_values]
+            display_values = [
+                raw_value if score_key == flawed_score_key else value
+                for (_,score_key),raw_value,value in zip(components,raw_values,values)
+            ]
             # each bar coloured by its own 0-2 value with the score-card palette: red (<0.5),
             # orange (0.5-1), light blue (1-1.5), blue (>=1.5); grey when the score isn't
             # calibrated for this run (non-standard CV/test, see print_score())
+            # flawed tests are colored differently: red (<=-1.5), orange (-1.5 to -1), 
+            # light blue (-1 to -0.5), blue (>-0.5)
             from robert.checkml_score import checkml_tier_color
-            def bar_colour(value):
+            def bar_colour(value, is_flawed=False):
                 if not score_available:
                     return '#9e9e9e'
-                tier = 'VERY WEAK' if value < 0.5 else 'WEAK' if value < 1 else 'STRONG' if value < 1.5 else 'VERY STRONG'
+                if is_flawed:
+                    tier = (
+                        'VERY STRONG' if value > -0.5 else
+                        'STRONG' if value > -1 else
+                        'WEAK' if value > -1.5 else
+                        'VERY WEAK'
+                    )
+                else:
+                    tier = 'VERY WEAK' if value < 0.5 else 'WEAK' if value < 1 else 'STRONG' if value < 1.5 else 'VERY STRONG'
                 return checkml_tier_color(tier,'hex')
 
             n = len(values)
@@ -782,45 +801,72 @@ class report:
             ax = fig.add_axes([0.24, 0.1, 0.52, 0.7], polar=True)
             ax.set_theta_offset(np.pi/2)
             ax.set_theta_direction(-1)
-            ax.set_facecolor('#f2f2f2')
-            ax.set_ylim(0, 2)
-            # small hole in the middle (r=0 sits a bit off the centre), drawn as a white disc
-            ax.set_rorigin(-0.18)
-            # dash-dot rings behind the bars, no ring numbers (each bar carries its value)
+            ax.set_facecolor('#fbfcfe')
+            ax.set_ylim(0, 2.1)
+            grid_color = '#b8c1cc'
+            # Quiet reference rings keep attention on the bars and their value badges.
             ax.set_axisbelow(True)
-            ax.set_yticks([0.5, 1, 1.5])
+            ax.set_yticks([0.5, 1, 1.5, 2.0])
             ax.set_yticklabels([])
-            ax.yaxis.grid(True, color='#7f7f7f', linewidth=0.45, linestyle='-.')
+            ax.yaxis.grid(True, color=grid_color, linewidth=0.45, linestyle='-')
             ax.set_xticks(angles)
             ax.set_xticklabels([])
             ax.xaxis.grid(False)
-            # polar bar chart: one wedge per component, no outline, a bit narrower than its
-            # slot so a strip of background shows on each side before the black separators
-            ax.bar(angles, values, width=slot*0.78, color=[bar_colour(v) for v in values],
-                   edgecolor='none', zorder=2.5)
-            # thin black radial lines separating the slots, out to the outer circle
+            # Black outlines separate adjacent bars and end at each bar's tip.
+            ax.bar(angles, values, width=slot*0.62,
+                   color=[bar_colour(display_value, score_key == flawed_score_key)
+                          for (_,score_key),display_value in zip(components,display_values)],
+                   edgecolor='black', linewidth=0.5, zorder=2.5)
+            # Radial dividers retain the original pizza-slice separation between sections.
             for edge in angles + slot/2:
-                ax.plot([edge, edge], [0, 2], color='black', linewidth=0.4, zorder=3)
-            theta = np.linspace(0, 2*np.pi, 200)
-            ax.fill(theta, np.zeros_like(theta), facecolor='white', edgecolor='black', linewidth=0.5, zorder=4)
+                ax.plot([edge, edge], [0, 2.1], color=grid_color, linewidth=0.45, zorder=3)
+            # Small outward ticks align each section's outer edge with its label.
+            for angle in angles:
+                ax.plot([angle, angle], [2.1, 2.18], color='black', linewidth=0.55,
+                        zorder=3.2, clip_on=False)
             ax.spines['polar'].set_color('black')
-            ax.spines['polar'].set_linewidth(0.5)
-            # value badge near the tip of each bar (kept clear of the central hole), framed
-            # and filled with the bar's colour
-            for angle,value in zip(angles,values):
-                ax.text(angle, max(value - 0.2, 0.3), f'{value:.1f}', ha='center', va='center',
+            ax.spines['polar'].set_linewidth(0.65)
+            ax.spines['polar'].set_zorder(2)
+            # Value badges use the same colored fill as their bars.
+            for angle,value,display_value,(_,score_key) in zip(angles,values,display_values,components):
+                color = bar_colour(display_value, score_key == flawed_score_key)
+                ax.text(angle, max(value - 0.18, 0.22), f'{display_value:.1f}', ha='center', va='center',
                         fontsize=5, color='#0f172a', zorder=6,
-                        bbox=dict(boxstyle='round,pad=0.2', facecolor=bar_colour(value),
+                        bbox=dict(boxstyle='round,pad=0.2', facecolor=color,
                                   edgecolor='black', linewidth=0.4))
             # component names around the circle, rotated along it (flipped on the bottom half
-            # so they never read upside down)
+            # so they never read upside down); place each character along the arc so the
+            # full label follows the circular edge instead of sitting on a straight baseline.
+            fig.canvas.draw()
+            renderer = fig.canvas.get_renderer()
+            from matplotlib.font_manager import FontProperties
+            label_font = FontProperties(size=6.2)
+            label_radius = 2.38
+            radius_px = ax.get_window_extent().width * 0.5 * label_radius / 2
             for label,angle in zip(labels,angles):
-                rotation = -np.degrees(angle)
-                if np.pi/2 < angle < 3*np.pi/2:
-                    rotation += 180
-                ax.text(angle, 2.28, label, ha='center', va='center', rotation=rotation,
-                        rotation_mode='anchor', fontsize=5.5, color='#1e293b')
-            fig.suptitle(title + (' (0-2 each)' if score_available else ' (N/A)'), fontsize=7.5, fontweight='bold', y=0.985)
+                char_widths = [
+                    renderer.get_text_width_height_descent(char, label_font, False)[0]
+                    for char in label
+                ]
+                arc_width = sum(char_widths) + max(len(label) - 1, 0) * 0.7
+                offset = -arc_width / 2
+                normalized_angle = angle % (2*np.pi)
+                flip = np.pi/2 < normalized_angle < 3*np.pi/2
+                direction = -1 if flip else 1
+                for char,char_width in zip(label,char_widths):
+                    char_angle = angle + direction * (offset + char_width / 2) / radius_px
+                    rotation = -np.degrees(char_angle) + (180 if flip else 0)
+                    ax.text(char_angle, label_radius, char, ha='center', va='center',
+                            rotation=rotation, rotation_mode='anchor', fontsize=6.2,
+                            color='#1e293b')
+                    offset += char_width + 0.7
+            if not score_available:
+                score_range = ' (N/A)'
+            elif key == 'interpolation':
+                score_range = ' (0-2 except flawed tests up to -8)'
+            else:
+                score_range = ' (0-2 each)'
+            fig.suptitle(title + score_range, fontsize=7.5, fontweight='bold', y=0.93)
 
             radar_path = out_folder / f'CheckML_radar_{key}{getattr(self,"model_suffix","")}_{suffix_title}.png'
             fig.savefig(radar_path, dpi=300)
@@ -1888,6 +1934,10 @@ class report:
         """
 
         version_n_date, citation_main, citation_second, command_line, python_version, total_time, dat_files = repro_info(self.args.report_modules,self.model_suffix)
+        citation_main = (citation_main
+                         .replace('WIREs Comput. Mol. Sci.', '<i>WIREs Comput. Mol. Sci.</i>')
+                         .replace('2024', '<b>2024</b>')
+                         .replace(', 14,', ', <i>14</i>,'))
         robert_version = version_n_date.split()[2]
 
         if self.args.csv_name == '' or self.args.csv_test == '':
@@ -2183,9 +2233,9 @@ class report:
                 section_explain = explain_override
             elif pred_type == 'clas':
                 # Boundary robustness isn't defined for classification (see print_score())
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on.</i>'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Evaluation of interpolation (within the range of training data).</i>'
             else:
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This score is designed to evaluate the models using different metrics. Interpolation measures how reliably the model predicts within the range of data it was trained on; Boundary robustness (related to extrapolation) measures how well it holds up at the edges of that range, where predictions are hardest to trust.</i>'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Evaluation of interpolation (within the range of training data) and boundary robustness (related to extrapolation).</i>'
         elif module == 'adv_anal':
             module_name = 'Section B. Advanced Score Analysis'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the CheckML score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'

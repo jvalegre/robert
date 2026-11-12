@@ -64,9 +64,9 @@ import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.2.1"
+robert_version = "2.2.0"
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput. Mol. Sci. 2024, 14, e1733."
 checkml_ref = "CheckML citation TBD."
 
 def _parse_class_mapping_reverse(mapping):

@@ -348,9 +348,12 @@ jobs:
             # ------------------------------------------------------------------
             # Fast, self-contained, non-GUI files first - no Xvfb needed for these
             # ------------------------------------------------------------------
+            echo "[CI] Running fast API and split tests"
             python -m pytest \
               -v \
-              --durations=20 \
+              --disable-warnings \
+              --tb=short \
+              --durations=5 \
               --cov=robert \
               --cov-report= \
               --junitxml=test-results/fast-test-results.xml \
@@ -361,6 +364,8 @@ jobs:
               echo "[CI] test_7api.py/test_split_selection.py failed with exit code $FAST_EXIT_CODE"
               exit "$FAST_EXIT_CODE"
             fi
+
+            echo "[CI] Fast API and split tests passed"
 
             export QT_QPA_PLATFORM=offscreen
             export QT_OPENGL=software
@@ -376,13 +381,15 @@ jobs:
               local suite_name="$1"
               shift
               local result_file="test-results/${suite_name}-test-results.xml"
+              echo "[CI] Running ${suite_name} test suite"
 
               xvfb-run -a -s "-screen 0 1920x1080x24" \
                 python -m pytest \
-                  -vv \
-                  --setup-show \
+                  -v \
+                  --disable-warnings \
+                  --tb=short \
                   -o faulthandler_timeout=90 \
-                  --durations=20 \
+                  --durations=5 \
                   --cov=robert/gui_easyrob \
                   --cov-append \
                   --cov-report= \
@@ -411,6 +418,7 @@ jobs:
                 echo "[CI] ${suite_name} tests failed with exit code $suite_exit_code"
                 return "$suite_exit_code"
               fi
+              echo "[CI] ${suite_name} test suite passed"
             }
 
             run_gui_suite easyrob tests/test_easyrob.py tests/test_images_web.py tests/test_web_shell.py
@@ -451,8 +459,9 @@ jobs:
 
             # One separate browser process exercises the real local HTML page
             # and JavaScript-to-Python bridge. The larger Qt suites stay offscreen.
+            echo "[CI] Running Chromium smoke tests"
             QT_QPA_PLATFORM=xcb xvfb-run -a -s "-screen 0 1280x800x24" \
-              python -m pytest -vv \
+              python -m pytest -v --disable-warnings --tb=short \
                 --cov=robert/gui_easyrob --cov-append --cov-report= \
                 --junitxml=test-results/webengine-test-results.xml \
                 tests/test_images_webengine.py tests/test_web_dashboard_webengine.py
@@ -460,6 +469,8 @@ jobs:
             if [ "$WEB_EXIT_CODE" -ne 0 ]; then
               exit "$WEB_EXIT_CODE"
             fi
+
+            echo "[CI] Chromium smoke tests passed; all GUI test suites completed"
 
             # Re-enable 'exit on error' for any subsequent commands.
             set -e

@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -14,37 +13,28 @@ if str(PACKAGE_ROOT) not in sys.path:
 
 @pytest.fixture(autouse=True)
 def isolate_gui_keyring(request, monkeypatch):
-    """Keep headless GUI tests independent of the desktop secret service."""
+    """Use an in-memory keyring for headless tests that exercise the GUI."""
     test_path = Path(request.node.path)
     gui_test = (
         "gui_easyrob" in test_path.parts
-        or test_path.name in {
-            "test_easyrob.py",
-            "test_web_shell.py",
-            "test_bot_compact_gui.py",
-            "test_web_dashboard_webengine.py",
-        }
+        or "disposed_easyrob_window" in request.fixturenames
+        or "easyrob_window" in request.fixturenames
+        or test_path.name in {"test_web_shell.py", "test_bot_compact_gui.py"}
     )
     if sys.platform == "win32" or not gui_test:
         return
 
+    import keyring
+
     saved = {}
-    keyring = SimpleNamespace(
-        get_password=lambda service, account: saved.get((service, account)),
-        set_password=lambda service, account, secret: saved.__setitem__((service, account), secret),
-        delete_password=lambda service, account: saved.pop((service, account), None),
+    monkeypatch.setattr(keyring, "get_password", lambda service, account: saved.get((service, account)))
+    monkeypatch.setattr(
+        keyring,
+        "set_password",
+        lambda service, account, secret: saved.__setitem__((service, account), secret),
     )
-    for module_name in (
-        "robert.gui_easyrob.bot.credential_store",
-        "gui_easyrob.bot.credential_store",
-        "bot.credential_store",
-    ):
-        module = sys.modules.get(module_name)
-        if module is not None:
-            monkeypatch.setattr(
-                module.CredentialStore,
-                "_keyring",
-                staticmethod(lambda backend=keyring: backend),
-            )
-
-
+    monkeypatch.setattr(
+        keyring,
+        "delete_password",
+        lambda service, account: saved.pop((service, account), None),
+    )

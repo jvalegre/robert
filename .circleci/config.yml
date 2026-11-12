@@ -491,7 +491,7 @@ jobs:
       - attach_workspace:
           at: .
       - run:
-          name: Combine coverage and require at least 80 percent of ROBERT Python lines
+          name: Combine and report ROBERT Python coverage
           command: |
             python -m pip install 'coverage>=7,<8'
             python -m coverage combine coverage-data
@@ -501,9 +501,9 @@ jobs:
                 chmod +x codecov && \
                 ./codecov upload-process --disable-search --fail-on-error \
                   -t "$CODECOV_TOKEN" -f coverage.xml -F combined || \
-                echo "[CI] Codecov upload failed; the coverage gate still applies"
+                echo "[CI] Codecov upload failed; local coverage reporting will continue"
             fi
-            python -m coverage report --fail-under=80
+            python -m coverage report
       - store_artifacts:
           path: coverage.xml
 

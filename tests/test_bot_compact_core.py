@@ -56,7 +56,6 @@ from gui_easyrob.bot.bot_context import GuiSnapshot
 from gui_easyrob.bot.bot_engine import BotEngine
 from gui_easyrob.bot.evidence_policy import EvidenceAssessment, EvidenceDecision
 from gui_easyrob.bot.llm_providers import LLMProviderError, LLMProviderErrorKind, ProviderAnswer
-from gui_easyrob.bot.local_llm import LocalLLMError
 from gui_easyrob.bot.bot_rag import KnowledgeBase, SearchResult
 from gui_easyrob.bot.token_usage import TokenUsage
 from gui_easyrob.bot.workflow_results import WorkflowArtifact, WorkflowResultSnapshot, WorkflowStageResult
@@ -117,19 +116,6 @@ class OversizedOptionalSearchProvider(UsageProvider):
             raise LLMProviderError(LLMProviderErrorKind.INVALID_REQUEST, 'The AI provider rejected this request. Detail: Request Entity Too Large', status_code=413)
         return ProviderAnswer(text=self.response, usage=TokenUsage(prompt_tokens=100, completion_tokens=20, total_tokens=120, estimated_cost_usd=2.7e-05, provider='OpenAI', model='gpt-4.1-mini'), metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.GENERAL_KNOWLEDGE))
 
-class FakeLocalManager:
-
-    def __init__(self, response='stubbed local answer', errors=None):
-        self.response = response
-        self.errors = list(errors or [])
-        self.calls = []
-
-    def generate_response(self, system_prompt, user_prompt):
-        self.calls.append({'system_prompt': system_prompt, 'user_prompt': user_prompt})
-        if self.errors:
-            raise self.errors.pop(0)
-        return self.response
-
 class TestBotEngine(unittest.TestCase):
 
     def test_result_summary_retries_evidence_contradiction_once(self):
@@ -159,17 +145,6 @@ class TestBotEngine(unittest.TestCase):
         self.assertIn('**REPORT:** Completed', answer)
         self.assertNotIn('Unexpected LLM error', answer)
 
-    def test_local_prompt_uses_history_only_for_follow_up(self):
-        history = [{'role': 'user', 'content': 'Why is the Reports tab locked?', 'memory_eligible': True}, {'role': 'assistant', 'content': 'It unlocks after report output exists.', 'memory_eligible': True}]
-        local = FakeLocalManager(response='follow-up answer')
-        engine = BotEngine(self.kb, local_manager=local)
-        engine.answer('And when does it unlock?', self.snapshot, 'Local AI', 'OpenAI', '', conversation_history=history)
-        self.assertIn('Why is the Reports tab locked?', local.calls[0]['user_prompt'])
-        self.assertIn('It unlocks after report output exists.', local.calls[0]['user_prompt'])
-        local.calls.clear()
-        engine.answer('What does the AQME tab do?', self.snapshot, 'Local AI', 'OpenAI', '', conversation_history=history)
-        self.assertNotIn('Why is the Reports tab locked?', local.calls[0]['user_prompt'])
-
     def test_heuristic_mode_uses_parameter_builder_for_parameter_questions(self):
         kb = KnowledgeBase.from_records([{'id': 'param-pfi-filter', 'source': 'robert_docs', 'source_file': 'Modules/generate.rst', 'program': 'ROBERT', 'module': 'GENERATE', 'kind': 'parameter', 'tab': 'Advanced Options', 'title': 'PFI filter threshold', 'question_patterns': ['what does pfi filter do'], 'keywords': ['pfi', 'filter', 'threshold'], 'text': 'The PFI filter controls feature selection after model fitting.', 'priority': 0.9}])
         engine = BotEngine(kb)
@@ -177,18 +152,6 @@ class TestBotEngine(unittest.TestCase):
         self.assertIn('PFI filter', answer)
         self.assertIn('controls feature selection', answer)
         self.assertNotIn('What is happening:', answer)
-
-    def test_local_ai_mode_retries_once_with_ultracompact_prompt_on_failure(self):
-        local_manager = FakeLocalManager(response='local answer after retry', errors=[LocalLLMError('400 Client Error: Bad Request')])
-        engine = BotEngine(self.kb, local_manager=local_manager)
-        answer = engine.answer(question='an error happened in my robert process, what does it mean?', snapshot=self.snapshot, mode='Local AI', provider='OpenAI', api_key='', conversation_history=[{'role': 'user', 'content': 'hi ' * 40}, {'role': 'assistant', 'content': 'hello ' * 50}, {'role': 'user', 'content': 'please explain ' * 60}])
-        self.assertIn('retried using a minimal prompt', answer)
-        self.assertIn('local answer after retry', answer)
-        self.assertEqual(len(local_manager.calls), 2)
-        self.assertLessEqual(len(local_manager.calls[1]['user_prompt']), len(local_manager.calls[0]['user_prompt']))
-        self.assertIn('minimal context retry', local_manager.calls[1]['system_prompt'].lower())
-        self.assertNotIn('hi hi', local_manager.calls[0]['user_prompt'])
-        self.assertNotIn('please explain', local_manager.calls[1]['user_prompt'])
 
     def test_heuristic_mode_uses_console_details_for_process_finish_failure_popup(self):
         engine = BotEngine(self.kb)
@@ -206,18 +169,6 @@ class TestBotEngine(unittest.TestCase):
         self.assertIn('SMILES', answer)
         self.assertIn('target', answer.lower())
         self.assertNotIn('Test CSV', answer)
-
-    def test_local_ai_selected_tutorial_uses_bounded_data_blocks(self):
-        local_manager = FakeLocalManager(response='Load the CSV first.')
-        kb = KnowledgeBase.from_records([{'id': 'tutorial-csv-1', 'source': 'tutorial:csv.md', 'kind': 'tutorial', 'tab': 'ROBERT', 'text': 'Start from a CSV file and select the target column.'}])
-        engine = BotEngine(kb, local_manager=local_manager)
-        engine.answer(question='How do I start from a CSV file?', snapshot=self.snapshot, mode='Local AI', provider='OpenAI', api_key='')
-        self.assertEqual(len(local_manager.calls), 1)
-        prompt = local_manager.calls[0]['user_prompt']
-        self.assertNotIn('Tutorial summary to rewrite', prompt)
-        self.assertIn('<USER_QUESTION_DATA>', prompt)
-        self.assertIn('<RETRIEVED_KNOWLEDGE_DATA>', prompt)
-        self.assertNotIn('GUI_STATE_DATA', prompt)
 
     def test_optional_search_413_retries_once_without_web_search(self):
         provider = OversizedOptionalSearchProvider()
@@ -433,7 +384,7 @@ import requests
 from gui_easyrob.bot.bot_context import GuiSnapshot
 from gui_easyrob.bot.answer_metadata import EvidenceOrigin, WebSearchMode, normalize_provider_answer_text
 from gui_easyrob.bot.prompt_policy import AnswerDepth
-from gui_easyrob.bot.llm_providers import LLMProviderError, LLMProviderErrorKind, GEMINI_SPEC, OPENAI_SPEC, PROVIDER_SPECS, GeminiAdapter, OpenAICompatibleAdapter, _build_prompts, build_llm_prompts, build_local_llm_prompts, build_provider_registry
+from gui_easyrob.bot.llm_providers import LLMProviderError, LLMProviderErrorKind, GEMINI_SPEC, OPENAI_SPEC, PROVIDER_SPECS, GeminiAdapter, OpenAICompatibleAdapter, _build_prompts, build_llm_prompts, build_provider_registry
 
 class FakeResponse:
 
@@ -515,128 +466,8 @@ class TestLlmProviders(unittest.TestCase):
                     adapter.generate_answer('question', self.snapshot, [], 'fake-key')
                 self.assertIs(caught.exception.kind, LLMProviderErrorKind.INVALID_RESPONSE)
 
-    def test_local_llm_prompts_are_more_compact_than_cloud_prompts(self):
-        snapshot = GuiSnapshot(active_tab='ROBERT', workflow='Full Workflow', main_csv_path='train.csv', test_csv_path='', target_column='yield', prediction_type='Regression', process_running=False, run_enabled=True, stop_enabled=False, recent_console=''.join((f'line {idx} error details ' for idx in range(200))), console_terms=['error', 'traceback', 'csv', 'missing', 'runtime', 'aqme'], aqme_workflow_enabled=False, enabled_tabs=['ROBERT', 'AQME', 'PREDICT'], disabled_tabs=['Results'])
-        retrieved = [type('Chunk', (), {'id': f'chunk-{idx}', 'topic': 'diagnostic', 'tab': 'ROBERT', 'text': ('useful diagnostic context ' * 40).strip()})() for idx in range(6)]
-        conversation = [{'role': 'user', 'content': f'question {idx} ' + 'details ' * 30} if idx % 2 == 0 else {'role': 'assistant', 'content': f'answer {idx} ' + 'context ' * 30} for idx in range(8)]
-        _, cloud_user_prompt = _build_prompts(question='what does this error mean?', gui_context=snapshot, retrieved_chunks=retrieved, conversation_history=conversation, question_intent='diagnostic')
-        _, local_user_prompt = build_local_llm_prompts(question='what does this error mean?', gui_context=snapshot, retrieved_chunks=retrieved, conversation_history=conversation, question_intent='diagnostic')
-        self.assertLess(len(local_user_prompt), len(cloud_user_prompt))
-        self.assertNotIn('Conversation so far', local_user_prompt)
-        self.assertIn('Recent console tail', local_user_prompt)
 if __name__ == '__main__':
     unittest.main()""", ('TestLlmProviders',), ())
-
-# Selected checks from test_bot_local_llm.py
-_load_case_group('local_llm', """import tempfile
-import unittest
-from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import Mock
-import gui_easyrob.bot.local_llm as local_llm
-from gui_easyrob.bot.local_llm import DEFAULT_LOCAL_BATCH_SIZE, DEFAULT_LOCAL_MAX_TOKENS, DEFAULT_LOCAL_N_CTX, DEFAULT_LOCAL_REPEAT_PENALTY, DEFAULT_LOCAL_TEMPERATURE, DEFAULT_LOCAL_TOP_P, DEFAULT_LOCAL_UBATCH_SIZE, LOCAL_MODEL_DISPLAY_NAME, LOCAL_MODEL_FILENAME, LOCAL_MODEL_REPO_ID, LocalLLMError, LocalLLMManager
-
-class FakeResponse:
-
-    def __init__(self, payload=None, status_code=200):
-        self._payload = payload or {}
-        self.status_code = status_code
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise RuntimeError(f'http {self.status_code}')
-
-    def json(self):
-        return self._payload
-
-class FakeProcess:
-
-    def __init__(self, poll_result=None):
-        self._poll_result = poll_result
-        self.terminated = False
-        self.killed = False
-        self.wait_calls = []
-
-    def poll(self):
-        return self._poll_result
-
-    def terminate(self):
-        self.terminated = True
-
-    def wait(self, timeout=None):
-        self.wait_calls.append(timeout)
-
-    def kill(self):
-        self.killed = True
-
-class TestLocalLLMManager(unittest.TestCase):
-
-    def test_generate_response_strips_leaked_intro_and_keeps_real_answer(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            runtime_root = Path(tmpdir)
-            runtime_binary = runtime_root / 'llama-server.exe'
-            runtime_binary.write_text('exe', encoding='utf-8')
-            process = FakeProcess()
-            transport = Mock(side_effect=[FakeResponse({'status': 'ok'}), FakeResponse({'choices': [{'message': {'content': 'Okay, the user is asking for a sandwich.\\nLet me think about the best answer.\\n\\nYou can make a simple sandwich with bread, cheese, and tomato.'}}]})])
-            manager = LocalLLMManager(downloader=Mock(return_value='C:/cache/model.gguf'), runtime_root=runtime_root, runtime_downloader=Mock(return_value=str(runtime_binary)), process_factory=Mock(return_value=process), transport=transport, sleep_fn=lambda _: None, system_name='Windows', machine_name='AMD64')
-            answer = manager.generate_response('system', 'user')
-            self.assertEqual(answer, 'You can make a simple sandwich with bread, cheese, and tomato.')
-if __name__ == '__main__':
-    unittest.main()""", ('TestLocalLLMManager',), ())
-
-# Selected checks from test_bot_local_model_worker.py
-_load_case_group('local_model_worker', """import unittest
-from gui_easyrob.bot.local_llm import LocalLLMError
-from gui_easyrob.bot.local_model_worker import LocalModelPrepareWorker
-
-class FakeLocalManager:
-
-    def __init__(self, exists=False, runtime_exists=True, download_error=None, runtime_error=None, load_error=None):
-        self.exists = exists
-        self.runtime_ready = runtime_exists
-        self.download_error = download_error
-        self.runtime_error = runtime_error
-        self.load_error = load_error
-        self.calls = []
-
-    def model_exists(self):
-        self.calls.append('model_exists')
-        return self.exists
-
-    def download_model(self, progress_callback=None):
-        self.calls.append('download_model')
-        if progress_callback is not None:
-            progress_callback('downloading', 'Downloading local model (about 2.1 GB)...')
-        if self.download_error is not None:
-            raise self.download_error
-
-    def runtime_exists(self):
-        self.calls.append('runtime_exists')
-        return self.runtime_ready
-
-    def download_runtime(self, progress_callback=None):
-        self.calls.append('download_runtime')
-        if progress_callback is not None:
-            progress_callback('downloading', 'Downloading local AI runtime...')
-        if self.runtime_error is not None:
-            raise self.runtime_error
-
-    def load_model(self):
-        self.calls.append('load_model')
-        if self.load_error is not None:
-            raise self.load_error
-
-class TestLocalModelPrepareWorker(unittest.TestCase):
-
-    def test_worker_emits_statuses_and_prepared_signal_when_download_is_needed(self):
-        worker = LocalModelPrepareWorker(FakeLocalManager(exists=False))
-        statuses = []
-        prepared = []
-        worker.status_changed.connect(lambda status, detail: statuses.append((status, detail)))
-        worker.prepared.connect(lambda: prepared.append(True))
-        worker.run()
-        self.assertEqual([status for status, _ in statuses], ['Preparing...', 'Downloading...', 'Loading...', 'Ready'])
-        self.assertEqual(prepared, [True])""", ('TestLocalModelPrepareWorker',), ())
 
 # Selected checks from test_bot_online_docs.py
 _load_case_group('online_docs', """\"\"\"Offline checks for bounded official-documentation fallback.\"\"\"
@@ -789,7 +620,7 @@ class TestBotReplyWorker(unittest.TestCase):
         self.snapshot = GuiSnapshot(active_tab='ROBERT', workflow='Full Workflow', main_csv_path='train.csv', test_csv_path='', target_column='yield', prediction_type='Regression', process_running=False, run_enabled=True, stop_enabled=False, recent_console='', console_terms=[])
 
     def _worker(self, engine, *, request_id=7, generation=3, api_key='', history=None, tutorial_id=None):
-        return BotReplyWorker(engine=engine, request_id=request_id, generation=generation, question='What should I check next?', snapshot=self.snapshot, mode='Local AI', provider='OpenAI', api_key=api_key, conversation_history=history or [], tutorial_id=tutorial_id)
+        return BotReplyWorker(engine=engine, request_id=request_id, generation=generation, question='What should I check next?', snapshot=self.snapshot, mode='Cloud AI', provider='OpenAI', api_key=api_key, conversation_history=history or [], tutorial_id=tutorial_id)
 
     def test_success_carries_request_generation_reset_and_memory_metadata(self):
         usage = TokenUsage(100, 20, 120, provider='OpenAI')
@@ -800,7 +631,7 @@ class TestBotReplyWorker(unittest.TestCase):
         worker.run()
         self.assertEqual(payloads, [(7, 3, 'worker answer', False, True, usage, AnswerMetadata())])
         self.assertEqual(engine.calls[0]['question'], 'What should I check next?')
-        self.assertEqual(engine.calls[0]['mode'], 'Local AI')
+        self.assertEqual(engine.calls[0]['mode'], 'Cloud AI')
         self.assertEqual(engine.calls[0]['conversation_history'][0]['content'], 'Previous question')
         self.assertEqual(worker.api_key, '')
 if __name__ == '__main__':

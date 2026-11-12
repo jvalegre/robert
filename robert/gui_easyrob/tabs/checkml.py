@@ -86,6 +86,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+try:
+    from workflow_run_lock import WorkflowRunLock
+except ImportError:
+    from robert.gui_easyrob.workflow_run_lock import WorkflowRunLock
+
 # shared style for section group boxes, matching the "Advanced Options" tab's convention
 BOX_STYLE = "QGroupBox { font-weight: bold; }"
 
@@ -193,6 +198,7 @@ class CheckMLTab(QWidget):
         super().__init__(parent)
 
         self.worker = None
+        self._workflow_run_lock = WorkflowRunLock()
         self.csv_path = None
         self.csv_test_path = None
         self.csv_columns = []
@@ -200,6 +206,7 @@ class CheckMLTab(QWidget):
         self.model_params_path = None
         self.model_file_path = None
         self.manual_stop = False
+        self._report_before_run = None
 
         self._build_ui()
 
@@ -267,6 +274,10 @@ class CheckMLTab(QWidget):
         )
         self.csv_test_label.set_callback(self.set_csv_test_path)
         right_col.addWidget(self.csv_test_label)
+        self.clear_csv_test_button = QPushButton("Clear external test CSV")
+        self.clear_csv_test_button.setEnabled(False)
+        self.clear_csv_test_button.clicked.connect(self.clear_csv_test_path)
+        right_col.addWidget(self.clear_csv_test_button)
         csv_row.addLayout(right_col)
 
         input_layout.addLayout(csv_row)
@@ -501,32 +512,61 @@ class CheckMLTab(QWidget):
         return warn_if_csv_name_has_spaces(self, file_path, what, "CHECKML")
 
     def set_csv_path(self, file_path):
-        self.csv_path = None
         if self._warn_if_spaces(file_path, "input CSV"):
-            self.csv_label.setText("\u26a0 Rename the file (no spaces) and select it again")
-            return
-        self.csv_path = file_path
+            return False
 
         df = smart_read_csv(file_path)
         if df is None:
             QMessageBox.warning(self, "CHECKML", f"Could not read CSV file:\n{file_path}")
-            return
+            return False
+
+        self.csv_path = file_path
+        self.csv_label.setText(f"Selected: {Path(file_path).name}")
+        self.csv_label.setToolTip(file_path)
 
         columns = list(df.columns)
-        self.y_dropdown.clear()
-        self.y_dropdown.addItems(columns)
-        self.names_dropdown.clear()
-        self.names_dropdown.addItems(columns)
-
         lower_map = {col.lower(): col for col in columns}
-        if "code_name" in lower_map:
-            self.names_dropdown.setCurrentText(lower_map["code_name"])
+        name_column = lower_map.get("code_name")
+        target_column = next(
+            (lower_map[name] for name in ("target", "y") if name in lower_map),
+            None,
+        ) or next(
+            (col for col in columns if col != name_column and col.lower() not in {"set", "smiles"}
+             and pd.api.types.is_numeric_dtype(df[col])),
+            None,
+        )
+        if target_column is None:
+            target_column = next(
+                (col for col in columns if col != name_column and col.lower() not in {"set", "smiles"}),
+                None,
+            )
+        self.y_dropdown.blockSignals(True)
+        self.names_dropdown.blockSignals(True)
+        try:
+            self.y_dropdown.clear()
+            self.y_dropdown.addItems(columns)
+            self.names_dropdown.clear()
+            self.names_dropdown.addItems(columns)
+            if target_column is not None:
+                self.y_dropdown.setCurrentText(target_column)
+            else:
+                self.y_dropdown.setCurrentIndex(-1)
+            if name_column is not None:
+                self.names_dropdown.setCurrentText(name_column)
+        finally:
+            self.y_dropdown.blockSignals(False)
+            self.names_dropdown.blockSignals(False)
 
         # text (non-numeric) columns can't be used as descriptors in CHECKML, so they start
         # checked in the ignore list (SMILES, names, categories...)
         self.csv_columns = columns
-        self.text_columns = [col for col in columns if col != "Set" and not pd.api.types.is_numeric_dtype(df[col])]
+        self.text_columns = [
+            col for col in columns
+            if col.lower() == "smiles" or (col.lower() != "set" and not pd.api.types.is_numeric_dtype(df[col]))
+        ]
         self._refresh_ignore_list(preselect=True)
+        self._refresh_result_summary()
+        self._refresh_sibling_tabs()
 
     def _refresh_ignore_list(self, *_args, preselect=False):
         """Rebuilds the ignore list (every column except y and names, which ROBERT already handles),
@@ -551,17 +591,43 @@ class CheckMLTab(QWidget):
         ]
 
     def set_csv_test_path(self, file_path):
-        self.csv_test_path = None
         if self._warn_if_spaces(file_path, "external test CSV"):
-            self.csv_test_label.setText("\u26a0 Rename the file (no spaces) and select it again")
-            return
+            return False
+        if self.csv_path and Path(file_path).resolve() == Path(self.csv_path).resolve():
+            QMessageBox.warning(self, "CHECKML", "The external test CSV must differ from the input CSV.")
+            return False
+        if smart_read_csv(file_path) is None:
+            QMessageBox.warning(self, "CHECKML", f"Could not read external test CSV:\n{file_path}")
+            return False
         self.csv_test_path = file_path
+        self.csv_test_label.setText(f"Selected: {Path(file_path).name}")
+        self.csv_test_label.setToolTip(file_path)
+        self.clear_csv_test_button.setEnabled(True)
+        self._refresh_result_summary()
+
+    def clear_csv_test_path(self):
+        self.csv_test_path = None
+        self.csv_test_label.full_file_path = None
+        self.csv_test_label.setText("Drag & Drop an external test CSV here (optional)")
+        self.csv_test_label.setToolTip("")
+        self.clear_csv_test_button.setEnabled(False)
+        self._refresh_result_summary()
+
+    def _refresh_result_summary(self):
+        """Synchronize the bot summary action with CheckML result files."""
+        refresh = getattr(self.window(), "_refresh_workflow_result_snapshot", None)
+        if callable(refresh):
+            refresh()
 
     def set_model_params_path(self, file_path):
         self.model_params_path = file_path
+        self.model_params_label.setText(f"Selected: {Path(file_path).name}")
+        self.model_params_label.setToolTip(file_path)
 
     def set_model_file_path(self, file_path):
         self.model_file_path = file_path
+        self.model_file_label.setText(f"Selected: {Path(file_path).name}")
+        self.model_file_label.setToolTip(file_path)
 
     def _on_model_source_changed(self, index):
         self.sklearn_picker_container.hide()
@@ -640,12 +706,24 @@ class CheckMLTab(QWidget):
             QMessageBox.warning(self, "CHECKML", "Please select an input CSV file (its name can't contain spaces).")
             return False
 
+        if self.csv_test_path and Path(self.csv_test_path).resolve() == Path(self.csv_path).resolve():
+            QMessageBox.warning(self, "CHECKML", "The external test CSV must differ from the input CSV.")
+            return False
+
         if not self.y_dropdown.currentText():
             QMessageBox.warning(self, "CHECKML", "Please select the y (target) column.")
             return False
 
         if not self.names_dropdown.currentText():
             QMessageBox.warning(self, "CHECKML", "Please select the names (ID) column.")
+            return False
+
+        if self.y_dropdown.currentText() == self.names_dropdown.currentText():
+            QMessageBox.warning(
+                self,
+                "CHECKML",
+                "The target and names columns must be different. Please select two columns.",
+            )
             return False
 
         source_index = self.model_source_dropdown.currentIndex()
@@ -721,8 +799,20 @@ class CheckMLTab(QWidget):
         if not self._validate():
             return
 
+        if not self._workflow_run_lock.try_acquire():
+            QMessageBox.warning(
+                self, "Workflow already running",
+                "ROBERT or CheckML is already running. Wait for it to finish before starting another run.",
+            )
+            return
+
         command = self._build_command()
         run_dir = os.path.dirname(self.csv_path)
+        report_path = Path(run_dir) / "ROBERT_report_No_PFI.pdf"
+        report_stat = report_path.stat() if report_path.is_file() else None
+        self._report_before_run = (
+            (report_stat.st_mtime_ns, report_stat.st_size) if report_stat else None
+        )
 
         self.run_button.setDisabled(True)
         self.stop_button.setDisabled(False)
@@ -740,6 +830,7 @@ class CheckMLTab(QWidget):
         self.worker.error_received.connect(self.console_output.append)
         self.worker.process_finished.connect(self._on_process_finished)
         self.worker.start()
+        self._refresh_result_summary()
 
     def stop_run(self):
         if self.worker:
@@ -747,11 +838,13 @@ class CheckMLTab(QWidget):
             self.worker.stop()
 
     def _reset_ui_after_process(self):
+        self._workflow_run_lock.release()
         self.run_button.setDisabled(False)
         self.stop_button.setDisabled(True)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.hide()
+        self._refresh_result_summary()
 
     def _on_process_finished(self, exit_code):
         if self.worker:
@@ -770,12 +863,18 @@ class CheckMLTab(QWidget):
         # ROBERT also exits with code 0 when it stops on a bad input (i.e. an invalid option or a
         # CSV name with spaces), so success also needs the report the run is supposed to produce
         run_dir = os.path.dirname(self.csv_path) if self.csv_path else ""
-        report_created = os.path.exists(os.path.join(run_dir, "ROBERT_report_No_PFI.pdf"))
+        report_path = Path(run_dir) / "ROBERT_report_No_PFI.pdf"
+        report_stat = report_path.stat() if report_path.is_file() else None
+        report_created = report_stat is not None and (
+            self._report_before_run is None
+            or (report_stat.st_mtime_ns, report_stat.st_size) != self._report_before_run
+        )
         if exit_code == 0 and not report_created:
+            message = "CHECKML did not create a new report. Check the log above."
             self.console_output.append(
-                "<b><span style='color:red;'>CHECKML stopped before creating the report. "
-                "Check the messages above.</span></b>"
+                f"<b><span style='color:red;'>{message}</span></b>"
             )
+            QMessageBox.warning(self, "CHECKML", message)
         elif exit_code == 0:
             self.console_output.append(
                 "<b><span style='color:green;'>CHECKML finished successfully.</span></b>"
@@ -787,10 +886,11 @@ class CheckMLTab(QWidget):
                 "Check the 'Results' tab for the PDF and prediction dashboard."
             )
         else:
+            message = f"CHECKML finished with errors (exit code {exit_code}). Check the log above."
             self.console_output.append(
-                "<b><span style='color:red;'>CHECKML finished with errors "
-                f"(exit code {exit_code}). Check the log above.</span></b>"
+                f"<b><span style='color:red;'>{message}</span></b>"
             )
+            QMessageBox.warning(self, "CHECKML", message)
 
     def _refresh_sibling_tabs(self):
         """Refreshes the Reports/Predictions/Images tabs, mirroring the main ROBERT tab."""
@@ -798,3 +898,4 @@ class CheckMLTab(QWidget):
         if not self.csv_path or not hasattr(main_window, "refresh_tabs"):
             return
         main_window.refresh_tabs(self.csv_path, source_kind="CHECKML")
+        self._refresh_result_summary()

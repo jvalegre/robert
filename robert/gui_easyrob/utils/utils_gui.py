@@ -307,18 +307,26 @@ class DropLabel(QFrame):
         if urls:
             file_path = urls[0].toLocalFile()
             if file_path.lower().endswith(self.valid_extensions):
-                self.set_file_path(file_path)
+                if self.set_file_path(file_path):
+                    event.acceptProposedAction()
+                else:
+                    event.ignore()
             else:
-                self.label.setText("⚠ Invalid file format.")
+                extensions = ", ".join(self.valid_extensions)
+                QMessageBox.warning(
+                    self, "Invalid file format", f"Please select a file ending in {extensions}."
+                )
+                event.ignore()
 
     def set_file_path(self, file_path):
         """Set the file path and update the label."""
+        if self.callback and self.callback(file_path) is False:
+            return False
         self.full_file_path = file_path
         file_name = Path(file_path).name
         self.label.setText(f"Selected: {file_name}")
         self.label.setToolTip(file_path)
-        if self.callback:
-            self.callback(file_path)
+        return True
 
     def setText(self, text):
         """Set the text of the label."""
@@ -435,6 +443,7 @@ class RobertWorker(QThread):
 
             tb = traceback.format_exc()
             self.error_received.emit(f"Error in run(): {exc}\n{tb}")
+            self.process_finished.emit(1)
 
     def stop(self):
         """Stop the subprocess and emit a stop signal."""
@@ -551,7 +560,7 @@ def smart_read_csv(filepath):
             delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
 
         return pd.read_csv(filepath, encoding="utf-8", delimiter=delimiter)
-    except (FileNotFoundError, OSError):
+    except (OSError, UnicodeError, pd.errors.EmptyDataError, pd.errors.ParserError):
         return None
 
 class NoScrollComboBox(QComboBox):
@@ -721,6 +730,7 @@ class AssetLibrary:
     Info_icon = AssetPath("info_icon.png")
     Robert_logo_transparent = AssetPath("Robert_logo_transparent.png")
     Robert_icon = AssetPath("Robert_icon.png")
+    CheckML_icon = AssetPath("CheckML_icon.png")
     Play_icon = AssetPath("play_icon.png")
     Stop_icon = AssetPath("stop_icon.png")
     Youtube_icon = AssetPath("youtube_icon.ico")

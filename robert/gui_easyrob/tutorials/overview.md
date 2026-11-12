@@ -2,7 +2,7 @@
 
 ---
 
-<b>Find your starting point.</b><br><br>The <b>ROBERT</b> tab opens first. Everything needed for a standard run is on this scrollable page: CSV inputs at the top, modelling choices in the middle, and workflow progress, Live log, and action buttons near the bottom. Scroll inside the tab to reach the controls below the fold.
+<b>Find your starting point.</b><br><br>The <b>Workflow</b> page opens first. It shows CSV inputs, analysis settings, descriptor columns, run controls, workflow progress, and the process log. Scroll within the page to reach the controls below the fold.
 
 ---
 
@@ -18,35 +18,35 @@
 
 ---
 
-<b>Decide whether AQME is needed.</b><br><br>Choose <b>Yes</b> for <b>Start by calculating descriptors from SMILES? (AQME)</b> when your CSV contains structures that still need descriptors. The AQME tab becomes available and AQME appears as preparation in Workflow progress. Choose <b>No</b> when the CSV already contains the descriptors you want ROBERT to use.
+<b>Decide whether AQME is needed.</b><br><br>Choose <b>Yes</b> for <b>Calculate descriptors with AQME</b> when your CSV contains structures that still need descriptors. The AQME descriptors page becomes available and AQME appears in Workflow progress. Choose <b>No</b> when the CSV already contains the descriptors you want ROBERT to use.
 
 ---
 
-<b>Choose the scope of the run.</b><br><br>Click <b>What do you want to run?</b>. <b>Full Workflow</b> is the usual choice for a new model. CURATE, GENERATE, VERIFY, PREDICT, and REPORT run a particular stage when its required inputs or earlier outputs are ready. Hovering or scrolling over the closed dropdown does not change your selection.
+<b>Choose the scope of the run.</b><br><br>Use the <b>Workflow</b> selector. <b>Full Workflow</b> is the usual choice for a new model. CURATE, GENERATE, VERIFY, PREDICT, and REPORT run a particular stage when its required inputs or earlier outputs are ready.
 
 ---
 
-<b>Start the right process.</b><br><br>At the bottom, <b>Run ROBERT</b> launches the workflow chosen above. <b>Run AQME (descriptor generation)</b> creates descriptors without starting ROBERT. <b>Stop</b> interrupts a running process. Before clicking, review the loaded CSV, the target and name columns, the AQME choice, and the selected workflow.
+<b>Start the right process.</b><br><br>Use <b>Run ROBERT</b> to launch the selected workflow. <b>Run AQME only</b> creates descriptors without starting ROBERT. <b>Stop</b> interrupts a running process. Before clicking, review the loaded CSV, target and name columns, AQME choice, and selected workflow.
 
 ---
 
-<b>Read progress at a glance.</b><br><br>Workflow progress shows the optional AQME preparation and the ROBERT stages. The current stage animates; a green check means it completed; an error marks the stage that failed. A stage not selected for an individual run stays inactive. Open <b>Live log</b> beside the cards to see detailed messages and diagnose a warning or failure.
+<b>Read progress at a glance.</b><br><br>Workflow progress shows the optional AQME preparation and the ROBERT stages. A green check means a stage completed; an error marks a failed stage. Open <b>Process log</b> beside the progress card for detailed messages.
 
 ---
 
-<b>Explore AQME when you need descriptors.</b><br><br>With AQME enabled, open its tab to adjust descriptor settings. It also contains the ChemDraw/SDF to CSV tool. When a compatible SMILES dataset is available, the molecular viewer may show a common scaffold; select atoms there only if atom-based descriptors are useful to your question.
+<b>Explore AQME when you need descriptors.</b><br><br>With AQME enabled, open <b>AQME descriptors</b> to adjust settings. The page includes the ChemDraw/SDF import and a molecular viewer. Select atoms when atom-based descriptors are useful to your question.
 
 ---
 
-<b>Change advanced settings deliberately.</b><br><br>The <b>Advanced Options</b> tab groups controls by ROBERT stage. Start with defaults unless you have a specific modelling reason to change one. If a setting is unfamiliar, use its help control before editing it, then note the change so you can interpret the resulting report.
+<b>Change advanced settings deliberately.</b><br><br>The <b>Advanced options</b> page groups controls by ROBERT stage. Start with defaults unless you have a specific modelling reason to change one. Use a section's Help control when a setting is unfamiliar.
 
 ---
 
-<b>Browse prepared molecular data.</b><br><br><b>MolSSI Databases</b> lets you explore descriptor libraries and available molecules. Use it when you want an existing dataset to inspect or analyse. The main ROBERT input still determines what runs in your own workflow.
+<b>Browse prepared molecular data.</b><br><br><b>MolSSI databases</b> opens the descriptor library browser. Use it to inspect existing datasets. The Workflow input still determines what runs in your project.
 
 ---
 
-<b>Evaluate a model you chose.</b><br><br>The <b>CheckML</b> tab is separate from ROBERT's automatic model search. It runs CHECKML on a default model, a scikit-learn estimator, parameters from CSV, or a saved model. Open the <b>Check ML</b> tutorial for the input requirements and model choices.
+<b>Evaluate a model you chose.</b><br><br>The <b>CheckML</b> page is separate from ROBERT's automatic model search. It runs CHECKML on a default model, a scikit-learn estimator, parameters from CSV, or a saved model. Open the <b>Check ML</b> tutorial for input requirements.
 
 ---
 
@@ -54,7 +54,7 @@
 
 ---
 
-<b>Inspect workflow figures.</b><br><br>Choose <b>Images</b> inside Results, then select a stage such as CURATE or PREDICT from the View menu. Figures can reveal patterns, outliers, or model behaviour that a single score cannot show. A missing stage or empty view means no matching image was found in this project.
+<b>Inspect workflow figures.</b><br><br>Choose <b>Images</b> inside Results, then use the stage filters to narrow the gallery. Figures can reveal patterns, outliers, or model behaviour that a single score cannot show.
 
 ---
 
@@ -62,4 +62,4 @@
 
 ---
 
-<b>Ask robBOT for help.</b><br><br>The <b>robBOT</b> button remains at the top right. It opens a separate window, so you can keep the GUI visible while asking about a workflow, result, popup, or setting. The robBOT tutorial explains how to ask questions, summarize available results, and choose an answer mode.
+<b>Ask robBOT for help.</b><br><br>Select <b>robBOT</b> in the sidebar. Its drawer stays beside the workspace while you ask about a workflow, result, popup, or setting. The robBOT tutorial explains the available answer modes.

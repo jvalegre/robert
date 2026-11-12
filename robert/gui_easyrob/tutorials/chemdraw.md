@@ -2,23 +2,23 @@
 
 ---
 
-<b>Enable AQME first.</b><br><br>On <b>ROBERT</b>, choose <b>Yes</b> for <b>Start by calculating descriptors from SMILES? (AQME)</b>. This unlocks the AQME tab. Keep it enabled for the later full workflow because the converted structures still need descriptors.
+<b>Enable AQME first.</b><br><br>On <b>Workflow</b>, choose <b>Yes</b> for <b>Calculate descriptors with AQME</b>. This unlocks <b>AQME descriptors</b>. Keep it enabled for the later full workflow.
 
 ---
 
-<b>Open the conversion tool.</b><br><br>In <b>AQME</b>, click <b>Generate CSV from ChemDraw Files or SDF file</b>. This prepares a table from the structure file; it does not start model training yet.
+<b>Open the conversion tool.</b><br><br>In <b>AQME descriptors</b>, click <b>Import ChemDraw or SDF</b>. This prepares an editable molecule table; it does not start model training.
 
 ---
 
-<b>Check the drawing requirements.</b><br><br>Read the dialog before selecting a file. Save a ChemDraw drawing as <b>CDXML</b> and inspect unusual bonds, charges, and disconnected fragments. If the structure is drawn incorrectly, its exported molecule or descriptors may not represent what you intended.
+<b>Check the drawing requirements.</b><br><br>Save the ChemDraw drawing as <b>CDXML</b> and inspect unusual bonds, charges, and disconnected fragments before importing. Incorrect drawings can lead to incorrect molecules or descriptors.
 
 ---
 
-<b>Select the structure file.</b><br><br>Choose the CDXML containing the molecules for this dataset. Confirm the filename before continuing; if you selected the wrong drawing, go back now rather than editing an unrelated table.
+<b>Select the structure file.</b><br><br>Use the file picker opened by <b>Import ChemDraw or SDF</b> to choose the correct CDXML, SDF, or MOL file. Check the filename before editing the imported table.
 
 ---
 
-<b>Complete the extracted table.</b><br><br>Review each molecule. Give it a unique <b>code_name</b> and enter the measured property in the target column. The target is what ROBERT will learn, so check units and missing values. In this example, the property is Yield.
+<b>Complete the extracted table.</b><br><br>The molecule table appears on the AQME descriptors page. Give each molecule a unique <b>code_name</b> and enter its measured property in the target column. Check units and missing values.
 
 ---
 
@@ -26,11 +26,11 @@
 
 ---
 
-<b>Confirm the handoff.</b><br><br>The confirmation dialog indicates that the CSV was written and loaded into easyROB. If the save fails or the wrong location was chosen, resolve that before starting ROBERT.
+<b>Confirm the handoff.</b><br><br>After saving, the message below the table shows the selected CSV path. Check that the file was written and loaded before starting ROBERT.
 
 ---
 
-<b>Return to the main tab.</b><br><br>On <b>ROBERT</b>, check that the new CSV appears as the selected training input. This is the moment to catch an accidental older file. AQME should still be set to Yes for descriptor generation from the converted structures.
+<b>Return to Workflow.</b><br><br>On <b>Workflow</b>, check that the new CSV appears as the training input. AQME should still be set to Yes for descriptor generation from the converted structures.
 
 ---
 
@@ -38,11 +38,11 @@
 
 ---
 
-<b>Launch the combined workflow.</b><br><br>Choose <b>Full Workflow</b> and click <b>Run ROBERT</b>. The AQME preparation card is followed by the ROBERT stage cards. Use Live log if the conversion or descriptor step reports an error.
+<b>Launch the combined workflow.</b><br><br>Choose <b>Full Workflow</b> and click <b>Run ROBERT</b>. AQME preparation is followed by the ROBERT stages. Use <b>Process log</b> if a step reports an error.
 
 ---
 
-<b>Read any descriptor notice.</b><br><br>If easyROB announces that it will use structural descriptors, continue when that matches your goal. For atom-based descriptors, return to the AQME tab and select relevant atoms when a common scaffold is available.
+<b>Read any descriptor notice.</b><br><br>If easyROB announces that it will use structural descriptors, continue when that matches your goal. For atom-based descriptors, return to <b>AQME descriptors</b> and select relevant atoms when a common scaffold is available.
 
 ---
 

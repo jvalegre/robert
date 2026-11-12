@@ -104,7 +104,7 @@ def test_gui_snapshot_captures_results_buttons_and_selected_variants(tmp_path):
     assert 'available for Best models' in diagnose_snapshot(snapshot, 'Is the Interactive plots view available?').summary
     assert 'unavailable' in diagnose_snapshot(snapshot, 'Why is the Predictions view disabled?').summary
 
-def test_all_models_summary_keeps_each_variant_in_local_prompt(tmp_path):
+def test_all_models_summary_keeps_each_variant_in_bounded_evidence(tmp_path):
     source = _all_models_run(tmp_path)
     snapshot = WorkflowResultStore().refresh(str(source), '')
     extra = tuple((replace(item, model='NN') for item in snapshot.report_assessments))
@@ -124,7 +124,7 @@ def test_summary_button_question_uses_gui_model_selection(tmp_path):
     assert 'ROBERT_report_GB_No_PFI.pdf' in answer
     assert 'ROBERT_report_RF_PFI.pdf' in answer
     assert 'ROBERT_report_GB_PFI.pdf' not in answer
-    assert 'ROBERT_report_RF_No_PFI.pdf' not in answer""", ('test_bot_discovers_per_model_logs_and_archived_reports', 'test_bot_scopes_best_models_and_explicit_model_questions', 'test_gui_snapshot_captures_results_buttons_and_selected_variants', 'test_all_models_summary_keeps_each_variant_in_local_prompt', 'test_summary_button_question_uses_gui_model_selection'), ())
+    assert 'ROBERT_report_RF_No_PFI.pdf' not in answer""", ('test_bot_discovers_per_model_logs_and_archived_reports', 'test_bot_scopes_best_models_and_explicit_model_questions', 'test_gui_snapshot_captures_results_buttons_and_selected_variants', 'test_all_models_summary_keeps_each_variant_in_bounded_evidence', 'test_summary_button_question_uses_gui_model_selection'), ())
 
 # Selected checks from test_bot_main_window.py
 _load_case_group('main_window', """import os
@@ -142,7 +142,6 @@ from PySide6.QtCore import QEvent
 from PySide6.QtWidgets import QApplication, QToolButton
 from PySide6.QtWidgets import QMessageBox
 from gui_easyrob.bot.bot_window import BotWindow
-from bot.local_llm import LocalLLMError
 from bot.token_usage import TokenUsage
 from bot.answer_metadata import AnswerMetadata, EvidenceOrigin, SourceCitation
 from bot.workflow_results import WorkflowResultSnapshot
@@ -159,9 +158,8 @@ class TestMainWindowBotWindow(unittest.TestCase):
         self.bot_window = BotWindow()
         self.toggle = QToolButton()
         self.toggle.setCheckable(True)
-        self.holder = SimpleNamespace(bot_window=self.bot_window, bot_panel=self.bot_window.panel, bot_toggle_btn=self.toggle)
+        self.holder = SimpleNamespace(bot_window=self.bot_window, bot_panel=self.bot_window.panel, bot_toggle_btn=self.toggle, app_mode='easyrob')
         self.holder._sync_bot_toggle = lambda visible: EasyROB._sync_bot_toggle(self.holder, visible)
-        self.holder._refresh_local_model_status = lambda: None
 
     class FakeSettings:
 
@@ -316,42 +314,6 @@ class TestMainWindowBotWindow(unittest.TestCase):
         self.assertIs(holder.bot_popup_context, popup_state)
         self.assertIn('closed_at', holder.bot_popup_context)
 
-    def test_local_ai_decline_falls_back_to_heuristic_for_same_question(self):
-        local_manager = Mock()
-        local_manager.is_model_ready.return_value = False
-        local_manager.model_exists.return_value = False
-        self.holder.bot_history = []
-        self.holder.bot_worker = None
-        self.holder.local_model_worker = None
-        self.holder.bot_engine = SimpleNamespace(_local_manager=local_manager)
-        self.holder._pending_local_bot_question = None
-        self.holder._ask_to_prepare_local_model = Mock(return_value=False)
-        self.holder._prepare_local_model_for_bot = Mock()
-        self.holder._start_bot_reply = Mock()
-        self.bot_window.panel.mode_combo.setCurrentText('Local AI')
-        EasyROB.handle_bot_question(self.holder, 'Why is ROBERT blocked?')
-        self.holder._ask_to_prepare_local_model.assert_called_once()
-        self.holder._prepare_local_model_for_bot.assert_not_called()
-        self.assertEqual(self.holder._pending_local_bot_question, None)
-        self.holder._start_bot_reply.assert_called_once_with('Why is ROBERT blocked?', mode_override='Heuristic')
-
-    def test_local_ai_prepare_failure_shows_message_and_falls_back_to_heuristic(self):
-        self.holder.bot_history = []
-        self.holder.bot_worker = None
-        self.holder.local_model_worker = Mock()
-        self.holder._pending_local_bot_question = 'Why is ROBERT blocked?'
-        self.holder._start_bot_reply = Mock()
-        self.holder.bot_panel.append_message = Mock()
-        self.holder.bot_panel.set_busy = Mock()
-        self.holder.bot_panel.set_local_progress_active = Mock()
-        self.holder.bot_panel.set_local_status = Mock()
-        EasyROB._on_local_model_prepare_failed(self.holder, 'disk full')
-        self.assertEqual(self.holder._pending_local_bot_question, None)
-        self.holder.bot_panel.append_message.assert_called_once()
-        message = self.holder.bot_panel.append_message.call_args.args[1]
-        self.assertIn('could not be prepared', message)
-        self.assertIn('disk full', message)
-        self.holder._start_bot_reply.assert_called_once_with('Why is ROBERT blocked?', mode_override='Heuristic')
 if __name__ == '__main__':
     unittest.main()""", ('TestMainWindowBotWindow',), ())
 

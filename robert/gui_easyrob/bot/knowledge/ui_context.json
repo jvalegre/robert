@@ -941,7 +941,7 @@
       "source_file": "utils/predictions_utils.py",
       "source_tier": "generated",
       "tab": "Reports",
-      "text": "Prediction utilities and UI components for the easyROB Predictions tab.\n\nThis module provides all data-processing logic and supporting Qt components\nrequired to visualize and evaluate ROBERT prediction results.\n\nResponsibilities:\n- Discover and load prediction CSV files from workflow outputs\n- Extract relevant information from ROBERT PDF reports (scores, fragments)\n- Evaluate model performance and generate diagnostic summaries\n- Provide Qt models and widgets for interactive data visualization\n- Render molecular structures (SMILES \u2192 images) using RDKit\n\nArchitecture:\n- Combines pure utility functions (file discovery, parsing, evaluation)\n with Qt-based components (table models, dashboard widgets, async tasks)\n- Uses QRunnable and QThreadPool for asynchronous CSV loading\n- Implements caching strategies to optimize table sorting and rendering\n\nNotes:\n- Designed as a bridge between backend data (CSV, PDF, chemistry) and UI\n- Handles partial failures gracefully (e.g., missing PDFs or invalid data)\n- Centralizes prediction-related logic to keep the main GUI clean",
+      "text": "Prediction utilities and UI components for the easyROB Predictions tab.\n\nThis module provides all data-processing logic and supporting Qt components\nrequired to visualize and evaluate ROBERT prediction results.\n\nResponsibilities:\n- Discover and load prediction CSV files from workflow outputs\n- Extract relevant information from ROBERT PDF reports (scores, fragments)\n- Evaluate model performance and generate diagnostic summaries\n- Provide Qt models and widgets for interactive data visualization\n- Render molecular structures (SMILES → images) using RDKit\n\nArchitecture:\n- Combines pure utility functions (file discovery, parsing, evaluation)\n with Qt-based components (table models, dashboard widgets, async tasks)\n- Uses QRunnable and QThreadPool for asynchronous CSV loading\n- Implements caching strategies to optimize table sorting and rendering\n\nNotes:\n- Designed as a bridge between backend data (CSV, PDF, chemistry) and UI\n- Handles partial failures gracefully (e.g., missing PDFs or invalid data)\n- Centralizes prediction-related logic to keep the main GUI clean",
       "title": "module",
       "topic": "results"
     },
@@ -1247,7 +1247,7 @@
       "source_file": "README.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "J.V.A.R. - The acronym ROBERT is dedicated to ROBERT Paton, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!\n\nD.D.G. - The style of the ROBERT_report.pdf file was created with the help of Oliver Lee (2023, Zysman-Colman group at University of St Andrews).\n\nJ.V.A.R. and D.D.G. - The improvements from v1.0 to v1.2 are largely the result of insightful discussions with Matthew Sigman and his students, Jamie Cadge and Simone Gallarati (2024, University of Utah).\n\nWe really THANK all the testers for their feedback and for participating in the reproducibility tests, including:\n\n David Valiente (2022-2023, Universidad Miguel Hern\u00e1ndez)\n Heidi Klem (2023, Paton group at Colorado State University)\n I\u00f1igo Iribarren (2023, Trujillo group at Trinity College Dublin)\n Guilian Luchini (2023, Paton group at Colorado State University)\n Alex Platt (2023, Paton group at Colorado State University)\n Oliver Lee (2023, Zysman-Colman group at University of St Andrews)\n* Xinchun Ran (2023, Yang group at Vanderbilt University)",
+      "text": "J.V.A.R. - The acronym ROBERT is dedicated to ROBERT Paton, who was a mentor to me throughout my years at Colorado State University and who introduced me to the field of cheminformatics. Cheers mate!\n\nD.D.G. - The style of the ROBERT_report.pdf file was created with the help of Oliver Lee (2023, Zysman-Colman group at University of St Andrews).\n\nJ.V.A.R. and D.D.G. - The improvements from v1.0 to v1.2 are largely the result of insightful discussions with Matthew Sigman and his students, Jamie Cadge and Simone Gallarati (2024, University of Utah).\n\nWe really THANK all the testers for their feedback and for participating in the reproducibility tests, including:\n\n David Valiente (2022-2023, Universidad Miguel Hernández)\n Heidi Klem (2023, Paton group at Colorado State University)\n Iñigo Iribarren (2023, Trujillo group at Trinity College Dublin)\n Guilian Luchini (2023, Paton group at Colorado State University)\n Alex Platt (2023, Paton group at Colorado State University)\n Oliver Lee (2023, Zysman-Colman group at University of St Andrews)\n* Xinchun Ran (2023, Yang group at Vanderbilt University)",
       "title": "Acknowledgment",
       "topic": "results"
     },
@@ -1272,7 +1272,7 @@
       "source_file": "README.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "ROBERT is an ensemble of automated machine learning protocols that can be run sequentially \nthrough a single command line or a graphical user interface. The program works for regression \nand classification problems. Comprehensive workflows have been designed to meet state-of-the-art \nstandards for cheminformatics studies, including:\n\n Atomic and molecular descriptor generation from SMILES, including an RDKit conformer sampling and \n the generation of 200+ steric, electronic and structural descriptors using RDKit, xTB and \u1d0d\u1d0f\u0280\u0493\u1d07\u1d1cs. \n Requires the AQME program <https://aqme.readthedocs.io>_. \n Data curation, including filters for correlated descriptors, noise, and duplicates, \n as well as conversion of categorical descriptors. \n Model selection, including the comparison of multiple hyperoptimized models using \n multiple cross-validation techniques. This approach mitigates overfitting in low-data regimes.\n Prediction of external test sets, as well as SHAP and PFI feature analysis. \n VERIFY tests to assess the predictive ability of the models, including y-shuffle,\n y-mean, and one-hot encoding tests. \n\nThe code has been designed for:\n\n Inexperienced researchers in the field of ML. ROBERT workflows are fully automated, and provide \n users with comprehensive explanations of the resulting models and their prediction reliability. \n Moreover, ready-to-use examples and tutorials can be accessed on ReadtheDocs and YouTube. \n * ML experts aiming to automate workflows, enhance reproducibility, or save time. Entire workflows \n can be executed using a single command line while following modern standards of reproducibility and \n transparency. Additionally, individual ROBERT modules can be integrated into customized ML workflows. \n\nDon't miss out the latest hands-on tutorials from our \nYouTube channel <https://www.youtube.com/channel/UCHRqI8N61bYxWV9BjbUI4Xw>. \n\nInstallation\n\nIn a nutshell, ROBERT and all its dependencies can be installed automatically using the provided YAML environment file (recommended).",
+      "text": "ROBERT is an ensemble of automated machine learning protocols that can be run sequentially \nthrough a single command line or a graphical user interface. The program works for regression \nand classification problems. Comprehensive workflows have been designed to meet state-of-the-art \nstandards for cheminformatics studies, including:\n\n Atomic and molecular descriptor generation from SMILES, including an RDKit conformer sampling and \n the generation of 200+ steric, electronic and structural descriptors using RDKit, xTB and ᴍᴏʀғᴇᴜs. \n Requires the AQME program <https://aqme.readthedocs.io>_. \n Data curation, including filters for correlated descriptors, noise, and duplicates, \n as well as conversion of categorical descriptors. \n Model selection, including the comparison of multiple hyperoptimized models using \n multiple cross-validation techniques. This approach mitigates overfitting in low-data regimes.\n Prediction of external test sets, as well as SHAP and PFI feature analysis. \n VERIFY tests to assess the predictive ability of the models, including y-shuffle,\n y-mean, and one-hot encoding tests. \n\nThe code has been designed for:\n\n Inexperienced researchers in the field of ML. ROBERT workflows are fully automated, and provide \n users with comprehensive explanations of the resulting models and their prediction reliability. \n Moreover, ready-to-use examples and tutorials can be accessed on ReadtheDocs and YouTube. \n * ML experts aiming to automate workflows, enhance reproducibility, or save time. Entire workflows \n can be executed using a single command line while following modern standards of reproducibility and \n transparency. Additionally, individual ROBERT modules can be integrated into customized ML workflows. \n\nDon't miss out the latest hands-on tutorials from our \nYouTube channel <https://www.youtube.com/channel/UCHRqI8N61bYxWV9BjbUI4Xw>. \n\nInstallation\n\nIn a nutshell, ROBERT and all its dependencies can be installed automatically using the provided YAML environment file (recommended).",
       "title": "Introduction",
       "topic": "results"
     },
@@ -1297,7 +1297,7 @@
       "source_file": "README.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "1. Download the environment file env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>_ by clicking this button on GitHub download.\n\n2. Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved `env.yaml:\n\n3. Create the conda environment from the YAML file:\n\n4. Check that the installation was successful:\n\n The environment file automatically installs all required dependencies,\n including GTK, GLib, and fonts needed to generate PDF reports.\n No additional manual installation is required.\n\nAlternative installation\n\nIn a nutshell, ROBERT and its dependencies are installed as follows:\n\n1. Create and activate the conda environment where you want to install the program. If you are not sure of what \nthis point means, check out the \"Users with no Python experience\" section. It only works with Python 3.12 or 3.13:\n\n2. Install ROBERT with pip: \n\n3. Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report: \n\n In some computers, you might see lots of pop-up windows with errors when installing GLib. Just press \"Accept\" in all the windows and finish the process until you see \"Done\" in the terminal.\n\n In some rare cases when using Linux systems, the PDF is still not generated after installing all the previous libraries. Users might try to execute these two command lines before: export GI_TYPELIB_PATH=$CONDA_PREFIX/lib/girepository-1.0 and export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH`.\n\nYou can also use conda-forge in step 2 instead of pip, executing these commands: \n\n On some Linux systems (e.g., Ubuntu 22.04), you may also need to install gtk2 in addition to gtk3 to avoid errors related to missing libraries (such as 'libgobject-2.0-0'). You can install it with:\n\nUsers with no Python experience\n\nYou need a terminal with Python to install and run ROBERT. These are some suggested first steps:",
+      "text": "1. Download the environment file env_robert.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env_robert.yaml>_ by clicking this button on GitHub download.\n\n2. Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved `env_robert.yaml:\n\n3. Create the conda environment from the YAML file:\n\n4. Check that the installation was successful:\n\n The environment file automatically installs all required dependencies,\n including GTK, GLib, and fonts needed to generate PDF reports.\n No additional manual installation is required.\n\nAlternative installation\n\nIn a nutshell, ROBERT and its dependencies are installed as follows:\n\n1. Create and activate the conda environment where you want to install the program. If you are not sure of what \nthis point means, check out the \"Users with no Python experience\" section. It only works with Python 3.12 or 3.13:\n\n2. Install ROBERT with pip: \n\n3. Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report: \n\n In some computers, you might see lots of pop-up windows with errors when installing GLib. Just press \"Accept\" in all the windows and finish the process until you see \"Done\" in the terminal.\n\n In some rare cases when using Linux systems, the PDF is still not generated after installing all the previous libraries. Users might try to execute these two command lines before: export GI_TYPELIB_PATH=$CONDA_PREFIX/lib/girepository-1.0 and export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH`.\n\nYou can also use conda-forge in step 2 instead of pip, executing these commands: \n\n On some Linux systems (e.g., Ubuntu 22.04), you may also need to install gtk2 in addition to gtk3 to avoid errors related to missing libraries (such as 'libgobject-2.0-0'). You can install it with:\n\nUsers with no Python experience\n\nYou need a terminal with Python to install and run ROBERT. These are some suggested first steps:",
       "title": "**Recommended installation**",
       "topic": "results"
     },
@@ -1322,7 +1322,7 @@
       "source_file": "README.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "If you prefer a faster and easier installation, you can use the preconfigured YAML environment file. \nThis method automatically installs Python, ROBERT, and all required dependencies.\n\n1. Install Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>_ for your \noperating system (Windows, macOS or Linux). Alternatively, if you're familiar with conda installers, \nyou can install Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>_ \n(requires less space than Anaconda). \n\n2. Download the environment file env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>_ by clicking this button on GitHub download.\n\n3. Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved `env.yaml:\n\n4. Create the conda environment from the YAML file:\n\n5. Check that ROBERT is installed correctly:\n\n The environment file automatically installs all required dependencies,\n including GTK, GLib, and fonts needed to generate PDF reports.\n No additional manual installation is required.\n\nAlternative installation\n\nIf you prefer to install ROBERT manually, follow these steps:\n\n1. Install Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>__ for your \noperating system (Windows, macOS or Linux). Alternatively, you can install \nMiniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>__ \n(requires less space than Anaconda). \n\n2. Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).\n\n3. Create a conda environment called \"robert\" with Python:\n\nYou only need to do this once.\nbr\n\n4. Activate the conda environment called \"robert\":\n\n5. Install ROBERT as defined in the \"Installation\" section:\n\n6. Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:\n\n7. Go to the folder with your CSV database (using the \"cd\" command):\n\n8. Run ROBERT as explained in the Examples section.\n\nGraphical User Interface (GUI): easyROB\n\neasyROB is the graphical interface of ROBERT. It allows you to configure and launch ROBERT workflows \nwithout using command lines \u2014 just by selecting files and options through an intuitive window.\n\n For video tutorials on how to use easyROB, check out our YouTube channel <https://www.youtube.com/@thealegregroup4964/videos>_.\n\nStandalone GUI Launcher (Windows and Linux)\n\nIf you prefer to avoid the manual installation and start using ROBERT\u2019s graphical interface (easyROB) immediately, \nthere is a ready-to-use program available for:\n\n- Windows\n- Linux\n\nThis version includes a complete preinstalled environment, allowing you to launch easyROB directly \u2014 no setup required. \nIt\u2019s ideal for users who are not familiar with conda or command lines.\n\n- Project page: easyROB Repository <https://github.com/MiguelMartzFdez/easyROB>_\n- Downloads for each system: Releases <https://github.com/MiguelMartzFdez/easyROB/releases>`_\n\n WSL (Windows Subsystem for Linux) users: even though WSL runs Linux, \n your operating system is still Windows. \n You must download and use the Windows version of the program, not the Linux one.\n\n macOS users: there is currently no preconfigured program for macOS. \n You must follow the manual instructions below to install ROBERT and run the GUI.",
+      "text": "If you prefer a faster and easier installation, you can use the preconfigured YAML environment file. \nThis method automatically installs Python, ROBERT, and all required dependencies.\n\n1. Install Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>_ for your \noperating system (Windows, macOS or Linux). Alternatively, if you're familiar with conda installers, \nyou can install Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>_ \n(requires less space than Anaconda). \n\n2. Download the environment file env_robert.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env_robert.yaml>_ by clicking this button on GitHub download.\n\n3. Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved `env_robert.yaml:\n\n4. Create the conda environment from the YAML file:\n\n5. Check that ROBERT is installed correctly:\n\n The environment file automatically installs all required dependencies,\n including GTK, GLib, and fonts needed to generate PDF reports.\n No additional manual installation is required.\n\nAlternative installation\n\nIf you prefer to install ROBERT manually, follow these steps:\n\n1. Install Anaconda with Python 3 <https://docs.anaconda.com/free/anaconda/install>__ for your \noperating system (Windows, macOS or Linux). Alternatively, you can install \nMiniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>__ \n(requires less space than Anaconda). \n\n2. Open an Anaconda prompt (Windows users) or a terminal (macOS and Linux).\n\n3. Create a conda environment called \"robert\" with Python:\n\nYou only need to do this once.\nbr\n\n4. Activate the conda environment called \"robert\":\n\n5. Install ROBERT as defined in the \"Installation\" section:\n\n6. Install GLib, GTK3, pango and mscorefonts to avoid errors when creating the PDF report:\n\n7. Go to the folder with your CSV database (using the \"cd\" command):\n\n8. Run ROBERT as explained in the Examples section.\n\nGraphical User Interface (GUI): easyROB\n\neasyROB is the graphical interface of ROBERT. It allows you to configure and launch ROBERT workflows \nwithout using command lines — just by selecting files and options through an intuitive window.\n\n For video tutorials on how to use easyROB, check out our YouTube channel <https://www.youtube.com/@thealegregroup4964/videos>_.\n\nStandalone GUI Launcher (Windows and Linux)\n\nIf you prefer to avoid the manual installation and start using ROBERT’s graphical interface (easyROB) immediately, \nthere is a ready-to-use program available for:\n\n- Windows\n- Linux\n\nThis version includes a complete preinstalled environment, allowing you to launch easyROB directly — no setup required. \nIt’s ideal for users who are not familiar with conda or command lines.\n\n- Project page: easyROB Repository <https://github.com/MiguelMartzFdez/easyROB>_\n- Downloads for each system: Releases <https://github.com/MiguelMartzFdez/easyROB/releases>`_\n\n WSL (Windows Subsystem for Linux) users: even though WSL runs Linux, \n your operating system is still Windows. \n You must download and use the Windows version of the program, not the Linux one.\n\n macOS users: there is currently no preconfigured program for macOS. \n You must follow the manual instructions below to install ROBERT and run the GUI.",
       "title": "**Recommended installation**",
       "topic": "results"
     },
@@ -1347,7 +1347,7 @@
       "source_file": "Report/score.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "Overview\n\nWhile experienced ML users can normally assess whether an ML workflow has yielded favorable results for \nvalid reasons, inexperienced users may encounter difficulties in gauging the reliability of its predictive \nproficiency. It is widely recognized that ML algorithms can exhibit good metrics (i.e., R\\ 2, MAE, RMSE, \nand similar) in the validation set while harboring questionable predictive ability. For example, a user \nmight assume that a model with good metrics is proficient at prediction, but that very model could yield \ncomparably low errors when the y values are shuffled [1] or when using random numbers as descriptors, [2] \ncasting doubt on its actual predictive validity. br\n\nFor these reasons, we designed the CheckML score, which reports two independent ratings out of 10 to give\nusers insight into the predictive capabilities of the models selected by ROBERT:\n\n Interpolation: how reliably the model predicts within the range of data it was trained on.\n Boundary robustness: how well the model holds up at the edges of that range and on the most\n descriptor-wise unusual points, where predictions are hardest to trust.\n\nBoth scores are computed from the same battery of VERIFY/PREDICT tests, but each focuses on a different\nfailure mode, so a model can score very differently on each of them (e.g., a model that interpolates well\nbut degrades sharply for extreme substrates). We attempted to rank the models using guidelines aligned with\nmodern ML research (see below). For a more detailed explanation of best practices for designing robust ML\nmodels, see references [3] and [4].\n\n [1] y-Randomization and Its Variants in QSPR/QSAR <https://pubs.acs.org/doi/10.1021/ci700157b>_\n [2] Comment on \u201cPredicting reaction performance in C\u2013N cross-coupling using machine learning\u201d <https://www.science.org/doi/10.1126/science.aat8603>_\n [3] Best practices in ML for chemistry <https://www.nature.com/articles/s41557-021-00716-z>_\n [4] Engineering best practices for ML <https://se-ml.github.io/practices>_ \n\n Please note that the CheckML score was developed based on the following:\n\n 1) insights from previous publications on best practices for ML models;\n 2) our experience with these models; and\n 3) a comprehensive benchmarking process that involved the nine examples presented in the ROBERT publication (DOI: https://doi.org/10.1002/wcms.1733) along with eight additional examples from low-data regimes (DOI: https://doi.org/10.1039/D5SC00996K).\n\n The scoring ranges were established to achieve consensus among ML experts at the extremes (i.e., very weak and strong models), while allowing for varied interpretations of the intermediate scores (i.e., weak and moderate).\n\n We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!\n\n This calibration assumes the standard `--test_set split (~20% of the data held out as a\n test set). If a run uses a custom --test_set value (including 0, i.e. no held-out test\n set at all), the score isn't meaningful and is hidden from the PDF report \u2014 the rest of the\n report (feature importances, outlier analysis, reproducibility, etc.) is unaffected. Using an\n external --csv_test` set does not affect this: it doesn't replace the internal test split\n (which keeps working as usual) and is only used for predicting the extra points it contains,\n which may not even have known target values.\n\nbr\n\nHow is the score calculated?",
+      "text": "Overview\n\nWhile experienced ML users can normally assess whether an ML workflow has yielded favorable results for \nvalid reasons, inexperienced users may encounter difficulties in gauging the reliability of its predictive \nproficiency. It is widely recognized that ML algorithms can exhibit good metrics (i.e., R\\ 2, MAE, RMSE, \nand similar) in the validation set while harboring questionable predictive ability. For example, a user \nmight assume that a model with good metrics is proficient at prediction, but that very model could yield \ncomparably low errors when the y values are shuffled [1] or when using random numbers as descriptors, [2] \ncasting doubt on its actual predictive validity. br\n\nFor these reasons, we designed the CheckML score, which reports two independent ratings out of 10 to give\nusers insight into the predictive capabilities of the models selected by ROBERT:\n\n Interpolation: how reliably the model predicts within the range of data it was trained on.\n Boundary robustness: how well the model holds up at the edges of that range and on the most\n descriptor-wise unusual points, where predictions are hardest to trust.\n\nBoth scores are computed from the same battery of VERIFY/PREDICT tests, but each focuses on a different\nfailure mode, so a model can score very differently on each of them (e.g., a model that interpolates well\nbut degrades sharply for extreme substrates). We attempted to rank the models using guidelines aligned with\nmodern ML research (see below). For a more detailed explanation of best practices for designing robust ML\nmodels, see references [3] and [4].\n\n [1] y-Randomization and Its Variants in QSPR/QSAR <https://pubs.acs.org/doi/10.1021/ci700157b>_\n [2] Comment on “Predicting reaction performance in C–N cross-coupling using machine learning” <https://www.science.org/doi/10.1126/science.aat8603>_\n [3] Best practices in ML for chemistry <https://www.nature.com/articles/s41557-021-00716-z>_\n [4] Engineering best practices for ML <https://se-ml.github.io/practices>_ \n\n Please note that the CheckML score was developed based on the following:\n\n 1) insights from previous publications on best practices for ML models;\n 2) our experience with these models; and\n 3) a comprehensive benchmarking process that involved the nine examples presented in the ROBERT publication (DOI: https://doi.org/10.1002/wcms.1733) along with eight additional examples from low-data regimes (DOI: https://doi.org/10.1039/D5SC00996K).\n\n The scoring ranges were established to achieve consensus among ML experts at the extremes (i.e., very weak and strong models), while allowing for varied interpretations of the intermediate scores (i.e., weak and moderate).\n\n We are completely open to discuss any advice on how to improve the thresholds used in the score or make the score more robust!\n\n This calibration assumes the standard `--test_set split (~20% of the data held out as a\n test set). If a run uses a custom --test_set value (including 0, i.e. no held-out test\n set at all), the score isn't meaningful and is hidden from the PDF report — the rest of the\n report (feature importances, outlier analysis, reproducibility, etc.) is unaffected. Using an\n external --csv_test` set does not affect this: it doesn't replace the internal test split\n (which keeps working as usual) and is only used for predicting the extra points it contains,\n which may not even have known target values.\n\nbr\n\nHow is the score calculated?",
       "title": "CheckML score",
       "topic": "results"
     },
@@ -1397,7 +1397,7 @@
       "source_file": "Tutorials/csv.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "In this tutorial we will build a machine learning model starting\n from a simple CSV dataset.\n\n We will first show how to create the input CSV file containing\n the molecular structures and the target property to be predicted.\n\n In this example we will use SMILES representations so that\n molecular descriptors can be generated automatically with AQME,\n but if descriptors are already available they can be included\n directly in the CSV instead of SMILES.\n\n This dataset will then be used to train the machine learning\n model within the ROBERT workflow.\n\n Open a new spreadsheet in Microsoft Excel. \n Any spreadsheet software can be used to create or edit CSV files.\n\n In this example we will create a dataset containing three columns:\n code_name (unique identifiers for each molecule), \n target (the property that the machine learning model will \n learn to predict), and SMILES (the molecular structures).\n\n The SMILES strings can be obtained in several ways.\n\n For example, they can be copied from molecular drawing software\n such as ChemDraw, or retrieved from online chemical\n databases that provide both the structure and the corresponding\n SMILES string.\n\n In this tutorial we will copy the SMILES directly from ChemDraw,\n as shown in the image.\n\n Select the structure and go to Edit \u2192 Copy As \u2192 SMILES.\n You can also use the shortcut Ctrl + Alt + C.\n\n Once the dataset is complete and all molecular structures have\n been added as SMILES, the file must be saved as a CSV file.\n\n Go to the File tab and select Save As. \n Choose CSV under the Save as type dropdown menu,\n provide a name for the dataset, and click Save.\n\n The first step in the workflow is loading the input dataset.\n\n Select the training CSV file that will be used to build\n the machine learning model.\n\n Optionally, an external test dataset can also be provided.\n If included, ROBERT will generate predictions for these\n molecules after the model has been trained.\n\n Next, configure the basic model parameters.\n\n Select the target column, choose the prediction type\n\n (in this example regression), and specify the column\n\n containing the molecule identifiers.\n\n No columns need to be excluded in this case, since the\n\n SMILES column is handled automatically.\n\n Enable the AQME Workflow to generate molecular\n\n descriptors from the SMILES structures.\n\n Once this option is activated, the AQME tab becomes\n\n available and can be used to adjust descriptor generation\n\n settings.\n\n Note: If the input CSV already contains molecular\n\n descriptors, this step can be skipped and the workflow can\n\n be run directly.\n\n In the AQME tab, the interface may detect a common\n\n molecular scaffold across the dataset.\n\n In this example, the molecules share a carboxylic acid\n\n functional group, which is displayed in the structure viewer.\n\n Atoms from this structure can be selected to generate\n\n additional atom-based descriptors.\n\n Here, two atoms from the carboxylic acid group have been\n\n selected: the carbonyl oxygen and the hydroxyl oxygen.\n\n These selections will be used during descriptor generation.\n\n Once the configuration is complete, return to the\n\n ROBERT tab and press Run ROBERT to launch\n\n the workflow.\n\n The program will automatically generate descriptors,\n\n train the machine learning models, and produce the results.\n\n After the workflow finishes, a message will indicate that\n\n the process has completed successfully.\n\n You can then choose to open the generated report to\n\n inspect the results.\n\n The report summarizes the machine learning results, including\n\n model performance metrics and validation information.\n\n Once the workflow has generated results, the Reports,\n\n Images, and Predictions tabs become available.\n\n The Reports tab displays the PDF summary of the modelling\n\n results, the Images tab provides access to the figures\n\n generated during the workflow, and the Predictions tab\n\n shows the predicted values for the external test dataset used\n\n in this example.\n\n These result sections are described in more detail in the\n\n Overview tutorial.",
+      "text": "In this tutorial we will build a machine learning model starting\n from a simple CSV dataset.\n\n We will first show how to create the input CSV file containing\n the molecular structures and the target property to be predicted.\n\n In this example we will use SMILES representations so that\n molecular descriptors can be generated automatically with AQME,\n but if descriptors are already available they can be included\n directly in the CSV instead of SMILES.\n\n This dataset will then be used to train the machine learning\n model within the ROBERT workflow.\n\n Open a new spreadsheet in Microsoft Excel. \n Any spreadsheet software can be used to create or edit CSV files.\n\n In this example we will create a dataset containing three columns:\n code_name (unique identifiers for each molecule), \n target (the property that the machine learning model will \n learn to predict), and SMILES (the molecular structures).\n\n The SMILES strings can be obtained in several ways.\n\n For example, they can be copied from molecular drawing software\n such as ChemDraw, or retrieved from online chemical\n databases that provide both the structure and the corresponding\n SMILES string.\n\n In this tutorial we will copy the SMILES directly from ChemDraw,\n as shown in the image.\n\n Select the structure and go to Edit → Copy As → SMILES.\n You can also use the shortcut Ctrl + Alt + C.\n\n Once the dataset is complete and all molecular structures have\n been added as SMILES, the file must be saved as a CSV file.\n\n Go to the File tab and select Save As. \n Choose CSV under the Save as type dropdown menu,\n provide a name for the dataset, and click Save.\n\n The first step in the workflow is loading the input dataset.\n\n Select the training CSV file that will be used to build\n the machine learning model.\n\n Optionally, an external test dataset can also be provided.\n If included, ROBERT will generate predictions for these\n molecules after the model has been trained.\n\n Next, configure the basic model parameters.\n\n Select the target column, choose the prediction type\n\n (in this example regression), and specify the column\n\n containing the molecule identifiers.\n\n No columns need to be excluded in this case, since the\n\n SMILES column is handled automatically.\n\n Enable the AQME Workflow to generate molecular\n\n descriptors from the SMILES structures.\n\n Once this option is activated, the AQME tab becomes\n\n available and can be used to adjust descriptor generation\n\n settings.\n\n Note: If the input CSV already contains molecular\n\n descriptors, this step can be skipped and the workflow can\n\n be run directly.\n\n In the AQME tab, the interface may detect a common\n\n molecular scaffold across the dataset.\n\n In this example, the molecules share a carboxylic acid\n\n functional group, which is displayed in the structure viewer.\n\n Atoms from this structure can be selected to generate\n\n additional atom-based descriptors.\n\n Here, two atoms from the carboxylic acid group have been\n\n selected: the carbonyl oxygen and the hydroxyl oxygen.\n\n These selections will be used during descriptor generation.\n\n Once the configuration is complete, return to the\n\n ROBERT tab and press Run ROBERT to launch\n\n the workflow.\n\n The program will automatically generate descriptors,\n\n train the machine learning models, and produce the results.\n\n After the workflow finishes, a message will indicate that\n\n the process has completed successfully.\n\n You can then choose to open the generated report to\n\n inspect the results.\n\n The report summarizes the machine learning results, including\n\n model performance metrics and validation information.\n\n Once the workflow has generated results, the Reports,\n\n Images, and Predictions tabs become available.\n\n The Reports tab displays the PDF summary of the modelling\n\n results, the Images tab provides access to the figures\n\n generated during the workflow, and the Predictions tab\n\n shows the predicted values for the external test dataset used\n\n in this example.\n\n These result sections are described in more detail in the\n\n Overview tutorial.",
       "title": "Overview",
       "topic": "results"
     },
@@ -1422,7 +1422,7 @@
       "source_file": "Tutorials/overview.rst",
       "source_tier": "reference",
       "tab": "Reports",
-      "text": "Welcome to the easyROB graphical interface.\n\n easyROB integrates two complementary engines designed for\n\n computational chemistry workflows:\n\n \u2022 AQME \u2014 generates molecular descriptors from molecular structures\n\n \u2022 ROBERT \u2014 builds and evaluates machine learning models\n\n Together, these tools allow users to move from raw molecular\n\n structures to predictive models within a single interface.\n\n This overview briefly introduces the main sections of the GUI\n\n before moving to the practical tutorials.\n\n When easyROB starts, the interface opens in the ROBERT tab.\n\n This tab contains the main controls used to:\n\n \u2022 Load datasets\n\n \u2022 Configure machine learning workflows\n\n \u2022 Train predictive models\n\n Most users will perform the majority of their work in this section.\n\n The first step is loading a dataset.\n\n To train a machine learning model, the dataset must contain\n\n molecular descriptors, which are numerical features describing\n\n each molecule.\n\n Two scenarios are possible:\n\n \u2022 If your CSV file already contains descriptors, they will be used\n\n directly to train the model.\n\n \u2022 If the dataset only contains a SMILES column, descriptors\n\n can be generated automatically using the AQME workflow.\n\n This descriptor generation process will be explained later\n\n in the tutorial.\n\n Optionally, you may also provide a separate test CSV file\n\n to evaluate predictions on an external dataset.\n\n This section defines the model configuration.\n\n First, select the Target value.\n\n The target is the property that the machine learning model will\n\n learn from the dataset and later attempt to predict for new molecules.\n\n Next, choose the prediction type, such as:\n\n \u2022 Regression for continuous values\n\n \u2022 Classification for categorical outcomes\n\n In addition, you must provide a column containing\n\n unique identifiers for each row in the dataset.\n\n These identifiers allow easyROB to correctly track molecules\n\n and report predictions in a clear and reproducible way.\n\n Some dataset columns may contain information that should not\n\n be used to build the model.\n\n These columns can be excluded here.\n\n Typical examples include metadata columns, comments, or\n\n experimental annotations that are not meaningful descriptors.\n\n Important: The columns selected as Target value,\n\n Name column, and the SMILES column are automatically\n\n handled by easyROB and do not need to be excluded manually.\n\n Enabling the AQME workflow allows easyROB to generate\n\n molecular descriptors directly from SMILES structures.\n\n When this option is activated, the AQME tab becomes\n\n available in the interface.\n\n This tab provides advanced options for descriptor generation\n\n and molecular processing.\n\n These settings are optional and will be explained in detail\n\n later in this tutorial.\n\n The ROBERT machine learning pipeline can be executed\n\n automatically using the Full Workflow option.\n\n This option is enabled by default, so in most cases\n\n you do not need to modify anything before running the workflow.\n\n Alternatively, advanced users can run individual stages\n\n of the pipeline separately:\n\n CURATE \u2192 GENERATE \u2192 PREDICT \u2192 VERIFY \u2192 REPORT\n\n Running steps individually can be useful for debugging\n\n or for inspecting intermediate results.\n\n Press the ROBERT button to launch the automated\n\n machine learning workflow.\n\n This will execute the selected stages of the ROBERT pipeline\n\n using the dataset and configuration provided.\n\n Alternatively, the AQME button can be used independently\n\n to generate molecular descriptors before training a model.\n\n The Stop button allows interrupting the workflow\n\n at any moment if necessary.\n\n The console panel displays log messages and progress\n\n information generated during execution.\n\n This output helps track which steps are running and\n\n identify potential warnings or errors.\n\n When the Enable AQME Workflow option is activated, the\n\n AQME tab becomes available in the interface.\n\n If a dataset containing a SMILES column has already been loaded,\n\n easyROB will automatically generate molecular descriptors when the\n\n workflow is executed.\n\n The AQME tab provides advanced options for users who want more\n\n control over the descriptor generation process.\n\n For example, if your molecules share a common structure, the interface\n\n can display the molecular scaffold and allow you to select specific\n\n atoms to generate atom-based descriptors.\n\n You can also configure additional AQME descriptor parameters.\n\n A documentation button is available to access detailed information\n\n about these options.\n\n This tab is also used when starting from ChemDraw outputs.\n\n In this case, the ChemDraw file can be loaded here to extract the\n\n relevant information and generate a CSV dataset that can then be\n\n used in the AQME and ROBERT workflows.\n\n The Advanced Options tab provides additional controls for the\n\n ROBERT machine learning workflow.\n\n This section allows advanced users to modify specific parameters\n\n used during different stages of the pipeline, including:\n\n \u2022 GENERAL \u2013 parameters affecting the overall workflow\n\n \u2022 CURATE \u2013 dataset preparation and preprocessing\n\n \u2022 GENERATE \u2013 model training and descriptor selection\n\n \u2022 PREDICT \u2013 prediction settings\n\n These options are intended for users who want more control over\n\n the modelling process. In most cases, the default settings are\n\n sufficient to run the workflow successfully.\n\n Help buttons are available throughout this tab to access the\n\n documentation and obtain detailed explanations of each parameter.\n\n The MolSSI Databases tab provides access to molecular libraries\n\n developed through the Descriptor Libraries project, a collaborative\n\n initiative between the Molecular Sciences Software Institute (MolSSI)\n\n and the Center for Computer Assisted Synthesis (C-CAS).\n\n These libraries contain curated collections of molecules organised\n\n by functional group, such as carboxylic acids, amines, sulfonamides,\n\n and many others.\n\n Users can explore these datasets directly within the interface,\n\n inspect the available molecules, and download the corresponding\n\n libraries for further analysis.\n\n The downloaded datasets already include molecular descriptors\n\n as well as machine learning predictions generated within the\n\n Descriptor Libraries project, allowing them to be used directly\n\n in modelling workflows.\n\n The Reports, Images, and Predictions tabs remain\n\n disabled until the ROBERT workflow has been executed and results\n\n have been generated.\n\n Once the workflow finishes, these tabs become available and allow\n\n users to explore the different outputs produced during the machine\n\n learning process.\n\n Each tab focuses on a different type of result: reports summarizing\n\n model performance, images generated during the workflow, and\n\n predictions obtained for external datasets.\n\n Note: The Predictions tab is only available if an\n\n external test dataset was provided before running the workflow.\n\n The Reports tab displays the PDF report automatically\n\n generated by the ROBERT workflow.\n\n This report provides a complete summary of the machine learning\n\n process, including the selected model, performance metrics,\n\n identified outliers, boundary robustness analysis, and statistical\n\n validation tests.\n\n The report helps users evaluate whether the generated model\n\n is robust and reliable for making predictions.\n\n The Images tab provides access to all figures generated\n\n during the ROBERT workflow.\n\n These images are organised into sections corresponding to the\n\n different stages of the pipeline, including CURATE,\n\n GENERATE, VERIFY, and PREDICT.\n\n Users can browse these figures directly in the interface.\n\n By right-clicking on an image, it can be copied, saved to a file,\n\n opened in full size, or the folder containing the image can\n\n be opened.\n\n The Predictions tab displays the prediction results\n\n generated for an external test dataset, if one was provided.\n\n The results are organised into two sub-tabs: PFI and\n\n no PFI. ROBERT automatically builds two models: one applying\n\n a descriptor reduction step (PFI) and another without this\n\n reduction. Each tab shows the predictions generated by one of\n\n these models.\n\n For each molecule in the test dataset, the table displays the\n\n predicted value together with the associated standard deviation.\n\n The table also provides several interactive options. By right-clicking\n\n on the prediction columns, users can sort the values or generate\n\n simple plots such as histograms to quickly explore the distribution\n\n of the predicted results.",
+      "text": "Welcome to the easyROB graphical interface.\n\n easyROB integrates two complementary engines designed for\n\n computational chemistry workflows:\n\n • AQME — generates molecular descriptors from molecular structures\n\n • ROBERT — builds and evaluates machine learning models\n\n Together, these tools allow users to move from raw molecular\n\n structures to predictive models within a single interface.\n\n This overview briefly introduces the main sections of the GUI\n\n before moving to the practical tutorials.\n\n When easyROB starts, the interface opens in the ROBERT tab.\n\n This tab contains the main controls used to:\n\n • Load datasets\n\n • Configure machine learning workflows\n\n • Train predictive models\n\n Most users will perform the majority of their work in this section.\n\n The first step is loading a dataset.\n\n To train a machine learning model, the dataset must contain\n\n molecular descriptors, which are numerical features describing\n\n each molecule.\n\n Two scenarios are possible:\n\n • If your CSV file already contains descriptors, they will be used\n\n directly to train the model.\n\n • If the dataset only contains a SMILES column, descriptors\n\n can be generated automatically using the AQME workflow.\n\n This descriptor generation process will be explained later\n\n in the tutorial.\n\n Optionally, you may also provide a separate test CSV file\n\n to evaluate predictions on an external dataset.\n\n This section defines the model configuration.\n\n First, select the Target value.\n\n The target is the property that the machine learning model will\n\n learn from the dataset and later attempt to predict for new molecules.\n\n Next, choose the prediction type, such as:\n\n • Regression for continuous values\n\n • Classification for categorical outcomes\n\n In addition, you must provide a column containing\n\n unique identifiers for each row in the dataset.\n\n These identifiers allow easyROB to correctly track molecules\n\n and report predictions in a clear and reproducible way.\n\n Some dataset columns may contain information that should not\n\n be used to build the model.\n\n These columns can be excluded here.\n\n Typical examples include metadata columns, comments, or\n\n experimental annotations that are not meaningful descriptors.\n\n Important: The columns selected as Target value,\n\n Name column, and the SMILES column are automatically\n\n handled by easyROB and do not need to be excluded manually.\n\n Enabling the AQME workflow allows easyROB to generate\n\n molecular descriptors directly from SMILES structures.\n\n When this option is activated, the AQME tab becomes\n\n available in the interface.\n\n This tab provides advanced options for descriptor generation\n\n and molecular processing.\n\n These settings are optional and will be explained in detail\n\n later in this tutorial.\n\n The ROBERT machine learning pipeline can be executed\n\n automatically using the Full Workflow option.\n\n This option is enabled by default, so in most cases\n\n you do not need to modify anything before running the workflow.\n\n Alternatively, advanced users can run individual stages\n\n of the pipeline separately:\n\n CURATE → GENERATE → PREDICT → VERIFY → REPORT\n\n Running steps individually can be useful for debugging\n\n or for inspecting intermediate results.\n\n Press the ROBERT button to launch the automated\n\n machine learning workflow.\n\n This will execute the selected stages of the ROBERT pipeline\n\n using the dataset and configuration provided.\n\n Alternatively, the AQME button can be used independently\n\n to generate molecular descriptors before training a model.\n\n The Stop button allows interrupting the workflow\n\n at any moment if necessary.\n\n The console panel displays log messages and progress\n\n information generated during execution.\n\n This output helps track which steps are running and\n\n identify potential warnings or errors.\n\n When the Enable AQME Workflow option is activated, the\n\n AQME tab becomes available in the interface.\n\n If a dataset containing a SMILES column has already been loaded,\n\n easyROB will automatically generate molecular descriptors when the\n\n workflow is executed.\n\n The AQME tab provides advanced options for users who want more\n\n control over the descriptor generation process.\n\n For example, if your molecules share a common structure, the interface\n\n can display the molecular scaffold and allow you to select specific\n\n atoms to generate atom-based descriptors.\n\n You can also configure additional AQME descriptor parameters.\n\n A documentation button is available to access detailed information\n\n about these options.\n\n This tab is also used when starting from ChemDraw outputs.\n\n In this case, the ChemDraw file can be loaded here to extract the\n\n relevant information and generate a CSV dataset that can then be\n\n used in the AQME and ROBERT workflows.\n\n The Advanced Options tab provides additional controls for the\n\n ROBERT machine learning workflow.\n\n This section allows advanced users to modify specific parameters\n\n used during different stages of the pipeline, including:\n\n • GENERAL – parameters affecting the overall workflow\n\n • CURATE – dataset preparation and preprocessing\n\n • GENERATE – model training and descriptor selection\n\n • PREDICT – prediction settings\n\n These options are intended for users who want more control over\n\n the modelling process. In most cases, the default settings are\n\n sufficient to run the workflow successfully.\n\n Help buttons are available throughout this tab to access the\n\n documentation and obtain detailed explanations of each parameter.\n\n The MolSSI Databases tab provides access to molecular libraries\n\n developed through the Descriptor Libraries project, a collaborative\n\n initiative between the Molecular Sciences Software Institute (MolSSI)\n\n and the Center for Computer Assisted Synthesis (C-CAS).\n\n These libraries contain curated collections of molecules organised\n\n by functional group, such as carboxylic acids, amines, sulfonamides,\n\n and many others.\n\n Users can explore these datasets directly within the interface,\n\n inspect the available molecules, and download the corresponding\n\n libraries for further analysis.\n\n The downloaded datasets already include molecular descriptors\n\n as well as machine learning predictions generated within the\n\n Descriptor Libraries project, allowing them to be used directly\n\n in modelling workflows.\n\n The Reports, Images, and Predictions tabs remain\n\n disabled until the ROBERT workflow has been executed and results\n\n have been generated.\n\n Once the workflow finishes, these tabs become available and allow\n\n users to explore the different outputs produced during the machine\n\n learning process.\n\n Each tab focuses on a different type of result: reports summarizing\n\n model performance, images generated during the workflow, and\n\n predictions obtained for external datasets.\n\n Note: The Predictions tab is only available if an\n\n external test dataset was provided before running the workflow.\n\n The Reports tab displays the PDF report automatically\n\n generated by the ROBERT workflow.\n\n This report provides a complete summary of the machine learning\n\n process, including the selected model, performance metrics,\n\n identified outliers, boundary robustness analysis, and statistical\n\n validation tests.\n\n The report helps users evaluate whether the generated model\n\n is robust and reliable for making predictions.\n\n The Images tab provides access to all figures generated\n\n during the ROBERT workflow.\n\n These images are organised into sections corresponding to the\n\n different stages of the pipeline, including CURATE,\n\n GENERATE, VERIFY, and PREDICT.\n\n Users can browse these figures directly in the interface.\n\n By right-clicking on an image, it can be copied, saved to a file,\n\n opened in full size, or the folder containing the image can\n\n be opened.\n\n The Predictions tab displays the prediction results\n\n generated for an external test dataset, if one was provided.\n\n The results are organised into two sub-tabs: PFI and\n\n no PFI. ROBERT automatically builds two models: one applying\n\n a descriptor reduction step (PFI) and another without this\n\n reduction. Each tab shows the predictions generated by one of\n\n these models.\n\n For each molecule in the test dataset, the table displays the\n\n predicted value together with the associated standard deviation.\n\n The table also provides several interactive options. By right-clicking\n\n on the prediction columns, users can sort the values or generate\n\n simple plots such as histograms to quickly explore the distribution\n\n of the predicted results.",
       "title": "Overview",
       "topic": "results"
     }
@@ -2110,7 +2110,7 @@
       "source_file": "Modules/database.rst",
       "source_tier": "reference",
       "tab": "ROBERT",
-      "text": "CSV file\n\nA CSV file, known as a \"comma-separated values\" file, enables you to store data in a table-structured format. \nData records are divided by line breaks (i.e., each data record starts a new line). \n\n Creating CSV files is most straightforward when using a spreadsheet application, such as Microsoft Excel.\n\nDatabase generation using Excel\n\n Step 1: Open a new spreadsheet in Microsoft Excel. Any spreadsheet software can be employed to convert data to CSV files.\n\n Step 2: Specify the headers (one for the names of each data point, one for each descriptor, and one for the target values) in row 1 at the top of the spreadsheet. More information regarding the selection of appropriate descriptors is available in the following section.\n\n Step 3: Enter your data into the spreadsheet under each column as needed. For example, write the compound name in cell A2, the descriptor values in cells B2, C2 and D2, and the target values in cell E2.\n\n Step 4: Go to the \"File\" tab and select \"Save As\". Select \"CSV\" under the \"Save as type\" dropdown menu and input a title for your CSV file. Then, click the \"Save\" button to generate your CSV file.\n\nSelection of descriptors\n\nIn machine learning, a \"descriptor\" refers to a specific feature or property of the data used \nto describe or represent an entity. In the context of chemistry, descriptors are characteristics \nof molecules or complexes that are used to define their structures, behaviors, or other relevant \nattributes. There are no strict limitations in defining descriptors, but ideally, descriptors \nshould encompass relevant properties that assist machine learning models in differentiating between \ncompounds within the database. Descriptors can be specified using experimental measurements (i.e., \ndensity, melting point, etc.) and theoretical methods (i.e., DFT properties, NBO charges, etc.). \n\nWhen creating a database, users have two approaches:\n\n1. User-Defined Descriptors\nbr\nUsers can utilize their own descriptors, whether obtained experimentally or through computational methods.\n\n2. Automated: SMILES to Descriptors\nbr\nIf users don't have pre-calculated descriptors, they can use the automatic generation of descriptors with the AQME module.\n\n User-defined descriptors\n\nIf users want to use descriptors that have been measured or calculated before, they have \nto enter them manually into the database. Researchers can use experimental or \ntheoretical descriptors, or a mix of both to define their problem. For example, \nin the article J. Am. Chem. Soc. 2022, 144, 9586 <https://pubs.acs.org/doi/10.1021/jacs.1c13397>_, \nthe authors wanted to correlate the equilibrium energies (\u0394G) obtained with 20 different solvents \nusing a machine learning model.\n\nIn this case, the authors needed to differentiate the solvents using properties/descriptors \n(defining the problem). To achieve this, they constructed a set of 17 molecular descriptors that captured \nelectronic and structural differences between the solvents. These descriptors included the \ndielectric constant (\u03b5), the second COSMO \u03c3-moment, which characterizes a molecule's overall electrostatic \npolarity (Sig2), and the McGowan molar volume (V). This is how the database was structured:\n\n Automated: SMILES to descriptors\n\nWhen users don't have previously measured/calculated descriptors, they can employ AQME to generate \nmolecular and atomic descriptors. Let's consider the article \nJ. Chem. Inf. Comput. Sci. 2004, 44, 1000 <https://pubs.acs.org/doi/10.1021/ci034243x>_, \nwhich includes a database with SMILES strings and aqueous solubility values in its electronic supporting \ninformation. A solubility predictor can be developed using this database, as it includes \ncolumns with the names of the molecules, SMILES strings of the molecules, and the property to be \npredicted (aqueous solubility in this case). The titles of the first two columns must be adjusted \nto \"code_name\" and \"SMILES\", respectively. This is how the database would be structured:\n\nROBERT will then be executed with one command line (see the From SMILES to predictors section and the Full workflow from SMILES example), \ngenerating results like these:",
+      "text": "CSV file\n\nA CSV file, known as a \"comma-separated values\" file, enables you to store data in a table-structured format. \nData records are divided by line breaks (i.e., each data record starts a new line). \n\n Creating CSV files is most straightforward when using a spreadsheet application, such as Microsoft Excel.\n\nDatabase generation using Excel\n\n Step 1: Open a new spreadsheet in Microsoft Excel. Any spreadsheet software can be employed to convert data to CSV files.\n\n Step 2: Specify the headers (one for the names of each data point, one for each descriptor, and one for the target values) in row 1 at the top of the spreadsheet. More information regarding the selection of appropriate descriptors is available in the following section.\n\n Step 3: Enter your data into the spreadsheet under each column as needed. For example, write the compound name in cell A2, the descriptor values in cells B2, C2 and D2, and the target values in cell E2.\n\n Step 4: Go to the \"File\" tab and select \"Save As\". Select \"CSV\" under the \"Save as type\" dropdown menu and input a title for your CSV file. Then, click the \"Save\" button to generate your CSV file.\n\nSelection of descriptors\n\nIn machine learning, a \"descriptor\" refers to a specific feature or property of the data used \nto describe or represent an entity. In the context of chemistry, descriptors are characteristics \nof molecules or complexes that are used to define their structures, behaviors, or other relevant \nattributes. There are no strict limitations in defining descriptors, but ideally, descriptors \nshould encompass relevant properties that assist machine learning models in differentiating between \ncompounds within the database. Descriptors can be specified using experimental measurements (i.e., \ndensity, melting point, etc.) and theoretical methods (i.e., DFT properties, NBO charges, etc.). \n\nWhen creating a database, users have two approaches:\n\n1. User-Defined Descriptors\nbr\nUsers can utilize their own descriptors, whether obtained experimentally or through computational methods.\n\n2. Automated: SMILES to Descriptors\nbr\nIf users don't have pre-calculated descriptors, they can use the automatic generation of descriptors with the AQME module.\n\n User-defined descriptors\n\nIf users want to use descriptors that have been measured or calculated before, they have \nto enter them manually into the database. Researchers can use experimental or \ntheoretical descriptors, or a mix of both to define their problem. For example, \nin the article J. Am. Chem. Soc. 2022, 144, 9586 <https://pubs.acs.org/doi/10.1021/jacs.1c13397>_, \nthe authors wanted to correlate the equilibrium energies (ΔG) obtained with 20 different solvents \nusing a machine learning model.\n\nIn this case, the authors needed to differentiate the solvents using properties/descriptors \n(defining the problem). To achieve this, they constructed a set of 17 molecular descriptors that captured \nelectronic and structural differences between the solvents. These descriptors included the \ndielectric constant (ε), the second COSMO σ-moment, which characterizes a molecule's overall electrostatic \npolarity (Sig2), and the McGowan molar volume (V). This is how the database was structured:\n\n Automated: SMILES to descriptors\n\nWhen users don't have previously measured/calculated descriptors, they can employ AQME to generate \nmolecular and atomic descriptors. Let's consider the article \nJ. Chem. Inf. Comput. Sci. 2004, 44, 1000 <https://pubs.acs.org/doi/10.1021/ci034243x>_, \nwhich includes a database with SMILES strings and aqueous solubility values in its electronic supporting \ninformation. A solubility predictor can be developed using this database, as it includes \ncolumns with the names of the molecules, SMILES strings of the molecules, and the property to be \npredicted (aqueous solubility in this case). The titles of the first two columns must be adjusted \nto \"code_name\" and \"SMILES\", respectively. This is how the database would be structured:\n\nROBERT will then be executed with one command line (see the From SMILES to predictors section and the Full workflow from SMILES example), \ngenerating results like these:",
       "title": "How to create a database",
       "topic": "output"
     },
@@ -2235,7 +2235,7 @@
       "source_file": "Tutorials/videos.rst",
       "source_tier": "reference",
       "tab": "ROBERT",
-      "text": "robert 1\n\nEasyROB (Graphical User Interface)\n\nA series of short tutorials showing how to install and use easyROB \u2014 no coding required.",
+      "text": "robert 1\n\nEasyROB (Graphical User Interface)\n\nA series of short tutorials showing how to install and use easyROB — no coding required.",
       "title": "Full workflow from CSV",
       "topic": "output"
     },
@@ -2516,7 +2516,7 @@
       "source_file": "ui_user_guidance.json",
       "source_tier": "curated",
       "tab": "ROBERT",
-      "text": "Purpose: Open the floating robBOT window for questions about GUI controls, workflows, outputs, warnings, and current tracked context.\nWhen to use:\n- Use robBOT when you need concise help tied to EasyROB rather than general chemistry or programming advice.\nPrerequisites:\n- Choose an answer mode in Settings; Local AI and Cloud AI have additional model or provider requirements.\nSteps:\n1. Press robBOT, open Settings if needed, type a focused question, and press Send.\nExpected result: The robBOT Chat tab displays an answer using the selected mode and available EasyROB context.\nNext steps:\n- Apply the suggested check and confirm it against the popup, console, or documentation.\nCommon issues:\n- Only tracked popups and a bounded console tail are available as current context.",
+      "text": "Purpose: Open the floating robBOT window for questions about GUI controls, workflows, outputs, warnings, and current tracked context.\nWhen to use:\n- Use robBOT when you need concise help tied to EasyROB rather than general chemistry or programming advice.\nPrerequisites:\n- Choose an answer mode in Settings; Cloud AI requires a configured provider and API key.\nSteps:\n1. Press robBOT, open Settings if needed, type a focused question, and press Send.\nExpected result: The robBOT Chat tab displays an answer using the selected mode and available EasyROB context.\nNext steps:\n- Apply the suggested check and confirm it against the popup, console, or documentation.\nCommon issues:\n- Only tracked popups and a bounded console tail are available as current context.",
       "title": "robBOT",
       "topic": "assistant",
       "user_guidance": {
@@ -2527,7 +2527,7 @@
           "Apply the suggested check and confirm it against the popup, console, or documentation."
         ],
         "prerequisites": [
-          "Choose an answer mode in Settings; Local AI and Cloud AI have additional model or provider requirements."
+          "Choose an answer mode in Settings; Cloud AI requires a configured provider and API key."
         ],
         "purpose": "Open the floating robBOT window for questions about GUI controls, workflows, outputs, warnings, and current tracked context.",
         "result": "The robBOT Chat tab displays an answer using the selected mode and available EasyROB context.",
@@ -2650,61 +2650,6 @@
     },
     {
       "aliases": [
-        "Download model",
-        "Load model",
-        "prepare local model"
-      ],
-      "audience": "end_user",
-      "entity_id": "action-robbot-load-local-ai",
-      "entity_type": "button",
-      "id": "ui-curated-action-robbot-load-local-ai",
-      "keywords": [
-        "Download model",
-        "Load model",
-        "Local AI",
-        "offline"
-      ],
-      "kind": "interface",
-      "module": "ROBBOT",
-      "priority": 1.0,
-      "program": "ROBERT",
-      "question_patterns": [
-        "how do I load Local AI",
-        "why does robBOT say Download model"
-      ],
-      "related_ids": [
-        "control-robbot-mode",
-        "action-robbot-send"
-      ],
-      "source": "curated_user_guidance",
-      "source_file": "ui_user_guidance.json",
-      "source_tier": "curated",
-      "tab": "ROBERT",
-      "text": "Purpose: Download the packaged Local AI model when absent and load it into memory for offline robBOT answers.\nWhen to use:\n- Use this action after selecting Local AI when the status is not Model ready.\nPrerequisites:\n- Allow the initial download when needed, ensure sufficient local storage, and wait for preparation to finish.\nSteps:\n1. Press Download model or Load model, confirm preparation, and wait until the status reports Ready.\nExpected result: The button progresses through preparing states and Local AI becomes available without a cloud API key.\nNext steps:\n- Return to Chat and press Send.\nCommon issues:\n- Declining or failing preparation falls back to Heuristic help rather than leaving robBOT unusable.",
-      "title": "Prepare Local AI model",
-      "topic": "local model",
-      "user_guidance": {
-        "common_issues": [
-          "Declining or failing preparation falls back to Heuristic help rather than leaving robBOT unusable."
-        ],
-        "next_steps": [
-          "Return to Chat and press Send."
-        ],
-        "prerequisites": [
-          "Allow the initial download when needed, ensure sufficient local storage, and wait for preparation to finish."
-        ],
-        "purpose": "Download the packaged Local AI model when absent and load it into memory for offline robBOT answers.",
-        "result": "The button progresses through preparing states and Local AI becomes available without a cloud API key.",
-        "steps": [
-          "Press Download model or Load model, confirm preparation, and wait until the status reports Ready."
-        ],
-        "when_to_use": [
-          "Use this action after selecting Local AI when the status is not Model ready."
-        ]
-      }
-    },
-    {
-      "aliases": [
         "send question",
         "ask robBOT"
       ],
@@ -2735,7 +2680,7 @@
       "source_file": "ui_user_guidance.json",
       "source_tier": "curated",
       "tab": "ROBERT",
-      "text": "Purpose: Submit the typed EasyROB question to the active robBOT answer mode.\nWhen to use:\n- Press Send after entering one focused question and preparing any required local model or cloud credential.\nPrerequisites:\n- Non-empty question text and an available answer path for the selected mode.\nSteps:\n1. Describe the visible control, workflow, output, warning, or failure and press Send.\nExpected result: Input and settings are temporarily disabled while the reply is produced, then the answer appears in Chat.\nNext steps:\n- Apply the answer to the GUI and verify it against concrete popup, console, or report evidence.\nCommon issues:\n- Broad questions without the relevant error or workflow state produce less specific guidance.",
+      "text": "Purpose: Submit the typed EasyROB question to the active robBOT answer mode.\nWhen to use:\n- Press Send after entering one focused question and configuring any required cloud credential.\nPrerequisites:\n- Non-empty question text and an available answer path for the selected mode.\nSteps:\n1. Describe the visible control, workflow, output, warning, or failure and press Send.\nExpected result: Input and settings are temporarily disabled while the reply is produced, then the answer appears in Chat.\nNext steps:\n- Apply the answer to the GUI and verify it against concrete popup, console, or report evidence.\nCommon issues:\n- Broad questions without the relevant error or workflow state produce less specific guidance.",
       "title": "robBOT Send",
       "topic": "assistant chat",
       "user_guidance": {
@@ -2754,7 +2699,7 @@
           "Describe the visible control, workflow, output, warning, or failure and press Send."
         ],
         "when_to_use": [
-          "Press Send after entering one focused question and preparing any required local model or cloud credential."
+          "Press Send after entering one focused question and configuring any required cloud credential."
         ]
       }
     },
@@ -3153,7 +3098,6 @@
       "keywords": [
         "robBOT mode",
         "Heuristic",
-        "Local AI",
         "Cloud AI"
       ],
       "kind": "interface",
@@ -3173,26 +3117,26 @@
       "source_file": "ui_user_guidance.json",
       "source_tier": "curated",
       "tab": "ROBERT",
-      "text": "Purpose: Choose how robBOT answers: deterministic Heuristic help, packaged Local AI, or an external Cloud AI provider.\nWhen to use:\n- Use Heuristic for stable rule-based guidance, Local AI for offline model answers, or Cloud AI when a configured provider is appropriate.\nPrerequisites:\n- Local AI needs a downloaded and loaded model; Cloud AI needs a selected provider and API key.\nSteps:\n1. Open robBOT Settings and choose Local AI, Cloud AI, or Heuristic in Mode.\nExpected result: The robBOT title and enabled settings reflect the active answer mode.\nNext steps:\n- Prepare the local model or provider if required, then send a focused question.\nCommon issues:\n- Changing modes does not repair missing model files or an invalid cloud credential.",
+      "text": "Purpose: Choose how robBOT answers: deterministic Heuristic help or an external Cloud AI provider.\nWhen to use:\n- Use Heuristic for stable rule-based guidance or Cloud AI when a configured provider is appropriate.\nPrerequisites:\n- Cloud AI needs a selected provider and API key.\nSteps:\n1. Open robBOT Settings and choose Cloud AI or Heuristic in Mode.\nExpected result: The robBOT title and enabled settings reflect the active answer mode.\nNext steps:\n- Configure the cloud provider if required, then send a focused question.\nCommon issues:\n- Changing modes does not repair an invalid cloud credential.",
       "title": "robBOT Mode",
       "topic": "assistant mode",
       "user_guidance": {
         "common_issues": [
-          "Changing modes does not repair missing model files or an invalid cloud credential."
+          "Changing modes does not repair an invalid cloud credential."
         ],
         "next_steps": [
-          "Prepare the local model or provider if required, then send a focused question."
+          "Configure the cloud provider if required, then send a focused question."
         ],
         "prerequisites": [
-          "Local AI needs a downloaded and loaded model; Cloud AI needs a selected provider and API key."
+          "Cloud AI needs a selected provider and API key."
         ],
-        "purpose": "Choose how robBOT answers: deterministic Heuristic help, packaged Local AI, or an external Cloud AI provider.",
+        "purpose": "Choose how robBOT answers: deterministic Heuristic help or an external Cloud AI provider.",
         "result": "The robBOT title and enabled settings reflect the active answer mode.",
         "steps": [
-          "Open robBOT Settings and choose Local AI, Cloud AI, or Heuristic in Mode."
+          "Open robBOT Settings and choose Cloud AI or Heuristic in Mode."
         ],
         "when_to_use": [
-          "Use Heuristic for stable rule-based guidance, Local AI for offline model answers, or Cloud AI when a configured provider is appropriate."
+          "Use Heuristic for stable rule-based guidance or Cloud AI when a configured provider is appropriate."
         ]
       }
     },
@@ -3227,7 +3171,7 @@
       "source_file": "ui_user_guidance.json",
       "source_tier": "curated",
       "tab": "ROBERT",
-      "text": "Purpose: Select the external service used when robBOT Mode is Cloud AI and associate the request with that provider's API key.\nWhen to use:\n- Use Provider only for Cloud AI; Groq is the current default choice, with other supported providers available.\nPrerequisites:\n- An account and valid API key for the selected provider, subject to that provider's access and billing rules.\nSteps:\n1. Choose Cloud AI, select Provider, enter the matching API key, and optionally save it locally.\nExpected result: Cloud questions are routed to the selected provider rather than Local AI or Heuristic logic.\nNext steps:\n- Press Send and review any provider error without exposing the key.\nCommon issues:\n- A key from one provider does not authenticate another, and Provider is disabled outside Cloud AI mode.",
+      "text": "Purpose: Select the external service used when robBOT Mode is Cloud AI and associate the request with that provider's API key.\nWhen to use:\n- Use Provider only for Cloud AI; Groq is the current default choice, with other supported providers available.\nPrerequisites:\n- An account and valid API key for the selected provider, subject to that provider's access and billing rules.\nSteps:\n1. Choose Cloud AI, select Provider, enter the matching API key, and optionally save it locally.\nExpected result: Cloud questions are routed to the selected provider.\nNext steps:\n- Press Send and review any provider error without exposing the key.\nCommon issues:\n- A key from one provider does not authenticate another, and Provider is disabled outside Cloud AI mode.",
       "title": "robBOT Provider",
       "topic": "cloud provider",
       "user_guidance": {
@@ -3241,7 +3185,7 @@
           "An account and valid API key for the selected provider, subject to that provider's access and billing rules."
         ],
         "purpose": "Select the external service used when robBOT Mode is Cloud AI and associate the request with that provider's API key.",
-        "result": "Cloud questions are routed to the selected provider rather than Local AI or Heuristic logic.",
+        "result": "Cloud questions are routed to the selected provider.",
         "steps": [
           "Choose Cloud AI, select Provider, enter the matching API key, and optionally save it locally."
         ],
@@ -3950,32 +3894,6 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-bot-local-model-worker-module-a2658828",
-      "keywords": [
-        "model",
-        "module",
-        "robert",
-        "concept"
-      ],
-      "kind": "concept",
-      "module": "ROBERT",
-      "priority": 0.7,
-      "program": "ROBERT",
-      "question_patterns": [
-        "module",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "easyrob_code_docstrings",
-      "source_file": "bot/local_model_worker.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "Background worker for downloading and loading the Local AI model.",
-      "title": "module",
-      "topic": "concept"
-    },
-    {
-      "audience": "developer_reference",
       "id": "easyrob-code-docstrings-bot-workflow-results-module-786610c3",
       "keywords": [
         "aqme",
@@ -4189,32 +4107,6 @@
     },
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-main-window-easyrob-prepare-local-model-for-bot-b67f04c8",
-      "keywords": [
-        "model",
-        "prepare local model for bot",
-        "robert",
-        "concept"
-      ],
-      "kind": "concept",
-      "module": "ROBERT",
-      "priority": 0.7,
-      "program": "ROBERT",
-      "question_patterns": [
-        "prepare local model for bot",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "easyrob_code_docstrings",
-      "source_file": "main/window.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "Prepare the Local AI model from the panel controls.",
-      "title": "prepare local model for bot",
-      "topic": "concept"
-    },
-    {
-      "audience": "developer_reference",
       "id": "easyrob-code-docstrings-main-window-easyrob-private-ask-descriptor-strategy-df62e6bc",
       "keywords": [
         "descriptor",
@@ -4238,32 +4130,6 @@
       "tab": "ROBERT",
       "text": "Asks the user how to handle descriptors.",
       "title": "ask descriptor strategy",
-      "topic": "concept"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-main-window-easyrob-private-ask-to-prepare-local-model-f04bcba9",
-      "keywords": [
-        "model",
-        "ask to prepare local model",
-        "robert",
-        "concept"
-      ],
-      "kind": "concept",
-      "module": "ROBERT",
-      "priority": 0.7,
-      "program": "ROBERT",
-      "question_patterns": [
-        "ask to prepare local model",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "easyrob_code_docstrings",
-      "source_file": "main/window.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "Ask whether EasyROB should download the packaged local model.",
-      "title": "ask to prepare local model",
       "topic": "concept"
     },
     {
@@ -4316,32 +4182,6 @@
       "tab": "ROBERT",
       "text": "Handles the completion of an AQME step and manages the queue.",
       "title": "on aqme step finished",
-      "topic": "concept"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-main-window-easyrob-private-prepare-local-model-for-bot-0f74fcee",
-      "keywords": [
-        "model",
-        "prepare local model for bot",
-        "robert",
-        "concept"
-      ],
-      "kind": "concept",
-      "module": "ROBERT",
-      "priority": 0.7,
-      "program": "ROBERT",
-      "question_patterns": [
-        "prepare local model for bot",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "easyrob_code_docstrings",
-      "source_file": "main/window.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "Start background preparation for the Local AI model.",
-      "title": "prepare local model for bot",
       "topic": "concept"
     },
     {
@@ -4497,7 +4337,7 @@
       "source_file": "tabs/aqme.py",
       "source_tier": "generated",
       "tab": "ROBERT",
-      "text": "Auto-detect common SMARTS pattern.\n- TRAIN only \u2192 exploratory mode\n- TRAIN + TEST \u2192 mapping mode (contract must hold for all)",
+      "text": "Auto-detect common SMARTS pattern.\n- TRAIN only → exploratory mode\n- TRAIN + TEST → mapping mode (contract must hold for all)",
       "title": "auto pattern",
       "topic": "concept"
     },
@@ -5899,60 +5739,6 @@
   "troubleshooting": [
     {
       "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-bot-local-llm-localllmerror-babfa844",
-      "keywords": [
-        "error",
-        "model",
-        "LocalLLMError",
-        "robert",
-        "diagnostic"
-      ],
-      "kind": "diagnostic",
-      "module": "ROBERT",
-      "priority": 0.9,
-      "program": "ROBERT",
-      "question_patterns": [
-        "localllmerror",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "easyrob_code_docstrings",
-      "source_file": "bot/local_llm.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "Raised when the local model runtime cannot be prepared or queried.",
-      "title": "LocalLLMError",
-      "topic": "diagnostic"
-    },
-    {
-      "audience": "developer_reference",
-      "id": "easyrob-code-docstrings-main-window-easyrob-private-show-local-model-prepare-error-993989b5",
-      "keywords": [
-        "error",
-        "model",
-        "show local model prepare error",
-        "robert",
-        "diagnostic"
-      ],
-      "kind": "diagnostic",
-      "module": "ROBERT",
-      "priority": 0.9,
-      "program": "ROBERT",
-      "question_patterns": [
-        "show local model prepare error",
-        "what is robert",
-        "how does robert work"
-      ],
-      "source": "easyrob_code_docstrings",
-      "source_file": "main/window.py",
-      "source_tier": "generated",
-      "tab": "ROBERT",
-      "text": "Show a user-facing Local AI preparation error.",
-      "title": "show local model prepare error",
-      "topic": "diagnostic"
-    },
-    {
-      "audience": "developer_reference",
       "id": "easyrob-code-docstrings-tabs-aqme-aqmetab-private-on-mcs-error-5e0e1a07",
       "keywords": [
         "aqme",
@@ -6231,14 +6017,14 @@
       "keywords": [
         "robert",
         "tutorial",
-        "installation \u2014 ready to use in seconds"
+        "installation — ready to use in seconds"
       ],
       "kind": "tutorial",
       "module": "ROBERT",
       "priority": 0.85,
       "program": "ROBERT",
       "question_patterns": [
-        "installation \u2014 ready to use in seconds",
+        "installation — ready to use in seconds",
         "what is robert",
         "how does robert work"
       ],
@@ -6247,7 +6033,7 @@
       "source_tier": "reference",
       "tab": "ROBERT",
       "text": "easyrob 2",
-      "title": "Installation \u2014 ready to use in seconds",
+      "title": "Installation — ready to use in seconds",
       "topic": "tutorial"
     },
     {
@@ -6511,7 +6297,7 @@
       "source_file": "chemdraw.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Inspect the output. Open Results \u2192 Report after the run to understand model performance. Images shows generated figures. Predictions appears when external prediction files exist, and Interactive plots appears when model plot data is available.",
+      "text": "Inspect the output. Open Results → Report after the run to understand model performance. Images shows generated figures. Predictions appears when external prediction files exist, and Interactive plots appears when model plot data is available.",
       "title": "Inspect the output",
       "topic": "tutorial"
     },
@@ -6851,7 +6637,7 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Add molecular structures. In ChemDraw, select a structure and use Edit \u2192 Copy As \u2192 SMILES , then paste the string into its row. You can also obtain SMILES from a trusted database. Verify that each string belongs to the correct molecule; a shifted spreadsheet row silently pairs the wrong structure with the target.",
+      "text": "Add molecular structures. In ChemDraw, select a structure and use Edit → Copy As → SMILES , then paste the string into its row. You can also obtain SMILES from a trusted database. Verify that each string belongs to the correct molecule; a shifted spreadsheet row silently pairs the wrong structure with the target.",
       "title": "Add molecular structures",
       "topic": "tutorial"
     },
@@ -6891,7 +6677,7 @@
       "source_file": "csv.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Save a CSV, not a workbook. Use File \u2192 Save As and choose a CSV format. Give the file a simple name without spaces, because ROBERT checks CSV file names. Reopen it once to confirm the three headers and values survived the export.",
+      "text": "Save a CSV, not a workbook. Use File → Save As and choose a CSV format. Give the file a simple name without spaces, because ROBERT checks CSV file names. Reopen it once to confirm the three headers and values survived the export.",
       "title": "Save a CSV, not a workbook",
       "topic": "tutorial"
     },
@@ -7551,7 +7337,7 @@
       "source_file": "predictions.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Review the prediction output. Open Results \u2192 Predictions after successful external output is created. In the example image, Predictions is disabled because that project's external prediction CSV is still absent. Use the Model selector when several models exist; Interactive plots offers visual comparisons, and legend clicks show or hide point groups.",
+      "text": "Review the prediction output. Open Results → Predictions after successful external output is created. In the example image, Predictions is disabled because that project's external prediction CSV is still absent. Use the Model selector when several models exist; Interactive plots offers visual comparisons, and legend clicks show or hide point groups.",
       "title": "Review the prediction output",
       "topic": "tutorial"
     },
@@ -7611,7 +7397,7 @@
       "source_file": "robbot.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Ask a specific question. Type in the input box and press Send or Enter. For example, ask \u201cWhat does VERIFY check in my workflow?\u201d Mention the step or result you want explained. Clear resets the visible conversation when you want to start again.",
+      "text": "Ask a specific question. Type in the input box and press Send or Enter. For example, ask “What does VERIFY check in my workflow?” Mention the step or result you want explained. Clear resets the visible conversation when you want to start again.",
       "title": "Ask a specific question",
       "topic": "tutorial"
     },
@@ -7671,7 +7457,7 @@
       "source_file": "robbot.md",
       "source_tier": "tutorial",
       "tab": "ROBERT",
-      "text": "Choose the answer mode. Open Settings and use the Mode dropdown. Cloud AI uses a provider and API key, Local AI uses a model in your ROBERT environment, and Heuristic gives rule-based help from local context. The settings below change with the mode.",
+      "text": "Choose the answer mode. Open Settings and use the Mode dropdown. Cloud AI uses a provider and API key. Heuristic gives rule-based help from local context. The settings below change with the mode.",
       "title": "Choose the answer mode",
       "topic": "tutorial"
     },
@@ -7698,26 +7484,6 @@
     {
       "audience": "end_user",
       "id": "tutorial-robbot-8",
-      "keywords": [
-        "robbot",
-        "tutorial"
-      ],
-      "kind": "tutorial",
-      "module": "TUTORIALS",
-      "priority": 0.95,
-      "program": "ROBERT",
-      "question_patterns": [],
-      "source": "tutorial:robbot.md",
-      "source_file": "robbot.md",
-      "source_tier": "tutorial",
-      "tab": "ROBERT",
-      "text": "Prepare Local AI if preferred. Select Local AI to see whether its model is ready, downloaded, or still missing. Use the action button to download or load it when needed. Once ready, return to Chat and ask normally; this mode does not need a cloud provider key.",
-      "title": "Prepare Local AI if preferred",
-      "topic": "tutorial"
-    },
-    {
-      "audience": "end_user",
-      "id": "tutorial-robbot-9",
       "keywords": [
         "robbot",
         "tutorial"
@@ -8050,7 +7816,7 @@
       "source_file": "README.rst",
       "source_tier": "reference",
       "tab": "ROBERT",
-      "text": "If you use any of the ROBERT modules, please include this citation:\n\n Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2024, 14, e1733.\n\nIf you use ROBERT in low-data regimes, please also include this citation:\n\n Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Machine learning workflows beyond linear models in low-data regimes. Chem. Sci. 2025, 16, 8555\u20138560.\n\nIf you use the AQME module, please include this citation:\n\n Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.\n\nAdditionally, please include the corresponding reference for Scikit-learn, SHAP and BayesianOptimization: \n\n Pedregosa et al., Scikit-learn: Machine Learning in Python. J. Mach. Learn. Res. 2011, 12, 2825-2830. \n Lundberg et al., From local explanations to global understanding with explainable AI for trees, Nat. Mach. Intell. 2020, 2, 56\u201367. \n Fernando Nogueira, {Bayesian Optimization}: Open source constrained global optimization tool for {Python}, 2014, https://github.com/bayesian-optimization/BayesianOptimization",
+      "text": "If you use any of the ROBERT modules, please include this citation:\n\n Dalmau, D.; Alegre Requena, J. V. ROBERT: Bridging the Gap between Machine Learning and Chemistry. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2024, 14, e1733.\n\nIf you use ROBERT in low-data regimes, please also include this citation:\n\n Dalmau, D.; Sigman, M. S.; Alegre-Requena, J. V. Machine learning workflows beyond linear models in low-data regimes. Chem. Sci. 2025, 16, 8555–8560.\n\nIf you use the AQME module, please include this citation:\n\n Alegre-Requena et al., AQME: Automated Quantum Mechanical Environments for Researchers and Educators. Wiley Interdiscip. Rev. Comput. Mol. Sci. 2023, 13, e1663.\n\nAdditionally, please include the corresponding reference for Scikit-learn, SHAP and BayesianOptimization: \n\n Pedregosa et al., Scikit-learn: Machine Learning in Python. J. Mach. Learn. Res. 2011, 12, 2825-2830. \n Lundberg et al., From local explanations to global understanding with explainable AI for trees, Nat. Mach. Intell. 2020, 2, 56–67. \n Fernando Nogueira, {Bayesian Optimization}: Open source constrained global optimization tool for {Python}, 2014, https://github.com/bayesian-optimization/BayesianOptimization",
       "title": "Reference",
       "topic": "workflow"
     },

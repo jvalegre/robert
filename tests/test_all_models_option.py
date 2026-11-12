@@ -1,8 +1,8 @@
-"""The GUI exposes ROBERT's all_models option without changing its default."""
+"""The GUI exposes ROBERT's all_models option with the CLI default."""
 
-def test_all_models_option_is_visible_and_off_by_default(disposed_easyrob_window):
+def test_all_models_option_is_visible_and_on_by_default(disposed_easyrob_window):
     window = disposed_easyrob_window
-    assert not window.all_models_toggle.isChecked()
+    assert window.all_models_toggle.isChecked()
     assert "full PDF report" in window.all_models_label.text()
 
 

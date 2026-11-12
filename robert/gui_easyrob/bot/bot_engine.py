@@ -11,7 +11,13 @@ import unicodedata
 
 from .answer_metadata import AnswerMetadata, EvidenceOrigin, WebSearchMode
 from .bot_context import GuiSnapshot
-from .workflow_results import _requested_variants, render_workflow_answer, scope_workflow_result_snapshot
+from .workflow_results import (
+    WorkflowResultSnapshot,
+    _requested_variants,
+    render_workflow_answer,
+    scope_workflow_result_snapshot,
+)
+from .input_csv_audit import inspect_selected_csvs, is_selected_csv_question
 from .bot_rag import KnowledgeBase, SearchResult, normalize_terms
 from .heuristics import diagnose_snapshot, format_heuristic_answer
 from .evidence_policy import EvidenceDecision, assess_evidence, sanitize_search_query
@@ -20,10 +26,8 @@ from .llm_providers import (
     LLMProviderErrorKind,
     _response_language,
     build_llm_prompts,
-    build_local_llm_prompts,
     build_provider_registry,
 )
-from .local_llm import LocalLLMManager
 from .knowledge_schema import KnowledgeLoadIssue
 from .question_intent import classify_question_intent, is_generic_question, select_inference_history
 from .prompt_policy import select_answer_depth
@@ -187,7 +191,6 @@ class BotEngine:
         self,
         knowledge_base: KnowledgeBase | None = None,
         provider_registry: Mapping[str, object] | None = None,
-        local_manager: LocalLLMManager | None = None,
         now_provider: Callable[[], datetime] | None = None,
     ) -> None:
         tutorials_dir = Path(__file__).resolve().parents[1] / "tutorials"
@@ -196,7 +199,6 @@ class BotEngine:
             strict=False,
         )
         self._provider_registry = dict(provider_registry or build_provider_registry())
-        self._local_manager = local_manager or LocalLLMManager()
         self._now_provider = now_provider or (lambda: datetime.now().astimezone())
 
     @property
@@ -258,6 +260,9 @@ class BotEngine:
                 "Please shorten your question to 500 estimated tokens or fewer.",
                 memory_eligible=False,
             )
+        normalized_mode = str(mode or "").strip().lower()
+        if normalized_mode not in {"cloud ai", "heuristic"}:
+            return BotAnswerResult("Unsupported bot mode.", memory_eligible=False)
 
         requested_variants = _requested_variants(clean_question)
         named_model = any(re.search(
@@ -320,6 +325,39 @@ class BotEngine:
                 ),
             ))
 
+        input_csv_question = bool(
+            (snapshot.main_csv_path or snapshot.test_csv_path)
+            and is_selected_csv_question(clean_question)
+        )
+        if input_csv_question:
+            input_insights = inspect_selected_csvs(
+                snapshot.main_csv_path,
+                snapshot.test_csv_path,
+                target_column=snapshot.target_column,
+                name_column=snapshot.name_column,
+                prediction_type=snapshot.prediction_type,
+                ignored_columns=snapshot.ignored_columns,
+            )
+            if input_insights:
+                workflow = snapshot.workflow_results
+                if workflow is None:
+                    selected_path = snapshot.main_csv_path or snapshot.test_csv_path
+                    workflow = WorkflowResultSnapshot(
+                        kind="INPUT CSV", status="input_only",
+                        root_name=Path(selected_path).parent.name,
+                        summary_available=False,
+                        insights=input_insights,
+                        sources=tuple(item.source for item in input_insights),
+                    )
+                else:
+                    has_fresh_overlap = any(item.category == "dataset_overlap" for item in input_insights)
+                    original = tuple(
+                        item for item in workflow.insights
+                        if item.category != "dataset_overlap" or not has_fresh_overlap
+                    )
+                    workflow = replace(workflow, insights=(*original, *input_insights))
+                snapshot = replace(snapshot, workflow_results=workflow)
+
         local_clock_answer = self._build_local_clock_answer(clean_question)
         if local_clock_answer:
             return BotAnswerResult(
@@ -334,13 +372,17 @@ class BotEngine:
             clean_question,
             conversation_history=selected_history,
         )
-        result_evidence_question = snapshot.workflow_results is not None and bool(re.search(
+        if input_csv_question and snapshot.workflow_results is not None:
+            question_intent = "results"
+        result_evidence_question = snapshot.workflow_results is not None and (input_csv_question or bool(re.search(
             r"\b(?:results?|resultados?|summari[sz]e|summary|resumen|resume|resumir|curate|generate|"
             r"verify|predict|report|aqme|qdescp|csearch|rmse|mae|r2|roc[- _]?auc|auc|accuracy|f1|mcc|"
             r"metric|metrics|metrica|metricas|"
-            r"prediction|predictions|prediccion|predicciones|warning|warnings|outlier|outliers|failed|fallo|fallaron)\b",
+            r"prediction|predictions|prediccion|predicciones|warning|warnings|outlier|outliers|failed|fallo|fallaron|"
+            r"shap|pfi|importance|importancia|descriptor|descriptores|errores|residuales|"
+            r"solapamiento|overlap|leakage|externo|externa|externos|externas)\b",
             clean_question.casefold(),
-        ))
+        )))
         if snapshot.workflow_results is not None and not result_evidence_question:
             result_evidence_question = bool(re.search(
                 r"\b(?:how many|cu[aá]ntos?|which|qu[eé]|what)\b.*\b(?:descriptors?|descriptores?|"
@@ -366,9 +408,11 @@ class BotEngine:
                 "Please ask a more specific question about the GUI, workflow, results, or the step you want help with.",
                 memory_eligible=False,
             )
-        tutorial_summary = self._build_suggested_tutorial_summary(clean_question, tutorial_id=tutorial_id)
+        contextual_tutorial_id = self._contextual_workflow_tutorial_id(clean_question, snapshot)
+        tutorial_summary = None if input_csv_question else self._build_suggested_tutorial_summary(
+            clean_question, tutorial_id=tutorial_id or contextual_tutorial_id,
+        )
         diagnosis = diagnose_snapshot(snapshot, clean_question)
-        normalized_mode = str(mode or "").strip().lower()
         if normalized_mode == "heuristic" and self._should_force_popup_answer(clean_question, snapshot):
             return BotAnswerResult(
                 format_heuristic_answer(
@@ -391,21 +435,15 @@ class BotEngine:
             generic_question = False
         if generic_question:
             result_evidence_question = False
+        elif snapshot.workflow_results is not None and result_evidence_question:
+            question_intent = "results"
         # Resolve retrieval references using user evidence, never generated claims.
-        retrieval_question = clean_question
-        if selected_history:
-            retrieval_question = f"{clean_question}\nPrevious user question: {selected_history[0]['content'][:2000]}"
-        candidates = self._knowledge_base.search(
-            question=retrieval_question,
-            active_tab=None if generic_question or question_intent == "tutorial" else snapshot.active_tab,
-            workflow=None if generic_question else snapshot.workflow,
-            console_terms=snapshot.console_terms if question_intent == "diagnostic" and not generic_question else [],
-            question_intent=question_intent,
-            focus_tags=() if generic_question else self._infer_focus_tags(retrieval_question, snapshot),
+        retrieval_question = self._retrieval_question(clean_question, selected_history)
+        candidates = self._retrieve_candidates(
+            retrieval_question, snapshot, question_intent, generic_question,
         )
         if tutorial_summary is not None:
-            candidates = list(tutorial_summary.candidates)
-        candidates = self._prioritize_candidates(candidates, question_intent)
+            candidates = self._prioritize_candidates(list(tutorial_summary.candidates), question_intent)
 
         if normalized_mode == "heuristic":
             if tutorial_summary is not None:
@@ -431,77 +469,6 @@ class BotEngine:
                     intent=question_intent,
                 )
             )
-        if normalized_mode == "local ai":
-            if tutorial_summary is not None:
-                deterministic_summary = self._render_tutorial_summary(tutorial_summary)
-                try:
-                    system_prompt, user_prompt = build_local_llm_prompts(
-                        clean_question,
-                        snapshot,
-                        (),
-                        conversation_history=selected_history,
-                        question_intent=question_intent,
-                        tutorial_summary=self._format_tutorial_summary_for_prompt(tutorial_summary),
-                        tutorial_label=tutorial_summary.label,
-                        answer_depth=answer_depth,
-                    )
-                    return self._generate_local_answer(system_prompt, user_prompt)
-                except Exception:
-                    return BotAnswerResult(deterministic_summary)
-            system_prompt, user_prompt = build_local_llm_prompts(
-                clean_question,
-                snapshot,
-                candidates,
-                conversation_history=selected_history,
-                question_intent=question_intent,
-                answer_depth=answer_depth,
-            )
-            try:
-                return self._generate_local_answer(system_prompt, user_prompt)
-            except Exception as exc:
-                reset_context = self._is_local_bad_request_error(exc)
-                try:
-                    retry_question = clean_question
-                    if selected_history:
-                        retry_question += f"\nPrevious topic: {selected_history[0]['content'][:240]}"
-                    retry_system_prompt, retry_user_prompt = build_local_llm_prompts(
-                        retry_question,
-                        snapshot,
-                        candidates,
-                        conversation_history=(),
-                        question_intent=question_intent,
-                        minimal_context_retry=True,
-                        answer_depth=answer_depth,
-                    )
-                    retry_result = self._generate_local_answer(retry_system_prompt, retry_user_prompt)
-                    retry_answer = retry_result.text
-                    if reset_context:
-                        retry_answer = (
-                            "The local model rejected the first prompt, so I retried using a minimal prompt "
-                            "with only the current question and GUI state.\n\n"
-                            f"{retry_answer}"
-                        )
-                    return BotAnswerResult(
-                        retry_answer,
-                        auto_reset_context=reset_context,
-                        usage=retry_result.usage,
-                    )
-                except Exception as retry_exc:
-                    if reset_context:
-                        return BotAnswerResult(
-                            "Local AI error: the minimal prompt retry could not complete. Try asking again, "
-                            "or switch to Heuristic if you want the most stable fallback.",
-                            auto_reset_context=True,
-                            memory_eligible=False,
-                        )
-                    return BotAnswerResult(
-                        "Local AI could not complete the request. Try asking again, or switch to Heuristic "
-                        "if you want the most stable fallback.",
-                        memory_eligible=False,
-                    )
-        if normalized_mode not in {"cloud ai", "llm"}:
-            return BotAnswerResult("Unsupported bot mode.", memory_eligible=False)
-
         provider_name = str(provider or "").strip() or "OpenAI"
         if not str(api_key or "").strip():
             return BotAnswerResult(f"Cloud AI mode requires an API key for {provider_name}.", memory_eligible=False)
@@ -534,6 +501,11 @@ class BotEngine:
                 if assessment.decision is EvidenceDecision.LOCAL_ENOUGH
                 else EvidenceOrigin.GENERAL_KNOWLEDGE
             )
+        if (snapshot.workflow_results is not None and question_intent == "results"
+                and not generic_question
+                and web_search_mode is not WebSearchMode.REQUIRED):
+            web_search_mode = WebSearchMode.OFF
+            intended_origin = EvidenceOrigin.LOCAL_SYSTEM
         limitation = ""
         if web_search_mode is not WebSearchMode.OFF and web_search_enabled is not True:
             web_search_mode = WebSearchMode.OFF
@@ -822,12 +794,6 @@ class BotEngine:
         normalized = normalized.casefold().replace("'", "").replace("’", "")
         return " ".join(re.sub(r"[^a-z0-9]+", " ", normalized).split())
 
-    def _generate_local_answer(self, system_prompt: str, user_prompt: str) -> BotAnswerResult:
-        if hasattr(self._local_manager, "generate_response_with_usage"):
-            local_result = self._local_manager.generate_response_with_usage(system_prompt, user_prompt)
-            return BotAnswerResult(local_result.text, usage=local_result.usage)
-        return BotAnswerResult(self._local_manager.generate_response(system_prompt, user_prompt))
-
     @staticmethod
     def _build_greeting_reply(question: str, snapshot: GuiSnapshot) -> str:
         active_tab = str(getattr(snapshot, "active_tab", "") or "").strip()
@@ -861,9 +827,23 @@ class BotEngine:
         return bool(_POPUP_QUESTION_RE.search(str(question or "")))
 
     @staticmethod
-    def _is_local_bad_request_error(exc: Exception) -> bool:
-        text = str(exc or "").lower()
-        return "400" in text and "bad request" in text
+    def _contextual_workflow_tutorial_id(question: str, snapshot: GuiSnapshot) -> str | None:
+        """Resolve a request about the selected workflow to its own tutorial."""
+        text = str(question or "").casefold()
+        if not re.search(r"\b(?:how|run|start|c[oó]mo|ejecutar|ejecuto|iniciar|inicio)\b", text):
+            return None
+        if not re.search(
+            r"\b(?:this|current|selected)\s+workflow\b|"
+            r"\b(?:este|esta|el)\s+(?:workflow|flujo(?:\s+de\s+trabajo)?)\b",
+            text,
+        ):
+            return None
+        workflow = str(snapshot.workflow or "").casefold().strip()
+        if workflow == "checkml":
+            return "check_model"
+        if workflow == "full workflow":
+            return "overview"
+        return None
 
     def _build_suggested_tutorial_summary(
         self,
@@ -1052,9 +1032,9 @@ class BotEngine:
             focus.append("ui")
 
         active_tab = str(getattr(snapshot, "active_tab", "") or "")
-        if active_tab == "AQME":
+        if active_tab in {"AQME", "AQME descriptors"}:
             focus.extend(["aqme", "ui"])
-        elif active_tab in {"ROBERT", "Advanced Options", "Results", "Reports", "Predictions", "Images"}:
+        elif active_tab in {"ROBERT", "Workflow", "Advanced Options", "Advanced options", "Results", "Reports", "Predictions", "Images"}:
             focus.extend(["robert", "ui"])
 
         if getattr(snapshot, "aqme_workflow_enabled", False) and "aqme" in lowered and "ui" not in focus:
@@ -1070,11 +1050,40 @@ class BotEngine:
         return tuple(deduped)
 
     @staticmethod
+    def _retrieval_question(
+        question: str, selected_history: Sequence[Mapping[str, str]],
+    ) -> str:
+        if selected_history:
+            # A leading Spanish conjunction is not the target variable named "y".
+            current_question = re.sub(r"^\s*¿\s*y\s+", "¿", question, flags=re.IGNORECASE)
+            current_question = re.sub(r"^\s*y\s+", "", current_question, flags=re.IGNORECASE)
+            return f"{current_question}\nPrevious user question: {selected_history[0]['content'][:2000]}"
+        return question
+
+    def _retrieve_candidates(
+        self,
+        retrieval_question: str,
+        snapshot: GuiSnapshot,
+        question_intent: str,
+        generic_question: bool,
+    ) -> list[SearchResult]:
+        candidates = self._knowledge_base.search(
+            question=retrieval_question,
+            active_tab=None if generic_question or question_intent == "tutorial" else snapshot.active_tab,
+            workflow=None if generic_question else snapshot.workflow,
+            console_terms=snapshot.console_terms if question_intent == "diagnostic" and not generic_question else [],
+            question_intent=question_intent,
+            focus_tags=() if generic_question else self._infer_focus_tags(retrieval_question, snapshot),
+        )
+        return self._prioritize_candidates(candidates, question_intent)
+
+    @staticmethod
     def _prioritize_candidates(candidates: list[object], question_intent: str) -> list[object]:
         if question_intent == "diagnostic":
             return candidates
+        best_score = max((float(getattr(candidate, "score", 0.0)) for candidate in candidates), default=0.0)
 
-        def sort_key(candidate: object) -> tuple[int]:
+        def sort_key(candidate: object) -> tuple[int, int]:
             chunk = getattr(candidate, "chunk", candidate)
             source = str(getattr(chunk, "source", "") or "")
             source_tier = str(getattr(chunk, "source_tier", "") or "").casefold()
@@ -1094,9 +1103,9 @@ class BotEngine:
                 preferred = 1 if topic in {"concept", "tutorial"} else 2
             else:
                 preferred = 1
-            # `KnowledgeBase.search` already provides deterministic lexical order,
-            # including exact curated-pattern precedence.  This stable grouping
-            # must not re-rank candidates within an intent category.
-            return (preferred,)
+            # Preserve very strong lexical matches before source preferences.
+            # Within each relevance group, retain the search order on ties.
+            strong_match = float(getattr(candidate, "score", 0.0)) >= best_score - 20.0
+            return (0 if strong_match else 1, preferred)
 
         return sorted(candidates, key=sort_key)

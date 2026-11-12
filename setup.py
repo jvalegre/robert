@@ -1,6 +1,10 @@
+import runpy
+from pathlib import Path
+
 from setuptools import setup, find_packages
 
-version = "2.2.1"
+version_file = Path(__file__).resolve().parent / "robert" / "_version.py"
+version = runpy.run_path(str(version_file))["ROBERT_VERSION"]
 
 setup(
     name="robert",
@@ -13,6 +17,11 @@ setup(
         ],
         "robert.gui_easyrob": [
             "assets/*.gif",
+            "web/*.html",
+            "web/*.css",
+            "web/*.js",
+            "web/*.gif",
+            "web/*.png",
             "tutorials/*.md",
             "tutorials/tutorial_images/*/*.png",
         ],
@@ -55,14 +64,15 @@ setup(
         "scipy==1.18.0",
         "scikit-learn==1.9.0",
         "bayesian-optimization==3.3.0",
-        "numba==0.66.0",
+        "numba==0.62.1",
         "shap==0.52.0",
         "weasyprint==63.1",
         "PySide6==6.9.2",
-        "PyMuPDF",
-        "pdfplumber",
-        "openpyxl",
-        "ansi2html",
+        "keyring==25.7.0; sys_platform != 'win32'",
+        "PyMuPDF==1.27.2.3",
+        "pdfplumber==0.11.10",
+        "openpyxl==3.1.5",
+        "ansi2html==1.9.5",
         "rdkit==2025.9.1",
         "psutil==7.2.2",
         "requests==2.34.2",
@@ -72,6 +82,7 @@ setup(
     entry_points={
         "console_scripts": [
             "easyrob=robert.gui_easyrob.easyrob_launcher:main",
+            "checkml=robert.gui_easyrob.checkml_launcher:main",
         ],
     },
 )

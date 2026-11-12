@@ -878,7 +878,7 @@ class AQMETab(QWidget):
             main_path = dialog.main_chemdraw_path
             self.load_chemdraw_file(main_path)
 
-    def load_chemdraw_file(self, main_path):
+    def load_chemdraw_file(self, main_path, molecule_handler=None):
         """Opens a ChemDraw file and displays the molecules in a table."""
         def load_mols_from_path(path):
             """Load molecules from a ChemDraw or SDF file."""
@@ -952,7 +952,10 @@ class AQMETab(QWidget):
             QMessageBox.warning(self, "Error", "No valid molecules found in the file.")
             return
 
-        self.show_molecule_table_dialog(mols_main)
+        if molecule_handler is not None:
+            molecule_handler(mols_main)
+        else:
+            self.show_molecule_table_dialog(mols_main)
 
     def show_molecule_table_dialog(self, mols):
         """

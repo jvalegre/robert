@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>easyROB · Workflow gallery</title>
+  <link rel="stylesheet" href="images.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="eyebrow-mark"></span> ROBERT / RESULTS</p>
+        <h1>Workflow gallery<span class="period">.</span></h1>
+        <p class="intro">Explore the visual output of your analysis. Open an image, copy it, or save a separate copy.</p>
+      </div>
+      <div class="hero-stat" aria-live="polite">
+        <span id="image-count">0</span>
+        <small>images available</small>
+      </div>
+    </header>
+
+    <section class="workspace" aria-label="Generated images">
+      <div class="toolbar">
+        <div>
+          <p class="section-kicker">ANALYSIS OUTPUT</p>
+          <h2 class="section-title">Browse by stage</h2>
+        </div>
+        <p class="stage-count" id="stage-count">No stages</p>
+      </div>
+      <nav id="stage-filters" class="filters" aria-label="Filter images by workflow stage"></nav>
+      <div id="gallery" class="gallery" aria-live="polite"></div>
+    </section>
+    <footer>easyROB <span>·</span> Local workflow results</footer>
+  </main>
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script src="images.js"></script>
+</body>
+</html>

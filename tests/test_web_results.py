@@ -53,3 +53,70 @@ def test_prediction_assessment_refreshes_when_report_changes(tmp_path, monkeypat
     modified = report_path.stat().st_mtime_ns + 2_000_000_000
     os.utime(report_path, ns=(modified, modified))
     assert service.prediction_table("No_PFI", "", "", False, 0)["scenario"]["messages"] == ["second"]
+
+
+def test_report_page_clamps_page_and_zoom_and_rejects_missing_report(tmp_path):
+    import pymupdf
+
+    report = tmp_path / "report.pdf"
+    with pymupdf.open() as document:
+        document.new_page()
+        document.new_page()
+        document.save(report)
+    service = web_results.WebResultsService(
+        SimpleNamespace(results_tab=SimpleNamespace(pdf_tabs=[report]))
+    )
+
+    page = service.report_page(0, 99, 5.0)
+    assert page["page"] == 1
+    assert page["pages"] == 2
+    assert page["zoom"] == 2.0
+    assert page["image"].startswith("data:image/png;base64,")
+    assert service.report_page(1, 0, 1.0)["error"] == "Report is unavailable"
+    report.unlink()
+    assert service.report_page(0, 0, 1.0)["error"] == "Report file is unavailable"
+
+
+def test_histogram_keeps_only_finite_numeric_predictions(tmp_path):
+    csv_path = tmp_path / "predictions.csv"
+    pd.DataFrame({"code_name": ["a", "b", "c", "d"],
+                  "target_pred": [1.0, float("inf"), 3.0, float("nan")]}).to_csv(csv_path, index=False)
+    tab = SimpleNamespace(
+        csv_paths={"No_PFI": csv_path},
+        _filter_prediction_dataframe=lambda frame: frame,
+    )
+    service = web_results.WebResultsService(SimpleNamespace(predictions_tab=tab))
+
+    histogram = service.prediction_histogram("No_PFI", "target_pred")
+    assert histogram["column"] == "target_pred"
+    assert sum(histogram["counts"]) == 2
+    assert service.prediction_histogram("No_PFI", "code_name")["error"] == "Histogram requires a numeric column"
+    assert service.prediction_histogram("missing", "target_pred")["error"] == "Prediction table is unavailable"
+
+
+def test_plot_data_and_molecule_use_selected_result_rows(tmp_path):
+    frame = pd.DataFrame({"code_name": ["mol_1", "mol_2"],
+                          "Set": ["Training", "Test"],
+                          "target_pred_sd": [0.1, float("nan")]})
+    viewer = SimpleNamespace(
+        paths=[tmp_path / "plot.csv"],
+        selector=SimpleNamespace(currentIndex=lambda: 0),
+        data={"frame": frame, "name_column": "code_name", "target": "target",
+              "observed": [1.0, 2.0], "predicted": [1.2, 1.8],
+              "residual": [-0.2, 0.2], "outlier_score": [0.0, 1.0],
+              "smiles": ["CCO", "invalid_smiles"]},
+        williams_data=None,
+        williams_image=None,
+        williams_smiles=[],
+        cv_label="CV",
+        outlier_threshold=3.0,
+    )
+    service = web_results.WebResultsService(SimpleNamespace(interactive_plots=viewer))
+
+    result = service.plot_data(0)
+    assert [point["label"] for point in result["points"]] == ["mol_1", "mol_2"]
+    assert [point["group"] for point in result["points"]] == ["Training", "Test"]
+    assert result["points"][1]["sd"] is None
+    assert service.plot_molecule(0, 0, False).startswith("data:image/png;base64,")
+    assert service.plot_molecule(0, 2, False) == ""
+    assert service.plot_data(1)["error"] == "Interactive plot is unavailable"

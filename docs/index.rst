@@ -13,6 +13,7 @@
    :end-before: checkboxes-end
 
 ==================================
+
 Welcome to ROBERT's documentation!
 ==================================
 
@@ -41,9 +42,24 @@ Special acknowledgments
    :caption: Installation and interface
 
    Install/installation
-   Install/update
    Install/note
    Install/gui
+
+.. toctree:: 
+   :maxdepth: 1
+   :caption: CheckML PDF report
+
+   Report/score
+   Report/checkml_database
+   Report/checkml_evaluation
+   Report/repro
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Tutorials
+
+   Tutorials/videos
+   Tutorials/tutorials
 
 .. toctree::
    :maxdepth: 1
@@ -56,13 +72,6 @@ Special acknowledgments
    Modules/verify
    Modules/aqme
 
-.. toctree:: 
-   :maxdepth: 1
-   :caption: ROBERT PDF report
-
-   Report/score
-   Report/repro
-
 .. toctree::
    :maxdepth: 2
    :caption: Examples
@@ -72,12 +81,6 @@ Special acknowledgments
    Examples/full_workflow/smiles_workflow
    Examples/full_workflow/smiles_vaskas
    Examples/modules/modules
-
-.. toctree:: 
-   :maxdepth: 1
-   :caption: Video Tutorials
-
-   Videos/video_tutorials
 
 .. toctree:: 
    :maxdepth: 1

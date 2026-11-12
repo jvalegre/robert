@@ -1,10 +1,26 @@
 from setuptools import setup, find_packages
-version="1.0.6"
+
+version = "2.2.1"
+
 setup(
     name="robert",
-    packages=find_packages(exclude=["tests"]),
-    package_data={"robert": ["model_params/*","report/*"]},
     version=version,
+    packages=find_packages(exclude=["tests"]),
+    package_data={
+        "robert": [
+            "report/*",
+            "icons/*",
+        ],
+        "robert.gui_easyrob": [
+            "assets/*.gif",
+            "tutorials/*.md",
+            "tutorials/tutorial_images/*/*.png",
+        ],
+        "robert.gui_easyrob.bot": [
+            "knowledge/*.json",
+            "knowledge_sources/*.json",
+        ],
+    },
     license="MIT",
     description="Refiner and Optimizer of a Bunch of Existing Regression Tools",
     long_description="Documentation in Read The Docs: https://robert.readthedocs.io",
@@ -22,30 +38,40 @@ setup(
     url="https://github.com/jvalegre/robert",
     download_url=f"https://github.com/jvalegre/robert/archive/refs/tags/{version}.tar.gz",
     classifiers=[
-        "Development Status :: 5 - Production/Stable",  # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
-        "Intended Audience :: Developers",  # Define that your audience are developers
+        "Development Status :: 5 - Production/Stable", # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
+        "Intended Audience :: Developers", # Define that your audience are developers
         "Topic :: Software Development :: Build Tools",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.7",  # Specify which python versions you want to support
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.12", # scipy==1.18.0 needs >=3.12, PySide6==6.9.2 needs <3.14
+        "Programming Language :: Python :: 3.13",
     ],
     install_requires=[
-        "PyYAML",
-        "pandas>=2.0.3,<2.1",
-        "progress",
-        "numpy>=1.24,<1.25",
-        "matplotlib>=3.7,<3.8",
-        "seaborn",
-        "scipy",
-        "scikit-learn==1.3.0", # fixed to make ROBERT reproducible when using the same version
-        "hyperopt",
-        "numba>=0.57,<0.58",
-        "shap>=0.42,<0.43",
-        # requires also "conda install -c conda-forge gtk3 glib weasyprint pango" for report.py
-        # optionally, the intelex accelerator might be installed "pip install scikit-learn-intelex"
+        "PyYAML==6.0.3",
+        "matplotlib==3.11.1",
+        "pandas==2.3.3",
+        "numpy==2.3.4",
+        "progress==1.6.1",
+        "seaborn==0.13.2",
+        "scipy==1.18.0",
+        "scikit-learn==1.9.0",
+        "bayesian-optimization==3.3.0",
+        "numba==0.66.0",
+        "shap==0.52.0",
+        "weasyprint==63.1",
+        "PySide6==6.9.2",
+        "PyMuPDF",
+        "pdfplumber",
+        "openpyxl",
+        "ansi2html",
+        "rdkit==2025.9.1",
+        "psutil==7.2.2",
+        "requests==2.34.2",
     ],
-    python_requires=">=3.0",
+    python_requires=">=3.12,<3.14",
     include_package_data=True,
+    entry_points={
+        "console_scripts": [
+            "easyrob=robert.gui_easyrob.easyrob_launcher:main",
+        ],
+    },
 )

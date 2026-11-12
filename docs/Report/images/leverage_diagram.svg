@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280" role="img" aria-label="A scatter plot of two descriptors showing a dense cloud of typical training points near the center, labeled directly above the cloud, and three high-leverage points positioned well outside it, each connected to the centroid by a dashed radius and labeled between the pair on the right. The descriptor axes are labeled at the middle of each side, like a real plot.">
+  <rect x="0" y="0" width="640" height="280" fill="#ffffff"/>
+  <g font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+    <rect x="55" y="20" width="555" height="210" rx="10" fill="#ffffff" stroke="#ccc" stroke-width="1.2"/>
+    <text x="25" y="125" text-anchor="middle" font-size="11" fill="#78766c" font-family="Consolas,monospace" transform="rotate(-90 25 125)">descriptor 2</text>
+    <text x="333" y="255" text-anchor="middle" font-size="11" fill="#78766c" font-family="Consolas,monospace">descriptor 1</text>
+
+    <ellipse cx="255" cy="128" rx="110" ry="55" fill="#1f77b4" fill-opacity="0.08" stroke="#1f77b4" stroke-opacity="0.4" stroke-dasharray="3 4" stroke-width="1.2"/>
+    <g fill="#1f77b4" opacity="0.75">
+      <circle cx="215" cy="108" r="4"/><circle cx="238" cy="143" r="4"/><circle cx="275" cy="98" r="4"/>
+      <circle cx="225" cy="148" r="4"/><circle cx="285" cy="138" r="4"/><circle cx="262" cy="103" r="4"/>
+      <circle cx="235" cy="88" r="4"/><circle cx="295" cy="118" r="4"/><circle cx="205" cy="133" r="4"/>
+      <circle cx="278" cy="145" r="4"/><circle cx="240" cy="113" r="4"/>
+    </g>
+    <text x="255" y="61" text-anchor="middle" font-size="13" font-weight="700" fill="#1f77b4">typical 80%</text>
+
+    <circle cx="255" cy="128" r="3" fill="#1c1e1a"/>
+    <text x="255" y="173" text-anchor="middle" font-size="10.5" fill="#4a4c46">centroid</text>
+
+    <g>
+      <line x1="255" y1="128" x2="545" y2="63" stroke="#e0575a" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+      <circle cx="545" cy="63" r="5.5" fill="#e0575a"/>
+      <line x1="255" y1="128" x2="100" y2="193" stroke="#e0575a" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+      <circle cx="100" cy="193" r="5.5" fill="#e0575a"/>
+      <line x1="255" y1="128" x2="590" y2="188" stroke="#e0575a" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"/>
+      <circle cx="590" cy="188" r="5.5" fill="#e0575a"/>
+    </g>
+    <text x="500" y="121" text-anchor="middle" font-size="13" font-weight="700" fill="#e0575a">high-leverage</text>
+    <text x="500" y="138" text-anchor="middle" font-size="13" font-weight="700" fill="#e0575a">20%</text>
+  </g>
+</svg>

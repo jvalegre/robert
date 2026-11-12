@@ -1,0 +1,397 @@
+"""
+Parameters
+----------
+
+GENERAL
++++++++
+
+    csv_name : str, default=''
+        Name of the CSV file containing all the points used in the model (combining train + valid + test).
+        A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). Include a 'Set' column with
+        the value 'Test' on the rows that should be held out as the test set to control the
+        split yourself - otherwise ROBERT splits it automatically (see the 'split'/'test_set'
+        options), same as GENERATE.
+    y : str, default=''
+        Name of the column containing the response variable in the input CSV file (i.e. 'solubility').
+    names : str, default=''
+        Column of the names for each datapoint. Names are used to print outliers.
+    eval_model : str, default='MVL'
+        Legacy option, only used as a fallback when none of model_obj/model_file/model_params
+        are provided. 'MVL' (Multivariate linear model, LinearRegression() in sklearn) is the
+        only value accepted here - use model_obj/model_file/model_params for any other model.
+    model_obj : object, default=None
+        An already-fitted scikit-learn estimator object (Python API only, e.g. from a Jupyter
+        notebook) to evaluate. Only its class and hyperparameters (via get_params()) are used -
+        VERIFY/PREDICT's repeated cross-validation always refits fresh copies per fold, so the
+        object's already-fitted weights themselves aren't reused.
+    model_file : str, default=''
+        Path to a fitted scikit-learn estimator saved with joblib/pickle. Same idea as
+        model_obj, loaded from disk instead of passed directly.
+    model_params : str, default=''
+        Path to a CSV with two columns, 'param' and 'value', listing the exact scikit-learn
+        class to use (a row with param='model', e.g. value='RandomForestRegressor') and its
+        hyperparameters (one row each, e.g. param='n_estimators', value=200). Only scikit-learn's
+        own registered estimators are accepted (see sklearn.utils.all_estimators()) - this never
+        imports or executes anything outside sklearn.
+    type : str, default='reg'
+        Type of the pedictions. Options:
+        1. 'reg' (Regressor)
+        2. 'clas' (Classifier)
+    seed : int, default=0
+        Random seed used in the ML predictor models and other protocols.
+    destination : str, default=None,
+        Directory to create the output file(s).
+
+Affect VERIFY and PREDICT
++++++++++++++++++++++++++
+
+    kfold : int, default=5
+        Number of random data splits for the cross-validation of the models.
+    repeat_kfolds : int, default=10
+        Number of repetitions for the k-fold cross-validation of the models.
+
+"""
+#####################################################.
+#        This file stores the CHECKML class        #
+#          used to evaluate existing models         #
+#####################################################.
+
+import os
+import sys
+import json
+import shutil
+import time
+import pandas as pd
+from pathlib import Path
+from robert.utils import (load_variables, finish_print, load_database, prepare_sets,
+    check_clas_problem, resolve_sklearn_estimator, model_adjust_params, _csv_row_numbers_txt,
+    serialize_model_params, parse_param_value)
+from robert.generate_utils import set_sets
+
+
+def _accepts_count_and_fraction(model_cls, param):
+    '''
+    True when scikit-learn's own parameter constraints of the estimator accept both an integer
+    count and a real-valued fraction for this hyperparameter (so 1 and 1.0 mean different things)
+    '''
+
+    import numbers
+    try:
+        from sklearn.utils._param_validation import Interval
+    except ImportError:
+        return False
+    constraints = getattr(model_cls, '_parameter_constraints', {}).get(param, [])
+    has_int, has_fraction = False, False
+    for constraint in constraints:
+        if not isinstance(constraint, Interval):
+            continue
+        if constraint.type is numbers.Integral:
+            has_int = True
+        elif (getattr(constraint.type, '__name__', '') == 'RealNotInt'
+              or (constraint.right is not None and constraint.right <= 1)):
+            # RealNotInt is how scikit-learn marks "a float, not an int" (the fraction form);
+            # its upper bound varies across versions (i.e. max_samples has none in 1.9)
+            has_fraction = True
+    return has_int and has_fraction
+
+
+class checkml:
+    """
+    Class containing all the functions from the CHECKML module.
+
+    Parameters
+    ----------
+    kwargs : argument class
+        Specify any arguments from the CHECKML module (for a complete list of variables, visit the ROBERT documentation)
+    """
+
+    def __init__(self, **kwargs):
+
+        start_time = time.time()
+
+        # load default and user-specified variables
+        self.args = load_variables(kwargs, "checkml")
+
+        # clean folders from previous runs
+        _ = self.clean_eval()
+
+        # load database, discard user-defined descriptors and perform data checks
+        csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"checkml",print_info=False)
+
+        # unlike the normal ROBERT pipeline (where CURATE explicitly fills in or removes
+        # missing data before GENERATE ever sees it), CHECKML calls load_database() directly,
+        # and a descriptor with missing values would otherwise be silently dropped or imputed
+        # with zero warning - quietly changing which descriptors the model is evaluated on.
+        # Checked on the raw CSV (not csv_X, which load_database() may have already cleaned up
+        # by this point) so this always catches it, regardless of --auto_fill
+        raw_df = pd.read_csv(self.args.csv_name, encoding='utf-8')
+        expected_descriptors = [
+            col for col in raw_df.columns
+            if col not in self.args.ignore + self.args.discard + [self.args.y, self.args.names, 'Set']
+        ]
+        for column in expected_descriptors:
+            rows_missing_x = raw_df[column].isna()
+            if rows_missing_x.any():
+                self.args.log.write(f"\nx  The descriptor column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_x)} of {os.path.basename(self.args.csv_name)}! CHECKML does not fill in missing descriptors automatically (unlike CURATE in the full ROBERT workflow), please fill them in (or remove those rows, or use --ignore/--discard to exclude that column) and run ROBERT again.")
+                self.args.log.finalize()
+                sys.exit()
+
+        # CHECKML scores the model on the descriptors exactly as they are in the CSV (unlike
+        # CURATE, there is no one-hot encoding of categorical variables), so text columns such
+        # as SMILES can't be used as descriptors
+        text_columns = [col for col in csv_X.columns if not pd.api.types.is_numeric_dtype(csv_X[col])]
+        if text_columns:
+            self.args.log.write(f"\nx  The columns {text_columns} contain text, and CHECKML does not convert categorical variables (no one-hot encoding), so they can't be used as descriptors! Ignore them (i.e., --ignore \"[{','.join(text_columns)}]\") or convert them to numbers in the CSV.")
+            self.args.log.finalize()
+            sys.exit()
+
+        # adjust options of classification problems and detects whether the right type of problem was used
+        self = check_clas_problem(self,csv_df)
+        # check_clas_problem() converts csv_df's y column to integer class codes in place;
+        # csv_y was captured before that conversion, so it needs refreshing to stay in sync
+        csv_y = csv_df[self.args.y]
+        # class codes the model is trained on (used to translate/check class_weight keys)
+        self.class_values = sorted(csv_y.unique().tolist()) if self.args.type.lower() == 'clas' else []
+
+        # resolve which model to evaluate (an already-fitted object/file, a CSV of
+        # hyperparameters, or the legacy 'MVL' default) and validate it against --type
+        self.model_params_dict = self.resolve_eval_model()
+
+        # a user-provided 'Set' column picks the test set directly instead of the usual
+        # automatic split (see get_user_defined_test_points()); BO_opt=True re-enables the
+        # normal test_select()-based split when no such column/values are present
+        test_points = self.get_user_defined_test_points(csv_df)
+        Xy_data = prepare_sets(self,csv_df,csv_X,csv_y,test_points,self.args.names,None,None,None,BO_opt=(test_points is None))
+
+        # saves database and model params in the /GENERATE/Best_model/No_PFI folder
+        _ = self.save_generate(csv_df,Xy_data)
+
+        # finish the printing of the CHECKML info file
+        _ = finish_print(self,start_time,'CHECKML')
+
+    def clean_eval(self):
+        '''
+        Cleans folders from previous runs
+        '''
+
+        for folder in ['CURATE','GENERATE','VERIFY','PREDICT']:
+            eval_folder = f'{Path(os.getcwd()).joinpath(folder)}'
+            if os.path.exists(eval_folder):
+                shutil.rmtree(eval_folder)
+
+    def resolve_eval_model(self):
+        '''
+        Decide which model CHECKML will evaluate, and its hyperparameters. Priority order
+        (most specific/explicit first): an already-fitted model object (model_obj, Python API
+        only) -> a fitted model saved with joblib/pickle (model_file) -> a CSV naming a
+        scikit-learn class and its hyperparameters (model_params) -> the legacy eval_model
+        option (default 'MVL').
+
+        A fitted model's own get_params() is read directly, so the user never has to retype
+        hyperparameters by hand - only its class and hyperparameters are kept, since
+        repeated_kfold_cv() always refits fresh copies of the model per fold (the object's
+        already-fitted weights aren't reused as-is).
+
+        Sets self.args.eval_model to the resolved class name (used everywhere downstream -
+        VERIFY/PREDICT load models the same way regardless of where the name came from) and
+        returns the resolved hyperparameters dict.
+        '''
+
+        # deep=False: only the estimator's own constructor arguments - the default deep=True
+        # also returns nested keys (i.e. 'kernel__k1' of a GP kernel or 'estimator__max_depth'
+        # of a Bagging/AdaBoost base estimator), which the constructor doesn't accept
+        if self.args.model_obj is not None:
+            model_obj = self.args.model_obj
+            model_name = type(model_obj).__name__
+            params = model_obj.get_params(deep=False)
+            self.args.log.write(f"\no  Using the model object passed directly (model_obj): {model_name}")
+
+        elif self.args.model_file:
+            import joblib
+            if not os.path.exists(self.args.model_file):
+                self.args.log.write(f"\nx  WARNING! The model_file specified ({self.args.model_file}) does not exist!")
+                sys.exit()
+            model_obj = joblib.load(self.args.model_file)
+            model_name = type(model_obj).__name__
+            params = model_obj.get_params(deep=False)
+            self.args.log.write(f"\no  Loaded a pre-fitted model from {self.args.model_file}: {model_name}")
+
+        elif self.args.model_params:
+            if not os.path.exists(self.args.model_params):
+                self.args.log.write(f"\nx  WARNING! The model_params CSV specified ({self.args.model_params}) does not exist!")
+                sys.exit()
+            params_df = pd.read_csv(self.args.model_params, encoding='utf-8')
+            if not {'param','value'}.issubset(params_df.columns):
+                self.args.log.write(f"\nx  WARNING! The model_params CSV must have 'param' and 'value' columns!")
+                sys.exit()
+            # stray spaces around names (i.e. " max_depth") would otherwise make the
+            # constructor reject the hyperparameter
+            rows = {str(param).strip(): value for param, value in zip(params_df['param'], params_df['value'])
+                    if not pd.isna(param) and str(param).strip() != ''}
+            if 'model' not in rows:
+                self.args.log.write(f"\nx  WARNING! The model_params CSV must include a row with param='model' naming the scikit-learn class to use (e.g. value='RandomForestRegressor')!")
+                sys.exit()
+            model_name = str(rows.pop('model')).strip()
+            # values come from a CSV as plain text - recover their real type (int/float/bool/
+            # None/list/dict) where possible, otherwise keep the literal string (e.g. solver
+            # names). Empty cells/none/null -> None and TRUE/FALSE (Excel) -> bool
+            params = {param: parse_param_value(value) for param, value in rows.items()}
+            self.args.log.write(f"\no  Using the model and hyperparameters from {self.args.model_params}: {model_name}")
+
+        else:
+            # legacy default - MVL/LinearRegression, unchanged behavior
+            model_name = self.args.eval_model
+            params = {}
+
+        # validate the resolved model against --type before committing to it - a dynamic
+        # scikit-learn model (anything other than the legacy 'MVL') must exist as a real
+        # sklearn estimator of the requested type (see resolve_sklearn_estimator())
+        if model_name != 'MVL':
+            if resolve_sklearn_estimator(model_name, self.args.type) is None:
+                other_type = 'clas' if self.args.type.lower() == 'reg' else 'reg'
+                if resolve_sklearn_estimator(model_name, other_type) is not None:
+                    self.args.log.write(f"\nx  WARNING! '{model_name}' is a {other_type} estimator, but type='{self.args.type}' was used. Set type='{other_type}' instead.")
+                else:
+                    self.args.log.write(f"\nx  WARNING! '{model_name}' is not a valid scikit-learn {self.args.type} estimator name (or isn't available in this scikit-learn version). Check the exact class name (e.g., 'RandomForestRegressor').")
+                sys.exit()
+
+        self.args.eval_model = model_name
+
+        # fills in random_state from --seed only if the class accepts one AND the user didn't
+        # already set their own - an explicit value is respected as-is (see model_adjust_params())
+        params = model_adjust_params(self, model_name, params)
+
+        if model_name != 'MVL':
+            params = self.adjust_class_weight(params)
+            self.validate_params(model_name, params)
+
+        return params
+
+    def adjust_class_weight(self,params):
+        '''
+        ROBERT trains classifiers on integer class codes. A class_weight dict typed with the
+        original labels (i.e. {'active': 3, 'inactive': 1}, when the y column has text labels
+        that check_clas_problem() converted to 0/1) is translated to those codes, and keys that
+        match no class stop the run with a clear message instead of scikit-learn's
+        "The classes, [0, 1], are not in class_weight" in the middle of VERIFY.
+        '''
+
+        class_weight = params.get('class_weight')
+        if self.args.type.lower() != 'clas' or not isinstance(class_weight, dict):
+            return params
+
+        mapping = getattr(self.args, 'class_mapping', None) or {}
+        mapping_txt = {str(label): code for label, code in mapping.items()}
+        codes_txt = {str(code): code for code in self.class_values}
+        translated = {}
+        for key, weight in class_weight.items():
+            if key in self.class_values:
+                translated[key] = weight
+            elif key in mapping:
+                translated[mapping[key]] = weight
+            elif str(key) in mapping_txt:
+                translated[mapping_txt[str(key)]] = weight
+            elif str(key) in codes_txt:
+                translated[codes_txt[str(key)]] = weight
+            else:
+                valid = list(mapping) if mapping else self.class_values
+                self.args.log.write(f"\nx  WARNING! The class_weight key {key!r} doesn't match any class of the y column (classes: {valid})! Use the class values of the y column as keys (i.e. class_weight={{{valid[0]!r}: 1, {valid[-1]!r}: 2}}) or class_weight='balanced'.")
+                self.args.log.finalize()
+                sys.exit()
+        if mapping and translated != class_weight:
+            self.args.log.write(f"\no  class_weight keys converted to the class codes used by ROBERT: {class_weight} -> {translated}")
+        params['class_weight'] = translated
+        return params
+
+    def validate_params(self,model_name,params):
+        '''
+        Check the hyperparameters with scikit-learn's own validation before running anything, so
+        a typo (i.e. criterion='ginni' or an unknown parameter name) gives a clear message here
+        instead of a traceback in the middle of VERIFY.
+        '''
+
+        model_cls = resolve_sklearn_estimator(model_name, self.args.type)
+        try:
+            estimator = model_cls(**params)
+            # sklearn >= 1.2 (constraint-based validation, otherwise only checked during fit())
+            if hasattr(estimator, '_validate_params'):
+                estimator._validate_params()
+        except (TypeError, ValueError) as error:
+            self.args.log.write(f"\nx  WARNING! Invalid hyperparameters for {model_name}: {error}")
+            self.args.log.finalize()
+            sys.exit()
+
+        # parameters that accept BOTH a count (int) and a fraction (float in (0, 1]) - i.e.
+        # max_samples, max_features, min_samples_split - mean very different things for 1 and
+        # 1.0: the integer 1 is ONE sample/feature, 1.0 is ALL of them. A CSV edited in Excel
+        # saves 1.0 as 1, which silently turns "all" into "one" and makes near-constant
+        # predictions. The value is valid, so it's kept as given, but flagged (REPORT reads
+        # this line, see get_warning_lines())
+        for param, value in params.items():
+            if type(value) is int and value == 1 and _accepts_count_and_fraction(model_cls, param):
+                self.args.log.write(f"\nx  WARNING! Ambiguous hyperparameter: {param} = 1 is an integer, so scikit-learn reads it as ONE (sample/feature), not all of them. If all of them were intended, use the fraction 1.0 (spreadsheet programs like Excel may save 1.0 as 1 in CSV files).")
+
+    def get_user_defined_test_points(self,csv_df):
+        '''
+        Detects a user-provided 'Set' column marking which points to hold out as the test set
+        (rows with value 'Test', case-insensitive), instead of auto-splitting with
+        test_select(). Returns None if no such column/values are present, so the caller falls
+        back to the normal automatic split.
+        '''
+
+        if 'Set' not in csv_df.columns:
+            return None
+
+        set_col = csv_df['Set'].astype(str).str.strip().str.lower()
+        test_mask = set_col == 'test'
+        if not test_mask.any():
+            return None
+
+        test_points = csv_df.index[test_mask].tolist()
+        self.args.log.write(f"\no  Using the 'Set' column from the input CSV to select the test set ({len(test_points)} points) instead of an automatic split.")
+        return test_points
+
+    def save_generate(self,csv_df,Xy_data):
+        '''
+        Saves database and model params in the /GENERATE/Best_model/No_PFI folder
+        '''
+
+        # copy database with Set column
+        generate_folder = Path('GENERATE/Best_model/No_PFI')
+        if os.path.exists(generate_folder):
+            shutil.rmtree(generate_folder)
+        Path(generate_folder).mkdir(exist_ok=True, parents=True)
+
+        # include the Set column to differentiate between train and test sets (and external test, if any)
+        csv_df = set_sets(csv_df,Xy_data)
+
+        _ = csv_df.to_csv(f'{generate_folder}/{self.args.eval_model}_db.csv', index = None, header=True)
+
+        # save all the parameters of the model
+        df_params = pd.DataFrame()
+        df_params['kfold'] = [self.args.kfold]
+        df_params['repeat_kfolds'] = [self.args.repeat_kfolds]
+        df_params['model'] = [self.args.eval_model]
+        df_params['type'] = [self.args.type]
+        df_params['seed'] = [self.args.seed]
+        df_params['y'] = [self.args.y]
+        df_params['names'] = [self.args.names]
+        df_params['error_type'] = [self.args.error_type]
+        # serialize_model_params() keeps objects (i.e. GP kernels, base estimators), tuples and
+        # dicts with numeric keys (i.e. class_weight) exactly as they are - plain JSON would turn
+        # them into text that VERIFY/PREDICT can't use to rebuild the model
+        df_params['params'] = serialize_model_params(self.model_params_dict)
+        df_params['X_descriptors'] = [list(Xy_data['X_descriptors'])]
+
+        # class label mapping for text targets (i.e. "active"/"inactive"), saved the same way
+        # as in GENERATE so VERIFY/PREDICT restore the original labels in confusion matrices
+        # and prediction CSVs instead of showing the 0/1/2... codes
+        if hasattr(self.args, 'class_mapping_reverse'):
+            df_params['class_mapping_reverse'] = [json.dumps(
+                {int(code): str(label) for code, label in self.args.class_mapping_reverse.items()}
+            )]
+        if hasattr(self.args, 'class_0_label'):
+            df_params['class_0_label'] = [self.args.class_0_label]
+            df_params['class_1_label'] = [self.args.class_1_label]
+
+        _ = df_params.to_csv(f'{generate_folder}/{self.args.eval_model}.csv', index = None, header=True)

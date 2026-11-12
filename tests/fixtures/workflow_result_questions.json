@@ -1,0 +1,37 @@
+[
+  {
+    "question": "Did VERIFY pass?",
+    "required": ["Stage VERIFY", "flawed: PASSED", "sorted: UNCLEAR"],
+    "forbidden": ["all checks passed"]
+  },
+  {
+    "question": "What was the test R2?",
+    "required": ["Metric Test R2=0.74", "PREDICT/PREDICT_data.dat"],
+    "forbidden": ["R2=0.81"]
+  },
+  {
+    "question": "Which model did ROBERT select?",
+    "required": ["Best model: RandomForestRegressor", "GENERATE/GENERATE_data.dat"],
+    "forbidden": ["XGBoost"]
+  },
+  {
+    "question": "Were there warnings or failed molecules?",
+    "required": ["mol-2 is an outlier"],
+    "forbidden": ["no warnings"]
+  },
+  {
+    "question": "Which prediction and uncertainty columns were generated?",
+    "required": ["prediction_columns=y_pred", "uncertainty_columns=y_pred_sd"],
+    "forbidden": ["confidence=95%"]
+  },
+  {
+    "question": "How many AQME descriptors were generated?",
+    "required": ["generated_descriptors=2", "AQME-ROBERT_interpret_train.csv"],
+    "forbidden": ["generated_descriptors=3"]
+  },
+  {
+    "question": "Which solvent was used?",
+    "required": ["If a requested fact is absent", "requested information is not present"],
+    "forbidden": ["water", "ethanol"]
+  }
+]

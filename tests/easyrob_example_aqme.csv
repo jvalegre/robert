@@ -1,0 +1,7 @@
+SMILES,code_name
+CC(O)=O,1
+OC(C(F)(F)F)=O,2
+OC(CC)=O,3
+OC(CCl)=O,4
+OC(CBr)=O,5
+OC(COC)=O,6

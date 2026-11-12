@@ -26,12 +26,16 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+win32_dist/
+linux_dist/
+macos_dist/
+easyrob_installer.exe
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
-*.spec
+#*.spec
 
 # Installer logs
 pip-log.txt

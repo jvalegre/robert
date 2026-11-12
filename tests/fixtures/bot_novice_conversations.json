@@ -1,0 +1,7 @@
+[
+  {"id":"novice-smiles","questions":["I don't know Python. I have a CSV with SMILES. How do I start?","Do I need to open AQME first?","What if I only want descriptor files?"],"review":"Use exact GUI labels and explain target and descriptors simply. No scripts. Distinguish integrated and standalone AQME without inventing controls."},
+  {"id":"novice-error","failure":"ValueError: Target column must be numeric","questions":["Why did it fail? I don't know what numeric means.","How can I fix this in Excel, without Python?"],"review":"Explain numbers versus text, inspect the selected yield column without claiming to read it, preserve real measurements and save CSV. No invented automatic fixes."},
+  {"id":"novice-metric","questions":["What does RMSE mean? Explain simply, I am new to this.","Is a lower value always better?"],"review":"Give intuitive same-unit example, distinguish unseen-data evaluation, avoid equations and guaranteed model quality."},
+  {"id":"novice-spanish","questions":["Tengo un CSV con SMILES y no sé Python. ¿Cómo empiezo?","Explícamelo más breve.","y ahora?"],"review":"Stay in Spanish even for short follow-ups. Preserve exact GUI labels. Concise actionable instructions without terminal commands."},
+  {"id":"novice-uncertain","questions":["My model is bad. Tell me the exact setting to fix it."],"review":"No invented diagnosis or magic setting. Ask for one useful detail and explain where to find it only if grounded."}
+]

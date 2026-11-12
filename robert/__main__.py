@@ -13,7 +13,7 @@ from robert import robert
 # This allows the usage python pip-*.whl/pip install pip-*.whl
 
 if __package__ != 'robert':
-    print('ROBERT is not installed! Use: pip install robert or conda install -c conda-forge robert.')
+    print('ROBERT is not installed! Use: pip install robert or conda install -y -c conda-forge robert.')
 
 if __name__ == '__main__':
     robert.main()

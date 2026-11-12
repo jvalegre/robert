@@ -22,6 +22,7 @@ Other modules
 .. toctree::
    :maxdepth: 1
 
+   robert.api
    robert.generate_utils
    robert.predict_utils
    robert.utils

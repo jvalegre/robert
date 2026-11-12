@@ -408,6 +408,21 @@ def _format_guidance_answer(
             fallback += " Please share the exact visible label, error, or popup text."
         return fallback
 
+    if str(getattr(best, "id", "")) == "robert-curated-results-robert-rmse":
+        normalized_question = str(question or "").casefold()
+        if re.search(r"\b(?:lower|higher|better|worse)\b", normalized_question):
+            return (
+                "For RMSE, lower means smaller prediction errors when comparing models "
+                "on the same target, units, and evaluation set. It is not always enough "
+                "to choose a model: compare the error with what is acceptable for your use."
+            )
+        if re.search(r"\b(?:example|ejemplo)\b", normalized_question):
+            return (
+                "For example, if the target is yield, an RMSE of 5 percentage points "
+                "suggests an error scale of about 5 points. It does not mean every "
+                "prediction is within 5 points; compare models on the same held-out data."
+            )
+
     full_text = str(getattr(best, "text", "") or "")
     text = _short_answer_text(full_text)
     tab = str(getattr(best, "tab", "") or "").strip()
@@ -805,6 +820,21 @@ def format_heuristic_answer(
                 return structured
             return _format_process_failure_popup_answer(snapshot, popup)
         return _format_popup_answer(popup)
+
+    if (snapshot.workflow.strip().upper() == "CHECKML"
+            and re.search(r"\bverify\b", question, re.IGNORECASE)
+            and re.search(r"\b(?:here|this workflow|aqui|aquí|este workflow|este flujo)\b", question, re.IGNORECASE)):
+        if re.search(r"[¿¡áéíóúñ]|\b(?:que|como|aqui|este)\b", question, re.IGNORECASE):
+            return (
+                "En CheckML, VERIFY evalúa el modelo seleccionado con las pruebas de validación de ROBERT "
+                "y registra las comprobaciones fallidas o inciertas. CheckML no realiza la búsqueda de modelos "
+                "de GENERATE. Revisa esos resultados en Results > Report antes de usar las predicciones."
+            )
+        return (
+            "In CheckML, VERIFY evaluates the selected model with ROBERT's validation tests and records "
+            "failed or unclear checks. CheckML does not run GENERATE's model search. Review these findings "
+            "in Results > Report before relying on predictions."
+        )
 
     if _question_is_about_aqme_live_context(question, snapshot, intent):
         aqme_answer = _format_aqme_live_context_answer(snapshot)

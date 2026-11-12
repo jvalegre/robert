@@ -40,7 +40,7 @@ try:
         Qt,
         Signal,
     )
-    from utils.molssi_utils import ExcelToCSVWorker
+    from utils.molssi_utils import ExcelToCSVWorker, validate_molssi_test_csv
 
 except ImportError as e:
     from robert.gui_easyrob.utils.utils_gui import (
@@ -59,7 +59,7 @@ except ImportError as e:
         Qt,
         Signal,
     )
-    from robert.gui_easyrob.utils.molssi_utils import ExcelToCSVWorker
+    from robert.gui_easyrob.utils.molssi_utils import ExcelToCSVWorker, validate_molssi_test_csv
 
 # ---- Standard library ----
 import os
@@ -154,13 +154,13 @@ class MolSSIDatabasesTab(QWidget):
     # ==================================================
     # PUBLIC API
     # ==================================================
-    def handle_external_download(self, path, context="active"):
+    def handle_external_download(self, path, context="active", expected_columns=None):
         """
         Entry point used by EasyROB when a file has already been downloaded
         externally and should follow the same post-download pipeline.
         """
         self.current_download_context = context
-        self._on_download_completed(path)
+        self._on_download_completed(path, expected_columns=expected_columns)
 
     # ==================================================
     # DOWNLOAD HANDLING
@@ -218,7 +218,7 @@ class MolSSIDatabasesTab(QWidget):
     # ==================================================
     # POST-DOWNLOAD PIPELINE
     # ==================================================
-    def _on_download_completed(self, path):
+    def _on_download_completed(self, path, expected_columns=None):
         """
         Called once a file has been fully downloaded.
         Handles user confirmation and optional Excel-to-CSV conversion.
@@ -255,12 +255,12 @@ class MolSSIDatabasesTab(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        self._convert_excel(path, ctx)
+        self._convert_excel(path, ctx, expected_columns)
 
     # ==================================================
     # CONVERSION WORKER
     # ==================================================
-    def _convert_excel(self, path, ctx):
+    def _convert_excel(self, path, ctx, expected_columns=None):
         """
         Launches a background worker that converts an Excel file to CSV.
         Displays a non-blocking progress popup during conversion.
@@ -286,6 +286,18 @@ class MolSSIDatabasesTab(QWidget):
         self._excel_worker = worker
 
         def finished(csv_path):
+            if getattr(main_window, "molssi_is_closing", False):
+                if hasattr(main_window, "_clear_active_popup"):
+                    main_window._clear_active_popup(popup_state)
+                popup.close()
+                popup.deleteLater()
+                return
+            if ctx == "molssi_test":
+                try:
+                    validate_molssi_test_csv(csv_path, expected_columns or [])
+                except (OSError, ValueError) as exc:
+                    error(str(exc))
+                    return
             if hasattr(main_window, "_clear_active_popup"):
                 main_window._clear_active_popup(popup_state)
             popup.close()
@@ -314,14 +326,8 @@ class MolSSIDatabasesTab(QWidget):
                 main_window._clear_active_popup(popup_state)
             popup.close()
             popup.deleteLater()
-            if hasattr(main_window, "_remember_popup"):
-                main_window._remember_popup(
-                    title="Conversion failed",
-                    text=msg,
-                    buttons=["OK"],
-                    kind="warning",
-                    source="molssi_conversion",
-                )
+            if getattr(main_window, "molssi_is_closing", False):
+                return
             warning = QMessageBox(self)
             warning.setIcon(QMessageBox.Warning)
             warning.setWindowTitle("Conversion failed")
@@ -404,6 +410,8 @@ class MolSSIDatabasesTab(QWidget):
 
         # Ask main window to load this CSV as TEST
         self.load_test_requested.emit(csv_path)
+        if getattr(self.window(), "csv_test_path", None) != csv_path:
+            return False
 
         # -------------------------------------------------
         # Inform user
@@ -412,13 +420,17 @@ class MolSSIDatabasesTab(QWidget):
         msg.setIcon(QMessageBox.Information)
         msg.setWindowTitle("MolSSI test dataset loaded")
         msg.setText(
-            "The MolSSI database has been successfully loaded as a test dataset.\n\n"
+            "The MolSSI database was converted to CSV and loaded as an external test set.\n\n"
+            f"CSV: {csv_path}"
         )
         msg.setStandardButtons(QMessageBox.Ok)
         self._exec_tracked_message_box(
             msg,
             title="MolSSI test dataset loaded",
-            text="The MolSSI database has been successfully loaded as a test dataset.\n\n",
+            text=(
+                "The MolSSI database was converted to CSV and loaded as an external test set.\n\n"
+                f"CSV: {csv_path}"
+            ),
             buttons=["OK"],
             kind="info",
             source="molssi_test_dataset_loaded",
@@ -432,3 +444,4 @@ class MolSSIDatabasesTab(QWidget):
                 Path(source).unlink()
             except Exception:
                 pass
+        return True

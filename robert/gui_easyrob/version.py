@@ -18,11 +18,16 @@ Notes:
 
 import platform
 import re
+import runpy
 import subprocess
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 
-EASYROB_VERSION = "2.0.0"
+version_file = Path(__file__).resolve().parents[1] / "_version.py"
+ROBERT_VERSION = runpy.run_path(str(version_file))["ROBERT_VERSION"]
+EASYROB_VERSION = ROBERT_VERSION
+
 
 def get_python_package_version(pkg):
     try:
@@ -56,7 +61,7 @@ def get_software_versions():
             "OpenBabel": get_cli_version("obabel"),
             "xtb": get_xtb_version(),
             "AQME": get_python_package_version("aqme"),
-            "ROBERT": get_python_package_version("robert"),
+            "ROBERT": ROBERT_VERSION,
         },
     }
 

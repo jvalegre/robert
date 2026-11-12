@@ -19,6 +19,11 @@ https://robert.readthedocs.io/en/latest/Install/installation.html
 4. Launch the GUI with:
 `easyrob`
 
+To open the dedicated CheckML workspace after installing ROBERT, run:
+`checkml`
+
+This workspace shows CheckML, Results, robBOT, and the CheckML tutorial.
+
 If you are working from a local copy of the GUI instead of the installed
 package, you can also run it from this folder with:
 `python easyrob.py`

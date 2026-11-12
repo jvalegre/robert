@@ -107,9 +107,9 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
    :width: 140
    :align: middle
 
-**1.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>`__ by clicking this button on GitHub |download|.
+**1.** Download the environment file `env_robert.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env_robert.yaml>`__ by clicking this button on GitHub |download|.
 
-**2.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
+**2.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env_robert.yaml``:
 
 .. code-block:: shell
 
@@ -119,7 +119,7 @@ In a nutshell, ROBERT and all its dependencies can be installed automatically us
 
 .. code-block:: shell
 
-   conda env create -f env.yaml
+   conda env create -f env_robert.yaml
    conda activate robert
 
 **4.** Check that the installation was successful:
@@ -211,9 +211,9 @@ operating system (Windows, macOS or Linux). Alternatively, if you're familiar wi
 you can install `Miniconda with Python 3 <https://docs.conda.io/projects/miniconda/en/latest/miniconda-install.html>`__ 
 (requires less space than Anaconda).  
 
-**2.** Download the environment file `env.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env.yaml>`__ by clicking this button on GitHub |download_manual|.
+**2.** Download the environment file `env_robert.yaml <https://github.com/jvalegre/robert/tree/ddg_branch/environment/env_robert.yaml>`__ by clicking this button on GitHub |download_manual|.
 
-**3.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env.yaml``:
+**3.** Open an Anaconda Prompt (Windows) or a terminal (macOS/Linux) and navigate to the folder where you saved ``env_robert.yaml``:
 
 .. code-block:: shell
 
@@ -223,7 +223,7 @@ you can install `Miniconda with Python 3 <https://docs.conda.io/projects/minicon
 
 .. code-block:: shell
 
-   conda env create -f env.yaml
+   conda env create -f env_robert.yaml
    conda activate robert
 
 **5.** Check that ROBERT is installed correctly:

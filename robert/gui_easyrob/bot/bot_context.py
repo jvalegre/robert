@@ -11,7 +11,7 @@ from typing import Any, Final
 from .error_parser import parse_python_failure
 from .workflow_results import WorkflowResultSnapshot
 
-__all__ = ["POPUP_CONTEXT_TTL_SECONDS", "GuiSnapshot", "build_gui_snapshot"]
+__all__ = ["POPUP_CONTEXT_TTL_SECONDS", "GuiSnapshot", "active_gui_page", "build_gui_snapshot"]
 
 
 _TOKEN_RE = re.compile(r"[a-z0-9_]+")
@@ -418,7 +418,8 @@ class GuiSnapshot:
         object.__setattr__(self, "popup_age_seconds", None)
 
 
-def build_gui_snapshot(window: Any) -> GuiSnapshot:
+def active_gui_page(window: Any) -> str:
+    """Return the page shown by the visible GUI surface."""
     tab_widget = _get_attr(window, "tab_widget", None)
     current_index_accessor = _get_attr(tab_widget, "currentIndex", None)
     current_index = _safe_maybe_call(current_index_accessor, default=0) if callable(current_index_accessor) else 0
@@ -427,11 +428,28 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
         active_tab = str(_get_attr(window, "current_tab", ""))
     elif not active_tab and _get_attr(tab_widget, "currentText", None):
         active_tab = _text_from_widget(tab_widget, "currentText", "")
+    web_active_page = str(_get_attr(window, "web_active_page", "") or "")
+    if web_active_page in {"Workflow", "Advanced options", "AQME descriptors", "CheckML", "Results"}:
+        stack = _get_attr(window, "_ui_stack", None)
+        web_shell = _get_attr(window, "_web_shell", None)
+        web_view = _get_attr(web_shell, "view", None)
+        if stack is None or (web_view is not None and _safe_maybe_call(
+            _get_attr(stack, "currentWidget", None), default=None,
+        ) is web_view):
+            active_tab = web_active_page
+    return active_tab
+
+
+def build_gui_snapshot(window: Any) -> GuiSnapshot:
+    tab_widget = _get_attr(window, "tab_widget", None)
+    active_tab = active_gui_page(window)
 
     result_view = active_tab in {"Results", "Reports", "Images", "Predictions"}
     result_source = str(_get_attr(window, "_result_view_source_path", "") or "") if result_view else ""
     checkml_candidate = _get_attr(window, "checkml_tab", None)
     checkml_tab = checkml_candidate if (
+        _get_attr(window, "app_mode", "easyrob") == "checkml"
+        or
         active_tab == "CheckML"
         or (result_source and _get_attr(window, "_result_view_source_kind", "ROBERT") == "CHECKML")
     ) else None
@@ -551,6 +569,10 @@ def build_gui_snapshot(window: Any) -> GuiSnapshot:
                 result_enabled_views = tuple(name for name, button in buttons.items() if _is_enabled(button))
                 result_disabled_views = tuple(name for name, button in buttons.items() if not _is_enabled(button))
                 result_active_view = next((name for name, button in buttons.items() if _checked(button)), "")
+    if active_tab == "Results":
+        web_result_view = str(_get_attr(window, "web_active_result_view", "") or "")
+        if web_result_view in {"Report", "Predictions", "Images", "Interactive plots"}:
+            result_active_view = web_result_view
 
     console_output = _get_attr(input_view, "console_output", None)
     recent_console = _recent_console_slice(_text_from_widget(console_output, "toPlainText", ""))

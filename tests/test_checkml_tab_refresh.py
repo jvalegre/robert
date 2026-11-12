@@ -9,22 +9,28 @@ def test_checkml_completion_refreshes_sibling_tabs_from_selected_csv():
         def __init__(self):
             self.refreshed_paths = []
 
-        def refresh_tabs(self, path):
-            self.refreshed_paths.append(path)
+        def refresh_tabs(self, path, source_kind="ROBERT"):
+            self.refreshed_paths.append((path, source_kind))
 
     class CheckMLView:
         csv_path = "C:/runs/train.csv"
 
         def __init__(self, main_window):
             self.main_window = main_window
+            self.summary_refresh_count = 0
 
         def window(self):
             return self.main_window
 
-    main_window = MainWindow()
-    CheckMLTab._refresh_sibling_tabs(CheckMLView(main_window))
+        def _refresh_result_summary(self):
+            self.summary_refresh_count += 1
 
-    assert main_window.refreshed_paths == ["C:/runs/train.csv"]
+    main_window = MainWindow()
+    view = CheckMLView(main_window)
+    CheckMLTab._refresh_sibling_tabs(view)
+
+    assert main_window.refreshed_paths == [("C:/runs/train.csv", "CHECKML")]
+    assert view.summary_refresh_count == 1
 
 
 def test_chat_result_snapshot_reads_active_checkml_run():

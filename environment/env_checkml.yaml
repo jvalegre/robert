@@ -1,0 +1,19 @@
+# CheckML environment. Create it with:
+# Run from the repository root: conda env create -f environment/env_checkml.yaml
+name: checkml
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - openssl
+  - glib
+  - gtk3
+  - pango
+  - mscorefonts
+  - pip
+  - pip:
+      - robert==2.2.0
+      - plotly==6.9.0
+      - pypdf==6.21.4
+      - reportlab==4.5.1

@@ -55,7 +55,7 @@ from robert.report_utils import (
     format_lines,
     combine_cols,
     get_metrics,
-    get_boundary_metrics,
+    score_badge_2,
     get_col_transpa,
     get_outliers,
     detect_predictions,
@@ -224,6 +224,9 @@ class report:
         # note to Section A without needing this threaded through print_score()'s own call chain
         self.eval_only = eval_only
 
+        # spacing used for the Boundary robustness (right) column in Sections A and B
+        self.spacing_PFI = f'{("&nbsp;")*4}'
+
         # detects whether CHECKML evaluated a model with user-supplied hyperparameters
         # (model_obj/model_file/model_params) rather than the trivial 'MVL' default - only
         # those carry the optimistic-scores risk flagged in print_warnings() below, since 'MVL'
@@ -238,9 +241,6 @@ class report:
             if no_pfi_files:
                 resolved_model_name = os.path.splitext(os.path.basename(no_pfi_files[0]))[0]
                 self.custom_model_used = resolved_model_name != 'MVL'
-
-        # spacing used for the Boundary robustness (right) column in Sections A and B
-        self.spacing_PFI = f'{("&nbsp;")*4}'
 
         # --all_models: VERIFY/PREDICT split their log into one VERIFY_{MODEL}_data.dat /
         # PREDICT_{MODEL}_data.dat per model (see verify.py/predict.py) instead of a single
@@ -337,12 +337,12 @@ class report:
                 report_html = self.print_header(citation_dat)
 
                 # print CheckML score section
-                score_dat, data_score = self.print_score(dat_files, pred_type, suffix, suffix_title)
+                score_dat, metrics_dat, data_score = self.print_score(dat_files, pred_type, suffix, suffix_title)
                 report_html += score_dat
 
-                # print warnings in CheckML score section
-                warnings_dat, warnings_dict = self.print_warnings(dat_files, pred_type, data_score, suffix)
-                report_html += warnings_dat
+                # Model metrics sit below Section A's score bars.
+                _, warnings_dict = self.print_warnings(dat_files, pred_type, data_score, suffix)
+                report_html += metrics_dat
 
                 # page 2: results summary with every warning (see print_summary_page())
                 report_html += self.print_summary_page(pred_type, data_score, warnings_dict, suffix, params_df)
@@ -512,6 +512,18 @@ class report:
         return header_lines
 
 
+    @staticmethod
+    def print_radar_subheadings():
+        """Show the score breakdown heading above the retained interpolation radar."""
+
+        return (
+            '<p style="width:100%; margin:4px 0 2px 0; white-space:nowrap;">'
+            '<span style="display:inline-block; width:270px; margin-left:0; text-decoration:underline;">'
+            'Score breakdown (see <a href="#section-b">Section B, left</a>)</span>'
+            '</p>'
+        )
+
+
     def print_score(self,dat_files,pred_type,suffix,suffix_title):
         """
         Generates the CheckML score section (left = Interpolation, right = Boundary robustness)
@@ -570,6 +582,14 @@ class report:
         score_cols = ['interpolation'] if pred_type == 'clas' else ['interpolation','boundary']
 
         columns_score = []
+        boundary_sections = ''
+        if pred_type != 'clas':
+            _,high_image = score_badge_2(
+                self,data_score,suffix,data_score.get(f'sorted_cv_high_score_{suffix}',0)
+            )
+            boundary_sections = self.boundary_score_sections(high_image)
+        else:
+            boundary_sections = ''
         for col in score_cols:
             spacing = '' if col == 'interpolation' else self.spacing_PFI
             score_key = 'interp_score' if col == 'interpolation' else 'extrap_score'
@@ -578,7 +598,10 @@ class report:
             # icon, assessment phrase, model-selection floor, and CheckML app display.
             score_icon = round_checkml_score(score_val)
             icon_name = f'score_{score_icon}' if score_available else f'score_gray_{score_icon}'
-            score_info = f"""<img src="file:///{self._posix_uri(self.args.path_icons)}/{icon_name}.jpg" style="width: 100%; margin-top:7px; margin-bottom:-18px;"></p>"""
+            # The original half-page score image renders at 234.9pt = 313.2 CSS px.
+            # Keep that fixed size while the right-column text wrapper has its 10px inset.
+            score_image_width = '313.2px' if col == 'boundary' else '100%'
+            score_info = f"""<img src="file:///{self._posix_uri(self.args.path_icons)}/{icon_name}.jpg" style="width: {score_image_width}; margin-top:7px; margin-bottom:-18px;"></p>"""
             columns_score.append(get_col_score(score_info,data_score,suffix,col,spacing))
         if pred_type == 'clas':
             # no Boundary robustness column (see comment above) - a short note instead of a
@@ -591,7 +614,7 @@ class report:
             </div>''')
 
         # Combine both columns
-        score_dat += combine_cols(columns_score)
+        score_dat += combine_cols(columns_score,right_offset=25)
 
         # add corresponding images (left: Results, right: Results_boundary_high - clas has no
         # boundary image, see above, so the right side stays blank)
@@ -606,18 +629,91 @@ class report:
         height = 218
         if pred_type == 'clas':
             height += diff_height
-        score_dat += self.print_score_images(suffix_title,height,pred_type)
+        # Keep the interpolation plot on the left and place the extrapolation details and
+        # Section A callouts together in the right column.
+        interp_tag,_ = self.get_score_image_tags(suffix_title,height,pred_type)
+        section_headings = combine_cols([
+            '<p style="margin:0; text-decoration:underline;">Model metrics</p>',
+            f'<p style="box-sizing:border-box; padding-left:{BOUNDARY_INDENT}; margin:0; text-decoration:underline;">'
+            'Score breakdown (see <a href="#section-b">Section B, right</a>)</p>',
+        ],right_offset=25)
+        metrics_dat = (
+            f'<div style="margin-bottom:12px;">{section_headings}</div>'
+            + self.print_img_row_indent(interp_tag,boundary_sections,3,right_offset=25)
+        )
 
         # metrics text row beneath the images
         module_file = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
-        columns_summary = [get_metrics(module_file,suffix,'')]
-        if pred_type == 'clas':
-            columns_summary.append('')
-        else:
-            columns_summary.append(get_boundary_metrics(data_score,suffix,self.spacing_PFI))
-        score_dat += combine_cols(columns_summary)
+        interp_radar,_ = self.save_radar_plots(data_score,suffix,pred_type)
+        interp_radar_tag = (
+            f'<img src="file:///{self._posix_uri(interp_radar)}" '
+            'style="display:block; flex:none; width:270px; height:auto; max-width:none; margin:0;"/>'
+            if interp_radar else ''
+        )
+        left_summary = f'''<div style="margin-left:0;">{get_metrics(module_file,suffix,'')}</div>
+        <div style="page-break-inside:avoid; margin-top:23px;">
+        {self.print_radar_subheadings()}
+        <div style="width:270px; margin-top:12px;">{interp_radar_tag}</div>
+        </div>'''
+        columns_summary = [left_summary]
+        columns_summary.append(self.section_a_callouts())
+        metrics_dat += combine_cols(columns_summary,right_offset=25)
 
-        return score_dat,data_score
+        return score_dat,metrics_dat,data_score
+
+
+    def boundary_score_sections(self,high_image):
+        """Build the three temporary title/badge rows for the first-page boundary panel."""
+
+        icon_dir = f'file:///{self._posix_uri(self.args.path_icons)}'
+        icon_style = 'width:25px; height:25px; margin-right:13px; vertical-align:middle;'
+        image = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
+        first_row_style = 'display:block; margin:0 0 14px 0;'
+        next_row_style = 'display:block; padding-top:5px; margin:0 0 14px 0;'
+        text_style = 'display:inline-block; width:232px; vertical-align:middle;'
+        first_text_style = f'{text_style} margin-top:3px;'
+        score_line_style = 'display:block; margin-top:4px;'
+        rows = (
+            f'<span style="{first_row_style}"><img src="{icon_dir}/robust_y_high.png" alt="" style="{icon_style} margin-top:3px;">'
+            f'<span style="{first_text_style}">1. Extrapolation to higher y values'
+            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image}</span></span></span>'
+        )
+        rows += (
+            f'<span style="{next_row_style}"><img src="{icon_dir}/robust_y_low.png" alt="" style="{icon_style}">'
+            f'<span style="{text_style}">2. Extrapolation to lower y values'
+            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image}</span></span></span>'
+        )
+        rows += (
+            f'<span style="{next_row_style}"><img src="{icon_dir}/robust_x.png" alt="" style="{icon_style}">'
+            f'<span style="{text_style}">3. Descriptor-space extrapolation'
+            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image}</span></span></span>'
+        )
+
+        return f'<span style="display: inline-block; width: 270px; vertical-align: top;">{rows}</span>'
+
+
+    @staticmethod
+    def section_a_callouts():
+        """Build the explanatory callouts shown beneath the right-column score details."""
+
+        def card(title,content,margin_top=8):
+            return f'''<div style="box-sizing:border-box; width:100%; background:#eeeeee; border-left:4px solid #999999; border-radius:4px; padding:4px 8px 5px 8px; margin:{margin_top}px 0 5px 0; color:#222222; page-break-inside:avoid;">
+<div style="font-size:11px; font-weight:bold; letter-spacing:0.3px; color:#000000;">{title}</div>
+<div style="font-size:11px; line-height:1.5;">{content}</div></div>'''
+
+        influence = 'Separating a 20% test set changes the scaled RMSE by only XX% compared to the full dataset. CheckML scores seem to capture the original model\'s performance. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a>'
+        disclaimer = (
+            '<u>User-defined train/test splits are not allowed</u>'
+            '<br>No single train/test split, performance metric or validation strategy can fully establish the reliability of a model. CheckML addresses this limitation through a standardized, multidimensional assessment that shows potential weaknesses and makes model evaluations easier and transparent.'
+            '<br><u>CheckML scores are indicative</u>'
+            '<br>CheckML scores are indicative rather than rigid thresholds of model quality or usefulness, which ultimately depend on the intended application. Before using CheckML, please read <a href="https://robert.readthedocs.io/en/latest/Report/score.html">its documentation</a> carefully, especially the <i>Considerations</i> section.'
+        )
+        return (
+            f'<div style="width:290px; margin-top:-34px;">'
+            f'{card("Influence of CV\u2013Test Split",influence)}'
+            f'{card("Considerations when using CheckML",disclaimer,13)}'
+            '</div>'
+        )
 
 
     def get_score_image_tags(self,suffix_title,height,pred_type):
@@ -667,10 +763,7 @@ class report:
 
     def print_warnings(self,dat_files,pred_type,data_score,suffix):
         """
-        Generates the warning box in the CheckML score section. Always a single, complete box on
-        page 1: severe warnings are never cut, moderate warnings show
-        as many as reliably fit (see MODERATE_WARNINGS_BUDGET below) with a "..." marker if more
-        were found than shown - never a second box, never spilling onto page 2
+        Analyzes warnings for the page-2 summary and returns the retained interpolation radar.
         """
 
         # load spacing, colors, and line and table formats
@@ -687,10 +780,7 @@ class report:
         # - see analyze_warnings() for the ordering rationale)
         warnings_dict = self.analyze_warnings(data_score,suffix,warnings_dict,pred_type)
 
-        # every warning is in the results summary on page 2 (see
-        # print_summary_page()), so page 1 shows radar plots of the score components instead
-        interp_radar,bound_radar = self.save_radar_plots(data_score,suffix,pred_type)
-        radar_h = self.RADAR_SIZE[1]
+        # Every warning is shown in the results summary on page 2 (see print_summary_page()).
 
         # a big, impossible-to-miss banner (separate from the bulleted severe-warnings list
         # below, which uses a small 15px bullet) for the one risk ROBERT cannot itself measure
@@ -709,15 +799,7 @@ class report:
         # <span style="font-size:11.5px; color:white;">This model's hyperparameters came from the user (CHECKML), not from ROBERT's own search within a held-out split. If they were tuned using a process that already saw this data (or part of it), <strong>both the CV and Test scores below may be optimistic</strong> - ROBERT cannot detect or correct for this. Only trust these results if the hyperparameters were chosen on data fully independent from this dataset.</span>
         # </div>'''
 
-        # radars side by side (classification: Interpolation only). The page break is on this
-        # block itself (not on an empty <p> after it, which could spill onto page 2 and leave
-        # it blank when page 1 is full)
-        warnings_dat += f'''
-        <div style="page-break-inside: avoid; page-break-after: always; margin-top: 8px;">
-        {self.print_img_row_indent(self.print_img_tag(interp_radar,radar_h),self.print_img_tag(bound_radar,radar_h),0)}
-        </div>'''
-
-        return warnings_dat,warnings_dict
+        return '',warnings_dict
 
 
     # displayed size (px) of each radar plot on page 1 - 270px wide like every other report image
@@ -738,7 +820,7 @@ class report:
         import matplotlib.pyplot as plt
 
         diff_key = 'diff_scaled_rmse_score' if pred_type == 'reg' else 'diff_mcc_score'
-        radars = [('interpolation', 'Interpolation', f'interp_score_{suffix}', [
+        radars = [('interpolation', f'interp_score_{suffix}', [
             # short names (numbered as in Section B) so the labels don't crowd the plot
             ('1. Flawed models', f'flawed_mod_score_{suffix}'),
             ('2. CV', f'cv_score_combined_{suffix}'),
@@ -748,7 +830,7 @@ class report:
             ('6. Stability', f'cv_sd_score_{suffix}'),
         ])]
         if pred_type == 'reg':
-            radars.append(('boundary', 'Boundary robustness', f'extrap_score_{suffix}', [
+            radars.append(('boundary', f'extrap_score_{suffix}', [
                 ('1. High (sorted CV)', f'sorted_cv_high_score_{suffix}'),
                 ('2. Low (sorted CV)', f'sorted_cv_low_score_{suffix}'),
                 ('3. Spearman', f'spearman_score_{suffix}'),
@@ -761,8 +843,10 @@ class report:
         out_folder.mkdir(exist_ok=True)
         suffix_title = '_'.join(suffix.split())
         paths = {'interpolation': '', 'boundary': ''}
+        label_font_size = 8.928  # another 20% larger than the previous 7.44 pt
+        value_font_size = 7.2    # another 20% larger than the previous 6 pt
 
-        for key,title,total_key,components in radars:
+        for key,total_key,components in radars:
             labels = [label for label,_ in components]
             raw_values = [float(data_score.get(score_key,0) or 0) for _,score_key in components]
             flawed_score_key = f'flawed_mod_score_{suffix}'
@@ -798,7 +882,10 @@ class report:
             slot = 2*np.pi/n
             # figure inches = displayed px / 96, so font sizes in pt read as in the rest of the PDF
             fig = plt.figure(figsize=(self.RADAR_SIZE[0]/96, self.RADAR_SIZE[1]/96), dpi=300)
-            ax = fig.add_axes([0.24, 0.1, 0.52, 0.7], polar=True)
+            # Use most of the original 270 x 215 canvas while leaving enough room for the
+            # labels around the outer ring. Keeping the canvas size unchanged preserves the
+            # PDF image aspect ratio and prevents object-fit from cropping the radar.
+            ax = fig.add_axes([0.07, 0.08, 0.86, 0.82], polar=True)
             ax.set_theta_offset(np.pi/2)
             ax.set_theta_direction(-1)
             ax.set_facecolor('#fbfcfe')
@@ -831,7 +918,7 @@ class report:
             for angle,value,display_value,(_,score_key) in zip(angles,values,display_values,components):
                 color = bar_colour(display_value, score_key == flawed_score_key)
                 ax.text(angle, max(value - 0.18, 0.22), f'{display_value:.1f}', ha='center', va='center',
-                        fontsize=5, color='#0f172a', zorder=6,
+                        fontsize=value_font_size, color='#0f172a', zorder=6,
                         bbox=dict(boxstyle='round,pad=0.2', facecolor=color,
                                   edgecolor='black', linewidth=0.4))
             # component names around the circle, rotated along it (flipped on the bottom half
@@ -840,7 +927,7 @@ class report:
             fig.canvas.draw()
             renderer = fig.canvas.get_renderer()
             from matplotlib.font_manager import FontProperties
-            label_font = FontProperties(size=6.2)
+            label_font = FontProperties(size=label_font_size)
             label_radius = 2.38
             radius_px = ax.get_window_extent().width * 0.5 * label_radius / 2
             for label,angle in zip(labels,angles):
@@ -857,18 +944,12 @@ class report:
                     char_angle = angle + direction * (offset + char_width / 2) / radius_px
                     rotation = -np.degrees(char_angle) + (180 if flip else 0)
                     ax.text(char_angle, label_radius, char, ha='center', va='center',
-                            rotation=rotation, rotation_mode='anchor', fontsize=6.2,
+                            rotation=rotation, rotation_mode='anchor', fontsize=label_font_size,
                             color='#1e293b')
                     offset += char_width + 0.7
-            if not score_available:
-                score_range = ' (N/A)'
-            elif key == 'interpolation':
-                score_range = ' (0-2 except flawed tests up to -8)'
-            else:
-                score_range = ' (0-2 each)'
-            fig.suptitle(title + score_range, fontsize=7.5, fontweight='bold', y=0.93)
-
             radar_path = out_folder / f'CheckML_radar_{key}{getattr(self,"model_suffix","")}_{suffix_title}.png'
+            # Keep the original canvas ratio so the PDF's fixed-size image box cannot crop
+            # the labels. The title is omitted so only the radar and component labels show.
             fig.savefig(radar_path, dpi=300)
             plt.close(fig)
             paths[key] = str(radar_path)
@@ -1571,12 +1652,12 @@ class report:
             # item 5's row - the 2nd row now pairs interpolation's new CV-variability (train)
             # image with boundary robustness's Williams plot, since both columns have 2 images here
             ad_stacked = (
-                self.print_img_row_indent(cv_variability_tag,ad_tag,10) +
-                self.print_img_row_indent(cv_variability_cv_tag,williams_tag,10)
+                self.print_img_row_indent(cv_variability_tag,ad_tag,10,right_offset=25) +
+                self.print_img_row_indent(cv_variability_cv_tag,williams_tag,10,right_offset=25)
             )
             img_after_row = {
-                0: self.print_img_row_indent(interp_tag1,bound_tag1,13),
-                1: self.print_img_row_indent('',self.print_img_tag(self.find_img('Results_boundary_low','PREDICT',suffix_title),218),10),
+                0: self.print_img_row_indent(interp_tag1,bound_tag1,13,right_offset=25),
+                1: self.print_img_row_indent('',self.print_img_tag(self.find_img('Results_boundary_low','PREDICT',suffix_title),218),10,right_offset=25),
                 4: ad_stacked,
             }
         else:
@@ -1588,7 +1669,7 @@ class report:
             # bound_rows is empty for clas (no Boundary robustness column) - right stays
             # blank and the two-column layout/proportions are kept as-is
             right = bound_rows[i] if i < len(bound_rows) else ''
-            adv_score_dat += combine_cols([left,right],align_top=True)
+            adv_score_dat += combine_cols([left,right],align_top=True,right_offset=25)
             adv_score_dat += img_after_row.get(i,'')
 
         if pred_type == 'reg':
@@ -1596,7 +1677,7 @@ class report:
             # merged into item 5's row - so it reads as "here's extra context once you've seen
             # the plots" rather than interrupting the text-then-image flow of item 5
             bound_diagnostic = adv_bound_diagnostic(suffix,data_score,self.spacing_PFI)
-            adv_score_dat += combine_cols(['',bound_diagnostic],align_top=True)
+            adv_score_dat += combine_cols(['',bound_diagnostic],align_top=True,right_offset=25)
 
         adv_score_dat += '<p style="margin-bottom: 50px;"></p>'
 
@@ -1798,13 +1879,10 @@ class report:
                 # item (same issue print_img_row_indent works around elsewhere in this file),
                 # so both images rendered at a tiny, uncontrollable size (~150px) under
                 # combine_cols. Plain inline flow (like print_img_row/print_img_row_indent) is
-                # the only layout WeasyPrint sizes correctly here. Reuses the exact same
-                # 270px/61.2px width+gap every other paired-image row in the report already
-                # uses (confirmed by measuring print_score_images' rendered PDF output) -
-                # widening beyond 270px was tried and overflows the page's content width once
-                # the gap needed to keep the right column's start aligned is added back in
+                # the only layout WeasyPrint sizes correctly here. Reuses the same image
+                # width and gap as the other fixed-width paired-image rows in the report.
                 img_w = 270
-                gap_px = 61.2
+                gap_px = 86.2
                 spacer = f'<span style="display: inline-block; width: {gap_px}px;"></span>'
 
                 interp_path = self.find_img('ScoreHeatmapInterp','GENERATE',suffix_title)
@@ -1949,7 +2027,7 @@ class report:
         # get their own row (still 2 lines total, same as before) instead of one long paragraph
         citation_dat += f"""<p style="text-align: justify; margin-top: -9px;"><br>{version_n_date}</p>
         <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">Please cite ROBERT:</span> {citation_main}</p>"""
-        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
+        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 5px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
 
         # QDESCP's own validation paper - only relevant when AQME generated the descriptors
         # (command_line already has the full "python -m robert ..." line at this point, so the
@@ -2287,9 +2365,10 @@ class report:
         # page-break-after: avoid keeps the title (and its explanation line) on the same page
         # as the start of the section, instead of stranding it at the bottom of a page
         section_explain = section_explain.replace('<p style="', '<p style="page-break-after: avoid; ', 1)
+        section_anchor = ' id="section-b"' if module == 'adv_anal' else ''
         title_line = f"""
             {separator_section}
-            <p style="page-break-after: avoid;"><span style="font-weight:bold;">
+            <p{section_anchor} style="page-break-after: avoid;"><span style="font-weight:bold;">
                 <img src="file:///{self._posix_uri(self.args.path_icons)}/{module}.png" alt="" style="width:20px; height:20px; margin-right:5px;">
                 {module_name}
             </span></p>{section_explain}
@@ -2392,7 +2471,7 @@ class report:
         return f'<img src="file:///{self._posix_uri(image_path)}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
 
 
-    def print_img_row_indent(self,left_tag,right_tag,margin_top):
+    def print_img_row_indent(self,left_tag,right_tag,margin_top,right_offset=0):
         """
         Places two DIFFERENT images (interpolation left, boundary robustness right) in a
         single flowing paragraph, like print_img_row, but with a precisely calculated spacer
@@ -2406,7 +2485,7 @@ class report:
         that same offset minus the 270px-wide left image.
         """
 
-        spacer_px = 61.2 if left_tag else 331.2
+        spacer_px = (61.2 if left_tag else 331.2) + (right_offset if right_tag else 0)
         spacer = f'<span style="display: inline-block; width: {spacer_px}px;"></span>'
 
         return f'<p style="width: 100%; margin-bottom: -2px; margin-top: {margin_top}px">{left_tag}{spacer}{right_tag}</p>'

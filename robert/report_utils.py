@@ -396,7 +396,7 @@ def locate_outliers(i,lines):
     return train_outliers,test_outliers
 
    
-def combine_cols(columns,align_top=False):
+def combine_cols(columns,align_top=False,right_offset=0):
     """
     Makes a string with multi-column lines
 
@@ -408,8 +408,14 @@ def combine_cols(columns,align_top=False):
     """
 
     column_data = ''
-    for column in columns:
-        column_data += f'<div style="flex: 1;">{column}</div>'
+    for index,column in enumerate(columns):
+        if len(columns) == 2 and index == 1 and right_offset:
+            column_data += (
+                f'<div style="flex: 1;"><div style="padding-left: {right_offset}px; '
+                f'box-sizing: border-box;">{column}</div></div>'
+            )
+        else:
+            column_data += f'<div style="flex: 1;">{column}</div>'
 
     align_style = 'align-items: flex-start;' if align_top else ''
     combined_data = f"""
@@ -499,7 +505,7 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
 
         column = f"""<div style="{indent} box-sizing: border-box;">
         <p style="margin-top:-18px;"><span style="font-weight:bold;">Boundary robustness{score_title}</span></p>
-        <p style="margin-top: -10px; margin-bottom: 0px;">Showing high fold y-values (others in Section B)</p>
+        <p style="margin-top: -10px; margin-bottom: 0px;">Full details in Section B</p>
         <p style="margin-top: 1px; margin-bottom: 0px;">{extreme_line}</p>
         <p style="margin-top: 4px;">{score_info}
         <p style="margin-bottom: 18px;"></p>
@@ -901,7 +907,7 @@ def adv_applicability_domain(self,suffix,data_score,spacing):
         ad_result = f'Scaled RMSE (high-leverage 20%) = {scaled_rmse_ad}%.'
 
     score_adv_ad = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. Applicability domain (leverage)</span> &nbsp;({score_label} &nbsp;<img src="file:///{ad_image}" alt="CheckML Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. Applicab. domain (leverage)</span> &nbsp;({score_label} &nbsp;<img src="file:///{ad_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_ad}{ad_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.</p>
     """
 

@@ -631,7 +631,9 @@ class report:
             height += diff_height
         # Keep the interpolation plot on the left and place the extrapolation details and
         # Section A callouts together in the right column.
-        interp_tag,_ = self.get_score_image_tags(suffix_title,height,pred_type)
+        interp_tag,_ = self.get_score_image_tags(
+            suffix_title,height,pred_type,interp_width=285
+        )
         section_headings = combine_cols([
             '<p style="margin:0; text-decoration:underline;">Model metrics</p>',
             f'<p style="box-sizing:border-box; padding-left:{BOUNDARY_INDENT}; margin:0; text-decoration:underline;">'
@@ -639,7 +641,9 @@ class report:
         ],right_offset=25)
         metrics_dat = (
             f'<div style="margin-bottom:12px;">{section_headings}</div>'
-            + self.print_img_row_indent(interp_tag,boundary_sections,3,right_offset=25)
+            + self.print_img_row_indent(
+                interp_tag,boundary_sections,3,right_offset=25,left_width=285
+            )
         )
 
         # metrics text row beneath the images
@@ -653,7 +657,7 @@ class report:
         left_summary = f'''<div style="margin-left:0;">{get_metrics(module_file,suffix,'')}</div>
         <div style="page-break-inside:avoid; margin-top:23px;">
         {self.print_radar_subheadings()}
-        <div style="width:270px; margin-top:12px;">{interp_radar_tag}</div>
+        <div style="width:270px; margin-top:17px;">{interp_radar_tag}</div>
         </div>'''
         columns_summary = [left_summary]
         columns_summary.append(self.section_a_callouts())
@@ -689,7 +693,9 @@ class report:
             f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image}</span></span></span>'
         )
 
-        return f'<span style="display: inline-block; width: 270px; vertical-align: top;">{rows}</span>'
+        # Offset the evaluations visually past the overlay rule. Relative positioning keeps
+        # their original layout width and leaves the two-column row geometry unchanged.
+        return f'<span style="position:relative; left:4px; display:inline-block; width:270px; vertical-align:top;">{rows}</span>'
 
 
     @staticmethod
@@ -709,14 +715,14 @@ class report:
             '<br>CheckML scores are indicative rather than rigid thresholds of model quality or usefulness, which ultimately depend on the intended application. Before using CheckML, please read <a href="https://robert.readthedocs.io/en/latest/Report/score.html">its documentation</a> carefully, especially the <i>Considerations</i> section.'
         )
         return (
-            f'<div style="width:290px; margin-top:-34px;">'
-            f'{card("Influence of CV\u2013Test Split",influence)}'
-            f'{card("Considerations when using CheckML",disclaimer,13)}'
+            f'<div style="position:relative; top:-5px; width:300px; margin-left:-10px; margin-top:-34px;">'
+            f'{card("Influence of CV\u2013Test Split",influence,3)}'
+            f'{card("Considerations when using CheckML",disclaimer,18)}'
             '</div>'
         )
 
 
-    def get_score_image_tags(self,suffix_title,height,pred_type):
+    def get_score_image_tags(self,suffix_title,height,pred_type,interp_width=270):
         """
         Locates the interpolation (Results_*.png) and, for regression, boundary robustness
         (Results_boundary_high_*.png) images for this model and returns them as ready-to-embed
@@ -732,7 +738,8 @@ class report:
 
         interp_images = self._filter_by_model(interp_images)
         interp_image = interp_images[0] if interp_images else ''
-        left_tag = self.print_img_tag(interp_image,height)
+        interp_height = round(height * interp_width / 270)
+        left_tag = self.print_img_tag(interp_image,interp_height,width=interp_width)
 
         if pred_type == 'clas':
             return left_tag,''
@@ -1571,17 +1578,6 @@ class report:
         # the exact same fixed-270px print_img_row()/print_img_tag() mechanism as Section C's
         # y_distribution image, which is the only approach that sizes images correctly.
         if pred_type == 'reg':
-            # items 5 and 6 share the last row (instead of item 6 getting its own trailing
-            # row) since boundary robustness's last row (item 5, applicability domain) now carries
-            # two stacked images and is much taller - giving item 6 its own row would strand
-            # it waiting for that whole tall row to finish, leaving interpolation's column
-            # with a large blank gap in between. This doesn't eliminate every such gap (a flex
-            # row's height is always set by its tallest child), but three other approaches
-            # tried for a full fix - floats, a single continuous flex column, inline-block+
-            # <br> stacking - each hit a different WeasyPrint bug shrinking the fixed-width
-            # images or breaking pagination, confirmed by direct measurement each time. This
-            # row-based version is the one confirmed to render at the correct size with
-            # correct pagination, so it's what's shipped despite the residual gap.
             interp_rows = [
                 adv_flawed(suffix,data_score,'',pred_type),
                 adv_predict(self,suffix,data_score,'',pred_type),
@@ -1618,7 +1614,7 @@ class report:
         # images are interleaved right after the row they illustrate (not all dumped at the
         # end) so each one stays visually attached to its sub-metric: VERIFY_tests + High plot
         # after row 0 (item 1 on both sides), Low plot after row 1 (item 2, boundary robustness
-        # side only), CV_variability (SD) after the last interpolation row (item 6)
+        # side only), and the two item 5/6 plot pairs after the applicability-domain text
         # the saved PNGs all keep their in-image title (matplotlib plt.text) - every height
         # below is deliberately the image's OWN plot-only height at 270px width (title
         # excluded), which is LESS than what the full titled image needs, so
@@ -1631,6 +1627,7 @@ class report:
         verify_height = 228 if pred_type == 'reg' else 232
 
         if pred_type == 'reg':
+            bound_plot_offset = -175
             interp_tag1 = self.print_img_tag(self.find_img('VERIFY_tests','VERIFY',suffix_title),verify_height)
             bound_tag1 = self.print_img_tag(self.find_img('Results_boundary_high','PREDICT',suffix_title),218)
             # applicability domain gets both plots stacked in the boundary robustness (right)
@@ -1647,13 +1644,18 @@ class report:
             # wrapping both in a shared inline-block/span container shrank the fixed-width
             # images below their declared size (the same WeasyPrint quirk flex/position:
             # absolute hit earlier); concatenating two independent print_img_row_indent calls
-            # reuses the already-proven single-image mechanism twice instead. CV_variability
-            # (interpolation's item 6, test SD) pairs with the first AD image since both are
-            # item 5's row - the 2nd row now pairs interpolation's new CV-variability (train)
-            # image with boundary robustness's Williams plot, since both columns have 2 images here
+            # reuses the already-proven single-image mechanism twice instead. The CV-variability
+            # plots pair with the applicability-domain and Williams plots, respectively. Shift
+            # only the right images up to sit below item 5; the left images stay below item 6.
             ad_stacked = (
-                self.print_img_row_indent(cv_variability_tag,ad_tag,10,right_offset=25) +
-                self.print_img_row_indent(cv_variability_cv_tag,williams_tag,10,right_offset=25)
+                self.print_img_row_indent(
+                    cv_variability_tag,ad_tag,10,right_offset=25,
+                    right_top_offset=bound_plot_offset
+                ) +
+                self.print_img_row_indent(
+                    cv_variability_cv_tag,williams_tag,10,right_offset=25,
+                    right_top_offset=bound_plot_offset
+                )
             )
             img_after_row = {
                 0: self.print_img_row_indent(interp_tag1,bound_tag1,13,right_offset=25),
@@ -1669,14 +1671,38 @@ class report:
             # bound_rows is empty for clas (no Boundary robustness column) - right stays
             # blank and the two-column layout/proportions are kept as-is
             right = bound_rows[i] if i < len(bound_rows) else ''
-            adv_score_dat += combine_cols([left,right],align_top=True,right_offset=25)
+            if i == 0:
+                left = (
+                    '<p style="text-align:justify; font-weight:bold; font-size:12px; '
+                    'margin-top:-33px; margin-bottom:5px;">'
+                    'Interpolation</p>' + left
+                )
+                if pred_type == 'reg':
+                    right = (
+                        '<p style="text-align:justify; font-weight:bold; font-size:12px; '
+                        'margin-top:-33px; margin-bottom:5px;">'
+                        f'{self.spacing_PFI}Boundary robustness</p>' + right
+                    )
+            # One out-of-flow grey rule spans each page's Boundary robustness rows. The
+            # heights follow the known page grouping: rows 1-3 on the first page, then rows
+            # 4-6 on the second. They do not take part in the flex layout or page flow.
+            right_rule = (-4,875) if i == 0 and pred_type == 'reg' else (
+                (0,945) if i == 3 and pred_type == 'reg' else None
+            )
+            adv_score_dat += combine_cols(
+                [left,right],align_top=True,right_offset=25,right_rule=right_rule
+            )
             adv_score_dat += img_after_row.get(i,'')
 
         if pred_type == 'reg':
-            # item 6 (unscored diagnostics) goes after the applicability domain plots, not
-            # merged into item 5's row - so it reads as "here's extra context once you've seen
-            # the plots" rather than interrupting the text-then-image flow of item 5
             bound_diagnostic = adv_bound_diagnostic(suffix,data_score,self.spacing_PFI)
+            if bound_diagnostic:
+                # Keep the diagnostic text just below the right-column plots after their
+                # visual shift. Relative positioning leaves the left column's flow untouched.
+                bound_diagnostic = (
+                    f'<div style="position:relative; top:{bound_plot_offset}px;">'
+                    f'{bound_diagnostic}</div>'
+                )
             adv_score_dat += combine_cols(['',bound_diagnostic],align_top=True,right_offset=25)
 
         adv_score_dat += '<p style="margin-bottom: 50px;"></p>'
@@ -2027,7 +2053,7 @@ class report:
         # get their own row (still 2 lines total, same as before) instead of one long paragraph
         citation_dat += f"""<p style="text-align: justify; margin-top: -9px;"><br>{version_n_date}</p>
         <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">Please cite ROBERT:</span> {citation_main}</p>"""
-        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 5px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
+        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 15px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
 
         # QDESCP's own validation paper - only relevant when AQME generated the descriptors
         # (command_line already has the full "python -m robert ..." line at this point, so the
@@ -2365,10 +2391,18 @@ class report:
         # page-break-after: avoid keeps the title (and its explanation line) on the same page
         # as the start of the section, instead of stranding it at the bottom of a page
         section_explain = section_explain.replace('<p style="', '<p style="page-break-after: avoid; ', 1)
+        title_position = ''
+        if module == 'adv_anal':
+            # Lift Section B's header and explanation while leaving its content in place,
+            # creating a little more visual space before the Interpolation/Boundary headings.
+            title_position = 'position:relative; top:-10px; '
+            section_explain = section_explain.replace(
+                '<p style="', '<p style="position:relative; top:-10px; ', 1
+            )
         section_anchor = ' id="section-b"' if module == 'adv_anal' else ''
         title_line = f"""
             {separator_section}
-            <p{section_anchor} style="page-break-after: avoid;"><span style="font-weight:bold;">
+            <p{section_anchor} style="page-break-after: avoid; {title_position}"><span style="font-weight:bold;">
                 <img src="file:///{self._posix_uri(self.args.path_icons)}/{module}.png" alt="" style="width:20px; height:20px; margin-right:5px;">
                 {module_name}
             </span></p>{section_explain}
@@ -2460,18 +2494,18 @@ class report:
 
         return str(path).replace('\\', '/')
 
-    def print_img_tag(self,image_path,height):
+    def print_img_tag(self,image_path,height,width=270):
         """
-        Generates an <img> tag with the original fixed size (270px wide)
+        Generates an <img> tag at the requested width and height.
         """
 
         if not image_path:
             return ''
 
-        return f'<img src="file:///{self._posix_uri(image_path)}" style="margin: 0; width: 270px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
+        return f'<img src="file:///{self._posix_uri(image_path)}" style="margin: 0; width: {width}px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
 
 
-    def print_img_row_indent(self,left_tag,right_tag,margin_top,right_offset=0):
+    def print_img_row_indent(self,left_tag,right_tag,margin_top,right_offset=0,left_width=270,right_top_offset=0):
         """
         Places two DIFFERENT images (interpolation left, boundary robustness right) in a
         single flowing paragraph, like print_img_row, but with a precisely calculated spacer
@@ -2481,12 +2515,18 @@ class report:
         whenever it's wrapped in a flex item or an absolutely positioned span - plain inline
         flow (like the original print_img_row) is the only layout that renders it at full size.
         331.2px = row half-width (234.9pt, confirmed empirically via the width:100% score-bar
-        image) + the 18px BOUNDARY_INDENT used for the text above, converted to px; 61.2px is
-        that same offset minus the 270px-wide left image.
+        image) + the 18px BOUNDARY_INDENT used for the text above, converted to px. The spacer
+        is reduced by the displayed left image width so the right column keeps the same x
+        position when that image is enlarged. right_top_offset shifts the right image visually
+        without changing the left image's position or the row's flow height.
         """
 
-        spacer_px = (61.2 if left_tag else 331.2) + (right_offset if right_tag else 0)
+        spacer_px = (331.2 - left_width if left_tag else 331.2) + (right_offset if right_tag else 0)
         spacer = f'<span style="display: inline-block; width: {spacer_px}px;"></span>'
+        if right_tag and right_top_offset:
+            right_tag = right_tag.replace(
+                'style="',f'style="position:relative; top:{right_top_offset}px; ',1
+            )
 
         return f'<p style="width: 100%; margin-bottom: -2px; margin-top: {margin_top}px">{left_tag}{spacer}{right_tag}</p>'
 

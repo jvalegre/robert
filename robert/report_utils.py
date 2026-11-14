@@ -396,7 +396,7 @@ def locate_outliers(i,lines):
     return train_outliers,test_outliers
 
    
-def combine_cols(columns,align_top=False,right_offset=0):
+def combine_cols(columns,align_top=False,right_offset=0,right_rule=None):
     """
     Makes a string with multi-column lines
 
@@ -410,9 +410,21 @@ def combine_cols(columns,align_top=False,right_offset=0):
     column_data = ''
     for index,column in enumerate(columns):
         if len(columns) == 2 and index == 1 and right_offset:
+            rule = ''
+            relative = ''
+            if right_rule is not None:
+                rule_top,rule_height = right_rule
+                # Decorative overlay, positioned at the same x as Section A's rule. It is
+                # out of flow so the established flex widths and pagination stay unchanged.
+                relative = 'position:relative; '
+                rule = (
+                    f'<span aria-hidden="true" style="position:absolute; left:{right_offset - 20}px; '
+                    f'top:{rule_top}px; width:4px; height:{rule_height}px; background:#999999; '
+                    'border-radius:4px; pointer-events:none;"></span>'
+                )
             column_data += (
                 f'<div style="flex: 1;"><div style="padding-left: {right_offset}px; '
-                f'box-sizing: border-box;">{column}</div></div>'
+                f'box-sizing: border-box; {relative}">{rule}{column}</div></div>'
             )
         else:
             column_data += f'<div style="flex: 1;">{column}</div>'
@@ -503,7 +515,10 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
             fold_points = boundary_n_points(total_points)
             extreme_line = f'Points in each 20% high/low folds = {fold_points}'
 
-        column = f"""<div style="{indent} box-sizing: border-box;">
+        # Draw one out-of-flow rule from this heading down through the extrapolation row and
+        # callouts. It shares the callout border's x position and cannot change column sizing.
+        column = f"""<div style="position:relative; {indent} box-sizing: border-box;">
+        <span aria-hidden="true" style="position:absolute; left:-10px; top:0; width:4px; height:315px; background:#999999; border-radius:4px; pointer-events:none;"></span>
         <p style="margin-top:-18px;"><span style="font-weight:bold;">Boundary robustness{score_title}</span></p>
         <p style="margin-top: -10px; margin-bottom: 0px;">Full details in Section B</p>
         <p style="margin-top: 1px; margin-bottom: 0px;">{extreme_line}</p>
@@ -550,9 +565,8 @@ def adv_flawed(suffix,data_score,spacing,pred_type):
 
     # adds a bit more space if there is no test set
     score_adv_flawed = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    init_spacing = f'<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}'
     column = f"""
-    {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed:.1f} / 0)</p>
+    <p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed:.1f} / 0)</p>
     {score_adv_flawed}{flaw_result}<br>{spacing}<i>· Scoring from {min_score} to 0 ·</i><br>{spacing}Pass: 0, Unclear: -1, Fail: -2.</p>
     """
 
@@ -805,7 +819,7 @@ def adv_sorted_cv_high(self,suffix,data_score,spacing):
     crossing_high = data_score.get(f'crossing_high_{suffix}', 0)
 
     score_adv_high = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Sorted CV, top 20% (High)</span> &nbsp;({score_label} &nbsp;<img src="file:///{high_image}" alt="CheckML Score" style="width: 13%">)</p>
+    column = f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Sorted CV, top 20% (High)</span> &nbsp;({score_label} &nbsp;<img src="file:///{high_image}" alt="CheckML Score" style="width: 13%">)</p>
     {score_adv_high}Scaled RMSE (High, sorted CV) = {scaled_high}%.<br>{spacing}Beyond training range (High) = {round(crossing_high*100)}%.<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.<br>{spacing}Crossing < 50%: -1, < 20%: -2.</p>
     """
 

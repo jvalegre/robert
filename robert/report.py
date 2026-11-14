@@ -52,7 +52,6 @@ from robert.report_utils import (
     format_lines,
     combine_cols,
     get_metrics,
-    score_badge_2,
     get_col_transpa,
     get_outliers,
     detect_predictions,
@@ -585,10 +584,7 @@ class report:
         columns_score = []
         boundary_sections = ''
         if pred_type != 'clas':
-            _,high_image = score_badge_2(
-                self,data_score,suffix,data_score.get(f'sorted_cv_high_score_{suffix}',0)
-            )
-            boundary_sections = self.boundary_score_sections(high_image)
+            boundary_sections = self.boundary_score_sections(data_score,suffix)
         else:
             boundary_sections = ''
         for col in score_cols:
@@ -635,6 +631,10 @@ class report:
         interp_tag,_ = self.get_score_image_tags(
             suffix_title,height,pred_type,interp_width=285
         )
+        if interp_tag:
+            interp_tag = interp_tag.replace(
+                'style="', 'style="position:relative; left:-2px; ', 1
+            )
         section_headings = combine_cols([
             '<p style="margin:0; text-decoration:underline;">Model metrics</p>',
             f'<p style="box-sizing:border-box; padding-left:{BOUNDARY_INDENT}; margin:0; text-decoration:underline;">'
@@ -655,7 +655,7 @@ class report:
             'style="display:block; flex:none; width:270px; height:auto; max-width:none; margin:0;"/>'
             if interp_radar else ''
         )
-        left_summary = f'''<div style="margin-left:0;">{get_metrics(module_file,suffix,'')}</div>
+        left_summary = f'''<div style="margin-left:-2px;">{get_metrics(module_file,suffix,'')}</div>
         <div style="page-break-inside:avoid; margin-top:23px;">
         {self.print_radar_subheadings()}
         <div style="width:270px; margin-top:17px;">{interp_radar_tag}</div>
@@ -667,8 +667,26 @@ class report:
         return score_dat,metrics_dat,data_score
 
 
-    def boundary_score_sections(self,high_image):
-        """Build the three temporary title/badge rows for the first-page boundary panel."""
+    def boundary_score_sections(self,data_score,suffix):
+        """Build the three summed boundary score rows for Section A."""
+
+        score_high = sum(
+            data_score.get(f'{key}_{suffix}',0) or 0
+            for key in (
+                'sorted_cv_high_score',
+                'spearman_score_high',
+                'degradation_score_high',
+            )
+        )
+        score_low = sum(
+            data_score.get(f'{key}_{suffix}',0) or 0
+            for key in (
+                'sorted_cv_low_score',
+                'spearman_score_low',
+                'degradation_score_low',
+            )
+        )
+        score_leverage = data_score.get(f'applicability_domain_score_{suffix}',0) or 0
 
         icon_dir = f'file:///{self._posix_uri(self.args.path_icons)}'
         icon_style = 'width:25px; height:25px; margin-right:13px; vertical-align:middle;'
@@ -677,23 +695,37 @@ class report:
         text_style = 'display:inline-block; width:232px; vertical-align:middle;'
         first_text_style = f'{text_style} margin-top:3px;'
         score_line_style = 'display:block; margin-top:4px;'
-        image_high = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
-        image_low = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
-        image_leverage = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
+        score_high_badge = round_checkml_score(score_high)
+        score_low_badge = round_checkml_score(score_low)
+        score_leverage_badge = round_checkml_score(score_leverage)
+
+        def score_image(max_score,badge):
+            # The packaged score_w_4_1 asset is uppercase .JPG; keep the URI portable to
+            # case-sensitive filesystems as well as Windows.
+            extension = 'JPG' if max_score == 4 and badge == 1 else 'jpg'
+            image_width = 26 if max_score == 4 else 13
+            return (
+                f'<img src="{icon_dir}/score_w_{max_score}_{badge}.{extension}" '
+                f'alt="CheckML score" style="width:{image_width}%; vertical-align:middle;">'
+            )
+
+        image_high = score_image(4,score_high_badge)
+        image_low = score_image(4,score_low_badge)
+        image_leverage = score_image(2,score_leverage_badge)
         rows = (
             f'<span style="{first_row_style}"><img src="{icon_dir}/robust_y_high.png" alt="" style="{icon_style} margin-top:3px;">'
-            f'<span style="{first_text_style}">1. Extrapolation to higher y values'
-            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image_high}</span></span></span>'
+            f'<span style="{first_text_style}"><strong>1. Extrapolation to higher y values</strong>'
+            f'<span style="{score_line_style}">{score_high:.1f} / 4&nbsp&nbsp;{image_high}</span></span></span>'
         )
         rows += (
             f'<span style="{next_row_style}"><img src="{icon_dir}/robust_y_low.png" alt="" style="{icon_style}">'
-            f'<span style="{text_style}">2. Extrapolation to lower y values'
-            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image_low}</span></span></span>'
+            f'<span style="{text_style}"><strong>2. Extrapolation to lower y values</strong>'
+            f'<span style="{score_line_style}">{score_low:.1f} / 4&nbsp&nbsp;{image_low}</span></span></span>'
         )
         rows += (
             f'<span style="{next_row_style}"><img src="{icon_dir}/robust_x.png" alt="" style="{icon_style}">'
-            f'<span style="{text_style}">3. Descriptor-space extrapolation'
-            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image_leverage}</span></span></span>'
+            f'<span style="{text_style}"><strong>3. Descriptor-space extrapolation</strong>'
+            f'<span style="{score_line_style}">{score_leverage:.1f} / 2&nbsp&nbsp;{image_leverage}</span></span></span>'
         )
 
         # Offset the evaluations visually past the overlay rule. Relative positioning keeps

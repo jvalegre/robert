@@ -2855,7 +2855,7 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
 
 def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
     '''
-    Boundary robustness in X-descriptor space (Section B sub-metric 5), complementing the
+    Boundary robustness in X-descriptor space (Section B sub-metric 3), complementing the
     Low/High sorted-CV analysis (boundary robustness in y-space). Ranks every point in the whole dataset by
     leverage - h_i = x_i^T (X_train^T X_train)^-1 x_i, the standard QSAR/regression
     "applicability domain" metric, which (unlike a per-descriptor or plain Euclidean check)

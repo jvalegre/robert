@@ -355,21 +355,25 @@ CheckML score
             of it — not one three-way split. The "Low" split holds out the bottom 20% of points as its test fold and
             trains on the remaining top 80%; the "High" split holds out the top 20% and trains on the remaining
             bottom 80%. Each split is evaluated with its own 10x 5-fold CV over its own 80% training portion, so
-            a point in the top 80% of one split can be in the held-out 20% of the other. Four of the five sub-metrics
-            below come from these two extreme folds; the fifth uses a different, X-descriptor space definition of
+            a point in the top 80% of one split can be in the held-out 20% of the other. The six scored components
+            in items 1 and 2 come from these two extreme folds; item 3 uses a different, X-descriptor space definition of
             "boundary" instead.
+
+            The High boundary (item 1) and Low boundary (item 2) each contribute up to 4 points; applicability domain
+            (item 3) contributes up to 2. Their sum remains the 0-10 Boundary robustness score.
 
             .. figure:: images/sorted_low_high_diagram.svg
                :width: 560
                :align: center
 
 
-            *Not statistical outliers — simply the most extreme 20% of real values in the dataset. Sub-metrics 1-4*
-            *below all follow this Low/High fold pattern; sub-metric 5 breaks it on purpose (see* |u| 5. Applicability domain (leverage) |/u| *below).*
+            *Not statistical outliers — simply the most extreme 20% of real values in the dataset. Items 1 and 2*
+            *each contain three Low/High components: (a) sorted CV, (b) Spearman rank, and (c) degradation ratio; item 3*
+            *breaks the y-space pattern on purpose (see* |u| 3. Applicability domain (leverage) |/u| *below).*
 
             .. tab-set::
 
-               .. tab-item:: 1–2 Low and high scaled RMSE
+               .. tab-item:: 1a and 2a Sorted CV RMSE
 
                   The scaled RMSE score decreases linearly from 2 at 10% to 0 at 30%:
 
@@ -412,9 +416,9 @@ CheckML score
 
 
                   *Real Low/High fold scatter plots from an actual ROBERT v2.2.0 report — this is what Section B of the*
-                  *PDF actually shows for sub-metrics 1-2.*
+                  *PDF actually shows for components 1a and 2a.*
 
-               .. tab-item:: 3 Spearman rank
+               .. tab-item:: 1b and 2b Spearman rank
 
                   Spearman rank correlation between measured and predicted y values, computed separately within each
                   extreme fold, to check that the model still ranks points correctly even where it can't hit them exactly.
@@ -451,9 +455,9 @@ CheckML score
                   ============== ==============================================================
 
                   The penalty is added to the Spearman score for each fold, then that adjusted score is clamped to
-                  0-1. The Low and High fold scores are added for a total of 0-2 points.
+                  0-1. The High and Low fold scores are shown separately as items 1b and 2b.
 
-               .. tab-item:: 4 Degradation ratio
+               .. tab-item:: 1c and 2c Degradation ratio
 
                   Compares each extreme fold's scaled RMSE against the RMSE of the *remaining* 80% of the data, so a
                   model can't hide a badly-degraded boundary behind a fine-looking interior.
@@ -477,9 +481,9 @@ CheckML score
                   0              ≥ 1.75x
                   ============== ======================================================
 
-               .. tab-item:: 5 Applicability domain (leverage)
+               .. tab-item:: 3 Applicability domain (leverage)
 
-                  Unlike items 1-4, this metric measures robustness in **X-descriptor space** rather than y-space: ROBERT
+                  Unlike items 1-2, this metric measures robustness in **X-descriptor space** rather than y-space: ROBERT
                   trains on the 80% "typical" points and tests on the 20% highest-leverage points, using the classical QSAR
                   statistical leverage (the diagonal of the hat matrix, :math:`h_i = x_i^T (X_{train}^T X_{train})^{-1} x_i`)
                   to identify which points are the most structurally/descriptor-wise extreme — the same quantity plotted on

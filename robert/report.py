@@ -44,10 +44,7 @@ from robert.report_utils import (
     adv_train_val_gap,
     adv_sorted_cv_high,
     adv_sorted_cv_low,
-    adv_spearman,
-    adv_bound_sd,
     adv_applicability_domain,
-    adv_bound_diagnostic,
     get_col_text,
     repro_info,
     make_report,
@@ -68,13 +65,14 @@ PDF_NAMES = {'No PFI': 'ROBERT_report_No_PFI.pdf', 'PFI': 'ROBERT_report_PFI.pdf
 
 # grey section separators always CLOSE a section (never open one), so the line can't end up
 # at the top of a page. Only Section A opens with one, below the header on page 1. Sections
-# whose own HTML doesn't already end with a line + page break get one in the main loop
-# (see _close_section())
+# C onward whose own HTML doesn't already end with a line + page break get one in the main loop
+# (see _close_section()); Section B keeps the closing spacing without a horizontal divider.
 def _close_section(section_html):
     '''
-    Closes a section that doesn't end with its own line/page break with a grey line. The line
-    is the bottom border of a wrapper around the section (not a separate <hr>), so it's always
-    attached to the section's last line and can't end up alone at the top of the next page.
+    Closes a section that doesn't end with its own line/page break with a grey line, except
+    Section B, which keeps the spacing without the horizontal divider. The line is the bottom
+    border of a wrapper around the section (not a separate <hr>), so it's always attached to the
+    section's last line and can't end up alone at the top of the next page.
     The 20px gap above it is a margin, which is dropped automatically at a page break
     '''
     tail = section_html[-400:]
@@ -83,6 +81,9 @@ def _close_section(section_html):
     # trailing empty spacer paragraphs could be pushed alone onto the next page, taking the
     # border with them - the gap above the line is the wrapper's padding instead
     section_html = re.sub(r'(\s*(<p[^>]*>\s*</p>|</p>))+\s*$', '', section_html)
+    if 'id="section-b"' in section_html:
+        return (f'<div style="padding-bottom:15px; margin-bottom:25px;">'
+                f'{section_html}</div>')
     return (f'<div style="border-bottom: 1px solid #a0a0a0; padding-bottom: 15px; margin-bottom: 25px;">'
             f'{section_html}</div>')
 
@@ -671,26 +672,28 @@ class report:
 
         icon_dir = f'file:///{self._posix_uri(self.args.path_icons)}'
         icon_style = 'width:25px; height:25px; margin-right:13px; vertical-align:middle;'
-        image = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
         first_row_style = 'display:block; margin:0 0 14px 0;'
         next_row_style = 'display:block; padding-top:5px; margin:0 0 14px 0;'
         text_style = 'display:inline-block; width:232px; vertical-align:middle;'
         first_text_style = f'{text_style} margin-top:3px;'
         score_line_style = 'display:block; margin-top:4px;'
+        image_high = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
+        image_low = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
+        image_leverage = f'<img src="file:///{high_image}" alt="CheckML score" style="width: 13%; vertical-align: middle;">'
         rows = (
             f'<span style="{first_row_style}"><img src="{icon_dir}/robust_y_high.png" alt="" style="{icon_style} margin-top:3px;">'
             f'<span style="{first_text_style}">1. Extrapolation to higher y values'
-            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image}</span></span></span>'
+            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image_high}</span></span></span>'
         )
         rows += (
             f'<span style="{next_row_style}"><img src="{icon_dir}/robust_y_low.png" alt="" style="{icon_style}">'
             f'<span style="{text_style}">2. Extrapolation to lower y values'
-            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image}</span></span></span>'
+            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image_low}</span></span></span>'
         )
         rows += (
             f'<span style="{next_row_style}"><img src="{icon_dir}/robust_x.png" alt="" style="{icon_style}">'
             f'<span style="{text_style}">3. Descriptor-space extrapolation'
-            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image}</span></span></span>'
+            f'<span style="{score_line_style}">9.9 / 9.9&nbsp&nbsp;{image_leverage}</span></span></span>'
         )
 
         # Offset the evaluations visually past the overlay rule. Relative positioning keeps
@@ -838,11 +841,13 @@ class report:
         ])]
         if pred_type == 'reg':
             radars.append(('boundary', f'extrap_score_{suffix}', [
-                ('1. High (sorted CV)', f'sorted_cv_high_score_{suffix}'),
-                ('2. Low (sorted CV)', f'sorted_cv_low_score_{suffix}'),
-                ('3. Spearman', f'spearman_score_{suffix}'),
-                ('4. Degradation', f'degradation_score_{suffix}'),
-                ('5. Applic. domain', f'applicability_domain_score_{suffix}'),
+                ('1a. High sorted CV', f'sorted_cv_high_score_{suffix}'),
+                ('1b. High Spearman', f'spearman_score_high_{suffix}'),
+                ('1c. High degradation', f'degradation_score_high_{suffix}'),
+                ('2a. Low sorted CV', f'sorted_cv_low_score_{suffix}'),
+                ('2b. Low Spearman', f'spearman_score_low_{suffix}'),
+                ('2c. Low degradation', f'degradation_score_low_{suffix}'),
+                ('3. Applic. domain', f'applicability_domain_score_{suffix}'),
             ]))
 
         score_available = data_score.get(f'score_available_{suffix}', True)
@@ -1573,26 +1578,26 @@ class report:
         # and any warnings they trigger (see analyze_warnings(), not gated on score_available)
         # are still shown as usual
 
-        # Text sub-metrics pair up row by row via combine_cols (proven fine for text
-        # everywhere else in the report). Images are NOT put in flex/table columns - they use
-        # the exact same fixed-270px print_img_row()/print_img_tag() mechanism as Section C's
-        # y_distribution image, which is the only approach that sizes images correctly.
+        # Regression columns flow independently so each side's plots follow its own text.
+        # Classification still uses row pairing because it has no Boundary robustness column.
         if pred_type == 'reg':
             interp_rows = [
                 adv_flawed(suffix,data_score,'',pred_type),
                 adv_predict(self,suffix,data_score,'',pred_type),
                 adv_test(self,suffix,data_score,'',pred_type),
                 adv_train_val_gap(self,suffix,data_score,''),
-                adv_diff_test(self,suffix,data_score,'',pred_type) + adv_cv_sd(self,suffix,data_score,''),
+                adv_diff_test(self,suffix,data_score,'',pred_type),
             ]
+            interp_stability = adv_cv_sd(self,suffix,data_score,'')
+            interp_stability = interp_stability.replace(
+                'margin-top: 20px;', 'margin-top: 0px;', 1
+            )
 
-            bound_rows = [
-                adv_sorted_cv_high(self,suffix,data_score,self.spacing_PFI),
-                adv_sorted_cv_low(self,suffix,data_score,self.spacing_PFI),
-                adv_spearman(self,suffix,data_score,self.spacing_PFI),
-                adv_bound_sd(self,suffix,data_score,self.spacing_PFI),
-                adv_applicability_domain(self,suffix,data_score,self.spacing_PFI),
-            ]
+            bound_rows = (
+                adv_sorted_cv_high(self,suffix,data_score,self.spacing_PFI)
+                + adv_sorted_cv_low(self,suffix,data_score,self.spacing_PFI)
+                + [adv_applicability_domain(self,suffix,data_score,self.spacing_PFI)]
+            )
 
         else:
             # classification: Boundary robustness isn't defined for a discrete MCC-based model
@@ -1611,11 +1616,7 @@ class report:
 
             bound_rows = []
 
-        # images are interleaved right after the row they illustrate (not all dumped at the
-        # end) so each one stays visually attached to its sub-metric: VERIFY_tests + High plot
-        # after row 0 (item 1 on both sides), Low plot after row 1 (item 2, boundary robustness
-        # side only), and the two item 5/6 plot pairs after the applicability-domain text
-        # the saved PNGs all keep their in-image title (matplotlib plt.text) - every height
+        # The saved PNGs keep their in-image title (matplotlib plt.text) - every height
         # below is deliberately the image's OWN plot-only height at 270px width (title
         # excluded), which is LESS than what the full titled image needs, so
         # object-fit:cover (anchored bottom, see print_img_tag) crops exactly the title strip
@@ -1627,10 +1628,9 @@ class report:
         verify_height = 228 if pred_type == 'reg' else 232
 
         if pred_type == 'reg':
-            bound_plot_offset = -175
             interp_tag1 = self.print_img_tag(self.find_img('VERIFY_tests','VERIFY',suffix_title),verify_height)
             bound_tag1 = self.print_img_tag(self.find_img('Results_boundary_high','PREDICT',suffix_title),218)
-            # applicability domain gets both plots stacked in the boundary robustness (right)
+            # item 3 applicability domain gets both plots stacked in the boundary robustness (right)
             # column: the actual-vs-predicted scatter (ties to the Scaled RMSE score) on top, the
             # Williams plot (leverage vs standardized residual, flags which points are
             # structurally suspicious) below it
@@ -1640,31 +1640,81 @@ class report:
             # item 6's 2nd SD plot: out-of-fold CV predictions in train+validation (vs the
             # existing cv_variability_tag, which is the test set) - see graph_reg(sd_set='train')
             cv_variability_cv_tag = self.print_img_tag(self.find_img('CV_variability_cv','PREDICT',suffix_title),218)
-            # two separate stacked rows (not one row with both images wrapped together) -
-            # wrapping both in a shared inline-block/span container shrank the fixed-width
-            # images below their declared size (the same WeasyPrint quirk flex/position:
-            # absolute hit earlier); concatenating two independent print_img_row_indent calls
-            # reuses the already-proven single-image mechanism twice instead. The CV-variability
-            # plots pair with the applicability-domain and Williams plots, respectively. Shift
-            # only the right images up to sit below item 5; the left images stay below item 6.
-            ad_stacked = (
-                self.print_img_row_indent(
-                    cv_variability_tag,ad_tag,10,right_offset=25,
-                    right_top_offset=bound_plot_offset
-                ) +
-                self.print_img_row_indent(
-                    cv_variability_cv_tag,williams_tag,10,right_offset=25,
-                    right_top_offset=bound_plot_offset
-                )
+            low_tag = self.print_img_tag(
+                self.find_img('Results_boundary_low','PREDICT',suffix_title),218
             )
-            img_after_row = {
-                0: self.print_img_row_indent(interp_tag1,bound_tag1,13,right_offset=25),
-                1: self.print_img_row_indent('',self.print_img_tag(self.find_img('Results_boundary_low','PREDICT',suffix_title),218),10,right_offset=25),
-                4: ad_stacked,
-            }
+            img_after_row = {}
         else:
             interp_tag1 = self.print_img_tag(self.find_img('VERIFY_tests','VERIFY',suffix_title),verify_height)
             img_after_row = {0: self.print_img_row_indent(interp_tag1,'',13)}
+
+        if pred_type == 'reg':
+            # Render regression as independent per-page columns. Each side now owns its text
+            # and plots in normal flow, so a taller text block or graph on one side cannot
+            # leave a gap in the other side.
+            left_heading = (
+                '<p style="text-align:justify; font-weight:bold; font-size:12px; '
+                'margin-top:-33px; margin-bottom:5px;">Interpolation</p>'
+            )
+            right_heading = (
+                '<p style="text-align:justify; font-weight:bold; font-size:12px; '
+                'margin-top:-33px; margin-bottom:5px;">'
+                f'{self.spacing_PFI}Boundary robustness</p>'
+            )
+
+            def section_image(tag,margin_top=10):
+                if not tag:
+                    return ''
+                return f'<p style="margin-top:{margin_top}px; margin-bottom:0;">{tag}</p>'
+
+            left_page1 = (
+                left_heading + interp_rows[0] + section_image(interp_tag1,13) +
+                interp_rows[1] + interp_rows[2] + interp_rows[3] + interp_rows[4]
+            )
+            right_page1 = (
+                right_heading + bound_rows[0] + section_image(bound_tag1,13) +
+                bound_rows[1] + bound_rows[2] +
+                bound_rows[3].replace('margin-top:0;', 'margin-top:20px;', 1)
+            )
+
+            first_page_rule = (
+                '<span aria-hidden="true" style="position:absolute; left:5px; top:-34px; '
+                'width:4px; height:875px; background:#999999; border-radius:4px; '
+                'pointer-events:none;"></span>'
+            )
+            adv_score_dat += (
+                '<div style="page-break-inside:avoid; width:100%;">'
+                '<div style="display:inline-block; vertical-align:top; width:50%; '
+                'box-sizing:border-box;">' + left_page1 + '</div>'
+                '<div style="display:inline-block; vertical-align:top; width:50%; '
+                'box-sizing:border-box; padding-left:25px; position:relative;">' +
+                first_page_rule + right_page1 + '</div></div>'
+            )
+
+            left_page2 = (
+                interp_stability + section_image(cv_variability_tag,10) +
+                section_image(cv_variability_cv_tag,10)
+            )
+            right_page2 = (
+                section_image(low_tag,0) + bound_rows[4] + bound_rows[5] +
+                bound_rows[6] + section_image(ad_tag,10) +
+                section_image(williams_tag,10)
+            )
+            second_page_rule = (
+                '<span aria-hidden="true" style="position:absolute; left:5px; top:0; '
+                'width:4px; height:955px; background:#999999; border-radius:4px; '
+                'pointer-events:none;"></span>'
+            )
+            adv_score_dat += (
+                '<div style="page-break-before:always; page-break-inside:avoid; width:100%;">'
+                '<div style="display:inline-block; vertical-align:top; width:50%; '
+                'box-sizing:border-box;">' + left_page2 + '</div>'
+                '<div style="display:inline-block; vertical-align:top; width:50%; '
+                'box-sizing:border-box; padding-left:25px; position:relative;">' +
+                second_page_rule + right_page2 + '</div></div>'
+            )
+            adv_score_dat += '<p style="margin-bottom:50px;"></p>'
+            return adv_score_dat
 
         for i in range(max(len(interp_rows),len(bound_rows))):
             left = interp_rows[i] if i < len(interp_rows) else ''
@@ -1683,27 +1733,10 @@ class report:
                         'margin-top:-33px; margin-bottom:5px;">'
                         f'{self.spacing_PFI}Boundary robustness</p>' + right
                     )
-            # One out-of-flow grey rule spans each page's Boundary robustness rows. The
-            # heights follow the known page grouping: rows 1-3 on the first page, then rows
-            # 4-6 on the second. They do not take part in the flex layout or page flow.
-            right_rule = (-4,875) if i == 0 and pred_type == 'reg' else (
-                (0,945) if i == 3 and pred_type == 'reg' else None
-            )
             adv_score_dat += combine_cols(
-                [left,right],align_top=True,right_offset=25,right_rule=right_rule
+                [left,right],align_top=True,right_offset=25
             )
             adv_score_dat += img_after_row.get(i,'')
-
-        if pred_type == 'reg':
-            bound_diagnostic = adv_bound_diagnostic(suffix,data_score,self.spacing_PFI)
-            if bound_diagnostic:
-                # Keep the diagnostic text just below the right-column plots after their
-                # visual shift. Relative positioning leaves the left column's flow untouched.
-                bound_diagnostic = (
-                    f'<div style="position:relative; top:{bound_plot_offset}px;">'
-                    f'{bound_diagnostic}</div>'
-                )
-            adv_score_dat += combine_cols(['',bound_diagnostic],align_top=True,right_offset=25)
 
         adv_score_dat += '<p style="margin-bottom: 50px;"></p>'
 
@@ -2496,16 +2529,18 @@ class report:
 
     def print_img_tag(self,image_path,height,width=270):
         """
-        Generates an <img> tag at the requested width and height.
+        Generates an <img> tag at the requested width and height. The inline min/max widths
+        override report.css's generic PFI image limit, which otherwise shrinks plots inside
+        the new half-page columns and makes object-fit crop their sides.
         """
 
         if not image_path:
             return ''
 
-        return f'<img src="file:///{self._posix_uri(image_path)}" style="margin: 0; width: {width}px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
+        return f'<img src="file:///{self._posix_uri(image_path)}" style="margin: 0; width: {width}px; min-width: {width}px; max-width: {width}px; height: {height}px; object-fit: cover; object-position: 0 100%;"/>'
 
 
-    def print_img_row_indent(self,left_tag,right_tag,margin_top,right_offset=0,left_width=270,right_top_offset=0):
+    def print_img_row_indent(self,left_tag,right_tag,margin_top,right_offset=0,left_width=270):
         """
         Places two DIFFERENT images (interpolation left, boundary robustness right) in a
         single flowing paragraph, like print_img_row, but with a precisely calculated spacer
@@ -2517,16 +2552,11 @@ class report:
         331.2px = row half-width (234.9pt, confirmed empirically via the width:100% score-bar
         image) + the 18px BOUNDARY_INDENT used for the text above, converted to px. The spacer
         is reduced by the displayed left image width so the right column keeps the same x
-        position when that image is enlarged. right_top_offset shifts the right image visually
-        without changing the left image's position or the row's flow height.
+        position when that image is enlarged.
         """
 
         spacer_px = (331.2 - left_width if left_tag else 331.2) + (right_offset if right_tag else 0)
         spacer = f'<span style="display: inline-block; width: {spacer_px}px;"></span>'
-        if right_tag and right_top_offset:
-            right_tag = right_tag.replace(
-                'style="',f'style="position:relative; top:{right_top_offset}px; ',1
-            )
 
         return f'<p style="width: 100%; margin-bottom: -2px; margin-top: {margin_top}px">{left_tag}{spacer}{right_tag}</p>'
 

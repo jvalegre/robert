@@ -25,10 +25,15 @@ commands:
             apt-get install -y \
               curl \
               xvfb \
+              xauth \
               libx11-6 \
               libx11-xcb1 \
               libxcb1 \
               libxcb-cursor0 \
+              libxcb-icccm4 \
+              libxcb-image0 \
+              libxcb-render-util0 \
+              libxcb-sync1 \
               libxcb-xinerama0 \
               libxcb-render0 \
               libxcb-shape0 \
@@ -247,7 +252,8 @@ jobs:
             # report() again in-process right after their own subprocess run instead
             # of rebuilding the same pipeline from scratch a second time.)
             # ------------------------------------------------------------------
-            mkdir -p test-results
+            mkdir -p test-results coverage-data
+            export COVERAGE_FILE="coverage-data/.coverage.core-${CIRCLE_NODE_INDEX}"
             PIPELINE_TESTS="tests/test_1curate.py tests/test_2generate.py tests/test_3verify.py tests/test_4predict.py"
 
             case "$CIRCLE_NODE_INDEX" in
@@ -296,19 +302,10 @@ jobs:
               exit "$CORE_EXIT_CODE"
             fi
 
-            coverage xml
-
-            # ------------------------------------------------------------------
-            # Upload this node's coverage directly - Codecov merges multiple uploads
-            # for the same commit automatically, so with parallelism each node just
-            # uploads its own slice instead of combining them into one file first
-            # (the codecov orb doesn't work with this miniconda docker image, hence
-            # the plain uploader script instead of codecov/upload)
-            # ------------------------------------------------------------------
-            curl -Os https://cli.codecov.io/latest/linux/codecov
-            chmod +x codecov
-            ./codecov upload-process --disable-search --fail-on-error \
-              -t "$CODECOV_TOKEN" -f coverage.xml -F "core-node-${CIRCLE_NODE_INDEX}"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data
       - store_test_results:
           path: test-results
 
@@ -336,7 +333,12 @@ jobs:
             export OPENBLAS_NUM_THREADS=1
             export MKL_NUM_THREADS=1
 
-            mkdir -p test-results
+            # Fail early if the bare Linux image lacks Qt/X11 or PDF native libraries.
+            QT_QPA_PLATFORM=xcb xvfb-run -a -s "-screen 0 1280x800x24" \
+              python -c "from PySide6.QtWidgets import QApplication; from weasyprint import HTML; app = QApplication([]); assert HTML(string='<p>CI preflight</p>').write_pdf().startswith(b'%PDF')"
+
+            mkdir -p test-results coverage-data
+            export COVERAGE_FILE="coverage-data/.coverage.gui"
 
             # IMPORTANT: CircleCI executes 'run' steps with 'set -e'. Temporarily
             # disabled so we can inspect pytest/xvfb-run's exit code and treat the
@@ -346,9 +348,12 @@ jobs:
             # ------------------------------------------------------------------
             # Fast, self-contained, non-GUI files first - no Xvfb needed for these
             # ------------------------------------------------------------------
+            echo "[CI] Running fast API and split tests"
             python -m pytest \
               -v \
-              --durations=20 \
+              --disable-warnings \
+              --tb=short \
+              --durations=5 \
               --cov=robert \
               --cov-report= \
               --junitxml=test-results/fast-test-results.xml \
@@ -359,6 +364,8 @@ jobs:
               echo "[CI] test_7api.py/test_split_selection.py failed with exit code $FAST_EXIT_CODE"
               exit "$FAST_EXIT_CODE"
             fi
+
+            echo "[CI] Fast API and split tests passed"
 
             export QT_QPA_PLATFORM=offscreen
             export QT_OPENGL=software
@@ -374,12 +381,16 @@ jobs:
               local suite_name="$1"
               shift
               local result_file="test-results/${suite_name}-test-results.xml"
+              echo "[CI] Running ${suite_name} test suite"
 
-              xvfb-run -s "-screen 0 1920x1080x24" \
+              xvfb-run -a -s "-screen 0 1920x1080x24" \
                 python -m pytest \
-                  -vv \
-                  --durations=20 \
-                  --cov=robert \
+                  -v \
+                  --disable-warnings \
+                  --tb=short \
+                  -o faulthandler_timeout=90 \
+                  --durations=5 \
+                  --cov=robert/gui_easyrob \
                   --cov-append \
                   --cov-report= \
                   --junitxml="$result_file" \
@@ -407,9 +418,10 @@ jobs:
                 echo "[CI] ${suite_name} tests failed with exit code $suite_exit_code"
                 return "$suite_exit_code"
               fi
+              echo "[CI] ${suite_name} test suite passed"
             }
 
-            run_gui_suite easyrob tests/test_easyrob.py
+            run_gui_suite easyrob tests/test_easyrob.py tests/test_images_web.py tests/test_web_shell.py
             GUI_EXIT_CODE=$?
             if [ "$GUI_EXIT_CODE" -ne 0 ]; then
               exit "$GUI_EXIT_CODE"
@@ -421,17 +433,79 @@ jobs:
               exit "$GUI_EXIT_CODE"
             fi
 
+            # Collect the remaining tests/ files and all package-local GUI tests. New
+            # test_*.py files enter this group automatically instead of being omitted.
+            run_gui_suite additional \
+              --ignore=tests/test_1curate.py \
+              --ignore=tests/test_2generate.py \
+              --ignore=tests/test_3verify.py \
+              --ignore=tests/test_4predict.py \
+              --ignore=tests/test_5aqme_n_full.py \
+              --ignore=tests/test_6checkml.py \
+              --ignore=tests/test_7api.py \
+              --ignore=tests/test_split_selection.py \
+              --ignore=tests/test_easyrob.py \
+              --ignore=tests/test_images_web.py \
+              --ignore=tests/test_web_shell.py \
+              --ignore=tests/test_bot_compact_core.py \
+              --ignore=tests/test_bot_compact_gui.py \
+              --ignore=tests/test_images_webengine.py \
+              --ignore=tests/test_web_dashboard_webengine.py \
+              tests robert/gui_easyrob
+            GUI_EXIT_CODE=$?
+            if [ "$GUI_EXIT_CODE" -ne 0 ]; then
+              exit "$GUI_EXIT_CODE"
+            fi
+
+            # One separate browser process exercises the real local HTML page
+            # and JavaScript-to-Python bridge. The larger Qt suites stay offscreen.
+            echo "[CI] Running Chromium smoke tests"
+            QT_QPA_PLATFORM=xcb xvfb-run -a -s "-screen 0 1280x800x24" \
+              python -m pytest -v --disable-warnings --tb=short \
+                --cov=robert/gui_easyrob --cov-append --cov-report= \
+                --junitxml=test-results/webengine-test-results.xml \
+                tests/test_images_webengine.py tests/test_web_dashboard_webengine.py
+            WEB_EXIT_CODE=$?
+            if [ "$WEB_EXIT_CODE" -ne 0 ]; then
+              exit "$WEB_EXIT_CODE"
+            fi
+
+            echo "[CI] Chromium smoke tests passed; all GUI test suites completed"
+
             # Re-enable 'exit on error' for any subsequent commands.
             set -e
 
-            coverage xml
-
-            curl -Os https://cli.codecov.io/latest/linux/codecov
-            chmod +x codecov
-            ./codecov upload-process --disable-search --fail-on-error \
-              -t "$CODECOV_TOKEN" -f coverage.xml -F "gui"
+            coverage report --include='robert/gui_easyrob/*'
+      - persist_to_workspace:
+          root: .
+          paths:
+            - coverage-data
       - store_test_results:
           path: test-results
+
+  coverage-gate:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Combine and report ROBERT Python coverage
+          command: |
+            python -m pip install 'coverage>=7,<8'
+            python -m coverage combine coverage-data
+            python -m coverage xml
+            if [ -n "${CODECOV_TOKEN:-}" ]; then
+              curl -fsSLo codecov https://cli.codecov.io/latest/linux/codecov && \
+                chmod +x codecov && \
+                ./codecov upload-process --disable-search --fail-on-error \
+                  -t "$CODECOV_TOKEN" -f coverage.xml -F combined || \
+                echo "[CI] Codecov upload failed; local coverage reporting will continue"
+            fi
+            python -m coverage report
+      - store_artifacts:
+          path: coverage.xml
 
   # Same dependency stack and pytest suite as build-and-test-core, on Windows (win-64).
   # Coverage isn't uploaded from here - codecov stays on the Linux jobs only.
@@ -464,8 +538,55 @@ jobs:
             pip install pytest-cov
             python -m pytest -v --durations=20 --cov=robert --cov-report=xml --cov-report=term
 
+  publish-to-pypi:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install release tools
+          command: python -m pip install --upgrade build packaging twine
+      - run:
+          name: Require a new ROBERT version
+          command: python .circleci/check_pypi_release.py
+      - run:
+          name: Build and publish to PyPI
+          command: |
+            : "${TWINE_PASSWORD:?Set a project-scoped PyPI token as TWINE_PASSWORD in the pypi-publish CircleCI context}"
+            python -m build
+            python -m twine check dist/*
+            TWINE_USERNAME=__token__ python -m twine upload --non-interactive dist/*
+
+  check-pr-version:
+    docker:
+      - image: cimg/python:3.12
+    steps:
+      - checkout
+      - run:
+          name: Install version parser
+          command: python -m pip install packaging
+      - run:
+          name: Require a version bump for PRs into master
+          command: |
+            git fetch --no-tags origin master
+            python .circleci/check_pr_version.py
+
 workflows:
   sample:
     jobs:
       - build-and-test-core
       - build-and-test-gui
+      - coverage-gate:
+          requires:
+            - build-and-test-core
+            - build-and-test-gui
+      - check-pr-version:
+          filters: pipeline.event.name == "pull_request" and pipeline.event.github.pull_request.base.ref == "master"
+      - publish-to-pypi:
+          context: pypi-publish
+          requires:
+            - build-and-test-core
+            - build-and-test-gui
+            - coverage-gate
+          filters: pipeline.git.branch == "master"
+          serial-group: << pipeline.project.slug >>/pypi-publish

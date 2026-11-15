@@ -112,6 +112,7 @@ _MODULE_TERMS = {
     "qcorr",
     "qprep",
 }
+_NAMED_SUBJECTS = _MODULE_TERMS | _METRIC_TERMS | {"aqme", "robert"}
 _TUTORIAL_TERMS = {
     "how",
     "use",
@@ -150,6 +151,7 @@ _FOLLOW_UP_PHRASES = (
     "next step",
     "explicamelo",
     "explicalo",
+    "explicarlo mas",
     "mas detalle",
     "more detail",
 )
@@ -170,11 +172,11 @@ _OPAQUE_FOLLOW_UPS = {
     "como?",
 }
 _LIVE_CONTEXT_HINT_RE = re.compile(
-    r"\b(current|currently|here|now|just|popup|dialog|warning|message|alert|error|failed|failure|blocked|disabled|loaded|selected|shown|displayed|this|that|it|ahora|actualmente|aqui|pestana|deshabilitada|deshabilitado|bloqueada|bloqueado|cargada|cargado|seleccionada|seleccionado)",
+    r"\b(current|currently|here|now|just|popup|dialog|warning|message|alert|error|failed|failure|blocked|disabled|loaded|selected|shown|displayed|this|that|these|it|my|missing|overlap|ahora|actualmente|aqui|pestana|deshabilitada|deshabilitado|bloqueada|bloqueado|cargada|cargado|seleccionada|seleccionado|mi|mis|este|esta|estos|estas|falta|faltan|ausente|ausentes|solapamiento)\b",
     re.IGNORECASE,
 )
 _GENERIC_TOPIC_HINT_RE = re.compile(
-    r"\b(aqme|descriptor|descriptors|descriptores?|feature|features|gui|interfaz|machine learning|model|models|modelos?|molecule|molecules|prediction|predictions|predicciones?|robert|workflow|concept|meaning|difference)\b",
+    r"\b(aqme|descriptor|descriptors|descriptores?|feature|features|gui|interfaz|machine learning|model|models|modelos?|molecule|molecules|prediction|predictions|predicciones?|robert|workflow|concept|meaning|difference|rmse|mae|r2|accuracy|metric|metrics|metrica|metricas)\b",
     re.IGNORECASE,
 )
 _OPERATIONAL_HINT_RE = re.compile(
@@ -242,11 +244,27 @@ def _last_user_message(conversation_history: Sequence[Mapping[str, str]] | None)
 def _looks_like_follow_up(question: str, tokens: set[str]) -> bool:
     if not tokens:
         return False
+    named_subject = re.match(
+        r"^(?:and|y) (?:what (?:does|do|is|are)|how (?:does|do)|"
+        r"que (?:hace|es|son)|como funciona) ([a-z0-9_]+)\b",
+        question,
+    )
+    if named_subject and named_subject.group(1) in _NAMED_SUBJECTS:
+        return False
     if any(phrase in question for phrase in _FOLLOW_UP_PHRASES):
+        return True
+    if not tokens & {"rmse", "mae", "r2", "accuracy", "mcc", "f1", "auc"} and re.search(
+        r"\b(?:lower|higher|better|worse)\b.*\b(?:value|score|number)\b|"
+        r"\b(?:value|score|number)\b.*\b(?:lower|higher|better|worse)\b",
+        question,
+    ):
         return True
     if tokens & {"each", "either"} and tokens & {"use", "choose"}:
         return True
-    if len(tokens) <= 8 and tokens & {"it", "eso", "esto", "esos", "estos", "esas", "estas"}:
+    if len(tokens) <= 8 and tokens & {
+        "it", "that", "this", "those", "these", "them",
+        "eso", "esto", "esos", "estos", "esas", "estas",
+    }:
         return True
     if re.search(r"\b(?:como|donde) (?:lo|la|los|las)\b", question):
         return True
@@ -289,6 +307,10 @@ def is_generic_question(question: str, intent: str | None = None) -> bool:
     )
     if resolved_intent not in {"tutorial", "module-explanation", "results"}:
         return False
+    if resolved_intent == "results" and re.search(
+        r"\b(?:was|were|did|fue|fueron|dio|dieron)\b", clean_question,
+    ):
+        return False
     if is_follow_up_question(clean_question):
         return False
     if re.search(r"\b(?:generated|produced|obtained|generad[oa]s?|generaron|obtuve|obtuvimos)\b", clean_question):
@@ -319,12 +341,24 @@ def select_inference_history(
     question: str,
     conversation_history: Sequence[Mapping[str, object]] | None,
 ) -> tuple[dict[str, str], ...]:
-    """Return a detached copy of the most recent eligible completed exchange."""
+    """Return the nearest complete standalone exchange behind a follow-up chain."""
 
     if not is_follow_up_question(question):
         return ()
-
-    return last_completed_exchange(conversation_history)
+    records = tuple(conversation_history) if isinstance(conversation_history, (list, tuple)) else ()
+    selected = last_completed_exchange(records)
+    while (selected and len(records) >= 4
+           and _canonical_history_record(records[-2]) == selected[0]
+           and _canonical_history_record(records[-1]) == selected[1]
+           and is_follow_up_question(selected[0]["content"])):
+        previous_records = records[:-2]
+        previous = last_completed_exchange(previous_records)
+        if (not previous or _canonical_history_record(previous_records[-2]) != previous[0]
+                or _canonical_history_record(previous_records[-1]) != previous[1]):
+            break
+        selected = previous
+        records = previous_records
+    return selected
 
 
 def last_completed_exchange(
@@ -332,16 +366,17 @@ def last_completed_exchange(
 ) -> tuple[dict[str, str], ...]:
     """Select adjacent eligible turns without joining across invalid records."""
     records = tuple(conversation_history) if isinstance(conversation_history, (list, tuple)) else ()
-    for index in range(len(records) - 1, 0, -1):
-        user_record = _canonical_history_record(records[index - 1])
-        assistant_record = _canonical_history_record(records[index])
-        if (
-            user_record is not None
-            and assistant_record is not None
-            and user_record["role"] == "user"
-            and assistant_record["role"] == "assistant"
-        ):
-            return (user_record, assistant_record)
+    if len(records) < 2:
+        return ()
+    user_record = _canonical_history_record(records[-2])
+    assistant_record = _canonical_history_record(records[-1])
+    if (
+        user_record is not None
+        and assistant_record is not None
+        and user_record["role"] == "user"
+        and assistant_record["role"] == "assistant"
+    ):
+        return (user_record, assistant_record)
     return ()
 
 
@@ -362,8 +397,15 @@ def classify_question_intent(
         and tokens <= _GREETING_PHRASE_TERMS
     ):
         return "greeting"
-    if is_follow_up_question(clean_question) and not any(
-        phrase in clean_question for phrase in _DIAGNOSTIC_PHRASES
+    explanation_follow_up = bool(re.search(
+        r"\b(?:important|matter|importa)\b", clean_question,
+    )) and not bool(re.search(
+        r"\b(?:error|warning|failed|failure|blocked|disabled|fallo|"
+        r"advertencia|bloquead\w*|deshabilitad\w*)\b", clean_question,
+    ))
+    if is_follow_up_question(clean_question) and (
+        explanation_follow_up
+        or not any(phrase in clean_question for phrase in _DIAGNOSTIC_PHRASES)
     ):
         previous_user_question = _last_user_message(conversation_history)
         if previous_user_question and previous_user_question.strip().lower() != clean_question:
@@ -374,6 +416,10 @@ def classify_question_intent(
     diagnostic_score = sum(3 for phrase in _DIAGNOSTIC_PHRASES if phrase in clean_question)
     tutorial_score = sum(2 for phrase in _TUTORIAL_PHRASES if phrase in clean_question)
     results_score = len(tokens & _RESULTS_TERMS) * 2
+    if (tokens & {"mi", "mis", "este", "esta", "estos", "estas"}
+            and tokens & {"modelo", "modelos"}
+            and re.search(r"\b(?:mejor\w*|peor\w*|confi\w*|fiab\w*|rendim\w*|compar\w*|resultados?)\b", clean_question)):
+        results_score += 4
     parameter_score = len(tokens & _PARAMETER_TERMS) * 2
     module_score = len(tokens & _MODULE_TERMS) * 2
 

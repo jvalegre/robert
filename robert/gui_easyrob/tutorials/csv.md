@@ -2,7 +2,7 @@
 
 ---
 
-<b>Open a spreadsheet.</b><br><br>Excel is shown in the image, but any editor that can save a comma-separated CSV works. Use one row per molecule and one header per column. Before importing the file, make sure the first row contains column names rather than data.
+<b>Open a spreadsheet.</b><br><br>The image shows an illustrative spreadsheet; any editor that can save a comma-separated CSV works. Use one row per molecule and one header per column. Before importing the file, make sure the first row contains column names rather than data.
 
 ---
 
@@ -22,7 +22,7 @@
 
 ---
 
-<b>Load the input in easyROB.</b><br><br>On the <b>ROBERT</b> tab, select your training CSV. Add an <b>External Test CSV</b> only when you have a separate set of molecules to predict. Seeing the selected filename under the input control confirms that easyROB is working with the intended file.
+<b>Load the input in easyROB.</b><br><br>On the <b>Workflow</b> page, select your training CSV. Add an <b>External test CSV</b> only when you have a separate set of molecules to predict. Check the filenames in the Dataset card.
 
 ---
 
@@ -30,11 +30,11 @@
 
 ---
 
-<b>Enable descriptor calculation.</b><br><br>Because this example starts from SMILES, choose <b>Yes</b> for <b>Start by calculating descriptors from SMILES? (AQME)</b>. The AQME tab becomes available, and the AQME stage appears before ROBERT in Workflow progress. Choose No only if you intend to use descriptors already present in the CSV.
+<b>Enable descriptor calculation.</b><br><br>Because this example starts from SMILES, choose <b>Yes</b> for <b>Calculate descriptors with AQME</b>. The AQME descriptors page becomes available, and AQME appears in Workflow progress.
 
 ---
 
-<b>Inspect the AQME viewer.</b><br><br>Open the <b>AQME</b> tab. It may show a common molecular pattern after processing the SMILES. The placeholder in the image indicates where that pattern appears. You can use structural descriptors with the defaults even when there is no suitable shared scaffold.
+<b>Inspect the AQME viewer.</b><br><br>Open <b>AQME descriptors</b>. Its molecule panel may show a common pattern after processing the SMILES. Structural descriptors remain available when no shared scaffold is found.
 
 ---
 
@@ -42,11 +42,11 @@
 
 ---
 
-<b>Run AQME and ROBERT together.</b><br><br>Return to <b>ROBERT</b>, leave <b>Full Workflow</b> selected, and click <b>Run ROBERT</b>. AQME prepares descriptors first; ROBERT then advances through its stages. Watch the cards for the active step, and expand Live log when you need detailed progress.
+<b>Run AQME and ROBERT together.</b><br><br>Return to <b>Workflow</b>, leave <b>Full Workflow</b> selected, and click <b>Run ROBERT</b>. AQME prepares descriptors first; ROBERT then advances through its stages. Expand <b>Process log</b> for details.
 
 ---
 
-<b>Interpret the finish state.</b><br><br>Green checks show stages that completed. If a card shows an error, open Live log and read the messages around that stage before changing inputs or trying again. A completed run should provide output files in the project folder.
+<b>Interpret the finish state.</b><br><br>Green checks show completed stages. If a card shows an error, open <b>Process log</b> and read the messages around that stage before changing inputs or trying again.
 
 ---
 

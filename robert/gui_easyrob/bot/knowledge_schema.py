@@ -46,8 +46,11 @@ ALLOWED_ENTITY_TYPES = {
 }
 ALLOWED_TABS = {
     "",
+    "Workflow",
     "ROBERT",
+    "AQME descriptors",
     "AQME",
+    "Advanced options",
     "Advanced Options",
     "Results",
     "Reports",
@@ -56,6 +59,7 @@ ALLOWED_TABS = {
     "CheckML",
     "Images",
     "MolSSI Databases",
+    "MolSSI databases",
 }
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 

@@ -52,6 +52,9 @@ _TOKEN_RE = re.compile(r"[a-z0-9_]+")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _MULTISPACE_RE = re.compile(r"\s+")
 _TUTORIAL_TAB_HINTS = (
+    ("Workflow", ("workflow page", "workflow tab", "main workflow")),
+    ("AQME descriptors", ("aqme descriptors", "descriptor settings")),
+    ("Advanced options", ("advanced options page", "advanced settings")),
     ("MolSSI Databases", ("molssi databases", "descriptor libraries", "molssi")),
     ("Advanced Options", ("advanced options", "general", "curate", "generate", "predict settings")),
     ("Results", ("results tab", "results view", "result views")),
@@ -64,7 +67,7 @@ _TUTORIAL_TAB_HINTS = (
 )
 _AQME_MODULES = {"AQME", "QDESCP", "CSEARCH", "CMIN", "QCORR", "QPREP"}
 _ROBERT_ML_MODULES = {"ROBERT", "CURATE", "GENERATE", "VERIFY", "PREDICT", "REPORT", "FULL_WORKFLOW"}
-_UI_TAB_NAMES = {"ROBERT", "AQME", "Advanced Options", "Results", "Reports", "Predictions", "Images", "MolSSI Databases", "CheckML"}
+_UI_TAB_NAMES = {"Workflow", "ROBERT", "AQME descriptors", "AQME", "Advanced options", "Advanced Options", "Results", "Reports", "Predictions", "Images", "MolSSI databases", "MolSSI Databases", "CheckML"}
 _LOW_SIGNAL_TITLES = {"overview", "developement", "reference", "module", "main"}
 _STOP_WORDS = {
     "a", "about", "an", "and", "are", "do", "does", "for", "how", "i", "in",
@@ -77,6 +80,7 @@ _STOP_WORDS = {
 _TERM_ALIASES = (
     (re.compile(r"\bflujo\s+de\s+trabajo\b"), "workflow"),
     (re.compile(r"\bdescriptores?\b"), "descriptors"),
+    (re.compile(r"\bcalcul(?:a|as|an|amos|ar|ando|ado|o)\b"), "calculate"),
     (re.compile(r"\bmodelos?\b"), "model"),
     (re.compile(r"\b(?:prediccion|predicciones)\b"), "predictions"),
     (re.compile(r"\bregresi[oó]n\b"), "regression"),
@@ -85,6 +89,7 @@ _TERM_ALIASES = (
     (re.compile(r"\br\s*(?:squared|2)\b"), "r2"),
     (re.compile(r"\bno[\s_-]+pfi\b"), "no_pfi"),
     (re.compile(r"\btarget\s+column\b"), "target_column"),
+    (re.compile(r"\bcolumna\s+objetivo\b"), "target_column"),
     (re.compile(r"\badvanced\s+options\b"), "advanced_options"),
     (re.compile(r"\bfull\s+workflow\b"), "full_workflow"),
 )

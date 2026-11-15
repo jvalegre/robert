@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -209,7 +208,6 @@ class BotPanel(QFrame):
     workflow_summary_requested = Signal()
     close_requested = Signal()
     clear_requested = Signal()
-    local_prepare_requested = Signal()
     api_save_requested = Signal()
     api_delete_requested = Signal()
 
@@ -262,6 +260,7 @@ class BotPanel(QFrame):
         self.title_label.setObjectName("botTitle")
         subtitle_label = QLabel("Ask robBOT about workflows, results, and AQME/ROBERT documentation.")
         subtitle_label.setObjectName("botSubtitle")
+        self.subtitle_label = subtitle_label
         identity_layout.addWidget(self.title_label)
         identity_layout.addWidget(subtitle_label)
         header_layout.addLayout(identity_layout, 1)
@@ -298,7 +297,6 @@ class BotPanel(QFrame):
         self.settings_help_button = self._help_button(
             "Settings help",
             "Use Settings to choose which robBOT mode answers your questions.\n\n"
-            "Local AI uses the packaged offline model in this ROBERT environment.\n\n"
             "Cloud AI is the default and uses an external provider with your API key.\n\n"
             "Heuristic gives stable rule-based help from the GUI state, popups, logs, and packaged docs.",
         )
@@ -314,36 +312,15 @@ class BotPanel(QFrame):
         settings_body_layout.addWidget(settings_header)
 
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["Local AI", "Cloud AI", "Heuristic"])
+        self.mode_combo.addItems(["Cloud AI", "Heuristic"])
         self.mode_combo.setCurrentText("Cloud AI")
         self.mode_combo.currentTextChanged.connect(self._update_mode_ui)
         self.mode_help_button = self._help_button(
             "Mode help",
-            "Local AI runs the packaged local model in this ROBERT environment.\n\n"
             "Cloud AI is the default and uses an external provider with your API key.\n\n"
             "Heuristic is deterministic and uses only GUI state, popups, logs, and packaged knowledge.",
         )
         settings_body_layout.addWidget(self._labeled_row("Mode", self.mode_combo, self.mode_help_button))
-
-        self.local_controls = QWidget()
-        local_layout = QVBoxLayout(self.local_controls)
-        local_layout.setContentsMargins(0, 0, 0, 0)
-        local_layout.setSpacing(10)
-
-        self.local_status_label = QLabel("Not downloaded")
-        self.local_detail_label = QLabel("")
-        self.local_detail_label.setWordWrap(True)
-        self.local_progress_bar = QProgressBar()
-        self.local_progress_bar.setTextVisible(False)
-        self.local_progress_bar.setRange(0, 0)
-        self.local_progress_bar.hide()
-        self.local_action_button = QPushButton("Download model")
-        local_layout.addWidget(self._labeled_row("Local model", self.local_status_label))
-        local_layout.addWidget(self.local_detail_label)
-        local_layout.addWidget(self.local_progress_bar)
-        local_layout.addWidget(self.local_action_button)
-        self.local_action_button.clicked.connect(self.local_prepare_requested.emit)
-        settings_body_layout.addWidget(self.local_controls)
 
         self.llm_controls = QWidget()
         llm_layout = QVBoxLayout(self.llm_controls)
@@ -450,25 +427,6 @@ class BotPanel(QFrame):
         conversation_label = QLabel("Conversation")
         conversation_label.setObjectName("botSectionLabel")
         conversation_layout.addWidget(conversation_label)
-
-        self.chat_local_status_shell = QFrame()
-        self.chat_local_status_shell.setObjectName("botLocalStatusShell")
-        chat_local_status_layout = QVBoxLayout(self.chat_local_status_shell)
-        chat_local_status_layout.setContentsMargins(10, 10, 10, 10)
-        chat_local_status_layout.setSpacing(6)
-        self.chat_local_status_title = QLabel("Local AI status")
-        self.chat_local_status_title.setObjectName("botSectionLabel")
-        self.chat_local_status_text = QLabel("")
-        self.chat_local_status_text.setWordWrap(True)
-        self.chat_local_progress_bar = QProgressBar()
-        self.chat_local_progress_bar.setTextVisible(False)
-        self.chat_local_progress_bar.setRange(0, 0)
-        self.chat_local_progress_bar.hide()
-        chat_local_status_layout.addWidget(self.chat_local_status_title)
-        chat_local_status_layout.addWidget(self.chat_local_status_text)
-        chat_local_status_layout.addWidget(self.chat_local_progress_bar)
-        self.chat_local_status_shell.hide()
-        conversation_layout.addWidget(self.chat_local_status_shell)
 
         self.history_view = QTextBrowser()
         self.history_view.setOpenExternalLinks(True)
@@ -754,12 +712,6 @@ class BotPanel(QFrame):
                 border-radius: 16px;
                 padding: 6px;
             }}
-            #botLocalStatusShell {{
-                background: {css(base.lighter(108) if is_dark else base.lighter(102))};
-                color: {css(text)};
-                border: 1px solid {css(mid)};
-                border-radius: 14px;
-            }}
             #botUsageShell {{
                 background: {css(base.lighter(108) if is_dark else base.lighter(102))};
                 color: {css(text)};
@@ -907,7 +859,7 @@ class BotPanel(QFrame):
         elif normalized == "heuristic":
             label = "Heuristic"
         else:
-            label = "Local AI"
+            label = "Heuristic"
         self.title_label.setText(f"robBOT ({label})")
         if self._message_records:
             self._rerender_history()
@@ -922,17 +874,14 @@ class BotPanel(QFrame):
         elif normalized_mode == "heuristic":
             active_label = "Heuristic"
         else:
-            active_label = "Local AI"
+            active_label = "Heuristic"
         return f"robBOT ({active_label})"
 
     def _update_mode_ui(self, mode: str) -> None:
         normalized = str(mode).strip().lower()
         is_cloud = normalized == "cloud ai"
-        is_local = normalized == "local ai"
         self._update_mode_indicator(mode)
-        self.local_controls.setHidden(not is_local)
         self.llm_controls.setHidden(not is_cloud)
-        self.local_action_button.setEnabled(not self._busy and is_local)
         self.provider_combo.setEnabled(not self._busy and is_cloud)
         self.web_search_checkbox.setEnabled(not self._busy and is_cloud)
         self.api_key_edit.setEnabled(not self._busy and is_cloud)
@@ -1224,41 +1173,6 @@ class BotPanel(QFrame):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._resize_api_setup_movie()
-
-    def set_local_status(self, status: str, detail: str | None = None) -> None:
-        self.local_status_label.setText(status)
-        if detail is not None:
-            self.local_detail_label.setText(detail)
-        detail_text = str(detail if detail is not None else self.local_detail_label.text()).strip()
-        normalized = str(status).strip().lower()
-        if normalized == "ready":
-            self.local_action_button.setText("Model ready")
-        elif normalized == "downloaded":
-            self.local_action_button.setText("Load model")
-        elif normalized == "error":
-            self.local_action_button.setText("Retry")
-        elif normalized == "not downloaded":
-            self.local_action_button.setText("Download model")
-        else:
-            self.local_action_button.setText("Preparing model...")
-
-        show_chat_status = normalized == "preparing..." or self.chat_local_progress_bar.isVisible()
-        self.chat_local_status_text.setText(f"{status}. {detail_text}".strip().strip("."))
-        self.chat_local_status_shell.setVisible(show_chat_status and bool(self.chat_local_status_text.text().strip()))
-
-    def set_local_progress_active(self, is_active: bool) -> None:
-        self.local_progress_bar.setVisible(bool(is_active))
-        self.chat_local_progress_bar.setVisible(bool(is_active))
-        if is_active:
-            self.local_progress_bar.setRange(0, 0)
-            self.chat_local_progress_bar.setRange(0, 0)
-            self.chat_local_status_shell.setVisible(True)
-        else:
-            self.local_progress_bar.setRange(0, 1)
-            self.local_progress_bar.setValue(0)
-            self.chat_local_progress_bar.setRange(0, 1)
-            self.chat_local_progress_bar.setValue(0)
-            self.chat_local_status_shell.setVisible(False)
 
     def set_busy(self, is_busy: bool) -> None:
         self._busy = bool(is_busy)

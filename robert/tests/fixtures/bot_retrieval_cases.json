@@ -1,0 +1,200 @@
+[
+  {
+    "id": "qdescp-purpose-en",
+    "language": "en",
+    "question": "What does QDESCP do in AQME?",
+    "expected_evidence": ["module-aqme-qdescp"]
+  },
+  {
+    "id": "qdescp-purpose-es",
+    "language": "es",
+    "question": "¿Qué hace QDESCP en AQME?",
+    "expected_evidence": ["module-aqme-qdescp"]
+  },
+  {
+    "id": "pfi-definition-en",
+    "language": "en",
+    "question": "What is PFI in ROBERT?",
+    "expected_evidence": ["results-robert-pfi"]
+  },
+  {
+    "id": "pfi-definition-es",
+    "language": "es",
+    "question": "¿Qué es PFI en ROBERT?",
+    "expected_evidence": ["results-robert-pfi"]
+  },
+  {
+    "id": "verify-purpose-en",
+    "language": "en",
+    "question": "What does VERIFY check in ROBERT?",
+    "expected_evidence": ["module-verify"]
+  },
+  {
+    "id": "verify-purpose-es",
+    "language": "es",
+    "question": "¿Qué comprueba VERIFY en ROBERT?",
+    "expected_evidence": ["module-verify"]
+  },
+  {
+    "id": "smiles-descriptors-en",
+    "language": "en",
+    "question": "How do I generate AQME descriptors from SMILES?",
+    "expected_evidence": ["workflow-aqme-descriptors-to-robert"]
+  },
+  {
+    "id": "smiles-descriptors-es",
+    "language": "es",
+    "question": "¿Cómo genero descriptores de AQME a partir de SMILES?",
+    "expected_evidence": ["workflow-aqme-descriptors-to-robert"]
+  },
+  {
+    "id": "descriptor-calculation-en",
+    "language": "en",
+    "question": "How does AQME calculate descriptors?",
+    "expected_evidence": ["aqme-code-docstrings-qdescp-utils-calculate-morfeus-descriptors-89fc1dd7"]
+  },
+  {
+    "id": "descriptor-calculation-es",
+    "language": "es",
+    "question": "¿Cómo calcula AQME los descriptores?",
+    "expected_evidence": ["aqme-code-docstrings-qdescp-utils-calculate-morfeus-descriptors-89fc1dd7"]
+  },
+  {
+    "id": "verify-follow-up-en",
+    "language": "en",
+    "question": "Why is that important?",
+    "history": [
+      {"role": "user", "content": "What does VERIFY check in ROBERT?"},
+      {"role": "assistant", "content": "VERIFY checks model validation."}
+    ],
+    "expected_evidence": ["module-verify", "robert-docs-examples-modules-verification-verify-verification-of-predictive-ability-1-a3e5cf82"]
+  },
+  {
+    "id": "verify-support-follow-up-en",
+    "language": "en",
+    "question": "Why does that matter for my model?",
+    "history": [
+      {"role": "user", "content": "What does VERIFY check in ROBERT?"},
+      {"role": "assistant", "content": "VERIFY checks predictive ability."}
+    ],
+    "expected_evidence": ["module-verify"]
+  },
+  {
+    "id": "verify-follow-up-es",
+    "language": "es",
+    "question": "¿Y por qué importa?",
+    "history": [
+      {"role": "user", "content": "¿Qué comprueba VERIFY en ROBERT?"},
+      {"role": "assistant", "content": "VERIFY comprueba la validación del modelo."}
+    ],
+    "expected_evidence": ["module-verify", "robert-docs-examples-modules-verification-verify-verification-of-predictive-ability-1-a3e5cf82"]
+  },
+  {
+    "id": "verify-chain-en",
+    "language": "en",
+    "question": "And what should I check next?",
+    "history": [
+      {"role": "user", "content": "What does VERIFY check in ROBERT?"},
+      {"role": "assistant", "content": "VERIFY checks predictive ability."},
+      {"role": "user", "content": "Why is that important?"},
+      {"role": "assistant", "content": "It gives validation evidence."},
+      {"role": "user", "content": "Can you explain it further?"},
+      {"role": "assistant", "content": "It checks whether performance is robust."}
+    ],
+    "expected_evidence": ["module-verify"]
+  },
+  {
+    "id": "verify-chain-es",
+    "language": "es",
+    "question": "¿Y qué reviso después?",
+    "history": [
+      {"role": "user", "content": "¿Qué comprueba VERIFY en ROBERT?"},
+      {"role": "assistant", "content": "VERIFY comprueba la capacidad predictiva."},
+      {"role": "user", "content": "¿Y por qué importa?"},
+      {"role": "assistant", "content": "Aporta evidencia de validación."},
+      {"role": "user", "content": "¿Puedes explicarlo más?"},
+      {"role": "assistant", "content": "Revisa si el rendimiento es robusto."}
+    ],
+    "expected_evidence": ["module-verify"]
+  },
+  {
+    "id": "rmse-interpretation-en",
+    "language": "en",
+    "question": "How do I interpret RMSE in ROBERT?",
+    "expected_evidence": ["results-robert-rmse"]
+  },
+  {
+    "id": "rmse-interpretation-es",
+    "language": "es",
+    "question": "¿Cómo interpreto el RMSE en ROBERT?",
+    "expected_evidence": ["results-robert-rmse"]
+  },
+  {
+    "id": "curate-removal-en",
+    "language": "en",
+    "question": "What does CURATE remove from the dataset?",
+    "expected_evidence": ["module-curate"]
+  },
+  {
+    "id": "curate-removal-es",
+    "language": "es",
+    "question": "¿Qué elimina CURATE del conjunto de datos?",
+    "expected_evidence": ["module-curate"]
+  },
+  {
+    "id": "csearch-purpose-en",
+    "language": "en",
+    "question": "What does CSEARCH do in AQME?",
+    "expected_evidence": ["module-aqme-csearch"]
+  },
+  {
+    "id": "csearch-purpose-es",
+    "language": "es",
+    "question": "¿Qué hace CSEARCH en AQME?",
+    "expected_evidence": ["module-aqme-csearch"]
+  },
+  {
+    "id": "csearch-topic-switch-en",
+    "language": "en",
+    "question": "And what does CSEARCH do in AQME?",
+    "history": [
+      {"role": "user", "content": "What does VERIFY check in ROBERT?"},
+      {"role": "assistant", "content": "VERIFY checks predictive ability."}
+    ],
+    "expected_evidence": ["module-aqme-csearch"]
+  },
+  {
+    "id": "csearch-topic-switch-es",
+    "language": "es",
+    "question": "¿Y qué hace CSEARCH en AQME?",
+    "history": [
+      {"role": "user", "content": "What does VERIFY check in ROBERT?"},
+      {"role": "assistant", "content": "VERIFY checks predictive ability."}
+    ],
+    "expected_evidence": ["module-aqme-csearch"]
+  },
+  {
+    "id": "report-location-en",
+    "language": "en",
+    "question": "Where can I find the ROBERT PDF report?",
+    "expected_evidence": ["results-robert-report", "module-report"]
+  },
+  {
+    "id": "report-location-es",
+    "language": "es",
+    "question": "¿Dónde encuentro el informe PDF de ROBERT?",
+    "expected_evidence": ["results-robert-report", "tab-reports"]
+  },
+  {
+    "id": "target-column-en",
+    "language": "en",
+    "question": "How do I select the target column in ROBERT?",
+    "expected_evidence": ["concept-robert-target-column", "control-target-column"]
+  },
+  {
+    "id": "target-column-es",
+    "language": "es",
+    "question": "¿Cómo selecciono la columna objetivo en ROBERT?",
+    "expected_evidence": ["concept-robert-target-column", "control-target-column"]
+  }
+]

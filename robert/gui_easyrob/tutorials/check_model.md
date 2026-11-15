@@ -2,15 +2,15 @@
 
 ---
 
-<b>Open the separate CHECKML page.</b><br><br>Click <b>CheckML</b> in the main tab bar. Its CSV inputs, model source, Run CHECKML button, progress indicator, and console belong to this page. Settings from the main ROBERT workflow do not replace these inputs.
+<b>Open the CheckML page.</b><br><br>Select <b>CheckML</b> in the sidebar. Its CSV inputs, model source, Run CheckML button, and process log belong to this page. Workflow settings do not replace these inputs.
 
 ---
 
-<b>Load the data to evaluate.</b><br><br>Choose an <b>Input CSV</b> containing the target and numerical descriptor columns for the model. You may also add an external test CSV. Check that both files correspond to the same problem; CHECKML makes its own internal split using ROBERT's defaults.
+<b>Load the data to evaluate.</b><br><br>Choose an <b>Input CSV</b> containing the target and numerical descriptor columns for the model. You may also add an external test CSV, and clear that optional selection without replacing the input. Check that both files correspond to the same problem; CHECKML makes its own internal split using ROBERT's defaults.
 
 ---
 
-<b>Map and filter columns.</b><br><br>Select <b>y (target column)</b>, <b>names (ID column)</b>, and Regression or Classification. The ignored-column list excludes fields that are not descriptors. Text fields such as SMILES start checked when a CSV is loaded; review the checks so the model receives only the intended numerical features.
+<b>Map and filter columns.</b><br><br>Select the target column, name column, and prediction type. In <b>Columns to ignore</b>, <b>SMILES is checked by default</b> when the CSV is loaded, as are other text columns. Review the checks so only intended numerical descriptors reach the model.
 
 ---
 
@@ -22,4 +22,4 @@
 
 ---
 
-<b>Run and interpret the result.</b><br><br>Press <b>Run CHECKML</b> and follow the progress indicator and console on this tab. Use Stop if you need to interrupt it. After successful completion, open <b>Results</b> for the PDF and any other available outputs; if the run stops early, read the console before changing the inputs.
+<b>Run and interpret the result.</b><br><br>Press <b>Run CheckML</b> and follow the process log. Use Stop if needed. Selecting a CSV keeps you on CheckML even when its folder has earlier results. After successful completion, open <b>Results</b> for the PDF and available outputs; if the run stops early, read the log before changing inputs.

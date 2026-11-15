@@ -43,14 +43,14 @@ class TestMolssiUtils(unittest.TestCase):
             self.df_work,
             self.df_api,
             "SMILES",
-            "acids",
+            "primary-amines",
             "DFT",
             ["SMILES"],
         )
 
         self.assertTrue(result["available"])
         self.assertTrue(result["export_available"])
-        mocked_available.assert_called_once_with("acids")
+        mocked_available.assert_called_once_with("primary-amines", "DFT")
 
 
 if __name__ == "__main__":

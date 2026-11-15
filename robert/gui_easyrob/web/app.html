@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>easyROB</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <symbol id="icon-workflow" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h10M6 7.8l4.8 8.5M18 7.8l-4.8 8.5"/></symbol>
+    <symbol id="icon-options" viewBox="0 0 24 24"><path d="M4 6h5m4 0h7M4 12h10m4 0h2M4 18h3m4 0h9"/><circle cx="11" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/></symbol>
+    <symbol id="icon-aqme" viewBox="0 0 24 24"><circle cx="5" cy="7" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="16" cy="18" r="2"/><circle cx="7" cy="18" r="2"/><path d="m7 6.7 9-1.4M18 7l-1.5 9M14 18H9M6 9l.8 7"/></symbol>
+    <symbol id="icon-checkml" viewBox="0 0 24 24"><path d="m12 2 8 3v6c0 5-3.2 8.5-8 11-4.8-2.5-8-6-8-11V5z"/><path d="m8.5 12 2.4 2.4 4.8-5"/></symbol>
+    <symbol id="icon-results" viewBox="0 0 24 24"><path d="M5 3h10l4 4v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM15 3v4h4M8 17v-3m4 3V9m4 8v-5"/></symbol>
+    <symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/></symbol>
+    <symbol id="icon-bot" viewBox="0 0 24 24"><path d="M4 4h16v12H9l-5 4z"/><path d="m12 7 .7 2.3L15 10l-2.3.7L12 13l-.7-2.3L8 10l2.3-.7z"/></symbol>
+    <symbol id="icon-tutorial" viewBox="0 0 24 24"><path d="M12 5C9.5 3.5 6.5 3.2 3 4v15c3.5-.8 6.5-.5 9 1 2.5-1.5 5.5-1.8 9-1V4c-3.5-.8-6.5-.5-9 1zM12 5v15"/></symbol>
+    <symbol id="icon-docs" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM15 3v4h4M9 11h7M9 15h7M9 19h5"/></symbol>
+    <symbol id="icon-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/></symbol>
+    <symbol id="icon-contact" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
+    <symbol id="icon-version" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  </svg>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><img src="robert_brand.png" alt="ROBERT — Automated ML protocols"></div>
+      <div class="nav-label">WORKSPACE</div>
+      <nav aria-label="Main navigation">
+        <button class="nav-item active" data-page="workflow"><svg class="nav-icon" aria-hidden="true"><use href="#icon-workflow"/></svg> Workflow</button>
+        <button class="nav-item" data-page="advanced"><svg class="nav-icon" aria-hidden="true"><use href="#icon-options"/></svg> Advanced options</button>
+        <button class="nav-item" data-page="aqme" disabled title="Enable Calculate descriptors with AQME in Workflow to configure descriptors"><svg class="nav-icon" aria-hidden="true"><use href="#icon-aqme"/></svg> AQME descriptors</button>
+        <button class="nav-item" data-page="checkml"><svg class="nav-icon" aria-hidden="true"><use href="#icon-checkml"/></svg> CheckML</button>
+        <button class="nav-item" data-page="results"><svg class="nav-icon" aria-hidden="true"><use href="#icon-results"/></svg> Results</button>
+        <button class="nav-item" data-action="openMolssi"><svg class="nav-icon" aria-hidden="true"><use href="#icon-database"/></svg> MolSSI databases</button>
+        <button class="nav-item" data-bot-toggle aria-controls="bot-drawer" aria-expanded="false"><svg class="nav-icon" aria-hidden="true"><use href="#icon-bot"/></svg> robBOT</button>
+        <button class="nav-item" data-tutorial-toggle aria-controls="tutorial-drawer" aria-expanded="false"><svg class="nav-icon" aria-hidden="true"><use href="#icon-tutorial"/></svg> Tutorial</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="utility-link" data-action="openDocs"><svg class="utility-icon" aria-hidden="true"><use href="#icon-docs"/></svg><span>Documentation</span></button>
+        <button class="utility-link" data-action="openYouTube"><svg class="utility-icon" aria-hidden="true"><use href="#icon-video"/></svg><span>YouTube</span></button>
+        <button class="utility-link" data-action="openContact"><svg class="utility-icon" aria-hidden="true"><use href="#icon-contact"/></svg><span>Contact</span></button>
+        <button class="utility-link" data-action="openVersion"><svg class="utility-icon" aria-hidden="true"><use href="#icon-version"/></svg><span>Version</span></button>
+        <div class="local-badge"><span></span> Local analysis</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar"><span>THE ALEGRE GROUP <span class="topbar-divider">/</span> ROBERT</span><span class="topbar-version">easyROB · Desktop</span></div>
+      <section class="page active" id="page-workflow">
+        <header class="page-heading"><div><p class="eyebrow">ANALYSIS WORKSPACE</p><h1>Build your workflow<span class="dot">.</span></h1><p class="page-subtitle">Configure a reproducible ROBERT run, then follow its progress in one place.</p></div><span class="heading-pill">01 / WORKFLOW</span></header>
+        <div class="content-grid">
+          <div class="primary-column">
+            <section class="panel"><div class="panel-head"><span class="step">01</span><div><h2>Dataset</h2><p>Choose the data that will drive your analysis.</p></div></div>
+              <div class="file-grid"><div class="file-drop"><span class="file-icon">↑</span><small>REQUIRED</small><strong>Training CSV</strong><span class="file-name" id="train-file">No file selected</span><button class="button subtle" data-action="chooseTrain">Choose CSV</button></div>
+              <div class="file-drop"><span class="file-icon">＋</span><small>OPTIONAL</small><strong>External test CSV</strong><span class="file-name" id="test-file">No file selected</span><div class="file-actions"><button class="button subtle" data-action="chooseTest">Choose CSV</button><button class="text-button" data-action="clearTest">Clear</button></div></div></div>
+            </section>
+            <section class="panel"><div class="panel-head"><span class="step">02</span><div><h2>Analysis setup</h2><p>Select the outcome and how ROBERT should process it.</p></div></div><div class="form-grid" id="workflow-fields"></div></section>
+            <section class="panel"><div class="panel-head"><span class="step">03</span><div><h2>Descriptor columns</h2><p>Move columns that should be excluded from modeling.</p></div></div><div class="column-grid"><div><h3>Available <span id="available-count">0</span></h3><div class="column-list" id="available-columns"></div></div><div><h3>Ignored <span id="ignored-count">0</span></h3><div class="column-list" id="ignored-columns"></div></div></div></section>
+            <section class="panel action-panel"><div class="action-intro"><p class="eyebrow">RUN CONTROL</p><h2>Run the analysis</h2><p>Choose the workflow to launch. Progress and output appear beside it.</p></div><div class="action-buttons"><button class="run-control run-robert" data-action="run" id="run-button"><span class="run-control-icon" aria-hidden="true">▶</span><span class="run-control-copy"><strong>Run ROBERT</strong><small>Start the analysis</small></span><span class="run-control-arrow" aria-hidden="true">↗</span></button><button class="run-control run-aqme" data-action="runAqme" id="aqme-run-button"><span class="run-control-icon" aria-hidden="true">⬡</span><span class="run-control-copy"><strong>Run AQME only</strong><small>Calculate descriptors</small></span><span class="run-control-arrow" aria-hidden="true">↗</span></button><button class="run-control run-stop" data-action="stop" id="stop-button"><span class="run-control-icon" aria-hidden="true">■</span><span class="run-control-copy"><strong>Stop</strong><small>End the current process</small></span></button></div></section>
+          </div>
+          <div class="side-column"><section class="panel progress-panel" aria-label="Workflow progress"><div class="progress-heading"><div><p class="eyebrow">LIVE STATUS</p><h2>Workflow progress</h2></div><span class="progress-badge" id="workflow-state-badge">Ready</span></div><p class="activity" id="workflow-activity">Waiting for a run</p><div class="progress-meter-head"><span id="workflow-completion">0 of 5 complete</span><span id="workflow-percent">0%</span></div><div class="progress-meter" role="progressbar" aria-label="Workflow completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="workflow-meter-fill"></span></div><div id="workflow-progress" class="progress-list" role="list"></div></section><section class="panel log-panel"><button type="button" class="log-toggle" data-console-toggle="workflow" aria-expanded="false" aria-controls="workflow-log"><span class="log-title">Process log<small>ROBERT output</small></span><span class="log-summary-end"><span class="live-indicator">LIVE</span><span class="log-chevron" aria-hidden="true">⌄</span></span></button><pre id="workflow-log" hidden>No output yet.</pre></section></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-advanced"><header class="page-heading"><div><p class="eyebrow">CONFIGURATION</p><h1>Advanced options<span class="dot">.</span></h1><p class="page-subtitle">The same ROBERT parameters, with the original validation and defaults.</p></div><span class="heading-pill">02 / OPTIONS</span></header><div class="option-grid">
+        <section class="panel"><div class="panel-head"><span class="step">G</span><div><h2>General</h2><p>Reproducibility and split settings.</p></div><button class="text-button help-link" data-action="openHelp" data-value="general">Help ↗</button></div><div class="form-grid" id="general-fields"></div></section>
+        <section class="panel"><div class="panel-head"><span class="step">C</span><div><h2>Curate</h2><p>Descriptor cleaning and filters.</p></div><button class="text-button help-link" data-action="openHelp" data-value="curate">Help ↗</button></div><div class="form-grid" id="curate-fields"></div></section>
+        <section class="panel"><div class="panel-head"><span class="step">M</span><div><h2>Generate</h2><p>Model selection and optimization.</p></div><button class="text-button help-link" data-action="openHelp" data-value="generate">Help ↗</button></div><div class="form-grid" id="generate-fields"></div></section>
+        <section class="panel"><div class="panel-head"><span class="step">P</span><div><h2>Predict</h2><p>Prediction and interpretation settings.</p></div><button class="text-button help-link" data-action="openHelp" data-value="predict">Help ↗</button></div><div class="form-grid" id="predict-fields"></div></section>
+      </div></section>
+
+      <section class="page" id="page-aqme"><header class="page-heading"><div><p class="eyebrow">MOLECULAR PREPARATION</p><h1>AQME descriptors<span class="dot">.</span></h1><p class="page-subtitle">Configure descriptor generation using the same AQME processing pipeline.</p></div><span class="heading-pill">03 / AQME</span></header><div class="two-up"><section class="panel"><div class="panel-head"><span class="step">A</span><div><h2>Descriptor settings</h2><p>Choose atoms, level, and solvent.</p></div></div><div class="form-grid" id="aqme-fields"></div><div class="panel-footer"><button class="text-button" data-action="openHelp" data-value="aqme">Help AQME parameters ↗</button></div></section><section class="panel molecule-panel"><div class="panel-head"><span class="step">⌁</span><div><h2>Molecule editor</h2><p>Select atoms on the drawing to define mapped descriptors.</p></div></div><div class="molecule-canvas" id="molecule-canvas"><img id="molecule-image" alt="Molecular structure" hidden><p id="molecule-message">Choose a CSV with a SMILES column to inspect its common pattern.</p></div><p class="molecule-info" id="molecule-info"></p><div class="panel-footer"><button class="button subtle" data-action="openChemdraw">Import ChemDraw or SDF</button><span class="muted">CDXML, SDF and MOL files open in the editor below.</span></div></section></div>
+        <section class="panel chemdraw-editor" id="chemdraw-editor" hidden>
+          <div class="panel-title-row"><div><p class="eyebrow">MOLECULE DATASET</p><h2>ChemDraw molecules</h2></div><button class="text-button" id="chemdraw-close">Close ×</button></div>
+          <p class="muted">Review the imported structures, assign unique names and numeric target values, then save the CSV. Export ChemDraw files as CDXML and check that all bonds and valences are valid.</p>
+          <div class="chemdraw-controls"><label>Target column name <input id="chemdraw-target-name" value="target" spellcheck="false"></label><div><span>Optional columns</span><div id="chemdraw-columns" class="chemdraw-options"></div></div></div>
+          <div class="prediction-scroll"><table class="prediction-table chemdraw-table"><thead id="chemdraw-head"></thead><tbody id="chemdraw-body"></tbody></table></div>
+          <div class="chemdraw-footer"><p id="chemdraw-message" role="status"></p><button class="button primary" id="chemdraw-save">Save as CSV ↗</button></div>
+        </section>
+      </section>
+
+      <section class="page" id="page-checkml"><header class="page-heading checkml-heading"><div><p class="eyebrow">MODEL VALIDATION</p><h1>CheckML<span class="dot">.</span></h1><p class="page-subtitle">Evaluate an existing model with ROBERT's established checks.</p></div><div class="checkml-heading-art"><span class="heading-pill">04 / CHECKML</span><img src="checkml_brand.png" alt="CheckML — Model reliability assessment"></div></header><div class="two-up"><section class="panel"><div class="panel-head"><span class="step">01</span><div><h2>Inputs</h2><p>Training data, optional test data and model source.</p></div></div><div class="file-grid compact"><div class="file-drop"><strong>Input CSV</strong><span class="file-name" id="checkml-train-file">No file selected</span><button class="button subtle" data-action="chooseCheckmlTrain">Choose CSV</button></div><div class="file-drop"><strong>External test CSV</strong><span class="file-name" id="checkml-test-file">No file selected</span><div class="file-actions"><button class="button subtle" data-action="chooseCheckmlTest">Choose CSV</button><button class="text-button" data-action="clearCheckmlTest" id="clear-checkml-test" hidden>Clear</button></div></div></div><div class="form-grid" id="checkml-fields"></div><h3 class="mini-heading">Columns to ignore</h3><div class="column-list" id="checkml-columns"></div><div class="file-actions" id="checkml-params-picker" hidden><button class="text-button" data-action="chooseCheckmlParams">Choose parameter CSV</button><button class="text-button" data-action="checkmlParamHelp">Format help ?</button><span class="selected-file" id="checkml-params-file"></span></div><div class="file-actions" id="checkml-model-picker" hidden><button class="text-button" data-action="chooseCheckmlModel">Choose saved model</button><span class="selected-file" id="checkml-model-file"></span></div><div class="panel-footer checkml-actions"><button class="run-control run-robert" id="checkml-run-button" data-action="checkmlRun"><span class="run-control-icon" aria-hidden="true">▶</span><span class="run-control-copy"><strong>Run CheckML</strong><small>Validate the model</small></span></button><button class="run-control run-stop" id="checkml-stop-button" data-action="checkmlStop"><span class="run-control-icon" aria-hidden="true">■</span><span class="run-control-copy"><strong>Stop</strong><small>End validation</small></span></button></div></section><section class="panel log-panel"><button type="button" class="log-toggle" data-console-toggle="checkml" aria-expanded="false" aria-controls="checkml-log"><span class="log-title">CheckML output<small>Validation log</small></span><span class="log-summary-end"><span class="live-indicator">LIVE</span><span class="log-chevron" aria-hidden="true">⌄</span></span></button><pre id="checkml-log" hidden>No output yet.</pre></section></div></section>
+
+      <section class="page" id="page-results"><header class="page-heading"><div><p class="eyebrow">ANALYSIS OUTPUT</p><h1>Results<span class="dot">.</span></h1><p class="page-subtitle">Explore reports, predictions, images and interactive plots from your run.</p></div><span class="heading-pill">05 / RESULTS</span></header><div class="result-toolbar" id="result-model-toolbar" hidden><label for="result-model">Model</label><select id="result-model"></select><span>Choose a model to filter every result view.</span></div><div class="result-grid"><button class="result-card" data-action="openResult" data-value="Report"><span>▤</span><strong>Reports</strong><small>PDF summaries and model evidence</small><ul class="result-files"></ul><em>Open results ↗</em></button><button class="result-card" data-action="openResult" data-value="Predictions"><span>▦</span><strong>Predictions</strong><small>Browse external predictions</small><ul class="result-files"></ul><em>Open results ↗</em></button><button class="result-card" data-action="openResult" data-value="Images"><span>▧</span><strong>Images</strong><small>Modern workflow gallery</small><ul class="result-files"></ul><em>Open gallery ↓</em></button><button class="result-card" data-action="openResult" data-value="Interactive plots"><span>◉</span><strong>Interactive plots</strong><small>Inspect generated model charts</small><ul class="result-files"></ul><em>Open results ↗</em></button></div><div id="results-empty" class="result-note">Results will appear after a workflow produces output.</div><section class="panel embedded-gallery" id="embedded-gallery" hidden><div class="panel-title-row"><div><p class="eyebrow">VISUAL OUTPUT</p><h2>Workflow images</h2></div><button class="text-button" id="close-gallery">Close gallery ×</button></div><div class="gallery-filters" id="gallery-filters"></div><div class="gallery-grid" id="gallery-grid"></div></section>
+      <section class="panel result-detail" id="report-view" hidden>
+        <div class="panel-title-row"><div><p class="eyebrow">REPORT VIEWER</p><h2>PDF reports</h2></div><button class="text-button" data-close-result>Close ×</button></div>
+        <div class="result-controls"><label>Report <select id="report-file"></select></label><button class="button subtle" id="report-previous">← Previous</button><span id="report-position">Page 1</span><button class="button subtle" id="report-next">Next →</button><label>Zoom <select id="report-zoom"><option value="0.85">85%</option><option value="1.1" selected>110%</option><option value="1.4">140%</option><option value="1.8">180%</option></select></label></div>
+        <p class="result-error" id="report-error" hidden></p><div class="report-canvas"><img id="report-image" alt="Report page"></div>
+      </section>
+      <section class="panel result-detail" id="prediction-view" hidden>
+        <div class="panel-title-row"><div><p class="eyebrow">PREDICTION DATA</p><h2>External predictions</h2><p class="prediction-intro">Inspect each result, review its reliability, and explore the underlying values.</p></div><button class="text-button" data-close-result>Close ×</button></div>
+        <div class="prediction-toolbar"><div class="result-controls"><label>Dataset <select id="prediction-file"></select></label><label>Find a compound <input id="prediction-search" type="search" placeholder="Filter identifiers"></label></div><div class="prediction-overview" aria-live="polite"><span id="prediction-count"></span><span id="prediction-columns"></span><span id="prediction-identifier"></span></div></div>
+        <p class="result-error" id="prediction-error" hidden></p>
+        <div class="scenario-card" id="prediction-scenario"></div>
+        <details class="prediction-insights"><summary><span>Model evidence</span><small>Performance, robustness and external validation</small></summary><div id="prediction-diagnostics" class="diagnostic-grid"></div></details>
+        <details class="prediction-insights prediction-statistics"><summary><span>Explore column statistics</span><small>Ranges, averages and distributions</small></summary><div id="prediction-numeric" class="prediction-numeric-grid"></div></details>
+        <div class="prediction-table-heading"><div><p class="eyebrow">DATA TABLE</p><h3>Prediction rows</h3></div><span>Click a column heading to sort</span></div>
+        <div class="prediction-scroll"><table class="prediction-table"><thead id="prediction-head"></thead><tbody id="prediction-body"></tbody></table></div>
+        <section id="prediction-histogram" class="histogram-panel" hidden><div class="panel-title-row"><h3 id="histogram-title"></h3><button class="text-button" id="histogram-close">Close ×</button></div><svg id="histogram-svg" viewBox="0 0 620 240" role="img" aria-label="Prediction histogram"></svg></section>
+        <div class="result-controls pagination"><button class="button subtle" id="prediction-previous">← Previous</button><span id="prediction-position"></span><button class="button subtle" id="prediction-next">Next →</button></div>
+      </section>
+      <section class="panel result-detail" id="plot-view" hidden>
+        <div class="panel-title-row"><div><p class="eyebrow">MODEL DIAGNOSTICS</p><h2>Interactive plots</h2></div><button class="text-button" data-close-result>Close ×</button></div>
+        <div class="result-controls"><label>Dataset <select id="plot-file"></select></label><div class="plot-modes"><button class="button subtle active" data-plot-type="observed">Observed vs predicted</button><button class="button subtle" data-plot-type="outlier">Outlier analysis</button><button class="button subtle" data-plot-type="williams">Williams plot</button></div></div>
+        <p class="result-error" id="plot-error" hidden></p><div class="plot-layout"><div><div class="plot-legend" id="plot-legend"></div><div class="plot-canvas"><svg id="plot-svg" viewBox="0 0 680 440" role="img" aria-label="Interactive prediction plot"></svg><img id="williams-fallback" alt="Williams plot" hidden></div></div><aside class="plot-inspection"><p class="eyebrow">POINT INSPECTOR</p><img id="plot-molecule" alt="Molecular structure" hidden><p id="plot-point-details">Hover over or select a point.</p></aside></div>
+      </section>
+      </section>
+    </main>
+    <aside class="bot-drawer" id="bot-drawer" aria-label="robBOT assistant" hidden>
+        <header class="bot-drawer-heading"><div><p class="eyebrow">SCIENTIFIC ASSISTANT</p><h2>robBOT<span class="dot">.</span></h2></div><button class="bot-close" data-bot-toggle aria-label="Close robBOT">×</button></header>
+        <div class="bot-layout">
+          <section class="panel bot-conversation">
+            <div class="panel-title-row"><div><h2>Conversation</h2><p class="muted" id="bot-request-stage">Ask about your workflow, results, or AQME and ROBERT.</p></div><button class="text-button" data-action="botClear">Clear history</button></div>
+            <div class="bot-messages" id="bot-messages" role="log" aria-live="polite"></div>
+            <div class="bot-composer"><input id="bot-draft" type="text" placeholder="Ask about your workflow, results, or AQME/ROBERT"><button class="button primary" id="bot-send" data-action="botSend">Send ↗</button></div>
+            <div class="bot-quick-actions"><select id="bot-suggestions"><option value="">Choose a suggested question...</option></select><button class="text-button" id="bot-summarize" data-action="botSummarize">Explain latest result</button></div>
+          </section>
+          <details class="bot-settings"><summary>Answer settings and token usage</summary><div class="bot-settings-content">
+            <section class="panel"><div class="panel-head"><span class="step">✦</span><div><h2>Answer settings</h2><p>Use the same robBOT modes and provider settings.</p></div></div><div class="settings-grid"><label for="bot-mode">Mode</label><select id="bot-mode"></select><div id="bot-cloud-settings"><label for="bot-provider">Provider</label><select id="bot-provider"></select><label class="check-row"><input type="checkbox" id="bot-web-search"> Allow automatic web search</label><label for="bot-api-key">API key</label><input id="bot-api-key" type="password" autocomplete="off" placeholder="Enter provider API key"><span class="saved-indicator" id="bot-api-status"></span><div class="inline-actions"><button class="button subtle" data-action="botSaveApi">Save API</button><button class="text-button" data-action="botDeleteApi" id="bot-delete-api">Delete API</button></div><details class="groq-guide" id="groq-guide" open><summary>Set up a Groq account</summary><ol><li>Open Groq API Keys and sign in or create an account.</li><li>Choose your project and create an API key.</li><li>Copy the key, paste it above, select Groq, and press Save API.</li></ol><button class="text-button" data-action="openGroqKeys">Open Groq API Keys ↗</button><img src="../assets/gif_easyrob.gif" loading="lazy" alt="Animated guide to creating a Groq account and API key"></details></div></div></section>
+            <section class="panel"><div class="panel-title-row"><h2>Token usage</h2><button class="text-button" data-action="botResetUsage">Reset</button></div><p class="muted" id="bot-last-usage"></p><p class="muted" id="bot-session-usage"></p></section>
+          </div></details>
+        </div>
+    </aside>
+    <div class="tutorial-backdrop" id="tutorial-backdrop" hidden></div>
+    <aside class="tutorial-drawer" id="tutorial-drawer" role="dialog" aria-modal="true" aria-label="easyROB tutorial" hidden>
+      <header class="drawer-heading"><div><p class="eyebrow">GUIDED LEARNING</p><h2>easyROB tutorial<span class="dot">.</span></h2></div><button class="drawer-close" data-tutorial-toggle aria-label="Close tutorial">×</button></header>
+      <div class="tutorial-layout"><nav class="panel tutorial-topics" id="tutorial-topics" aria-label="Tutorial topics"></nav><article class="panel tutorial-step"><div class="panel-title-row"><div><p class="eyebrow" id="tutorial-count"></p><h2 id="tutorial-title">Choose a tutorial</h2></div></div><div class="tutorial-copy" id="tutorial-copy"></div><div class="tutorial-visual"><img id="tutorial-image" alt="Tutorial step"></div><div class="tutorial-navigation"><button class="button subtle" id="tutorial-previous">← Previous</button><span id="tutorial-position"></span><button class="button primary" id="tutorial-next">Next →</button></div></article></div>
+    </aside>
+  </div>
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script src="results.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

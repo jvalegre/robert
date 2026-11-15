@@ -65,7 +65,6 @@
       "control-robbot-provider",
       "action-robbot-send",
       "action-robbot-clear-history",
-      "action-robbot-load-local-ai",
       "control-aqme-input",
       "action-aqme-map-atoms",
       "action-open-chemdraw",

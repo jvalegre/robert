@@ -730,6 +730,17 @@ def test_REPORT_classification_single_repeat_kfold():
             debug_content = f.read()
         assert "Traceback (most recent call last)" not in debug_content
         assert "6. Prediction stability" in debug_content
+        import pymupdf
+
+        for suffix in ("No_PFI", "PFI"):
+            with pymupdf.open(os.path.join(path_scratch, f"ROBERT_report_{suffix}.pdf")) as pdf:
+                first_page = pdf[0].get_text()
+                for text in ("Model metrics", "1x 5-fold CV : Accur.", "Test : Accur.",
+                             "Score breakdown (see Section B, left)", "CV-Test Split Diagnostic",
+                             "Considerations when using CheckML"):
+                    assert text in first_page
+                assert "Section B, right" not in first_page
+                assert "Results summary" in pdf[1].get_text()
     finally:
         os.chdir(path_main)
         shutil.rmtree(path_scratch, ignore_errors=True)
@@ -796,7 +807,7 @@ def _workflow_fingerprint(path_main):
         result[f"{folder}_sets"] = dict(zip(db["Name"].astype(str), db["Set"]))
     for module, tags in [("GENERATE", ["combined", "RMSE"]),
                          ("VERIFY", ["y_mean", "y_shuffle", "onehot", "cluster", "Sorted"]),
-                         ("PREDICT", ["10x 5-fold CV :", "Test :", "Sorted CV extremes", "Applicability domain",
+                         ("PREDICT", ["10x 5-fold CV :", "Test :", "Sorted CV extremes", "Sorted CV training pools", "Applicability domain",
                                       "Spearman rank", "Degradation baseline"])]:
         with open(os.path.join(path_main, module, f"{module}_data.dat"), encoding="utf-8") as dat_file:
             result[module] = [line.strip() for line in dat_file if any(tag in line for tag in tags)

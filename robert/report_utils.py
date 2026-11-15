@@ -158,7 +158,7 @@ def get_boundary_metrics(data_score,suffix,spacing):
     limitation = extrapolation_limitation(data_score.get('ML_model',''))
     if limitation:
         column += f"""
-    <p style="margin-top: 2px; margin-bottom: 0px; {indent} box-sizing: border-box; font-size: 10.5px; color: #9e3a3a;"><i><b>Note:</b> {limitation[0].lower()} models can't predict values outside the training y range by design ({limitation[1]}).</i></p>
+    <p style="margin-top: 2px; margin-bottom: 0px; {indent} box-sizing: border-box; font-size: 10.5px; color: #9e3a3a;"><i><b>Note:</b> {limitation[0].lower()} models can't predict values outside the training y range by design.</i></p>
     """
 
     return column
@@ -862,8 +862,8 @@ def _adv_boundary_extreme(self, suffix, data_score, spacing, side, section, labe
     parent = f'<p style="font-weight:bold; font-size:12px; margin-top:0; margin-bottom:5px;">{spacing}{section}. {label}</p>'
     side_name = 'High' if side == 'high' else 'Low'
     detail_spacing = 20 if section == '1' else 10
-    sorted_row = f"""<p style="text-align: justify; margin-top: 0; margin-bottom: 0;">{spacing}<u>{section}a. Sorted CV predictions</u> &nbsp;({sorted_label} &nbsp;<img src="file:///{sorted_image}" alt="CheckML Score" style="width: 13%">)</p>
-    <p style="text-align: justify; margin-top: 3px; margin-bottom: 0;">{spacing}Scaled RMSE ({side_name}, sorted CV) = {scaled_rmse}%.<br>{spacing}Beyond training range ({side_name}) = {round(crossing*100)}%.<br>{spacing}<i>\u00b7 Scoring from 0 to 2 \u00b7</i><br>{spacing}Scaled RMSE \u2264 10%: +2, \u2264 20%: +1.<br>{spacing}Crossing &lt; 50%: -1, &lt; 20%: -2.</p>"""
+    sorted_row = f"""<p style="text-align: justify; margin-top: 0; margin-bottom: 0;">{spacing}<u>{section}a. Predictions</u> &nbsp;({sorted_label} &nbsp;<img src="file:///{sorted_image}" alt="CheckML Score" style="width: 13%">)</p>
+    <p style="text-align: justify; margin-top: 3px; margin-bottom: 0;">{spacing}Scaled RMSE ({side_name}) = {scaled_rmse}%.<br>{spacing}Beyond training range ({side_name}) = {round(crossing*100)}%.<br>{spacing}<i>\u00b7 Scoring from 0 to 2 \u00b7</i><br>{spacing}Scaled RMSE \u2264 10%: +2, \u2264 20%: +1.<br>{spacing}Crossing &lt; 50%: -1, &lt; 20%: -2.</p>"""
     rank_row = f"""<p style="text-align: justify; margin-top: {detail_spacing}px; margin-bottom: 0;">{spacing}<u>{section}b. Spearman rank</u> &nbsp;({rank_label} &nbsp;<img src="file:///{rank_image}" alt="CheckML Score" style="width: 13%">)</p>
     <p style="text-align: justify; margin-top: 3px; margin-bottom: 0;">{spacing}{rank_text}<br>{spacing}<i>\u00b7 Scoring from 0 to 1 \u00b7</i><br>{spacing}Coefficient \u2265 0.5: +1.<br>{spacing}Spread/range ratio \u2264 0.2: -1, \u2265 0.5: 0.</p>"""
     degradation_row = f"""<p style="text-align: justify; margin-top: {detail_spacing}px; margin-bottom: 0;">{spacing}<u>{section}c. Degradation ratio</u> &nbsp;({degradation_label} &nbsp;<img src="file:///{degradation_image}" alt="CheckML Score" style="width: 13%">)</p>
@@ -1323,6 +1323,14 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                 data_score['ML_model'] = line.split()[-1]
             # R2 and proportion
             if 'o  Summary of results' in line:
+                # Optional diagnostics can grow the summary. Search its own model
+                # block instead of a fixed number of lines (or the next PFI block).
+                summary_end = next(
+                    (j for j in range(i+1, len(dat_predict))
+                     if '------- ' in dat_predict[j] or 'o  Summary of results' in dat_predict[j]),
+                    len(dat_predict),
+                )
+                summary_lines = dat_predict[i:summary_end]
                 data_score['proportion_ratio_print'] = dat_predict[i+2]
                 data_score[f'points_descp_ratio_{suffix}'] = dat_predict[i+4].split()[-1]
 
@@ -1387,6 +1395,19 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     data_score[f'scaled_rmse_cv_{suffix}'] = round((data_score[f'rmse_cv_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
                     data_score[f'scaled_rmse_test_{suffix}'] = round((data_score[f'rmse_test_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
 
+                    for detail_line in summary_lines:
+                        if '-  Full data ' in detail_line and '-fold CV : R2 =' in detail_line:
+                            for metric, label in (('r2', 'R2'), ('mae', 'MAE'), ('rmse', 'RMSE')):
+                                data_score[f'{metric}_full_{suffix}'] = float(
+                                    detail_line.split(f'{label} = ')[-1].split(',')[0].strip()
+                                )
+                            # Use the same y-range as all four existing report
+                            # metrics so their scaled errors remain comparable.
+                            data_score[f'scaled_rmse_full_{suffix}'] = (
+                                data_score[f'rmse_full_{suffix}']/data_score[f'y_range_{suffix}']*100
+                            )
+                            break
+
                     data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_cv_{suffix}'])
                     data_score[f'test_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_test_{suffix}'])
 
@@ -1413,9 +1434,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # validation RMSE is compared to the in-fold training fit (both global, i.e.
                     # over every fold and repeat of the CV, not fold by fold)
                     data_score[f'train_val_gap_score_{suffix}'] = 0
-                    for j in range(i,i+12):
-                        if 'Train fit (in-fold)' in dat_predict[j]:
-                            rmse_trainfit = float(dat_predict[j].split('RMSE = ')[-1].strip())
+                    for detail_line in summary_lines:
+                        if 'Train fit (in-fold)' in detail_line:
+                            rmse_trainfit = float(detail_line.split('RMSE = ')[-1].strip())
                             data_score[f'scaled_rmse_trainfit_{suffix}'] = round((rmse_trainfit/data_score[f'y_range_{suffix}'])*100,2)
                             factor_trainfit = safe_ratio(data_score[f'scaled_rmse_cv_{suffix}'],data_score[f'scaled_rmse_trainfit_{suffix}'])
                             data_score[f'factor_trainfit_{suffix}'] = factor_trainfit
@@ -1428,12 +1449,27 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # the repeated-CV predictions computed by boundary_plot() in utils.py - this
                     # is the headline "Scaled RMSE (Low/High, sorted CV)" number shown in the
                     # report, replacing VERIFY's old single-pass sorted-CV RMSE (see get_verify_scores)
-                    for j in range(i,i+25):
-                        if 'Sorted CV extremes (repeated)' in dat_predict[j]:
-                            rmse_low = float(dat_predict[j].split('RMSE Low = ')[-1].split(',')[0].strip())
-                            rmse_high = float(dat_predict[j].split('RMSE High = ')[-1].strip())
+                    for detail_line in summary_lines:
+                        if 'Sorted CV extremes (repeated)' in detail_line:
+                            rmse_low = float(detail_line.split('RMSE Low = ')[-1].split(',')[0].strip())
+                            rmse_high = float(detail_line.split('RMSE High = ')[-1].strip())
+                            data_score[f'rmse_low_{suffix}'] = rmse_low
+                            data_score[f'rmse_high_{suffix}'] = rmse_high
                             data_score[f'scaled_rmse_low_{suffix}'] = round((rmse_low/data_score[f'y_range_{suffix}'])*100,2)
                             data_score[f'scaled_rmse_high_{suffix}'] = round((rmse_high/data_score[f'y_range_{suffix}'])*100,2)
+                            break
+
+                    # The split-influence diagnostic compares CV with CV. These
+                    # pooled OOF errors belong to the remaining 80% of each
+                    # boundary partition, not to its held-out extreme test set.
+                    for detail_line in summary_lines:
+                        if 'Sorted CV training pools (repeated)' in detail_line:
+                            # Accept the previous "CV RMSE vs Low/High" labels too.
+                            cv_line = detail_line.replace('CV RMSE vs ', 'CV RMSE ')
+                            for side in ('Low', 'High'):
+                                data_score[f'rmse_{side.lower()}_cv_{suffix}'] = float(
+                                    cv_line.split(f'CV RMSE {side} = ')[-1].split(',')[0].strip()
+                                )
                             break
 
                     # real range extension - does the model actually predict beyond the range
@@ -1442,9 +1478,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # boundary? No longer its own scored item - now the penalty inside items
                     # 1/2 (Low/High RMSE), replacing Spearman there (see get_verify_scores() and
                     # calc_penalty_crossing()); still logged by boundary_plot() in utils.py
-                    for j in range(i,i+26):
-                        if 'Real range extension (Low/High)' in dat_predict[j]:
-                            range_line = dat_predict[j]
+                    for detail_line in summary_lines:
+                        if 'Real range extension (Low/High)' in detail_line:
+                            range_line = detail_line
                             data_score[f'crossing_low_{suffix}'] = float(range_line.split('Low crossing = ')[-1].split(',')[0].strip())
                             data_score[f'crossing_high_{suffix}'] = float(range_line.split('High crossing = ')[-1].strip())
                             break
@@ -1453,10 +1489,10 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # 80%" from the same sorted-CV run (see boundary_plot() in utils.py) -
                     # used instead of the 10x 5-fold CV RMSE so the ratio compares within the
                     # same CV procedure/dataset scope rather than across two different ones
-                    for j in range(i,i+29):
-                        if 'Degradation baseline (remaining 80%)' in dat_predict[j]:
-                            rmse_top80 = float(dat_predict[j].split('vs Low (top 80%) RMSE = ')[-1].split(',')[0].strip())
-                            rmse_bottom80 = float(dat_predict[j].split('vs High (bottom 80%) RMSE = ')[-1].strip())
+                    for detail_line in summary_lines:
+                        if 'Degradation baseline (remaining 80%)' in detail_line:
+                            rmse_top80 = float(detail_line.split('vs Low (top 80%) RMSE = ')[-1].split(',')[0].strip())
+                            rmse_bottom80 = float(detail_line.split('vs High (bottom 80%) RMSE = ')[-1].strip())
                             data_score[f'scaled_rmse_top80_{suffix}'] = round((rmse_top80/data_score[f'y_range_{suffix}'])*100,2)
                             data_score[f'scaled_rmse_bottom80_{suffix}'] = round((rmse_bottom80/data_score[f'y_range_{suffix}'])*100,2)
                             break
@@ -1466,31 +1502,31 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # Now its own dedicated item (used to be a penalty inside items 1/2,
                     # replaced there by the range-extension crossing rate - see get_verify_scores())
                     spearman_global = 0
-                    for j in range(i,i+30):
+                    for detail_line in summary_lines:
                         # calculate spread and range ratio penalties (these penalties tackle models with flat predictions)
-                        if 'y SD at low extreme' in dat_predict[j]:
-                            spread_ratio_low = float(dat_predict[j].split()[-1])
+                        if 'y SD at low extreme' in detail_line:
+                            spread_ratio_low = float(detail_line.split()[-1])
                             data_score[f'spread_ratio_low_{suffix}'] = spread_ratio_low
                             spread_penalty_low = spearman_ratio_penalty(spread_ratio_low)
-                        if 'y SD at high extreme' in dat_predict[j]:
-                            spread_ratio_high = float(dat_predict[j].split()[-1])
+                        if 'y SD at high extreme' in detail_line:
+                            spread_ratio_high = float(detail_line.split()[-1])
                             data_score[f'spread_ratio_high_{suffix}'] = spread_ratio_high
                             spread_penalty_high = spearman_ratio_penalty(spread_ratio_high)
-                        if 'y range at low extreme' in dat_predict[j]:
-                            range_ratio_low = float(dat_predict[j].split()[-1])
+                        if 'y range at low extreme' in detail_line:
+                            range_ratio_low = float(detail_line.split()[-1])
                             data_score[f'range_ratio_low_{suffix}'] = range_ratio_low
                             range_penalty_low = spearman_ratio_penalty(range_ratio_low)
-                        if 'y range at high extreme' in dat_predict[j]:
-                            range_ratio_high = float(dat_predict[j].split()[-1])
+                        if 'y range at high extreme' in detail_line:
+                            range_ratio_high = float(detail_line.split()[-1])
                             data_score[f'range_ratio_high_{suffix}'] = range_ratio_high
                             range_penalty_high = spearman_ratio_penalty(range_ratio_high)
                         # calculate Spearman coefficient scores
-                        if 'Spearman rank (Low/High)' in dat_predict[j]:
-                            spearman_low = float(dat_predict[j].split('Low (internal) = ')[-1].split(',')[0].strip())
-                            spearman_high = float(dat_predict[j].split('High (internal) = ')[-1].split(',')[0].strip())
+                        if 'Spearman rank (Low/High)' in detail_line:
+                            spearman_low = float(detail_line.split('Low (internal) = ')[-1].split(',')[0].strip())
+                            spearman_high = float(detail_line.split('High (internal) = ')[-1].split(',')[0].strip())
                             data_score[f'spearman_low_{suffix}'] = spearman_low
                             data_score[f'spearman_high_{suffix}'] = spearman_high
-                            spearman_global = float(dat_predict[j].split('global = ')[-1].strip())
+                            spearman_global = float(detail_line.split('global = ')[-1].strip())
                             data_score[f'spearman_global_{suffix}'] = spearman_global
                             spearman_score_low = calc_spearman_score(spearman_low)
                             spearman_score_high = calc_spearman_score(spearman_high)
@@ -1516,16 +1552,32 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # penalty here, unlike items 1/2/4), since this is a single 80/20 split
                     # rather than a small ~7-point CV fold
                     data_score[f'applicability_domain_score_{suffix}'] = 0
-                    for j in range(i,i+42):
-                        if 'Applicability domain (leverage)' in dat_predict[j]:
-                            ad_line = dat_predict[j]
-                            rmse_ad = float(ad_line.split('RMSE = ')[-1].split(',')[0].strip())
+                    for detail_line in summary_lines:
+                        if 'Applicability domain (leverage)' in detail_line:
+                            ad_line = detail_line
+                            # Legacy DATs only contain an unlabelled test RMSE.
+                            # Keep that test metric for scoring; never substitute
+                            # it for a missing partition CV RMSE in the grey box.
+                            test_label = 'Test RMSE = ' if 'Test RMSE = ' in ad_line else 'RMSE = '
+                            rmse_ad = float(ad_line.split(test_label)[-1].split(',')[0].strip())
+                            data_score[f'rmse_ad_{suffix}'] = rmse_ad
+                            if 'CV RMSE = ' in ad_line:
+                                data_score[f'rmse_ad_cv_{suffix}'] = float(
+                                    ad_line.split('CV RMSE = ')[-1].split(',')[0].strip()
+                                )
                             scaled_rmse_ad = round((rmse_ad/data_score[f'y_range_{suffix}'])*100,2)
                             data_score[f'scaled_rmse_ad_{suffix}'] = scaled_rmse_ad
                             data_score[f'applicability_domain_score_{suffix}'] = score_rmse_mcc(pred_type,scaled_rmse_ad)
                             break
 
                 elif pred_type == 'clas':  # Process classification: using MCC extracted from CV and Test results
+                    for detail_line in summary_lines:
+                        if '-  Full data ' in detail_line and '-fold CV : Accur. =' in detail_line:
+                            for metric, label in (('acc', 'Accur.'), ('f1', 'F1 score'), ('mcc', 'MCC')):
+                                data_score[f'{metric}_full_{suffix}'] = float(
+                                    detail_line.split(f'{label} = ')[-1].split(',')[0].strip()
+                                )
+                            break
                     # Extract MCC from the CV line (generic match, since the fold count is a
                     # user-settable option via --kfold and isn't always 5)
                     if '-fold CV :' in dat_predict[i+5]:
@@ -1566,9 +1618,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # out-of-fold CV MCC (r2_cv_{suffix} above), same ΔMCC thresholds as
                     # item 5's CV-vs-test consistency check (see diff_mcc_score below)
                     data_score[f'train_val_gap_score_{suffix}'] = 0
-                    for j in range(i,i+12):
-                        if 'Train fit (in-fold)' in dat_predict[j]:
-                            parts = dat_predict[j].split(',')
+                    for detail_line in summary_lines:
+                        if 'Train fit (in-fold)' in detail_line:
+                            parts = detail_line.split(',')
                             mcc_trainfit = None
                             for part in parts:
                                 if 'MCC' in part:
@@ -1703,7 +1755,38 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     avg_facet_score = convert_2_decimal(avg_facet_score)
                     data_score[f'cv_sd_score_{suffix}'] = avg_facet_score
 
+    if pred_type == 'reg':
+        # The common y-range cancels in each ratio. Compute ratios before
+        # rounding scaled errors so small errors do not round to a zero baseline.
+        for metric, rmse_key in (
+            ('cv', 'rmse_cv'), ('high', 'rmse_high_cv'),
+            ('low', 'rmse_low_cv'), ('ad', 'rmse_ad_cv'),
+        ):
+            data_score[f'full_cv_diff_{metric}_{suffix}'] = cv_error_difference(
+                data_score.get(f'{rmse_key}_{suffix}'), data_score.get(f'rmse_full_{suffix}')
+            )
+    elif pred_type == 'clas':
+        # Classification has interpolation only. The existing r2_cv key holds
+        # its pooled out-of-fold MCC, which can legitimately be negative.
+        data_score[f'full_cv_diff_cv_{suffix}'] = cv_error_difference(
+            data_score.get(f'r2_cv_{suffix}'), data_score.get(f'mcc_full_{suffix}'), allow_signed=True
+        )
+
     return data_score
+
+
+def cv_error_difference(value, baseline, allow_signed=False):
+    """Absolute percentage difference, including signed MCC when requested."""
+
+    if value is None or baseline is None:
+        return None
+    if not np.isfinite(value) or not np.isfinite(baseline):
+        return None
+    if not allow_signed and (value < 0 or baseline < 0):
+        return None
+    if baseline == 0:
+        return 0.0 if value == 0 else float('inf')
+    return abs(value/baseline - 1)*100
 
 
 def score_rmse_mcc(pred_type,scaledrmse_mcc_val):

@@ -23,6 +23,7 @@ import re
 import sys
 import glob
 import json
+import math
 import platform
 import pandas as pd
 from pathlib import Path
@@ -85,6 +86,14 @@ def _close_section(section_html):
                 f'{section_html}</div>')
     return (f'<div style="border-bottom: 1px solid #a0a0a0; padding-bottom: 15px; margin-bottom: 25px;">'
             f'{section_html}</div>')
+
+def _warning_section_key(warning):
+    """Sort report sections naturally, with warnings without a section reference first."""
+    section = re.search(r'\bsections?\s+([a-z])(?:\.(\d+))?([a-z]?)\b', warning, re.IGNORECASE)
+    if section is None:
+        return ('', 0, '')
+    return (section[1].upper(), int(section[2] or 0), section[3].lower())
+
 
 # a descriptor whose importance is this small a fraction of the top descriptor's (or below
 # this absolute value) contributes essentially nothing - used by _has_low_relevance_descp()
@@ -613,6 +622,9 @@ class report:
         # Combine both columns
         score_dat += combine_cols(columns_score,right_offset=25)
 
+        if pred_type == 'clas':
+            return score_dat,self.classification_metrics(data_score,suffix,suffix_title),data_score
+
         # add corresponding images (left: Results, right: Results_boundary_high - clas has no
         # boundary image, see above, so the right side stays blank)
         # the saved PNGs keep their in-image title (matplotlib plt.text) - height 218 is
@@ -656,15 +668,51 @@ class report:
             if interp_radar else ''
         )
         left_summary = f'''<div style="margin-left:-2px;">{get_metrics(module_file,suffix,'')}</div>
-        <div style="page-break-inside:avoid; margin-top:23px;">
+        <div style="page-break-inside:avoid; margin-top:18px;">
         {self.print_radar_subheadings()}
         <div style="width:270px; margin-top:17px;">{interp_radar_tag}</div>
         </div>'''
         columns_summary = [left_summary]
-        columns_summary.append(self.section_a_callouts())
+        columns_summary.append(self.section_a_callouts(data_score,suffix,pred_type,self.args.path_icons))
         metrics_dat += combine_cols(columns_summary,right_offset=25)
 
         return score_dat,metrics_dat,data_score
+
+
+    def classification_metrics(self,data_score,suffix,suffix_title):
+        """Keep classification's metrics, radar and notes together on page one.
+
+        Each column flows independently instead of sharing a second flex row
+        below the plot. Fixed table columns also preserve image dimensions in
+        WeasyPrint. Regression retains its existing layout in print_score().
+        """
+
+        interp_tag,_ = self.get_score_image_tags(suffix_title,243,'clas',interp_width=240)
+        if interp_tag:
+            interp_tag = interp_tag.replace('style="','style="position:relative; left:-2px; ',1)
+        module_file = f'{os.getcwd()}/PREDICT/PREDICT{self.model_suffix}_data.dat'
+        metrics = get_metrics(module_file,suffix,'').replace(
+            'margin-top: 10px;',
+            'margin:8px 0 0; font-size:11px; line-height:1.3; white-space:pre-wrap; text-align:left;',
+        )
+        interp_radar,_ = self.save_radar_plots(data_score,suffix,'clas')
+        radar_tag = (
+            f'<img src="file:///{self._posix_uri(interp_radar)}" '
+            'style="display:block; width:220px; min-width:220px; max-width:220px; height:auto; margin:0;"/>'
+            if interp_radar else ''
+        )
+        notes = self.section_a_callouts(data_score,suffix,'clas',self.args.path_icons)
+        return f'''<table style="width:100%; table-layout:fixed; border-collapse:collapse; page-break-inside:avoid;">
+<tr><td style="width:50%; padding:0; vertical-align:top;">
+<p style="margin:0; text-decoration:underline;">Model metrics</p>
+<div style="margin-top:8px;">{interp_tag}</div>
+<div style="margin-left:-2px;">{metrics}</div>
+<div style="page-break-inside:avoid; margin-top:18px;">
+{self.print_radar_subheadings()}
+<div style="width:220px; margin-top:17px;">{radar_tag}</div>
+</div></td>
+<td style="width:50%; padding:0 0 0 25px; vertical-align:top;">{notes}</td></tr>
+</table>'''
 
 
     def boundary_score_sections(self,data_score,suffix):
@@ -734,25 +782,83 @@ class report:
 
 
     @staticmethod
-    def section_a_callouts():
+    def section_a_callouts(data_score,suffix,pred_type='reg',path_icons=None):
         """Build the explanatory callouts shown beneath the right-column score details."""
+
+        icon_dir = Path(path_icons or Path(__file__).resolve().parent / 'report').resolve().as_uri()
 
         def card(title,content,margin_top=8):
             return f'''<div style="box-sizing:border-box; width:100%; background:#eeeeee; border-left:4px solid #999999; border-radius:4px; padding:4px 8px 5px 8px; margin:{margin_top}px 0 5px 0; color:#222222; page-break-inside:avoid;">
-<div style="font-size:11px; font-weight:bold; letter-spacing:0.3px; color:#000000;">{title}</div>
-<div style="font-size:11px; line-height:1.5;">{content}</div></div>'''
-
-        influence = 'Separating a 20% test set changes the scaled RMSE by only XX% compared to the full dataset. CheckML scores seem to capture the original model\'s performance. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a>'
+<div style="font-size:10.5px; font-weight:bold; letter-spacing:0.3px; color:#000000;">{title}</div>
+<div style="font-size:10.5px; line-height:1.25;">{content}</div></div>'''
+        if pred_type == 'reg':
+            metric_name, baseline_key = 'CV RMSE', 'rmse'
+            comparisons = (
+                ('cv', 'Interpolation'),
+                ('high', 'Extrapol. high y values'),
+                ('low', 'Extrapol. low y values'),
+                ('ad', 'Extrapol. descriptor-space'),
+            )
+        else:
+            metric_name, baseline_key = 'MCC', 'mcc'
+            comparisons = (('cv', 'Interpolation'),)
+        influence = (
+            f'Whether keeping 20% of the data as a test set, '
+            'in addition to the CV set, adversely affects model performance. '
+            '<br>&nbsp;&nbsp;• "Unclear" sections should be used with caution'
+            '<br>&nbsp;&nbsp;• "Warning" sections should not be considered.'
+            f'<br><u>Absolute {metric_name} differences relative to full-data CV:</u>')
+        if (data_score.get(f'{baseline_key}_full_{suffix}') is None
+                or any(data_score.get(f'full_cv_diff_{metric}_{suffix}') is None for metric, _ in comparisons)):
+            influence = 'Rerun PREDICT to calculate the missing full-data or partition CV metrics.'
+        for metric, label in comparisons:
+            difference = data_score.get(f'full_cv_diff_{metric}_{suffix}')
+            if difference is None or math.isnan(difference):
+                status, icon_file, foreground = 'N/A', None, '#555555'
+                value = 'unavailable'
+            else:
+                # Small tolerance includes the exact 15%/30% boundaries
+                # despite floating-point arithmetic in the percentage ratio.
+                if difference <= 15 + 1e-9:
+                    status, icon_file, foreground = 'Pass', 'checkml_pass.svg', '#236c32'
+                elif difference <= 30 + 1e-9:
+                    status, icon_file, foreground = 'Unclear', 'checkml_unclear.svg', '#806000'
+                else:
+                    status, icon_file, foreground = 'Warning', 'checkml_warning.svg', '#a02828'
+                value = f'{difference:.1f}%' if math.isfinite(difference) else 'unbounded'
+            # Load the packaged vectors from the same local folder as the other
+            # report icons; no network access or symbol fonts are needed.
+            if icon_file is not None:
+                icon = (
+                    f'<img src="{icon_dir}/{icon_file}" alt="" '
+                    'style="width:10px; height:10px; min-width:10px; max-width:10px; '
+                    'margin:0; vertical-align:middle;"/>'
+                )
+            else:
+                icon = '<span style="display:inline-block; width:10px; text-align:center;">&minus;</span>'
+            influence += (
+                f'<div style="color:{foreground}; '
+                f'padding:1px 4px; margin-top:2px;">{icon} <strong>{status}</strong>'
+                f' · {label}: {value}</div>'
+            )
+        influence += (
+            '<div style="margin-top:4px;">Pass &le; 15%; Unclear &le; 30%; Warning &gt; 30%.</div>'
+        )
+        influence += ' <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a>'
         disclaimer = (
             '<u>User-defined train/test splits are not allowed</u>'
-            '<br>No single train/test split, performance metric or validation strategy can fully establish the reliability of a model. CheckML addresses this limitation through a standardized, multidimensional assessment that shows potential weaknesses and makes model evaluations easier and transparent.'
+            '<br>No single train/test split, metric, or validation strategy can fully establish model reliability. CheckML provides a standardized, multidimensional assessment that highlights weaknesses and enables more transparent evaluations.'
             '<br><u>CheckML scores are indicative</u>'
-            '<br>CheckML scores are indicative rather than rigid thresholds of model quality or usefulness, which ultimately depend on the intended application. Before using CheckML, please read <a href="https://robert.readthedocs.io/en/latest/Report/score.html">its documentation</a> carefully, especially the <i>Considerations</i> section.'
+            '<br>CheckML scores are indicative rather than rigid thresholds of model quality or usefulness, which ultimately depend on the intended application. Before using CheckML, please read <a href="https://robert.readthedocs.io/en/latest/Report/score.html">its documentation</a> carefully.'
         )
+        # Regression's notes sit just below the boundary score rows. Classification
+        # has no such rows, and its taller plot can push this block to a new page;
+        # keep it in normal vertical flow so it clears the running page header.
+        top, margin_top = (-5, -54) if pred_type == 'reg' else (0, 0)
         return (
-            f'<div style="position:relative; top:-5px; width:300px; margin-left:-10px; margin-top:-34px;">'
-            f'{card("Influence of CV\u2013Test Split",influence,3)}'
-            f'{card("Considerations when using CheckML",disclaimer,18)}'
+            f'<div style="position:relative; top:{top}px; width:300px; margin-left:-10px; margin-top:{margin_top}px;">'
+            f'{card("CV-Test Split Diagnostic",influence,13)}'
+            f'{card("Considerations when using CheckML",disclaimer,13)}'
             '</div>'
         )
 
@@ -818,8 +924,7 @@ class report:
         warnings_dict[f'severe_warnings_{suffix}'] = []
         warnings_dict[f'moderate_warnings_{suffix}'] = []
 
-        # analyze and append warnings, already in priority order (most decision-critical first
-        # - see analyze_warnings() for the ordering rationale)
+        # Build the warning lists in the order used by the documentation tables.
         warnings_dict = self.analyze_warnings(data_score,suffix,warnings_dict,pred_type)
 
         # Every warning is shown in the results summary on page 2 (see print_summary_page()).
@@ -1139,7 +1244,11 @@ class report:
         # warnings, each one under the score it describes (all of them, never truncated)
         def warning_area(warning):
             text = warning.lower()
-            is_boundary = 'boundary robustness' in text or 'extrapolat' in text
+            # The ranking warning has no "extrapolation" in its description.
+            # Its explicit boundary sub-section reference must keep it in the
+            # right column after replacing the former generic boundary label.
+            boundary_section = re.search(r'\bsections?\s+b\.[12][abc]\b|\bsection\s+b\.3,\s*right\b',text)
+            is_boundary = 'boundary robustness' in text or 'extrapolat' in text or boundary_section is not None
             # a warning about both scores (i.e. "...in Interpolation and Boundary robustness")
             # goes in both columns
             if is_boundary and 'interpolation' in text:
@@ -1161,8 +1270,8 @@ class report:
             cards_html = ''
             for kind,warning,style_key in items:
                 stripe,bg,label_col = self.SUMMARY_WARNING_STYLES[style_key]
-                # the "(Section X)"/"(Boundary robustness)" pointers are kept: they tell the
-                # reader where in the report each warning is explained
+                # Keep the section pointers so readers can find the diagnostic
+                # behind each warning, including the boundary sub-sections.
                 cards_html += f'''<div style="background:{bg}; border-left:4px solid {stripe}; border-radius:4px; padding:4px 8px 5px 8px; margin-bottom:5px; color:#222222; page-break-inside:avoid;">
 <div style="font-size:8px; font-weight:bold; letter-spacing:0.3px; color:{label_col};">{kind.upper()}</div>
 <div style="font-size:10px; line-height:1.3;">{escape(warning)}</div></div>'''
@@ -1180,9 +1289,11 @@ class report:
         # model hyperparameters, right after the evaluation setup they belong to
         hyper_html = ''
         if hyper_rows:
+            # Leave room for the warning guidance on page 2 when classifiers have many parameters.
+            hyper_line_style = ' line-height:1.2;' if pred_type == 'clas' else ''
             hyper_html = f'''
 {section_title('Model hyperparameters')}
-<table style="width:100%; border-collapse:collapse; font-size:9.5px;">
+<table style="width:100%; border-collapse:collapse; font-size:9.5px;{hyper_line_style}">
 <tr style="background:{navy}; color:white;"><th style="text-align:left; padding:3px 6px; width:40%;">Parameter</th><th style="text-align:left; padding:3px 6px;">Value</th></tr>
 {hyper_rows.replace('<td>', '<td style="border:1px solid #c8c8c8; padding:2px 6px;">')}
 </table>'''
@@ -1216,6 +1327,10 @@ class report:
 <td style="width:50%; vertical-align:top; padding-left:6px;">
 <div style="font-weight:bold; color:{navy}; font-size:11px; margin-bottom:4px;">Boundary robustness warnings</div>{bound_col_html}</td>
 </tr></table>
+<p style="margin:20px 0 0; font-size:10px; line-height:1.4; color:{muted};">
+For more information about the warnings and suggestions to fix them, please check the
+<a href="https://robert.readthedocs.io/en/latest/Report/score.html" style="color:{navy};">CheckML documentation</a>.
+</p>
 </div>'''
 
         summary += '<p style="page-break-after: always;"></p>'
@@ -1246,9 +1361,8 @@ class report:
 
     def analyze_warnings(self,data_score,suffix,warnings_dict,pred_type):
         '''
-        Analyze and append warnings. Appended in priority order (most decision-critical for an
-        inexperienced user first) - all of them are shown in the Section A box (see
-        print_warnings()), but the order still matters for how a reader scans the list.
+        Build severity-separated warning lists, ordered by report section as in the documentation.
+        Warnings without section references come first within each severity group.
         '''
 
         severe = warnings_dict[f'severe_warnings_{suffix}']
@@ -1256,7 +1370,7 @@ class report:
 
         # hyperparameters given as the integer 1 where scikit-learn also accepts the fraction 1.0
         # (one sample/feature instead of all of them) - a likely input error that can make the
-        # predictions nearly constant, so it's listed first (see validate_params() in checkml.py)
+        # predictions nearly constant (see validate_params() in checkml.py)
         for param in warnings_dict.get('ambiguous_params', []):
             moderate.append(f'{param} = 1 (integer) means ONE sample/feature in scikit-learn, use 1.0 if all of them were intended (Section H)')
 
@@ -1293,7 +1407,7 @@ class report:
         # the overfitting checks above, which compare two numbers against each other; these
         # flag a single score that's just low
         if data_score.get(f'cv_score_combined_{suffix}', 1) == 0:
-            moderate.append('Weak cross-validation predictions (Section B.2)')
+            moderate.append('Weak CV predictions (Section B.2)')
         if data_score.get(f'test_score_combined_{suffix}', 1) == 0:
             moderate.append('Weak test-set predictions (Section B.3)')
 
@@ -1319,38 +1433,24 @@ class report:
             from robert.report_utils import extrapolation_limitation
             limitation = extrapolation_limitation(getattr(self, 'report_model_name', ''))
             if limitation:
-                moderate.append(f'{limitation[0]} algorithm, not designed to extrapolate outside the training range (Boundary robustness)')
+                severe.append(f'{limitation[0]} algorithm, not designed to extrapolate outside the training range')
 
-            if data_score.get(f'applicability_domain_score_{suffix}', 1) == 0:
-                moderate.append('Poor extrapolation to descriptors very different from training (Boundary robustness)')
+            score_ad = data_score.get(f'applicability_domain_score_{suffix}')
+            if score_ad is not None and score_ad < 1.0:
+                moderate.append('Poor extrapolation to descriptors very different from training (Section B.3)')
 
-            high_zero = data_score.get(f'sorted_cv_high_score_{suffix}', 1) == 0
-            low_zero = data_score.get(f'sorted_cv_low_score_{suffix}', 1) == 0
-            if high_zero or low_zero:
-                if high_zero and low_zero:
-                    zone_txt = 'the upper and lower zones'
-                elif high_zero:
-                    zone_txt = 'the upper zone'
-                else:
-                    zone_txt = 'the lower zone'
-                moderate.append(f'Difficult to extrapolate new predictions in {zone_txt} (Boundary robustness)')
-
-            if data_score.get(f'degradation_score_{suffix}', 1) == 0:
-                moderate.append("Extrapolation error may be much larger than the model's own error (Boundary robustness)")
-
-            spearman_low = data_score.get(f'spearman_low_{suffix}')
-            spearman_high = data_score.get(f'spearman_high_{suffix}')
-            if spearman_low is not None and spearman_high is not None:
-                low_fail = spearman_low < 0.5
-                high_fail = spearman_high < 0.5
-                if low_fail or high_fail:
-                    if low_fail and high_fail:
-                        zone_txt = 'the upper and lower zones'
-                    elif high_fail:
-                        zone_txt = 'the upper zone'
-                    else:
-                        zone_txt = 'the lower zone'
-                    moderate.append(f'Difficult to prioritize new predictions (maximize/minimize) in {zone_txt} (Boundary robustness)')
+            for side,zone_txt,section_ref in (
+                ('high','the upper zone','Section B.1'),
+                ('low','the lower zone','Section B.2'),
+            ):
+                # Match the displayed 0-4 total in boundary_score_sections(),
+                # not just the 0-2 predictions component. Unknown totals should
+                # not introduce warnings into incomplete/legacy report data.
+                components = [data_score.get(f'{key}_{suffix}') for key in (
+                    f'sorted_cv_{side}_score', f'spearman_score_{side}', f'degradation_score_{side}',
+                )]
+                if any(value is not None for value in components) and sum(value or 0 for value in components) < 2.0:
+                    moderate.append(f'Difficult to extrapolate new predictions in {zone_txt} ({section_ref})')
 
         # simpler MVL model as good as this one: from Section F when several models were
         # screened (MVL included), otherwise from VERIFY's MVL baseline comparison (Section B.1)
@@ -1393,6 +1493,8 @@ class report:
             if warnings_dict.get(f'outlier_pct_{suffix}', 0) > 5:
                 moderate.append('More than 5% of points are outliers, check and explain them (Section E)')
 
+        severe.sort(key=_warning_section_key)
+        moderate.sort(key=_warning_section_key)
         return warnings_dict
 
 
@@ -2118,7 +2220,7 @@ class report:
         # get their own row (still 2 lines total, same as before) instead of one long paragraph
         citation_dat += f"""<p style="text-align: justify; margin-top: -9px;"><br>{version_n_date}</p>
         <p style="text-align: justify; margin-top: -10px; margin-bottom: 0px;"><span style="font-weight:bold;">Please cite ROBERT:</span> {citation_main}</p>"""
-        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 15px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
+        citation_dat += f"""<p style="text-align: justify; margin-top: 0px; margin-bottom: 5px;"><span style="font-weight:bold;">and CheckML score:</span> {citation_second}</p>"""
 
         # QDESCP's own validation paper - only relevant when AQME generated the descriptors
         # (command_line already has the full "python -m robert ..." line at this point, so the

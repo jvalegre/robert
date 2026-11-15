@@ -16,7 +16,35 @@ from robert.utils import (
     get_error_labels,
     mcc_scorer_clf,
     get_prediction_results,
+    load_model,
+    repeated_kfold_cv,
     )
+
+
+def full_data_cv(self, Xy_data, model_data):
+    """Evaluate train+validation+test with the usual repeated out-of-fold CV.
+
+    Restore the database's canonical row order (retained in the pandas indices)
+    before assigning folds. Reuse its scaled descriptors and the saved model/CV
+    settings, and pool every out-of-fold prediction just as load_n_predict does
+    for interpolation. External data and the original prediction arrays stay
+    outside this diagnostic.
+    """
+
+    X_full = pd.concat([Xy_data['X_train_scaled'], Xy_data['X_test_scaled']]).sort_index(kind='stable')
+    y_full = pd.concat([Xy_data['y_train'], Xy_data['y_test']]).sort_index(kind='stable')
+    full_data = {'X_train_scaled': X_full, 'y_train': y_full, 'y_test': y_full.iloc[:0]}
+    loaded_model = load_model(self, model_data['model'], **model_data['params'])
+    # BO_opt here only suppresses unused held-out/in-fold predictions in the CV
+    # engine; this diagnostic never runs hyperparameter optimization or sorted CV.
+    full_data = repeated_kfold_cv(model_data, loaded_model, full_data, BO_opt=True)
+    predictions = np.asarray(full_data['y_pred_train_all'])
+    metrics = get_prediction_results(
+        model_data, np.repeat(y_full.to_numpy(), predictions.shape[1]), predictions.reshape(-1)
+    )
+    for metric, value in zip(get_error_labels(model_data['type']), metrics):
+        Xy_data[f'{metric}_full'] = value
+    return Xy_data
 
 
 def _get_class_mapping_reverse(model_data):
@@ -238,6 +266,8 @@ def print_predict(self,Xy_data,model_data,suffix_title):
 
          # Interpolation item 6, facets (b) and (c), and penalty
         print_results += f"\n      -  Average SD in train+validation (out-of-fold) = {np.mean(Xy_data['y_pred_train_sd']):.2}"
+        if 'rmse_full' in Xy_data:
+            print_results += f"\n      -  Full data {CV_type} : R2 = {Xy_data['r2_full']:.2}, MAE = {Xy_data['mae_full']:.2}, RMSE = {Xy_data['rmse_full']:.2}"
         if 'y_pred_train_all' in Xy_data:
             y_pred_train_all = np.array(Xy_data['y_pred_train_all'])
             if y_pred_train_all.ndim == 1:
@@ -291,6 +321,8 @@ def print_predict(self,Xy_data,model_data,suffix_title):
             print_results += f"\n      -  Test : Accur. = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
         if 'mcc_train_infold' in Xy_data:
             print_results += f"\n      -  Train fit (in-fold) : Accur. = {Xy_data['acc_train_infold']:.2}, F1 score = {Xy_data['f1_train_infold']:.2}, MCC = {Xy_data['mcc_train_infold']:.2}"
+        if 'mcc_full' in Xy_data:
+            print_results += f"\n      -  Full data {CV_type} : Accur. = {Xy_data['acc_full']:.2}, F1 score = {Xy_data['f1_full']:.2}, MCC = {Xy_data['mcc_full']:.2}"
 
         # Interpolation item 6 for classification: the same "how much does this depend on
         # the random split" question as the regression facets, adapted for a discrete label.

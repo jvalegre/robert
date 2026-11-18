@@ -24,28 +24,37 @@ CheckML score
 .. tab-set::
    :class: checkml-main-tabs
 
-   .. tab-item:: Overview
+   .. tab-item:: Overview and considerations
 
       **How should we assess whether a published ML model is sufficiently robust, reliable, and applicable
       to the chemical problem it is intended to address?**
 
-      In practice, model quality is often communicated
-      through a small number of statistical metrics (ie R2, RMSE, MCC, etc.). Although these metrics are useful,
-      they provide only a partial view of model reliability, making it difficult
+      In practice, model quality is often communicated through a small number of statistical metrics
+      (e.g., R2, RMSE, MCC). No single train/test split, performance metric, or validation strategy can fully
+      establish a model's reliability, making it difficult
       for readers and reviewers to assess the robustness and domain of applicability of the reported models.
 
-      To this end, we have developed CheckML, a set of tools that systematically analyze descriptor-based tabular
-      ML models, evaluates multiple aspects of their performance, and provides quality scores and diagnostic
-      alerts associated with potential weaknesses. The framework examines predictive performance,
+      CheckML addresses this limitation through a standardized, multidimensional assessment of descriptor-based
+      tabular ML models. The framework examines predictive performance,
       overfitting, generalization, prediction stability, and behavior at the boundaries of the modeled chemical space
-      (related to extrapolation). These analyses are compiled into standardized PDF reports that document the evaluation
-      and highlight aspects requiring further consideration.
+      (related to extrapolation), providing quality scores and diagnostic alerts that highlight potential weaknesses.
+      These analyses are compiled into standardized PDF reports to make evaluations transparent and easier to review.
 
       .. figure:: images/checkml_summary.jpg
          :width: 400
          :align: center
 
       |br|
+
+      **Considerations when using CheckML**
+
+      * **User-defined train/test splits are not allowed.** The CheckML score requires the standardized
+        splitting and CV procedure described in the **Protocols followed by CheckML** tab to keep evaluations
+        comparable.
+      * **CheckML scores are indicative.** Scores are guides rather than rigid thresholds of model quality
+        or usefulness; their interpretation depends on the intended application. Review the underlying metrics
+        and diagnostic alerts alongside the scores. Before interpreting a report, read the protocol and scoring
+        details in this documentation carefully.
 
       .. note::
 
@@ -80,18 +89,331 @@ CheckML score
         estimates can be highly correlated. Thus, 10x 5-fold CV provides a more informative
         validation framework for the intended application of CheckML.
 
+      After this initial splitting, different ROBERT routines are applied to evaluate the
+      model as explained in the following sections.
+
+      |br|
+
+   .. tab-item:: List of warnings
+
+      The tables below reproduce the warning messages shown in the PDF summary, together with their
+      problem type, severity, trigger, and suggested actions. Warnings can occur together; resolving one
+      does not necessarily resolve the others.
+
+      Within each table, severe warnings appear before moderate warnings. Within each severity group,
+      warnings without a section reference come first, followed by B.1, B.2, and subsequent sections in order.
+
+      In the hyperparameter warning, ``{parameter}`` is replaced by the actual parameter name.
+      The **Pass**, **Unclear**, and **Warning** indicators in the **CV-Test Split Diagnostic** box are
+      explained in their own tab.
+
+      **Interpolation**
+
+      .. list-table::
+         :header-rows: 1
+         :widths: 28 16 33 23
+         :class: checkml-warning-table
+
+         * - Warning as printed in the PDF
+           - Problem type
+           - Explanation, trigger, and implications
+           - Suggested actions
+         * - Failing required tests (Section B.1)
+           - Regression and classification
+           - **Severe.** The flawed-model score is negative and at least
+             one applicable VERIFY test is marked FAILED. A trivial or deliberately degraded model
+             competes too closely with the original, weakening evidence that meaningful relationships were learned.
+           - Inspect the failed y-mean, y-shuffle, onehot, or cluster test. Check leakage, descriptor
+             informativeness, and response quality; address the underlying issue and repeat VERIFY.
+         * - Overfitting observed between train and validation (Section B.4)
+           - Regression and classification
+           - **Severe.** The train/validation comparison scores 0/2.
+             Out-of-fold RMSE is much worse than the training fit, or training MCC substantially exceeds
+             validation MCC. Training performance therefore overstates predictive ability.
+           - Reduce model complexity, increase appropriate regularization, and check for leakage or
+             duplicates. Select parameters within CV and repeat the standardized evaluation.
+         * - Inconsistent results between CV and test (Section B.5)
+           - Regression and classification
+           - **Severe.** The CV/test consistency score is 0/2. Regression
+             test error is much larger than CV error, or classification CV and test MCC differ substantially.
+             The CV result may not represent performance on held-out data.
+           - Compare coverage and errors across the CV and test pools. Check data consistency and leakage,
+             improve representative coverage, and rerun the standard protocol.
+         * - Very uneven class distribution (Section C)
+           - Classification
+           - **Severe.** The largest class contains more than three times as many
+             observations as the smallest. A classifier can favor the majority class while performing
+             poorly on underrepresented classes.
+           - Collect representative minority-class observations and inspect per-class errors and the
+             confusion matrix. If using class weights or resampling, apply them within training folds only.
+         * - Some tests are unclear or close to the thresholds (Section B.1)
+           - Regression and classification
+           - **Moderate.** The flawed-model score is negative without
+             any test marked FAILED. At least one baseline remains close enough to incur a penalty,
+             so the model's advantage over simple or degraded predictions is uncertain.
+           - Review each applicable VERIFY result and its margin from the thresholds. Improve informative
+             descriptors or data coverage and check whether the advantage persists after reevaluation.
+         * - A simpler MVL model performs similarly (Section B.1), consider trying MVL with the same descriptors
+           - Regression
+           - **Moderate.** VERIFY places the multivariate linear (MVL) baseline within
+             its 15% similarity band relative to the selected model. The additional complexity has no
+             clear predictive advantage in this comparison.
+           - Fit MVL with the same descriptors and compare validation results, interpretability,
+             and intended use before choosing the more complex model.
+         * - A simpler MVL model performs better (Section B.1), consider trying MVL with the same descriptors
+           - Regression
+           - **Moderate.** VERIFY finds that the MVL baseline outperforms the selected
+             model by its comparison threshold (15%). The more complex model may be unnecessary or poorly tuned.
+           - Evaluate MVL as a candidate and review the selected model's parameters and descriptors.
+             Confirm the preferred model with the same standardized validation protocol.
+         * - A simpler logistic regression model performs similarly (Section B.1), consider trying LOGISTIC with the same descriptors
+           - Classification
+           - **Moderate.** VERIFY places logistic regression within its 15%
+             similarity band relative to the selected classifier. A more complex decision rule has
+             not shown a clear predictive advantage.
+           - Compare LOGISTIC using the same descriptors and validation settings, including performance
+             across classes, before deciding whether the additional complexity is useful.
+         * - A simpler logistic regression model performs better (Section B.1), consider trying LOGISTIC with the same descriptors
+           - Classification
+           - **Moderate.** VERIFY finds that logistic regression outperforms the
+             selected classifier by its comparison threshold (15%). The chosen classifier may add
+             complexity while reducing predictive performance.
+           - Evaluate LOGISTIC as a candidate. Review the chosen classifier's parameters and descriptors,
+             and confirm performance with the standard validation protocol.
+         * - Weak CV predictions (Section B.2)
+           - Regression and classification
+           - **Moderate.** The CV prediction component scores 0/2:
+             the combined scaled-RMSE score and R2 penalty reach zero in regression, or the MCC-based
+             score reaches zero in classification. Predictive performance on unseen CV observations is weak.
+           - Check response quality, descriptor relevance, and preprocessing. Compare suitable models and
+             parameters within CV, and collect more informative observations where possible.
+         * - Weak test-set predictions (Section B.3)
+           - Regression and classification
+           - **Moderate.** The independent test prediction component
+             scores 0/2 using the regression scaled-RMSE/R2 combination or classification MCC.
+             Predictions on held-out observations have limited accuracy.
+           - Examine individual test errors and domain coverage. Improve the model using training/CV data
+             and evaluate subsequent development on fresh independent data.
+         * - Imprecise predictions (Section B.6)
+           - Regression and classification
+           - **Moderate.** In regression, the prediction-stability score
+             is 0/2 because of variation across repeated CV predictions and/or unequal performance between
+             low- and high-response halves. For classification, the current warning trigger is a zero
+             CV/test MCC-consistency score, so it can accompany the Section B.5 warning. These outcomes
+             indicate sensitivity to which data are used for evaluation.
+           - Inspect repeated-CV variability and errors across response regions or classes. Check noisy
+             observations, reduce unstable model complexity, and improve coverage of poorly represented cases.
+         * - Response may have two separate groups, classification might fit better (Section C)
+           - Regression
+           - **Moderate.** A large response gap separates two sizeable groups, or
+             VERIFY's cluster test fails. Good apparent regression performance may mainly reflect group
+             membership instead of a relationship describing variation within groups.
+           - Inspect the response distribution and within-group predictions. Consider classification
+             when scientifically meaningful discrete groups match the intended application; otherwise
+             improve within-group coverage and investigate the source of the gap.
+         * - Uneven y distribution (Section C)
+           - Regression
+           - **Moderate.** The most populated of four equal-width response intervals
+             contains more than four times as many points as the least populated interval. An empty
+             interval also triggers this warning. Aggregate metrics can hide weak coverage in sparse regions.
+           - Inspect performance across the response range and collect observations in sparse regions.
+             Explain coverage limitations and assess their relevance to intended predictions.
+         * - Slightly uneven y distribution (Section C)
+           - Regression
+           - **Moderate.** The largest response-interval population is more than twice,
+             but no more than four times, the smallest. Less populated regions can have less reliable
+             predictions even when overall metrics look satisfactory.
+           - Check errors separately across the four response intervals. Improve coverage where needed
+             and report differences in reliability across the response range.
+         * - Uneven class distribution (Section C)
+           - Classification
+           - **Moderate.** The largest class is more than 1.5 times, but no more
+             than three times, the smallest. Overall performance can obscure weaker minority-class predictions.
+           - Inspect class-specific performance and improve minority-class coverage. Evaluate appropriate
+             class weighting within CV and document the balance expected in the intended application.
+         * - Low-relevance descriptor(s) detected, try removing them (Section D)
+           - Regression and classification
+           - **Moderate.** A descriptor other than the leading one has
+             a reported PFI or SHAP importance magnitude below 4% of the leading magnitude or below 0.05
+             in absolute terms. Such descriptors may add noise or complexity with little predictive benefit.
+           - Review PFI, SHAP, and descriptor correlations together. Try removing low-impact descriptors
+             and compare CV performance before adopting the reduced model.
+         * - Highly correlated features (Section D)
+           - Regression and classification
+           - **Moderate.** At least one descriptor pair has an absolute
+             Pearson correlation above 0.84. Redundant inputs can destabilize fitted coefficients and
+             complicate the interpretation of individual descriptor contributions.
+           - Review correlated pairs and their scientific meaning. Consider retaining a representative
+             descriptor or using appropriate regularization, and compare validation performance.
+         * - Moderately correlated features (Section D)
+           - Regression and classification
+           - **Moderate.** The strongest flagged descriptor correlation
+             is above 0.80 and at most 0.84 in absolute value. Overlapping information can add redundancy
+             and make individual descriptor importance harder to interpret.
+           - Inspect the correlation map alongside PFI and SHAP. Test whether removing redundant
+             descriptors simplifies the model without harming validated performance.
+         * - Potential "faulty" outliers (Section E)
+           - Regression
+           - **Moderate.** At least one reported prediction error exceeds 6.5 SDs
+             in the outlier analysis. Such an extreme residual may reflect an input or measurement
+             problem, or a valid observation outside the model's reliable domain.
+           - Check the original measurements, units, descriptors, and observation identity. Correct
+             verified errors; retain and explain valid unusual observations or improve domain coverage.
+         * - More than 5% of points are outliers, check and explain them (Section E)
+           - Regression
+           - **Moderate.** More than 5% of observations across the analyzed CV and
+             test sets are marked as outliers using the configured ``t_value`` cutoff (default: 2 SDs).
+             Many large residuals can indicate noise, missing relationships, or heterogeneous data.
+           - Review flagged observations and shared error patterns. Check data consistency and missing
+             descriptors, investigate distinct populations, and explain valid outliers without removing
+             them solely to improve metrics.
+         * - A simpler MVL model scores as high or higher in Interpolation (Section F)
+           - Regression
+           - **Moderate.** With ``--all_models``, MVL's Interpolation score is at least
+             as high as the selected model's. Extra complexity has not improved the assessed
+             interpolation reliability.
+           - Compare the Section F scores and underlying diagnostics. Consider MVL if interpolation
+             is the intended use, while accounting for the boundary-performance tradeoff.
+         * - A simpler MVL model scores as high or higher in Interpolation and Boundary robustness (Section F)
+           - Regression
+           - **Moderate.** With ``--all_models``, MVL matches or exceeds both CheckML
+             scores of the selected model. The score comparison provides no reliability advantage
+             for the more complex model.
+           - Review MVL's metrics and diagnostics as a simpler candidate, then validate the final
+             choice for the intended application.
+         * - A simpler logistic regression model scores as high or higher in Interpolation (Section F)
+           - Classification
+           - **Moderate.** With ``--all_models``, LOGISTIC's Interpolation score
+             matches or exceeds the selected classifier's. Additional complexity has not improved
+             the reliability summarized by that score.
+           - Compare LOGISTIC's metrics, class-specific behavior, and diagnostics with the selected
+             classifier, and consider using the simpler model.
+         * - A simpler MVL model has a similar or lower error in the model screening (Section F)
+           - Regression
+           - **Moderate.** GENERATE's combined screening metric finds MVL similar
+             to or better than the selected model under the 15% tolerance. Screening has not established
+             a clear accuracy benefit from the more complex model.
+           - Compare the screened MVL model using the same descriptors and full CheckML evaluation.
+             Choose the model that best meets the application's accuracy and robustness needs.
+         * - A simpler logistic regression model has a similar or lower error in the model screening (Section F)
+           - Classification
+           - **Moderate.** GENERATE's combined screening metric finds LOGISTIC
+             similar to or better than the selected classifier under the 15% tolerance. The selected
+             classifier has no clear screening advantage over the linear baseline.
+           - Compare LOGISTIC with the same descriptors using the full evaluation, including MCC
+             and class-specific errors, before retaining the more complex classifier.
+         * - {parameter} = 1 (integer) means ONE sample/feature in scikit-learn, use 1.0 if all of them were intended (Section H)
+           - Regression and classification
+           - **Moderate.** A parameter accepting both counts and fractions
+             was supplied as the integer ``1``. This selects one sample or feature, whereas ``1.0``
+             represents all of them, and can unintentionally produce nearly constant predictions.
+           - Check the intended parameter meaning and the saved input file. Use ``1.0`` if the full
+             fraction was intended, preserve its type when exporting parameters, and rerun the evaluation.
+
+      **Boundary robustness**
+
+      .. list-table::
+         :header-rows: 1
+         :widths: 28 16 33 23
+         :class: checkml-warning-table
+
+         * - Warning as printed in the PDF
+           - Problem type
+           - Explanation, trigger, and implications
+           - Suggested actions
+         * - Tree-based algorithm, not designed to extrapolate outside the training range
+           - Regression
+           - **Severe.** The algorithm is recognized as tree based, so this warning
+             appears regardless of its boundary scores. Tree predictions can flatten beyond the training
+             domain, making them unsuitable for assuming a continuing response trend outside that domain.
+           - Limit use to supported regions, add observations covering the intended prediction range,
+             or validate a model with an appropriate extrapolating functional form for the application.
+         * - Nearest-neighbour algorithm, not designed to extrapolate outside the training range
+           - Regression
+           - **Severe.** The algorithm is recognized as a nearest-neighbour model,
+             regardless of boundary scores. Predictions average nearby training responses and cannot
+             extend beyond the response range represented by those neighbours.
+           - Improve training coverage around intended predictions or restrict use to supported regions.
+             If extrapolation is required, compare and independently validate an appropriate alternative model.
+         * - Difficult to extrapolate new predictions in the upper zone (Section B.1)
+           - Regression
+           - **Moderate.** The upper-zone total is below 2.0/4.0, summing prediction,
+             Spearman-ranking, and degradation components (1a-1c). Predictions of the highest-response
+             held-out points have weak accuracy, ordering, or robustness relative to the remaining data.
+           - Inspect components 1a-1c to identify the cause. Improve high-response coverage and descriptors,
+             and verify that the selected algorithm can represent the expected upper-range trend.
+         * - Difficult to extrapolate new predictions in the lower zone (Section B.2)
+           - Regression
+           - **Moderate.** The lower-zone total is below 2.0/4.0, summing prediction,
+             Spearman-ranking, and degradation components (2a-2c). Predictions of the lowest-response
+             held-out points have weak accuracy, ordering, or robustness relative to the remaining data.
+           - Inspect components 2a-2c to identify the cause. Improve low-response coverage and descriptors,
+             and verify that the selected algorithm can represent the expected lower-range trend.
+         * - Poor extrapolation to descriptors very different from training (Section B.3)
+           - Regression
+           - **Moderate.** The applicability-domain score is below 1.0/2.0.
+             Prediction error is high on the held-out, high-leverage observations, indicating limited
+             reliability for unusual combinations of descriptors.
+           - Inspect the leverage and applicability-domain plots. Check unusual descriptors for errors,
+             add representative observations from the intended domain, and define supported prediction limits.
+         * - A simpler MVL model scores as high or higher in Boundary robustness (Section F)
+           - Regression
+           - **Moderate.** With ``--all_models``, MVL's Boundary robustness score is at
+             least as high as the selected model's. The selected model has no assessed
+             boundary-robustness advantage over the linear baseline.
+           - Compare boundary components and interpolation performance. Consider MVL if its behavior
+             better matches the prediction domain required by the application.
+         * - A simpler MVL model scores as high or higher in Interpolation and Boundary robustness (Section F)
+           - Regression
+           - **Moderate.** With ``--all_models``, MVL matches or exceeds both CheckML
+             scores of the selected model. The score comparison provides no reliability advantage
+             for the more complex model.
+           - Review MVL's metrics and diagnostics as a simpler candidate, then validate the final
+             choice for the intended application.
+
+      |br|
+
+   .. tab-item:: CV-Test Split Diagnostic
+
       .. note::
         A potential concern during development of the scoring system was whether reserving
         20% of the data as an independent test set, in addition to the CV set,
-        could adversely affect model performance in the low-data regime. The overall
-        effect was small (MAE in 10x 5-fold CV scaled RMSE = 1.3% across 14 exampes,
-        see the CheckML publication). Based on these results, we retained the 20% test-set
-        holdout for all datasets. This provides a more informative assessment of overfitting
-        and generalization while having only a minor effect on the resulting score,
-        even in the low-data regime.
+        could adversely affect model performance. See below.
 
-      After this initial splitting, different ROBERT routines are applied to evaluate the
-      model as explained in the following sections.
+      For each regression or classification model, PREDICT also evaluates repeated out-of-fold CV on the full
+      internal dataset (the 80% CV pool plus the 20% test pool), restoring the same canonical
+      row order used during database loading and retaining the model's parameters, descriptor
+      scaling, and CV settings, including stratified folds for classification. As with the
+      usual CV metrics, metrics are calculated by pooling all out-of-fold predictions across
+      repeats. External prediction data are excluded.
+
+      The report's **CV-Test Split Diagnostic** box compares this full-data baseline with
+      CV RMSEs from four training pools: the original interpolation CV pool, the bottom 80%
+      remaining after holding out high-y points, the top 80% remaining after holding out
+      low-y points, and the typical 80% remaining after holding out high-leverage points.
+      All four CV RMSEs pool every out-of-fold prediction across repeats; they do not use
+      the errors on the held-out 20% test sets. Each absolute percentage difference is
+      ``abs((CV RMSE / full-data CV RMSE) - 1) * 100``. Equivalently, the same CV-pool
+      y-range can scale both errors before taking the ratio. Differences up to 15% show **Pass**, above 15% through
+      30% show **Unclear**, and above 30% show **Warning**. These indicators do not change
+      the CheckML scores. A zero baseline with nonzero error is shown as an unbounded
+      difference; two zero errors have a 0% difference. Older DAT files missing the full-data
+      baseline or partition CV metrics show unavailable comparisons until PREDICT is rerun.
+
+      In the PREDICT DAT, ``Sorted CV extremes (repeated)`` labels the held-out errors as
+      ``Test RMSE Low`` and ``Test RMSE High``. ``Sorted CV training pools (repeated)``
+      reports ``CV RMSE Low`` (top 80%) and ``CV RMSE High`` (bottom 80%).
+      The ``Applicability domain (leverage)`` line reports both ``Test RMSE`` and ``CV RMSE``.
+      The held-out test errors still determine boundary components 1a, 2a, and 3. The
+      degradation ratios retain their existing baselines, calculated from the averaged
+      out-of-fold predictions on the remaining 80%, and are labelled accordingly in the DAT.
+
+      For classification, the same box compares interpolation CV MCC against full-data CV
+      MCC using ``abs((MCC / full-data MCC) - 1) * 100`` and the same 15%/30% status
+      thresholds. The full-data DAT line reports accuracy, F1 score, and MCC. Signed MCCs
+      are used directly in the ratio, so changing the sign relative to the baseline produces
+      a large difference. Two zero MCCs have a 0% difference; a nonzero MCC over a zero
+      baseline is unbounded. Boundary-robustness comparisons remain disabled for classification.
 
       |br|
 
@@ -111,14 +433,6 @@ CheckML score
             Where a table shows linear interpolation, scores change gradually between the listed thresholds rather
             than jumping between integer values. Component scores and section totals are displayed to one decimal
             place. Score bars and colors still use the nearest integer.
-
-            Importantly, the resulting scores should not be interpreted as replacements for the underlying statistical
-            metrics or as universal guarantees of predictive validity. Rather, they provide a standardized, quantitative
-            quality-control layer that integrates multiple diagnostics. By explicitly testing performance against
-            flawed baselines, evaluating overfitting and generalization,
-            quantifying prediction stability, and probing both response- and descriptor-space boundaries, CheckML provides
-            a systematic assessment of the conditions under which a model's predictions can reasonably be considered
-            reliable.
 
             .. warning::
                In this context, a published model may still be useful for its intended application even when weak scores or
@@ -355,21 +669,28 @@ CheckML score
             of it — not one three-way split. The "Low" split holds out the bottom 20% of points as its test fold and
             trains on the remaining top 80%; the "High" split holds out the top 20% and trains on the remaining
             bottom 80%. Each split is evaluated with its own 10x 5-fold CV over its own 80% training portion, so
-            a point in the top 80% of one split can be in the held-out 20% of the other. Four of the five sub-metrics
-            below come from these two extreme folds; the fifth uses a different, X-descriptor space definition of
+            a point in the top 80% of one split can be in the held-out 20% of the other. The six scored components
+            in items 1 and 2 come from these two extreme folds; item 3 uses a different, X-descriptor space definition of
             "boundary" instead.
+
+            The High boundary (item 1) and Low boundary (item 2) each contribute up to 4 points; applicability domain
+            (item 3) contributes up to 2. Their sum remains the 0-10 Boundary robustness score.
 
             .. figure:: images/sorted_low_high_diagram.svg
                :width: 560
                :align: center
 
 
-            *Not statistical outliers — simply the most extreme 20% of real values in the dataset. Sub-metrics 1-4*
-            *below all follow this Low/High fold pattern; sub-metric 5 breaks it on purpose (see* |u| 5. Applicability domain (leverage) |/u| *below).*
+            *Not statistical outliers — simply the most extreme 20% of real values in the dataset. Items 1 and 2*
+            *each contain three Low/High components: (a) sorted CV, (b) Spearman rank, and (c) degradation ratio; item 3*
+            *breaks the y-space pattern on purpose (see* |u| 3. Applicability domain (leverage) |/u| *below).*
 
             .. tab-set::
 
-               .. tab-item:: 1–2 Low and high scaled RMSE
+               .. tab-item:: 1a and 2a Sorted CV RMSE
+
+                  These scores use the held-out low-y or high-y 20% test-set RMSE. The separate
+                  CV RMSE on the remaining 80% is used only in the **CV-Test Split Diagnostic** box.
 
                   The scaled RMSE score decreases linearly from 2 at 10% to 0 at 30%:
 
@@ -412,9 +733,9 @@ CheckML score
 
 
                   *Real Low/High fold scatter plots from an actual ROBERT v2.2.0 report — this is what Section B of the*
-                  *PDF actually shows for sub-metrics 1-2.*
+                  *PDF actually shows for components 1a and 2a.*
 
-               .. tab-item:: 3 Spearman rank
+               .. tab-item:: 1b and 2b Spearman rank
 
                   Spearman rank correlation between measured and predicted y values, computed separately within each
                   extreme fold, to check that the model still ranks points correctly even where it can't hit them exactly.
@@ -451,9 +772,9 @@ CheckML score
                   ============== ==============================================================
 
                   The penalty is added to the Spearman score for each fold, then that adjusted score is clamped to
-                  0-1. The Low and High fold scores are added for a total of 0-2 points.
+                  0-1. The High and Low fold scores are shown separately as items 1b and 2b.
 
-               .. tab-item:: 4 Degradation ratio
+               .. tab-item:: 1c and 2c Degradation ratio
 
                   Compares each extreme fold's scaled RMSE against the RMSE of the *remaining* 80% of the data, so a
                   model can't hide a badly-degraded boundary behind a fine-looking interior.
@@ -477,13 +798,16 @@ CheckML score
                   0              ≥ 1.75x
                   ============== ======================================================
 
-               .. tab-item:: 5 Applicability domain (leverage)
+               .. tab-item:: 3 Applicability domain (leverage)
 
-                  Unlike items 1-4, this metric measures robustness in **X-descriptor space** rather than y-space: ROBERT
+                  Unlike items 1-2, this metric measures robustness in **X-descriptor space** rather than y-space: ROBERT
                   trains on the 80% "typical" points and tests on the 20% highest-leverage points, using the classical QSAR
                   statistical leverage (the diagonal of the hat matrix, :math:`h_i = x_i^T (X_{train}^T X_{train})^{-1} x_i`)
                   to identify which points are the most structurally/descriptor-wise extreme — the same quantity plotted on
                   a Williams plot, with the usual warning threshold :math:`h^* = 3(p+1)/n`.
+
+                  Its score uses the held-out high-leverage test-set RMSE. The CV RMSE pooled over
+                  the typical 80% supplies the corresponding **CV-Test Split Diagnostic** comparison.
 
                   .. figure:: images/leverage_diagram.svg
                      :width: 560

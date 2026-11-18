@@ -48,3 +48,15 @@
     margin-top: 1.75rem;
     padding-top: 1rem;
 }
+
+table.checkml-warning-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.wy-table-responsive table.checkml-warning-table td,
+.wy-table-responsive table.checkml-warning-table th {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+}

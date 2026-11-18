@@ -4,7 +4,7 @@
 Versions
 ========
 
-Version 2.2.1
+Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
 
 **Default models in classification**
 
@@ -34,8 +34,6 @@ Version 2.2.1
   which are not designed to extrapolate outside the training range
 - Classification reports from CHECKML show the original class names (i.e. "active" /
   "inactive") instead of 0/1 codes in confusion matrices and prediction CSVs
-
-Version 2.2.0 [`url <https://github.com/jvalegre/robert/releases/tag/2.2.0>`__]
 
 *The ROBERT score is now split into two fully independent scores, Interpolation and
 Boundary robustness (each 0-10), instead of one shared score with duplicated sub-metrics on

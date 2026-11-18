@@ -139,6 +139,13 @@ def test_CHECKML_module():
     assert "Section A. CheckML Score" in debug_content
     assert "Interpolation" in debug_content
     assert "Boundary robustness" in debug_content  # MVL is regression, so this column exists
+    assert "(Boundary robustness)" not in debug_content
+    summary = debug_content.split('Interpolation warnings</div>', 1)[1]
+    interpolation_warnings = summary.split('</td>', 1)[0]
+    boundary_warnings = summary.split('Boundary robustness warnings</div>', 1)[1].split('</td>', 1)[0]
+    assert 'Difficult to extrapolate' not in interpolation_warnings
+    assert 'Difficult to extrapolate' in boundary_warnings
+    assert '(Section B.1)' in boundary_warnings
     score_imgs = [
         line for line in debug_content.splitlines()
         if "report/score_" in line and "report/score_w" not in line
@@ -152,6 +159,31 @@ def test_CHECKML_module():
     # the test set was picked by ROBERT's own systematic split, so the score is calibrated
     # and must be calculated normally
     assert "Score not available" not in debug_content
+
+    # The full-data diagnostic reaches the DAT and all four comparisons render
+    # together. Longer explanatory text may move the callouts to another page.
+    from robert.report_utils import get_predict_scores
+    import pymupdf
+
+    with open(os.path.join(path_main, "PREDICT", "PREDICT_data.dat"), encoding="utf-8") as log:
+        predict_lines = log.readlines()
+    assert sum("-  Full data 10x 5-fold CV : R2 = " in line for line in predict_lines) == 1
+    scores = get_predict_scores(predict_lines, "No PFI", "reg", {})
+    assert scores["rmse_full_No PFI"] > 0
+    assert all(scores[f"full_cv_diff_{metric}_No PFI"] is not None for metric in ("cv", "high", "low", "ad"))
+    assert any('Test RMSE Low = ' in line and 'Test RMSE High = ' in line for line in predict_lines)
+    assert any('CV RMSE Low = ' in line and 'CV RMSE High = ' in line for line in predict_lines)
+    assert any('Applicability domain (leverage)' in line and 'Test RMSE = ' in line
+               and 'CV RMSE = ' in line for line in predict_lines)
+    for side in ('high', 'low', 'ad'):
+        assert scores[f"full_cv_diff_{side}_No PFI"] == pytest.approx(
+            abs(scores[f"rmse_{side}_cv_No PFI"]/scores["rmse_full_No PFI"] - 1)*100
+        )
+    with pymupdf.open(os.path.join(path_main, "ROBERT_report_No_PFI.pdf")) as pdf:
+        callout_text = next(page.get_text() for page in pdf if "CV-Test Split Diagnostic" in page.get_text())
+    for text in ("CV-Test Split Diagnostic", "Interpolation:", "Extrapol. high y values:",
+                 "Extrapol. low y values:", "Extrapol. descriptor-space:", "Considerations when using CheckML"):
+        assert text in callout_text
 
     # leave the folders as they were at the end of the test
     _clean_checkml_run()
@@ -271,11 +303,33 @@ def test_CHECKML_classification():
         assert "- Training points: 22" in predict_content
         assert "- Test points: 15" in predict_content
         assert "MCC" in predict_content
+        assert predict_content.count("-  Full data 10x 5-fold CV : Accur. = ") == 1
+        from robert.report_utils import get_predict_scores
+
+        scores = get_predict_scores(predict_content.splitlines(), "No PFI", "clas", {})
+        assert "mcc_full_No PFI" in scores
+        assert scores["full_cv_diff_cv_No PFI"] == pytest.approx(
+            abs(scores["r2_cv_No PFI"] / scores["mcc_full_No PFI"] - 1) * 100
+        )
 
         debug_report = os.path.join(path_main, "report_debug_No_PFI.txt")
         with open(debug_report, "r", encoding="utf-8") as f:
             debug_content = f.read()
         assert "Traceback (most recent call last)" not in debug_content
+        assert "Absolute MCC differences relative to full-data CV" in debug_content
+        assert "available for regression models" not in debug_content
+        assert "Rerun PREDICT" not in debug_content
+        import pymupdf
+
+        with pymupdf.open(os.path.join(path_main, "ROBERT_report_No_PFI.pdf")) as pdf:
+            first_page = pdf[0].get_text()
+            for text in ("Model metrics", "10x 5-fold CV : Accur.", "Test : Accur.",
+                         "Score breakdown (see Section B, left)", "CV-Test Split Diagnostic",
+                         "Considerations when using CheckML"):
+                assert text in first_page
+            assert "Section B, right" not in first_page
+            assert pdf[0].search_for("CV-Test Split Diagnostic")[0].y0 > 45
+            assert "Results summary" in pdf[1].get_text()
         # classification has no Boundary robustness score (see score.rst) - only Interpolation
         # gets a real score column; the right column instead shows a short note explaining why
         # it's disabled (see print_score() in report.py) rather than being left blank
@@ -635,7 +689,8 @@ def test_CHECKML_row_and_column_order_do_not_change_results():
                 "verify": [line.strip() for line in verify_dat.split("\n")
                            if any(tag in line for tag in ["y_mean", "y_shuffle", "onehot", "cluster", "Sorted"])],
                 "predict": [line.strip() for line in predict_dat.split("\n")
-                            if "10x 5-fold CV :" in line or "Test :" in line or "Sorted CV extremes" in line],
+                            if any(tag in line for tag in ("10x 5-fold CV :", "Test :", "Sorted CV extremes",
+                                                           "Sorted CV training pools", "Applicability domain (leverage)"))],
                 "predictions": preds.sort_values("Name").reset_index(drop=True).round(10),
             })
     finally:

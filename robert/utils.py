@@ -67,7 +67,7 @@ warnings.filterwarnings("ignore")
 
 robert_version = ROBERT_VERSION
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput. Mol. Sci. 2024, 14, e1733."
 checkml_ref = "CheckML citation TBD."
 
 def _parse_class_mapping_reverse(mapping):
@@ -2686,7 +2686,7 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels,include_test=Fa
     return Xy_data
 
 
-def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y_test_pool):
+def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y_test_pool,return_cv_rmse=False):
     '''
     Runs the SAME 10x repeated 5-fold CV used for interpolation (repeated_kfold_cv), scoped to
     an arbitrary 80/20 partition instead of the "official" train/test split - so boundary
@@ -2694,9 +2694,10 @@ def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y
     interpolation's "10x 5-fold CV"/"test" pair: each point in the 80% pool is averaged over
     its ~10 out-of-fold CV appearances, and each point in the 20% held-out pool is averaged
     over all repeat*kfold (e.g. 10*5=50) models fitted during the run - instead of a single
-    train-once/test-once fit. This makes the reported RMSE directly comparable to
-    interpolation's, both being averages over the same kind of repeated-CV procedure rather
-    than one being averaged and the other a single noisy draw.
+    train-once/test-once fit. The optional fourth return value is the CV RMSE pooled over
+    every out-of-fold prediction, matching load_n_predict() and the full-data CV baseline.
+    It differs from the RMSE of the per-point averaged predictions used by the plots and
+    degradation baselines, which are retained unchanged.
     '''
 
     loaded_model = load_model(self, model_data['model'], **model_data['params'])
@@ -2712,7 +2713,14 @@ def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y
     # (same statistic interpolation's item 6 "Avg. standard deviation (SD)" already uses, via
     # Xy_data['y_pred_test_sd'] in repeated_kfold_cv) - kept in the same units/convention here
     # so boundary robustness's stability sub-metric is directly comparable to interpolation's
-    return np.array(temp_Xy_data['y_pred_train']), np.array(temp_Xy_data['y_pred_test']), np.array(temp_Xy_data['y_pred_test_sd'])
+    predictions = (np.array(temp_Xy_data['y_pred_train']), np.array(temp_Xy_data['y_pred_test']), np.array(temp_Xy_data['y_pred_test_sd']))
+    if return_cv_rmse:
+        cv_predictions = np.asarray(temp_Xy_data['y_pred_train_all'])
+        _, _, rmse_cv = get_prediction_results(
+            model_data, np.repeat(np.asarray(y_train_pool), cv_predictions.shape[1]), cv_predictions.reshape(-1)
+        )
+        return (*predictions, rmse_cv)
+    return predictions
 
 
 def boundary_n_points(n_total):
@@ -2732,8 +2740,9 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     same methodology interpolation's "10x 5-fold CV"/"test" plot uses (repeated_kfold_cv), just
     scoped to each extreme's own 80/20 partition of the whole (sorted) dataset instead of the
     official train/test split. Both the 80%-pool points and the 20%-extreme points are
-    therefore averaged over repeated CV appearances, not a single train-once/test-once fit -
-    making the reported RMSE directly comparable to interpolation's own averaged RMSE.
+    therefore averaged over repeated CV appearances, not a single train-once/test-once fit.
+    Test RMSEs use these ensemble means; the separately logged CV RMSEs pool all OOF
+    predictions on each remaining 80% pool, just like the full-data CV baseline.
     '''
 
     X_all,y_all = sort_n_load(Xy_data,include_test=True)
@@ -2744,8 +2753,10 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     X_top80,y_top = X_all[n_extreme:], y_all[n_extreme:]
     X_low,y_low = X_all[:n_extreme], y_all[:n_extreme]
 
-    y_pred_bottom,y_pred_high,s_high = _cv_within_partition(self,model_data,X_bottom80,y_bottom,X_high,y_high)
-    y_pred_top,y_pred_low,s_low = _cv_within_partition(self,model_data,X_top80,y_top,X_low,y_low)
+    y_pred_bottom,y_pred_high,s_high,rmse_cv_bottom80 = _cv_within_partition(
+        self,model_data,X_bottom80,y_bottom,X_high,y_high,return_cv_rmse=True)
+    y_pred_top,y_pred_low,s_low,rmse_cv_top80 = _cv_within_partition(
+        self,model_data,X_top80,y_top,X_low,y_low,return_cv_rmse=True)
 
     # RMSE of each extreme's own "remaining 80%" (from the same repeated-CV run), used as the
     # degradation ratio baseline - comparing against interpolation's own RMSE would still mix
@@ -2842,9 +2853,10 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     high_low_text = ''
     # REPORT parses these RMSE values to calculate scale-independent scores. Use significant
     # digits rather than fixed decimal places so small target scales don't round them to zero.
-    high_low_text += f"      -  Sorted CV extremes (repeated) : RMSE Low = {rmse_low:.2g}, RMSE High = {rmse_high:.2g}\n"
+    high_low_text += f"      -  Sorted CV extremes (repeated) : Test RMSE Low = {rmse_low:.2g}, Test RMSE High = {rmse_high:.2g}\n"
+    high_low_text += f"      -  Sorted CV training pools (repeated) : CV RMSE Low = {rmse_cv_top80:.2g}, CV RMSE High = {rmse_cv_bottom80:.2g}\n"
     high_low_text += f"      -  Real range extension (Low/High) : Low crossing = {crossing_low:.2f}, High crossing = {crossing_high:.2f}\n"
-    high_low_text += f"      -  Degradation baseline (remaining 80%) : vs Low (top 80%) RMSE = {rmse_top80:.2g}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2g}\n"
+    high_low_text += f"      -  Degradation baseline (remaining 80%) : CV RMSE of averaged OOF predictions, vs Low (top 80%) RMSE = {rmse_top80:.2g}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2g}\n"
     high_low_text += f"      -  y SD at high extreme : Measured = {sd_high:.2f}; Predicted = {sd_pred_high:.2f}. Spread ratio = {spread_ratio_high:.2f}\n"
     high_low_text += f"      -  y SD at low extreme : Measured = {sd_low:.2f}; Predicted = {sd_pred_low:.2f}. Spread ratio = {spread_ratio_low:.2f}\n"
     high_low_text += f"      -  y range at high extreme : Measured = {range_high:.2g}; Predicted = {range_pred_high:.2g}. Range ratio = {range_ratio_high:.2f}\n"
@@ -2856,7 +2868,7 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
 
 def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
     '''
-    Boundary robustness in X-descriptor space (Section B sub-metric 5), complementing the
+    Boundary robustness in X-descriptor space (Section B sub-metric 3), complementing the
     Low/High sorted-CV analysis (boundary robustness in y-space). Ranks every point in the whole dataset by
     leverage - h_i = x_i^T (X_train^T X_train)^-1 x_i, the standard QSAR/regression
     "applicability domain" metric, which (unlike a per-descriptor or plain Euclidean check)
@@ -2895,8 +2907,10 @@ def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
 
     # 10x repeated 5-fold CV within the 80% "typical" pool (same methodology as interpolation
     # and the Low/High boundary robustness plots - see _cv_within_partition()), instead of a
-    # single train-once/test-once fit, so this RMSE is directly comparable to the others
-    y_pred_train_ad,y_pred_test_ad,_ = _cv_within_partition(self,model_data,X_train_ad,y_train_ad,X_test_ad,y_test_ad)
+    # single train-once/test-once fit. Keep the held-out ensemble RMSE for scoring
+    # and calculate the pooled OOF CV RMSE separately for the split comparison.
+    y_pred_train_ad,y_pred_test_ad,_,rmse_cv_ad = _cv_within_partition(
+        self,model_data,X_train_ad,y_train_ad,X_test_ad,y_test_ad,return_cv_rmse=True)
 
     _,_,rmse_ad = get_prediction_results(model_data,y_test_ad,y_pred_test_ad)
 
@@ -2924,7 +2938,7 @@ def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
         observed=np.concatenate([y_train_ad,y_test_ad]),
         predicted=np.concatenate([y_pred_train_ad,y_pred_test_ad]))
 
-    self.args.log.write(f"      -  Applicability domain (leverage) : RMSE = {rmse_ad:.2}, h* = {h_star:.2}")
+    self.args.log.write(f"      -  Applicability domain (leverage) : Test RMSE = {rmse_ad:.2}, CV RMSE = {rmse_cv_ad:.2}, h* = {h_star:.2}")
 
 
 def _place_legend(ax,all_x,all_y,labels,fontsize=14):

@@ -59,12 +59,13 @@ from sklearn.cluster import KMeans
 from sklearn.inspection import permutation_importance
 from sklearn.exceptions import ConvergenceWarning
 from robert.argument_parser import set_options, var_dict
+from robert._version import ROBERT_VERSION
 from bayes_opt import BayesianOptimization
 import warnings # this avoids warnings from sklearn
 warnings.filterwarnings("ignore")
 
 
-robert_version = "2.1.3"
+robert_version = ROBERT_VERSION
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
 robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
 checkml_ref = "CheckML citation TBD."

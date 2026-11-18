@@ -34,6 +34,7 @@ Notes:
 # fall back to the installed package structure.
 
 import re
+import json
 import webbrowser
 import time
 from PySide6.QtCore import QEvent, QRect, QSettings
@@ -43,37 +44,31 @@ try:
 
     from version import SOFTWARE_VERSIONS
     from bot import BotEngine, BotPanel, BotWindow
-    from bot.bot_context import build_gui_snapshot
+    from bot.bot_context import active_gui_page, build_gui_snapshot
     from bot.workflow_results import WorkflowResultStore
     from bot.icons import create_bot_icon
-    from bot.local_llm import (
-        LOCAL_MODEL_DISPLAY_NAME,
-        LOCAL_MODEL_DOWNLOAD_SIZE_DISPLAY,
-        LocalLLMError,
-    )
     from bot.bot_worker import BotReplyWorker
-    from bot.local_model_worker import LocalModelPrepareWorker
+    from bot.credential_store import CredentialStore, CredentialStoreError
     from workflow_progress import WorkflowProgress, STAGES
     from utils import utils_gui, molssi_utils
     from tabs import predictions, aqme, advanced_options, molssi, results, images, checkml, results_workspace, interactive_predictions, result_catalog
+    from web_dialogs import style_dialog
+    from workflow_run_lock import WorkflowRunLock
 
 except ImportError as e:
 
     from robert.gui_easyrob.version import SOFTWARE_VERSIONS
     from robert.gui_easyrob.bot import BotEngine, BotPanel, BotWindow
-    from robert.gui_easyrob.bot.bot_context import build_gui_snapshot
+    from robert.gui_easyrob.bot.bot_context import active_gui_page, build_gui_snapshot
     from robert.gui_easyrob.bot.workflow_results import WorkflowResultStore
     from robert.gui_easyrob.bot.icons import create_bot_icon
-    from robert.gui_easyrob.bot.local_llm import (
-        LOCAL_MODEL_DISPLAY_NAME,
-        LOCAL_MODEL_DOWNLOAD_SIZE_DISPLAY,
-        LocalLLMError,
-    )
     from robert.gui_easyrob.bot.bot_worker import BotReplyWorker
-    from robert.gui_easyrob.bot.local_model_worker import LocalModelPrepareWorker
+    from robert.gui_easyrob.bot.credential_store import CredentialStore, CredentialStoreError
     from robert.gui_easyrob.workflow_progress import WorkflowProgress, STAGES
     from robert.gui_easyrob.utils import utils_gui, molssi_utils
     from robert.gui_easyrob.tabs import predictions, aqme, advanced_options, molssi, results, images, checkml, results_workspace, interactive_predictions, result_catalog
+    from robert.gui_easyrob.web_dialogs import style_dialog
+    from robert.gui_easyrob.workflow_run_lock import WorkflowRunLock
 
 
 # ------------------------------------------------------------
@@ -175,8 +170,12 @@ class EasyROB(QMainWindow):
             return False
         return not any(ch.isspace() for ch in candidate)
 
-    def __init__(self):
+    def __init__(self, mode="easyrob"):
         super().__init__()
+        if mode not in {"easyrob", "checkml"}:
+            raise ValueError(f"Unsupported GUI mode: {mode}")
+        self.app_mode = mode
+        self._workflow_run_lock = WorkflowRunLock()
         self.file_path = ""
         self.csv_test_path = ""
         self.process = None  
@@ -186,7 +185,6 @@ class EasyROB(QMainWindow):
         self.worker = None
         self.csv_preflight_worker = None
         self.bot_worker = None
-        self.local_model_worker = None
         self.bot_history = []
         self._bot_next_request_id = 0
         self._bot_active_request_id = None
@@ -195,17 +193,130 @@ class EasyROB(QMainWindow):
         self.bot_active_popup = None
         self.bot_popup_context = None
         self._bot_observed_message_boxes = {}
-        self._pending_local_bot_question = None
-        self._pending_local_bot_tutorial_id = ""
         self._last_loaded_file_path = None
         self._molssi_workers = set() # Keep track of MolSSI workers
         self.molssi_is_closing = False
         self.initUI()
+        if self.app_mode == "checkml":
+            self._configure_checkml_mode()
         application = QApplication.instance()
-        if application is not None:
+        if application is not None and sys.platform == "win32":
             application.installEventFilter(self)
         self.clear_test_button.setVisible(False) # Hide the button initially
-        self.molssi_tab.load_test_requested.connect(self.set_csv_test_path) # Connect signal with molssi tab donwload test requested
+        if self.molssi_tab is not None:
+            self.molssi_tab.load_test_requested.connect(self.set_csv_test_path)
+        if QApplication.platformName() != "offscreen" or os.environ.get("EASYROB_WEBENGINE_TEST") == "1":
+            self._mount_web_shell()
+
+    def _mount_web_shell(self):
+        """Present the modern dashboard while keeping the existing Qt workflow alive."""
+        try:
+            from robert.gui_easyrob.web_shell import WebShell
+        except ImportError:
+            from web_shell import WebShell
+
+        self._native_central = self.takeCentralWidget()
+        self._classic_minimum_width = self._native_central.minimumSizeHint().width()
+        self._native_central.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self._ui_stack = QStackedWidget(self)
+        self._ui_stack.addWidget(self._native_central)
+        self._web_shell = WebShell(self)
+        self._ui_stack.addWidget(self._web_shell.view)
+        self._molssi_host = QWidget(self)
+        self._molssi_host.setStyleSheet(
+            "background: #f7f3fc; color: #2c1945;"
+            "QPushButton { background: #6d28d9; color: white; border: none;"
+            "border-radius: 8px; padding: 8px 13px; font-weight: 700; }"
+            "QPushButton:hover { background: #7c3aed; }"
+        )
+        self._molssi_layout = QVBoxLayout(self._molssi_host)
+        self._molssi_layout.setContentsMargins(16, 13, 16, 16)
+        self._molssi_layout.setSpacing(12)
+        molssi_toolbar = QWidget(self._molssi_host)
+        molssi_toolbar_layout = QHBoxLayout(molssi_toolbar)
+        molssi_toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        back_button = QPushButton("← Back to easyROB", molssi_toolbar)
+        back_button.setObjectName("molssiBackButton")
+        back_button.clicked.connect(self._toggle_interface)
+        molssi_toolbar_layout.addWidget(back_button)
+        molssi_title = QLabel("MolSSI descriptor libraries", molssi_toolbar)
+        molssi_title.setStyleSheet("font-size: 20px; font-weight: 800; color: #2c1945;")
+        molssi_toolbar_layout.addWidget(molssi_title)
+        molssi_toolbar_layout.addStretch()
+        for label, callback in (
+            ("Home", lambda: self.molssi_tab.web_view.setUrl(self.molssi_tab.databases_home_url)),
+            ("Reload", self.molssi_tab.web_view.reload if self.molssi_tab is not None else lambda: None),
+        ):
+            button = QPushButton(label, molssi_toolbar)
+            button.clicked.connect(callback)
+            molssi_toolbar_layout.addWidget(button)
+        self._molssi_layout.addWidget(molssi_toolbar)
+        self._molssi_minimum_width = self._molssi_host.minimumSizeHint().width()
+        self._molssi_host.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self._ui_stack.addWidget(self._molssi_host)
+        self.setCentralWidget(self._ui_stack)
+        self.setMinimumSize(850, 600)
+        self._web_shell.view.loadFinished.connect(self._on_web_shell_loaded)
+        self._ui_stack.setCurrentWidget(self._web_shell.view)
+        self._view_switch_btn = QToolButton(self)
+        self._view_switch_btn.setText("Classic panels")
+        self._view_switch_btn.clicked.connect(self._toggle_interface)
+        self.status_bar.addPermanentWidget(self._view_switch_btn)
+        self.status_bar.hide()
+        self.resize(1180, 790)
+
+    def _on_web_shell_loaded(self, success):
+        """Show the existing controls if the local dashboard cannot load."""
+        if not success:
+            self.show_classic_panel("CheckML" if self.app_mode == "checkml" else "ROBERT")
+            self._view_switch_btn.setEnabled(False)
+            self.status_bar.showMessage("Modern interface could not load; classic panels remain available.")
+
+    def _toggle_interface(self):
+        if self._ui_stack.currentWidget() in {self._native_central, self._molssi_host}:
+            self._restore_molssi_view()
+            self.setMinimumWidth(850)
+            self._ui_stack.setCurrentWidget(self._web_shell.view)
+            self._view_switch_btn.setText("Classic panels")
+            self.status_bar.hide()
+        else:
+            self.show_classic_panel("CheckML" if self.app_mode == "checkml" else "ROBERT")
+
+    def show_molssi_workspace(self):
+        """Show the existing MolSSI browser within the modern workspace."""
+        if self.app_mode == "checkml":
+            return
+        view = self.molssi_tab.web_view
+        self.molssi_tab.layout().removeWidget(view)
+        self._molssi_layout.addWidget(view, 1)
+        self.setMinimumWidth(max(850, self._molssi_minimum_width))
+        self._ui_stack.setCurrentWidget(self._molssi_host)
+        self._view_switch_btn.setText("Modern home")
+        self.status_bar.hide()
+
+    def _restore_molssi_view(self):
+        if self._ui_stack.currentWidget() is self._molssi_host:
+            view = self.molssi_tab.web_view
+            self._molssi_layout.removeWidget(view)
+            self.molssi_tab.layout().addWidget(view, 1)
+
+    def show_classic_panel(self, panel):
+        """Open an existing specialized Qt panel from the web dashboard."""
+        if self.app_mode == "checkml" and panel not in {"CheckML", "Results"}:
+            panel = "CheckML"
+        self._restore_molssi_view()
+        names = {"ROBERT": "ROBERT", "AQME": "AQME", "Advanced": "Advanced Options",
+                 "MolSSI": "MolSSI Databases", "CheckML": "CheckML", "Results": "Results"}
+        label = names.get(panel, "ROBERT")
+        for index in range(self.tab_widget.count()):
+            if self.tab_widget.tabText(index) == label:
+                if self.tab_widget.isTabEnabled(index):
+                    self.tab_widget.setCurrentIndex(index)
+                break
+        self.setMinimumWidth(max(850, self._classic_minimum_width))
+        self._ui_stack.setCurrentWidget(self._native_central)
+        self._view_switch_btn.setText("Modern home")
+        self.status_bar.show()
 
     def _exec_tracked_message_box(
         self,
@@ -291,9 +402,14 @@ class EasyROB(QMainWindow):
 
     def eventFilter(self, watched, event):
         """Capture GUI message boxes so robBOT can explain the latest dialog."""
+        event_type = event.type()
+        if event_type not in {QEvent.Show, QEvent.Hide, QEvent.Close}:
+            return False
+        if event_type == QEvent.Show and isinstance(watched, QDialog):
+            style_dialog(watched)
         if isinstance(watched, QMessageBox):
-            self._observe_message_box_event(watched, event.type())
-        return super().eventFilter(watched, event)
+            self._observe_message_box_event(watched, event_type)
+        return False
 
     def _remember_popup(
         self,
@@ -375,28 +491,20 @@ class EasyROB(QMainWindow):
             QTimer.singleShot(5000, loop.quit)
             loop.exec()
 
-            self._shutdown_local_ai()
+            self._request_ai_worker_shutdown()
             self._shutdown_molssi_async()
             event.ignore()
             return
 
         # No ROBERT → real close
         self.molssi_is_closing = True
-        self._shutdown_local_ai()
+        self._request_ai_worker_shutdown()
         self._shutdown_molssi_async()
         event.ignore()
 
-    def _shutdown_local_ai(self):
-        """Stop the managed Local AI runtime if it is active."""
-        local_manager = getattr(getattr(self, "bot_engine", None), "_local_manager", None)
-        if local_manager is None:
-            return
-        shutdown = getattr(local_manager, "shutdown", None)
-        if callable(shutdown):
-            shutdown()
-
     def _reset_ui_after_process(self):
         """Reset UI elements after the ROBERT process has finished."""
+        self._workflow_run_lock.release()
         self.run_button.setDisabled(False)
         self.run_aqme_button.setDisabled(False)
         self.stop_button.setDisabled(True)
@@ -587,19 +695,25 @@ class EasyROB(QMainWindow):
         EasyROB._request_ai_worker_shutdown(self)
         self.hide()
 
-        for w in self._molssi_workers:
-            if w.isRunning():
-                w.quit()
+        for worker in EasyROB._running_molssi_workers(self):
+            worker.quit()
 
         QTimer.singleShot(100, self._poll_molssi_exit)
+
+    def _running_molssi_workers(self):
+        """Return active resolver, download, and conversion workers."""
+        workers = set(getattr(self, "_molssi_workers", ()))
+        workers.add(getattr(self, "_molssi_download_worker", None))
+        workers.add(getattr(getattr(self, "molssi_tab", None), "_excel_worker", None))
+        return tuple(
+            worker for worker in workers
+            if worker is not None and worker.isRunning()
+        )
 
     def _running_ai_workers(self):
         """Return AI workers that are still running without blocking the GUI."""
         workers = []
-        for worker in (
-            getattr(self, "bot_worker", None),
-            getattr(self, "local_model_worker", None),
-        ):
+        for worker in (getattr(self, "bot_worker", None),):
             if worker is not None and hasattr(worker, "isRunning") and worker.isRunning():
                 workers.append(worker)
         return tuple(workers)
@@ -615,7 +729,7 @@ class EasyROB(QMainWindow):
 
     def _poll_molssi_exit(self):
         """Poll MolSSI workers until all have exited, then quit application."""
-        if any(w.isRunning() for w in self._molssi_workers) or EasyROB._running_ai_workers(self):
+        if EasyROB._running_molssi_workers(self) or EasyROB._running_ai_workers(self):
             QTimer.singleShot(100, self._poll_molssi_exit)
             return
 
@@ -667,9 +781,12 @@ class EasyROB(QMainWindow):
 
     def toggle_bot_panel(self, checked):
         """Show or hide the floating bot window."""
+        if self.app_mode == "checkml":
+            self.bot_window.hide()
+            self._sync_bot_toggle(False)
+            return
         is_visible = bool(checked)
         if is_visible:
-            self._refresh_local_model_status()
             self.bot_window.show()
             self.bot_window.raise_()
             self.bot_window.activateWindow()
@@ -722,7 +839,14 @@ class EasyROB(QMainWindow):
         if settings is None:
             return
 
-        saved_api_key = EasyROB._normalize_api_key(settings.value(EasyROB.BOT_API_KEY_SETTING, ""))
+        credential_store = CredentialStore(settings)
+        try:
+            saved_api_key = EasyROB._normalize_api_key(credential_store.load())
+            key_is_saved = bool(saved_api_key)
+        except CredentialStoreError as exc:
+            saved_api_key = EasyROB._normalize_api_key(exc.temporary_secret)
+            key_is_saved = False
+            QMessageBox.warning(self, "API key storage", str(exc))
         saved_provider = str(settings.value(EasyROB.BOT_PROVIDER_SETTING, "Groq") or "Groq")
         raw_web_search = settings.value(EasyROB.BOT_WEB_SEARCH_SETTING, True)
         web_search_enabled = (
@@ -731,11 +855,12 @@ class EasyROB(QMainWindow):
             else bool(raw_web_search)
         )
         if saved_api_key and not EasyROB._is_valid_api_key_format(saved_api_key):
-            settings.remove(EasyROB.BOT_API_KEY_SETTING)
+            credential_store.delete()
             settings.remove(EasyROB.BOT_PROVIDER_SETTING)
             settings.remove(EasyROB.BOT_MODE_SETTING)
             settings.sync()
             saved_api_key = ""
+            key_is_saved = False
 
         provider_index = self.bot_panel.provider_combo.findText(saved_provider)
         if provider_index >= 0:
@@ -744,7 +869,20 @@ class EasyROB(QMainWindow):
         self.bot_panel.web_search_checkbox.setChecked(web_search_enabled)
 
         self.bot_panel.mode_combo.setCurrentText("Cloud AI")
-        self.bot_panel.set_saved_api_state(bool(saved_api_key))
+        self.bot_panel.set_saved_api_state(key_is_saved)
+        self._bot_saved_provider = saved_provider if key_is_saved else ""
+        self._bot_saved_api_key = saved_api_key if key_is_saved else ""
+
+    def _on_bot_provider_changed(self, provider):
+        """Only use a stored API key with the provider it was saved for."""
+        saved_for_provider = (
+            provider == getattr(self, "_bot_saved_provider", "")
+            and bool(getattr(self, "_bot_saved_api_key", ""))
+        )
+        self.bot_panel.api_key_edit.setText(
+            self._bot_saved_api_key if saved_for_provider else ""
+        )
+        self.bot_panel.set_saved_api_state(saved_for_provider)
 
     def save_bot_api_preferences(self):
         """Persist the current cloud provider selection and API key locally."""
@@ -769,7 +907,11 @@ class EasyROB(QMainWindow):
             return
 
         provider = self.bot_panel.provider_combo.currentText().strip() or "Groq"
-        settings.setValue(EasyROB.BOT_API_KEY_SETTING, api_key)
+        try:
+            CredentialStore(settings).save(api_key)
+        except CredentialStoreError as exc:
+            QMessageBox.warning(self, "API key storage", str(exc))
+            return
         settings.setValue(EasyROB.BOT_PROVIDER_SETTING, provider)
         settings.setValue(EasyROB.BOT_MODE_SETTING, "Cloud AI")
         settings.setValue(
@@ -779,6 +921,8 @@ class EasyROB(QMainWindow):
         settings.sync()
 
         self.bot_panel.api_key_edit.setText(api_key)
+        self._bot_saved_provider = provider
+        self._bot_saved_api_key = api_key
         self.bot_panel.mode_combo.setCurrentText("Cloud AI")
         self.bot_panel.set_saved_api_state(True)
         QMessageBox.information(
@@ -793,12 +937,18 @@ class EasyROB(QMainWindow):
         if settings is None:
             return
 
-        settings.remove(EasyROB.BOT_API_KEY_SETTING)
+        try:
+            CredentialStore(settings).delete()
+        except CredentialStoreError as exc:
+            QMessageBox.warning(self, "API key storage", str(exc))
+            return
         settings.remove(EasyROB.BOT_PROVIDER_SETTING)
         settings.remove(EasyROB.BOT_MODE_SETTING)
         settings.remove(EasyROB.BOT_WEB_SEARCH_SETTING)
         settings.sync()
 
+        self._bot_saved_provider = ""
+        self._bot_saved_api_key = ""
         groq_index = self.bot_panel.provider_combo.findText("Groq")
         if groq_index >= 0:
             self.bot_panel.provider_combo.setCurrentIndex(groq_index)
@@ -822,15 +972,12 @@ class EasyROB(QMainWindow):
         if history is None:
             self.bot_history = []
 
-        message = (
-            "Use the Settings tab to choose how robBOT answers your questions. "
-            "Cloud AI with Groq is the default and uses your own provider API key. "
-            "The Groq guide in Settings explains how to create and save a key. "
-            "After every question, the Token usage panel shows input, output, session total, and an estimated cost when reliable pricing is available. "
-            "Automatic web search checks missing or current information and advanced AQME/ROBERT questions. Groq searches their official Read the Docs sites for program questions; each answer uses at most one provider-billed search and shows clickable sources. "
-            "Local AI runs the packaged model with no provider charge. "
-            "Heuristic uses no AI tokens and gives rule-based help from GUI state, popups, logs, and packaged docs."
+        topic = (
+            "Ask about CheckML and its results. "
+            if self.app_mode == "checkml" else
+            "Ask about your workflow, results, AQME, or ROBERT. "
         )
+        message = topic + "Choose Cloud AI or Heuristic in Answer settings."
         self.bot_panel.append_message("robBOT", message)
         EasyROB._append_bot_history(self, "assistant", message, memory_eligible=False)
 
@@ -844,164 +991,6 @@ class EasyROB(QMainWindow):
         super().resizeEvent(event)
         self._position_floating_bot_button()
 
-    def _refresh_local_model_status(self):
-        """Refresh the visible Local AI state from the current backend manager."""
-        worker = getattr(self, "local_model_worker", None)
-        if worker is not None and worker.isRunning():
-            return
-
-        local_manager = getattr(getattr(self, "bot_engine", None), "_local_manager", None)
-        if local_manager is None:
-            return
-
-        self.bot_panel.set_local_progress_active(False)
-        try:
-            if local_manager.is_model_ready():
-                self.bot_panel.set_local_status("Ready", "Local AI is ready.")
-            elif local_manager.model_exists():
-                self.bot_panel.set_local_status(
-                    "Downloaded",
-                    "Local model is already cached in this ROBERT environment. Load it to use Local AI.",
-                )
-            else:
-                self.bot_panel.set_local_status("Not downloaded", "")
-        except Exception:
-            self.bot_panel.set_local_status(
-                "Error",
-                "Local AI status could not be checked right now. Retry loading it or use Heuristic / Cloud AI.",
-            )
-
-    def _ask_to_prepare_local_model(self) -> bool:
-        """Ask whether EasyROB should download the packaged local model."""
-        message = (
-            "Local AI needs a local model before it can answer.\n\n"
-            f"EasyROB will download {LOCAL_MODEL_DISPLAY_NAME} "
-            f"(about {LOCAL_MODEL_DOWNLOAD_SIZE_DISPLAY}) the first time you use this mode.\n\n"
-            "Do you want to continue?"
-        )
-        reply = QMessageBox.question(
-            self,
-            "Download local model",
-            message,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes,
-        )
-        return reply == QMessageBox.Yes
-
-    def _prepare_local_model_for_bot(self):
-        """Start background preparation for the Local AI model."""
-        if self.local_model_worker is not None and self.local_model_worker.isRunning():
-            return
-        local_manager = self.bot_engine._local_manager
-        if local_manager.is_model_ready():
-            self._on_local_model_ready()
-            return
-
-        self.bot_panel.set_busy(True)
-        self.bot_panel.set_local_progress_active(True)
-        self.bot_panel.set_local_status("Preparing...", "Checking the local model cache...")
-
-        worker = LocalModelPrepareWorker(local_manager=local_manager, parent=self)
-        worker.status_changed.connect(self._on_local_model_status_changed)
-        worker.prepared.connect(self._on_local_model_ready)
-        worker.failed.connect(self._on_local_model_prepare_failed)
-        worker.finished.connect(worker.deleteLater)
-        self.local_model_worker = worker
-        worker.start()
-
-    def prepare_local_model_for_bot(self):
-        """Prepare the Local AI model from the panel controls."""
-        local_manager = self.bot_engine._local_manager
-        if local_manager.is_model_ready():
-            self.bot_panel.set_local_progress_active(False)
-            self.bot_panel.set_local_status("Ready", "Local AI is ready.")
-            return
-        if self.local_model_worker is not None and self.local_model_worker.isRunning():
-            return
-        if not local_manager.model_exists() and not self._ask_to_prepare_local_model():
-            self.bot_panel.set_local_progress_active(False)
-            self.bot_panel.set_local_status("Not downloaded", "")
-            return
-        self._prepare_local_model_for_bot()
-
-    def _on_local_model_status_changed(self, status: str, detail: str):
-        """Reflect Local AI preparation progress in the panel."""
-        self.bot_panel.set_local_status(status, detail)
-
-    def _on_local_model_ready(self):
-        """Mark Local AI as ready and replay any queued question."""
-        self.local_model_worker = None
-        self.bot_panel.set_local_progress_active(False)
-        self.bot_panel.set_local_status("Ready", "Local AI is ready.")
-        self.bot_panel.set_busy(False)
-
-        pending_question = self._pending_local_bot_question
-        pending_tutorial_id = getattr(self, "_pending_local_bot_tutorial_id", "")
-        self._pending_local_bot_question = None
-        self._pending_local_bot_tutorial_id = ""
-        if pending_question:
-            if pending_tutorial_id:
-                self._start_bot_reply(
-                    pending_question,
-                    mode_override="Local AI",
-                    tutorial_id=pending_tutorial_id,
-                )
-            else:
-                self._start_bot_reply(pending_question, mode_override="Local AI")
-
-    def _show_local_model_prepare_error(self, message: str):
-        """Show a user-facing Local AI preparation error."""
-        QMessageBox.warning(self, "Local AI unavailable", message)
-
-    def _on_local_model_prepare_failed(self, error_text: str):
-        """Handle Local AI preparation failures without crashing the GUI."""
-        self.local_model_worker = None
-        self.bot_panel.set_local_progress_active(False)
-        local_manager = getattr(getattr(self, "bot_engine", None), "_local_manager", None)
-        model_cached = False
-        if local_manager is not None:
-            try:
-                model_cached = local_manager.model_exists()
-            except Exception:
-                model_cached = False
-        if model_cached:
-            self.bot_panel.set_local_status(
-                "Error",
-                "Local AI is unavailable right now. The model is still cached in this ROBERT environment, so you can retry loading it or use Heuristic / Cloud AI.",
-            )
-        else:
-            self.bot_panel.set_local_status(
-                "Not downloaded",
-                "Local AI is unavailable right now. Try again or use Heuristic / Cloud AI.",
-            )
-        self.bot_panel.set_busy(False)
-
-        pending_question = self._pending_local_bot_question
-        pending_tutorial_id = getattr(self, "_pending_local_bot_tutorial_id", "")
-        self._pending_local_bot_question = None
-        self._pending_local_bot_tutorial_id = ""
-        if pending_question:
-            message = (
-                "Local AI could not be prepared right now. "
-                f"Falling back to Heuristic for this question.\n\nDetails: {error_text}"
-            )
-            self.bot_panel.append_message("robBOT", message)
-            EasyROB._append_bot_history(self, "assistant", message, memory_eligible=False)
-            if pending_tutorial_id:
-                self._start_bot_reply(
-                    pending_question,
-                    mode_override="Heuristic",
-                    tutorial_id=pending_tutorial_id,
-                )
-            else:
-                self._start_bot_reply(pending_question, mode_override="Heuristic")
-            return
-
-        self._show_local_model_prepare_error(
-            "Local AI could not be prepared right now.\n\n"
-            f"Details: {error_text}"
-        )
-
     def _start_bot_reply(
         self,
         question: str,
@@ -1009,6 +998,8 @@ class EasyROB(QMainWindow):
         tutorial_id: str | None = None,
     ):
         """Start the background reply worker with the selected or overridden mode."""
+        if self.app_mode == "checkml":
+            return
         EasyROB._refresh_workflow_result_snapshot(self)
         snapshot = build_gui_snapshot(self)
         mode = mode_override or self.bot_panel.mode_combo.currentText()
@@ -1049,58 +1040,12 @@ class EasyROB(QMainWindow):
 
     def handle_bot_question(self, question: str, tutorial_id: str = ""):
         """Dispatch a bot question through the background worker."""
+        if self.app_mode == "checkml":
+            return
         if self.bot_worker is not None and self.bot_worker.isRunning():
             return
-        mode = self.bot_panel.mode_combo.currentText()
-        if str(mode).strip().lower() != "local ai":
-            if tutorial_id:
-                self._start_bot_reply(question, tutorial_id=tutorial_id)
-            else:
-                self._start_bot_reply(question)
-            return
 
-        local_manager = self.bot_engine._local_manager
-        if self.local_model_worker is not None and self.local_model_worker.isRunning():
-            return
-        if local_manager.is_model_ready():
-            self.bot_panel.set_local_status("Ready", "Local AI is ready.")
-            if tutorial_id:
-                self._start_bot_reply(question, mode_override="Local AI", tutorial_id=tutorial_id)
-            else:
-                self._start_bot_reply(question, mode_override="Local AI")
-            return
-
-        self._pending_local_bot_question = question
-        self._pending_local_bot_tutorial_id = tutorial_id
-        model_cached = local_manager.model_exists()
-        if not model_cached and not self._ask_to_prepare_local_model():
-            pending_question = self._pending_local_bot_question
-            self._pending_local_bot_question = None
-            pending_tutorial_id = self._pending_local_bot_tutorial_id
-            self._pending_local_bot_tutorial_id = ""
-            self.bot_panel.set_local_status("Not downloaded", "")
-            if pending_tutorial_id:
-                self._start_bot_reply(
-                    pending_question,
-                    mode_override="Heuristic",
-                    tutorial_id=pending_tutorial_id,
-                )
-            else:
-                self._start_bot_reply(pending_question, mode_override="Heuristic")
-            return
-        if model_cached:
-            message = (
-                "Preparing Local AI. The local model is already cached in this ROBERT environment, and robBOT "
-                "will answer as soon as it finishes loading."
-            )
-        else:
-            message = (
-                "Downloading and loading Local AI. This can take a few minutes the first time. "
-                "robBOT will answer as soon as the local model is ready."
-            )
-        self.bot_panel.append_message("robBOT", message)
-        EasyROB._append_bot_history(self, "assistant", message, memory_eligible=False)
-        self._prepare_local_model_for_bot()
+        self._start_bot_reply(question, tutorial_id=tutorial_id or None)
 
     def _on_bot_answer_ready(
         self,
@@ -1140,6 +1085,8 @@ class EasyROB(QMainWindow):
 
     def _handle_workflow_summary_requested(self) -> None:
         """Submit a complete result-summary request through the active bot mode."""
+        if self.app_mode == "checkml":
+            return
         snapshot = getattr(self, "workflow_result_snapshot", None)
         if snapshot is None or not snapshot.summary_available:
             return
@@ -1181,7 +1128,13 @@ class EasyROB(QMainWindow):
                 "result, why it matters, and what to check next. Define technical terms at first use and end with "
                 "next steps in priority order, assuming no previous experience."
             )
-        self.handle_bot_question(question)
+        if (
+            self.bot_panel.mode_combo.currentText() == "Cloud AI"
+            and not self.bot_panel.api_key_edit.text().strip()
+        ):
+            self._start_bot_reply(question, mode_override="Heuristic")
+        else:
+            self.handle_bot_question(question)
 
     def _refresh_workflow_result_snapshot(self) -> None:
         """Refresh cached workflow evidence and synchronize the Chat action."""
@@ -1189,12 +1142,13 @@ class EasyROB(QMainWindow):
         panel = getattr(self, "bot_panel", None)
         if store is None or panel is None:
             return
-        tab_widget = getattr(self, "tab_widget", None)
-        active_tab = tab_widget.tabText(tab_widget.currentIndex()) if tab_widget is not None else ""
+        active_tab = active_gui_page(self)
         result_view = active_tab in {"Results", "Reports", "Images", "Predictions"}
         result_source = str(getattr(self, "_result_view_source_path", "") or "") if result_view else ""
         checkml_candidate = getattr(self, "checkml_tab", None)
         checkml_tab = checkml_candidate if (
+            getattr(self, "app_mode", "easyrob") == "checkml"
+            or
             active_tab == "CheckML"
             or (result_source and getattr(self, "_result_view_source_kind", "ROBERT") == "CHECKML")
         ) else None
@@ -1210,7 +1164,7 @@ class EasyROB(QMainWindow):
         )
         self.workflow_result_snapshot = snapshot
         panel.set_workflow_summary_available(
-            bool(snapshot and snapshot.summary_available),
+            bool(snapshot and snapshot.summary_available and getattr(self, "app_mode", "easyrob") != "checkml"),
             status=snapshot.status if snapshot else "",
             workflow_kind=snapshot.kind if snapshot else "",
         )
@@ -1262,7 +1216,7 @@ class EasyROB(QMainWindow):
             border-radius: 6px;
         }
         """
-        self.setWindowTitle("easyROB")
+        self.setWindowTitle("CheckML" if self.app_mode == "checkml" else "easyROB")
         self.bot_settings = QSettings("easyROB", "easyROB")
         
         # Create main tab widget and bot window
@@ -1272,19 +1226,19 @@ class EasyROB(QMainWindow):
         self.workflow_result_snapshot = None
         self._result_view_source_path = ""
         self._result_view_source_kind = "ROBERT"
+        self._results_revision = 0
         self.bot_window = BotWindow(self)
         self.bot_panel = self.bot_window.panel
         self.bot_window.hide()
         self.bot_window.visibility_changed.connect(self._sync_bot_toggle)
         self.bot_panel.close_requested.connect(self.hide_bot_panel)
         self.bot_panel.clear_requested.connect(self.clear_bot_history)
-        self.bot_panel.local_prepare_requested.connect(self.prepare_local_model_for_bot)
         self.bot_panel.api_save_requested.connect(self.save_bot_api_preferences)
         self.bot_panel.api_delete_requested.connect(self.delete_bot_api_preferences)
         self.bot_panel.send_requested.connect(self.handle_bot_question)
         self.bot_panel.workflow_summary_requested.connect(self._handle_workflow_summary_requested)
-        self._refresh_local_model_status()
         self._load_bot_preferences()
+        self.bot_panel.provider_combo.currentTextChanged.connect(self._on_bot_provider_changed)
 
         central_widget = QWidget()
         central_layout = QHBoxLayout(central_widget)
@@ -1910,7 +1864,7 @@ class EasyROB(QMainWindow):
         # ============
 
         # Add Help tab to the main tab widget
-        self.molssi_tab = MolSSIDatabasesTab(self.tab_widget)
+        self.molssi_tab = MolSSIDatabasesTab(self.tab_widget) if self.app_mode != "checkml" else None
 
         # AQME tab (depends on ResultsTab via main_window)
         self.tab_widget_aqme = AQMETab(
@@ -1967,7 +1921,8 @@ class EasyROB(QMainWindow):
 
         self.tab_widget.addTab(options_scroll, "Advanced Options")
         
-        self.tab_widget.addTab(self.molssi_tab, "MolSSI Databases")
+        if self.molssi_tab is not None:
+            self.tab_widget.addTab(self.molssi_tab, "MolSSI Databases")
 
         self.tab_widget.addTab(self.checkml_tab, "CheckML")
 
@@ -1980,6 +1935,23 @@ class EasyROB(QMainWindow):
         self.predictions_tab.availabilityChanged.connect(
             lambda ok: self.results_workspace.set_available("Predictions", ok)
         )
+
+    def _configure_checkml_mode(self):
+        """Keep the CheckML workflow and its results in the dedicated GUI."""
+        for index in reversed(range(self.tab_widget.count())):
+            if self.tab_widget.widget(index) not in {self.checkml_tab, self.results_workspace}:
+                self.tab_widget.removeTab(index)
+        self.tab_widget.setCurrentWidget(self.checkml_tab)
+        self.bot_window.hide()
+        self.bot_toggle_btn.setEnabled(False)
+        self.tab_widget.cornerWidget().hide()
+        self.bot_panel.suggested_combo.clear()
+        self.bot_panel.suggested_combo.addItem("Choose a suggested question...")
+        self.bot_panel.suggested_combo.addItem(
+            "How do I check my own machine learning model?", "check_model"
+        )
+        self.bot_panel.input_edit.setPlaceholderText("Ask about CheckML or its results")
+        self.bot_panel.subtitle_label.setText("Ask robBOT about CheckML and its results.")
 
     def show_contact_dialog(self):
         """Display contact dialog with clickable and copyable emails."""
@@ -2044,13 +2016,16 @@ class EasyROB(QMainWindow):
         self.tutorial_dialog = QDialog(self)
         dialog = self.tutorial_dialog
 
-        dialog.setWindowTitle("Workflow Tutorial")
+        dialog.setWindowTitle("CheckML Tutorial" if self.app_mode == "checkml" else "Workflow Tutorial")
         available = QApplication.primaryScreen().availableGeometry()
         dialog.setFixedSize(min(1280, available.width() - 40), min(700, available.height() - 40))
 
         self.tutorial_layout = QVBoxLayout(dialog)
 
         header = QLabel(
+            "<b style='font-size:20px;'>CheckML Guide</b><br>"
+            "<span style='color:gray;'>How to evaluate your model</span>"
+            if self.app_mode == "checkml" else
             "<b style='font-size:20px;'>easyROB Workflow Guide</b><br>"
             "<span style='color:gray;'>Interface overview and practical tutorials</span>"
         )
@@ -2067,15 +2042,7 @@ class EasyROB(QMainWindow):
 
         tabs = QTabWidget()
 
-        tutorials = [
-            ("overview", "Overview"),
-            ("csv", "From CSV"),
-            ("chemdraw", "From ChemDraw"),
-            ("predictions", "New Predictions"),
-            ("descriptors", "Generate Descriptors"),
-            ("check_model", "Check ML"),
-            ("robbot", "robBOT"),
-        ]
+        tutorials = self.tutorial_topics()
 
         for folder, title in tutorials:
             texts = self.load_tutorial(folder)
@@ -2090,6 +2057,20 @@ class EasyROB(QMainWindow):
         close_button.clicked.connect(self.tutorial_dialog.close)
 
         self.tutorial_layout.addWidget(close_button, alignment=Qt.AlignRight)
+
+    def tutorial_topics(self):
+        """Return the tutorial subjects available in this application mode."""
+        if self.app_mode == "checkml":
+            return (("check_model", "Check ML"),)
+        return (
+            ("overview", "Overview"),
+            ("csv", "From CSV"),
+            ("chemdraw", "From ChemDraw"),
+            ("predictions", "New Predictions"),
+            ("descriptors", "Generate Descriptors"),
+            ("check_model", "Check ML"),
+            ("robbot", "robBOT"),
+        )
 
     def create_tutorial_tab(self, folder_name, texts):
         """Create a tutorial tab with image left and text right."""
@@ -2213,18 +2194,24 @@ class EasyROB(QMainWindow):
     def show_version_dialog(self):
         """Display styled version dialog."""
 
+        is_checkml = self.app_mode == "checkml"
+        app_name = "CheckML" if is_checkml else "easyROB"
+        app_version = (
+            SOFTWARE_VERSIONS["Dependencies"]["ROBERT"]
+            if is_checkml else SOFTWARE_VERSIONS["easyROB"]
+        )
         dialog = QDialog(self)
-        dialog.setWindowTitle("About easyROB")
+        dialog.setWindowTitle(f"About {app_name}")
         dialog.setMinimumWidth(420)
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(15)
 
         # ---- App title ----
-        title = QLabel("<b style='font-size:20px;'>easyROB</b>")
+        title = QLabel(f"<b style='font-size:20px;'>{app_name}</b>")
         title.setAlignment(Qt.AlignCenter)
 
-        version = QLabel(f"Version {SOFTWARE_VERSIONS['easyROB']}")
+        version = QLabel(f"Version {app_version}")
         version.setAlignment(Qt.AlignCenter)
         version.setStyleSheet("color: gray;")
 
@@ -2242,7 +2229,10 @@ class EasyROB(QMainWindow):
         # ---- Dependencies list ----
         deps_html = "<table style='margin-left:15px;'>"
 
-        for name, ver in SOFTWARE_VERSIONS["Dependencies"].items():
+        dependencies = SOFTWARE_VERSIONS["Dependencies"]
+        for name, ver in dependencies.items():
+            if is_checkml and name not in {"Python", "ROBERT"}:
+                continue
             deps_html += f"""
             <tr>
                 <td style='padding:4px 20px 4px 0;'>{name}</td>
@@ -2357,7 +2347,7 @@ class EasyROB(QMainWindow):
 
     def show_result_view(self, view: str):
         """Navigate to a result view after its output has been discovered."""
-        source = self.file_path or self.csv_test_path
+        source = getattr(self, "_result_view_source_path", "") or self.file_path or self.csv_test_path
         if view == "Report" and source:
             self.check_for_pdfs(source)
         if self.results_workspace.show_view(view):
@@ -2409,6 +2399,23 @@ class EasyROB(QMainWindow):
         )
         self._result_view_source_path = str(file_path)
         self._refresh_result_views(file_path)
+        self._results_revision += 1
+        if (
+            getattr(self, "_result_view_source_kind", "ROBERT") == "CHECKML"
+            and not self.results_workspace.has_available_views()
+        ):
+            if self.tab_widget.currentWidget() is self.results_workspace:
+                self.tab_widget.setCurrentWidget(self.checkml_tab)
+            if getattr(self, "web_active_page", "") == "Results":
+                self.web_active_page = "CheckML"
+                self.web_active_result_view = ""
+                shell = getattr(self, "_web_shell", None)
+                if shell is not None:
+                    shell.bridge.push_state()
+                    shell.view.page().runJavaScript(
+                        "window.easyrobResults.open(null); "
+                        "window.easyrobApp.showPage('checkml');"
+                    )
 
     def _change_result_model(self, model):
         """Apply the shared model choice across all result viewers."""
@@ -2466,8 +2473,7 @@ class EasyROB(QMainWindow):
         Reloads if the file path changed OR the file was modified (mtime) OR force=True.
         """
         if utils_gui.warn_if_csv_name_has_spaces(self, file_path, "input CSV"):
-            self.file_label.setText("\u26a0 Rename the file (no spaces) and select it again")
-            return
+            return False
 
         p = Path(file_path)
         current_path = getattr(self, 'file_path', None)
@@ -2486,6 +2492,15 @@ class EasyROB(QMainWindow):
         if same_path and same_mtime and not force:
             return
 
+        frame = smart_read_csv(file_path)
+        if frame is None:
+            QMessageBox.warning(
+                self,
+                "Unable to load CSV",
+                f"The selected CSV file could not be read:\n{file_path}",
+            )
+            return False
+
         # Update internal state
         self.file_path = file_path
         self._file_mtime = new_mtime
@@ -2500,7 +2515,7 @@ class EasyROB(QMainWindow):
             self.tab_widget_aqme.df_mapped_smiles = None
 
         # Reload downstream state
-        self.load_csv_columns()
+        self.load_csv_columns(frame)
         self.refresh_tabs(file_path)
 
         # Check for MolSSI descriptors 
@@ -2518,8 +2533,7 @@ class EasyROB(QMainWindow):
 
         """Sets the path for the test CSV file and updates the label."""
         if utils_gui.warn_if_csv_name_has_spaces(self, file_path, "external test CSV"):
-            self.csv_test_label.setText("\u26a0 Rename the file (no spaces) and select it again")
-            return
+            return False
         self.csv_test_path = file_path
         file_name = Path(file_path).name
         self.csv_test_label.setText(f"Selected: {file_name}")
@@ -2536,7 +2550,9 @@ class EasyROB(QMainWindow):
 
     def clear_test_file(self):
         """Clear the selected test file and resync dependent state."""
+        previous_test_path = self.csv_test_path
         self.csv_test_path = None
+        self.csv_test_label.full_file_path = None
 
         # Reset UI
         self.csv_test_label.setText(
@@ -2550,6 +2566,12 @@ class EasyROB(QMainWindow):
 
         # Refresh AQME tab / FMCS if enabled
         self.check_aqme_workflow()
+        if (
+            previous_test_path
+            and self.file_path
+            and getattr(self, "_result_view_source_path", None) == previous_test_path
+        ):
+            self.refresh_tabs(self.file_path)
         self._refresh_workflow_result_snapshot()
 
     def _get_unmapped_csv(self, csv_path: str) -> str:
@@ -2561,7 +2583,7 @@ class EasyROB(QMainWindow):
             return csv_path.replace("_mapped.csv", ".csv")
         return csv_path
 
-    def start_molssi_test_download(self, library_slug):
+    def start_molssi_test_download(self, library_slug, descriptor_columns):
         """
         Automatically download a MolSSI Excel library and trigger
         the existing post-download pipeline.
@@ -2573,10 +2595,7 @@ class EasyROB(QMainWindow):
 
         target_path = download_dir / filename
 
-        urls = [
-            f"https://descriptor-libraries.molssi.org/{library_slug}/content/{filename}",
-            f"https://descriptor-libraries.molssi.org/{library_slug}/",
-        ]
+        url = molssi_utils._molssi_workbook_url(library_slug)
 
         # --------------------------------------------------
         # Popup: downloading external dataset (BLOCKING UX)
@@ -2584,7 +2603,7 @@ class EasyROB(QMainWindow):
         popup = QMessageBox(self)
         popup.setWindowTitle("Downloading MolSSI dataset")
         popup.setText(
-            "Downloading MolSSI database for use as an external test set.\n\n"
+            f"Downloading the {library_slug} MolSSI database for an external test set.\n\n"
             "Please wait…"
         )
         popup.setStandardButtons(QMessageBox.NoButton)
@@ -2592,7 +2611,7 @@ class EasyROB(QMainWindow):
         popup_state = self._track_open_popup(
             title="Downloading MolSSI dataset",
             text=(
-                "Downloading MolSSI database for use as an external test set.\n\n"
+                f"Downloading the {library_slug} MolSSI database for an external test set.\n\n"
                 "Please wait…"
             ),
             buttons=[],
@@ -2604,22 +2623,29 @@ class EasyROB(QMainWindow):
         # --------------------------------------------------
         # Worker
         # --------------------------------------------------
-        self._molssi_download_worker = MolSSIDownloadWorker(urls, target_path, self)
+        self._molssi_download_worker = MolSSIDownloadWorker(url, target_path, self)
 
         def _finished(path):
             self._clear_active_popup(popup_state)
             popup.close()
             popup.deleteLater()
 
+            if self.molssi_is_closing:
+                return
+
             self.molssi_tab.handle_external_download(
                 path,
-                context="molssi_test"
+                context="molssi_test",
+                expected_columns=descriptor_columns,
             )
 
         def _error(msg):
             self._clear_active_popup(popup_state)
             popup.close()
             popup.deleteLater()
+
+            if self.molssi_is_closing:
+                return
 
             self._remember_popup(
                 title="MolSSI download failed",
@@ -2688,15 +2714,26 @@ class EasyROB(QMainWindow):
         msg.setWindowTitle("MolSSI descriptors available")
         msg.setIcon(QMessageBox.Question)
 
-        msg.setText(
-            "Curated molecular descriptors are available for all molecules via the "
+        descriptor_message = (
+            f"Curated {result['data_type']} descriptors from the MolSSI "
+            f"{result['library']} library are available for all molecules.<br><br>"
+            "Source: "
             "<a href='https://descriptor-libraries.molssi.org/'>"
             "MolSSI Descriptor Libraries</a>.<br><br>"
             "If selected, a new CSV dataset will be generated and loaded, preserving "
-            "all original columns and adding the MolSSI descriptors.<br><br>"
+            "the original names, SMILES and other columns alongside the matching descriptors.<br><br>"
             "Alternatively, descriptors can be generated locally using AQME.<br><br>"
             "More information is available in the MolSSI Databases tab."
         )
+        test_status_message = {
+            "available": "A compatible full-library test dataset can also be downloaded after this step.",
+            "incompatible": "This library currently has no compatible full-library test CSV; its descriptors can still be added.",
+            "missing": "The published full-library workbook is currently unavailable; its descriptors can still be added.",
+            "kraken_ml": "The Kraken ML descriptors do not have a matching full-library test workbook.",
+        }.get(result.get("test_dataset_status"))
+        if test_status_message:
+            descriptor_message += f"<br><br>{test_status_message}"
+        msg.setText(descriptor_message)
 
         msg.setTextFormat(Qt.RichText)
         msg.setTextInteractionFlags(Qt.TextBrowserInteraction)
@@ -2706,15 +2743,7 @@ class EasyROB(QMainWindow):
         reply = self._exec_tracked_message_box(
             msg,
             title="MolSSI descriptors available",
-            text=(
-                "Curated molecular descriptors are available for all molecules via the "
-                "<a href='https://descriptor-libraries.molssi.org/'>"
-                "MolSSI Descriptor Libraries</a>.<br><br>"
-                "If selected, a new CSV dataset will be generated and loaded, preserving "
-                "all original columns and adding the MolSSI descriptors.<br><br>"
-                "Alternatively, descriptors can be generated locally using AQME.<br><br>"
-                "More information is available in the MolSSI Databases tab."
-            ),
+            text=descriptor_message,
             buttons=["Yes", "No"],
             kind="question",
             source="molssi_descriptors_available",
@@ -2729,9 +2758,14 @@ class EasyROB(QMainWindow):
         )
 
         df_out = result["export_df"]
-        df_out.to_csv(output_path, index=False)
+        try:
+            molssi_utils.write_csv_atomic(df_out, output_path)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "MolSSI export failed", str(exc))
+            return
 
-        self.set_file_path(str(output_path), force=True)
+        if self.set_file_path(str(output_path), force=True) is False:
+            return
 
         # =====================================================
         # Gate for FULL MolSSI TEST DATASET
@@ -2749,24 +2783,24 @@ class EasyROB(QMainWindow):
         msg.setWindowTitle("External MolSSI test dataset available")
         msg.setIcon(QMessageBox.Question)
 
-        msg.setText(
+        test_message = (
             "Your molecules are fully covered by the MolSSI "
             f"{result['library']} ({result['data_type']}) database.\n\n"
 
             "In addition to generating descriptors for your current dataset, "
-            "you can also load the complete MolSSI database as an external test set.\n\n"
+            "you can download the published MolSSI workbook and load its "
+            "molecules as an external test set.\n\n"
 
-            "This external dataset contains all molecules available in the MolSSI "
-            "database with the same type of descriptors and can be used to:\n\n"
-            "• Evaluate model performance\n"
-            "• Validate predictions\n"
-            "• Explore new candidate molecules\n\n"
+            "This workbook contains descriptors of the same type. It may overlap the main "
+            "dataset and may not contain an experimental target, so check both "
+            "before using it to evaluate model performance.\n\n"
 
             "The test dataset will be loaded separately and will NOT modify your "
             "current dataset.\n\n"
 
-            "Do you want to load the full MolSSI dataset as a test set?"
+            "Do you want to download and load this MolSSI workbook as a test set?"
         )
+        msg.setText(test_message)
 
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         msg.setDefaultButton(QMessageBox.No)
@@ -2774,20 +2808,7 @@ class EasyROB(QMainWindow):
         reply = self._exec_tracked_message_box(
             msg,
             title="External MolSSI test dataset available",
-            text=(
-                "Your molecules are fully covered by the MolSSI "
-                f"{result['library']} ({result['data_type']}) database.\n\n"
-                "In addition to generating descriptors for your current dataset, "
-                "you can also load the complete MolSSI database as an external test set.\n\n"
-                "This external dataset contains all molecules available in the MolSSI "
-                "database with the same type of descriptors and can be used to:\n\n"
-                "• Evaluate model performance\n"
-                "• Validate predictions\n"
-                "• Explore new candidate molecules\n\n"
-                "The test dataset will be loaded separately and will NOT modify your "
-                "current dataset.\n\n"
-                "Do you want to load the full MolSSI dataset as a test set?"
-            ),
+            text=test_message,
             buttons=["Yes", "No"],
             kind="question",
             source="molssi_external_test_dataset",
@@ -2799,7 +2820,8 @@ class EasyROB(QMainWindow):
 
             # Start automatic MolSSI download
             self.start_molssi_test_download(
-                library_slug=result["library"]
+                library_slug=result["library"],
+                descriptor_columns=result["descriptor_columns"],
             )
 
     def _update_unified_smiles_context(self):
@@ -2837,11 +2859,13 @@ class EasyROB(QMainWindow):
         self.main_chemdraw_label.setText(f"Selected: {file_name}")
         self.main_chemdraw_label.setToolTip(file_path)
 
-    def load_csv_columns(self):
+    def load_csv_columns(self, frame=None):
         """Loads column names from the selected CSV file and updates all selection fields."""
         if self.file_path:
-            self.df = smart_read_csv(self.file_path)
+            self.df = frame if frame is not None else smart_read_csv(self.file_path)
             df = self.df
+            if df is None:
+                return
             columns = list(df.columns)
 
             # --- Update Dropdowns ---
@@ -3468,6 +3492,13 @@ class EasyROB(QMainWindow):
         if not self._confirm_smiles_column_selections():
             return
 
+        if not self._workflow_run_lock.try_acquire():
+            QMessageBox.warning(
+                self, "Workflow already running",
+                "ROBERT or CheckML is already running. Wait for it to finish before starting another run.",
+            )
+            return
+
         self._start_csv_preflight()
 
     def _confirm_smiles_column_selections(self):
@@ -3993,7 +4024,7 @@ class EasyROB(QMainWindow):
 
             # Add csv_test ONLY if it resolves to a non-empty basename
             if self.csv_test_path:
-                csv_test = os.path.basename(self.csv_test_path)
+                csv_test = self.csv_test_path
                 if csv_test:
                     command += f' --csv_test "{csv_test}"'
 
@@ -4012,7 +4043,7 @@ class EasyROB(QMainWindow):
 
         # ---------- TEST CSV ----------
         if self.csv_test_path:
-            command += f' --csv_test "{os.path.basename(self.csv_test_path)}"'
+            command += f' --csv_test "{self.csv_test_path}"'
 
         # ---------- TYPE ----------
         if self.type_dropdown.currentText() == "Classification":
@@ -4070,14 +4101,15 @@ class EasyROB(QMainWindow):
                     [a.strip() for a in atoms_text.split(",") if a.strip()]
                 )
 
+            qdescp_keywords = []
             if atoms_entries:
                 atoms_str = "[" + ",".join(str(e) for e in atoms_entries) + "]"
-                command += f' --qdescp_keywords "--qdescp_atoms {atoms_str}"'
+                qdescp_keywords.append(f"--qdescp_atoms {atoms_str}")
 
             if self.solvent_selected != "None":
-                command += (
-                    f' --qdescp_keywords "--qdescp_solvent {self.solvent_selected}"'
-                )
+                qdescp_keywords.append(f"--qdescp_solvent {self.solvent_selected}")
+            if qdescp_keywords:
+                command += f' --qdescp_keywords "{" ".join(qdescp_keywords)}"'
 
         # ---------- CURATE ----------
         if self.categorical_value != "onehot":
@@ -4463,6 +4495,20 @@ class EasyROB(QMainWindow):
     def run_aqme(self):
         """Runs the AQME descriptor generation workflow."""
 
+        if not self.file_path:
+            QMessageBox.warning(self, "WARNING!", "Please select a CSV file.")
+            return
+
+        if not self.check_atomic_descriptors("AQME"):
+            return
+
+        if not self._workflow_run_lock.try_acquire():
+            QMessageBox.warning(
+                self, "Workflow already running",
+                "ROBERT or CheckML is already running. Wait for it to finish before starting another run.",
+            )
+            return
+
         # ----------------
         # Init AQME state
         # ----------------
@@ -4473,13 +4519,6 @@ class EasyROB(QMainWindow):
         self.is_aqme_mapped = False
         self.mapped_train_csv = None
         self.mapped_test_csv = None
-
-        if not self.file_path:
-            QMessageBox.warning(self, "WARNING!", "Please select a CSV file.")
-            return
-
-        if not self.check_atomic_descriptors("AQME"):
-            return
 
         self.current_process = "AQME"
         self.workflow_progress = None

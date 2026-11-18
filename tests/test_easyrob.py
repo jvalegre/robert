@@ -564,7 +564,7 @@ def test_set_file_path_updates_ui_and_skips_redundant_reload(easyrob_window, tmp
         "check_aqme_workflow": 0,
     }
 
-    monkeypatch.setattr(window, "load_csv_columns", lambda: calls.__setitem__("load_csv_columns", calls["load_csv_columns"] + 1))
+    monkeypatch.setattr(window, "load_csv_columns", lambda frame: calls.__setitem__("load_csv_columns", calls["load_csv_columns"] + 1))
     monkeypatch.setattr(window, "refresh_tabs", lambda file_path: calls.__setitem__("refresh_tabs", calls["refresh_tabs"] + 1))
     monkeypatch.setattr(window, "_is_molssi_csv", lambda file_path: False)
     monkeypatch.setattr(window, "check_molssi_descriptors", lambda: calls.__setitem__("check_molssi_descriptors", calls["check_molssi_descriptors"] + 1))

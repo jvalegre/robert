@@ -1,0 +1,25 @@
+[
+  {
+    "id": "verify-guidance",
+    "questions": [
+      "What does VERIFY check in ROBERT?",
+      "Why does that matter for my model?"
+    ],
+    "review": "Check that the follow-up stays on model validation and does not claim a run passed."
+  },
+  {
+    "id": "aqme-descriptors-spanish",
+    "questions": [
+      "¿Cómo genero descriptores de AQME a partir de SMILES?",
+      "¿Y qué hago después?"
+    ],
+    "review": "Check that both answers stay on the AQME descriptor workflow and are understandable in Spanish."
+  },
+  {
+    "id": "model-quality-without-results",
+    "questions": [
+      "Can I trust my model?"
+    ],
+    "review": "Check that the answer requests actual validation evidence rather than inventing metrics."
+  }
+]

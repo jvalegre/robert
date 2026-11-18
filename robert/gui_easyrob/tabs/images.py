@@ -66,7 +66,20 @@ except ImportError as e:
 
 # ---- Standard library ----
 import os
+import json
+import hashlib
 from pathlib import Path
+
+from PySide6.QtCore import QObject, Slot
+
+
+IMAGE_FOLDERS = (
+    ("CURATE", "CURATE"),
+    ("GENERATE/Raw_data", "GENERATE"),
+    ("PREDICT", "PREDICT"),
+    ("PREDICT/csv_test", "PREDICT / external test"),
+    ("VERIFY", "VERIFY"),
+)
 
 
 def find_image_files(folder_path):
@@ -79,6 +92,58 @@ def find_image_files(folder_path):
         if os.path.isfile(os.path.join(folder_path, name))
         and os.path.splitext(name)[1].lower() in {".png", ".jpg", ".jpeg"}
     )
+
+
+def build_gallery_state(base_path, catalog=None, model=None):
+    """Build browser data and an ID-to-path map from workflow images."""
+    stages = []
+    paths = {}
+    for folder, label in IMAGE_FOLDERS:
+        directory = Path(base_path) / folder
+        items = []
+        for filename in find_image_files(str(directory)):
+            path = Path(filename)
+            if catalog is not None and not catalog.include_image(path, model):
+                continue
+            image_id = "image-" + hashlib.blake2s(str(path).encode("utf-8"), digest_size=8).hexdigest()
+            paths[image_id] = path
+            items.append({
+                "id": image_id,
+                "name": path.name,
+                "url": QUrl.fromLocalFile(str(path)).toString(),
+            })
+        if items:
+            stages.append({"id": folder, "label": label, "images": items})
+    return {"stages": stages, "total": len(paths)}, paths
+
+
+class ImageActionBridge(QObject):
+    """Expose only listed image actions to the local browser page."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._paths = {}
+
+    def set_paths(self, paths):
+        self._paths = dict(paths)
+
+    @Slot(str, str)
+    def performAction(self, image_id, action):
+        path = self._paths.get(image_id)
+        if path is None or not path.is_file():
+            return
+        if action == "open":
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        elif action == "folder":
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
+        elif action == "copy":
+            QApplication.clipboard().setPixmap(QPixmap(str(path)))
+        elif action == "save":
+            target_path, _ = QFileDialog.getSaveFileName(
+                self.parent(), "Save Image As", path.name, "Images (*.png *.jpg *.jpeg)"
+            )
+            if target_path:
+                QPixmap(str(path)).save(target_path)
 
 
 class ImagesTab(QWidget):
@@ -95,8 +160,18 @@ class ImagesTab(QWidget):
         self.model = None
         self.folder_widgets = {}
 
-        # Main layout
-        self.layout = QVBoxLayout(self)
+        # Retain the widget view for fast headless tests and browser failures.
+        self._views = QStackedWidget(self)
+        self._legacy_content = QWidget(self)
+        self.layout = QVBoxLayout(self._legacy_content)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.addWidget(self._views)
+        self._views.addWidget(self._legacy_content)
+        self._web_view = None
+        self._web_ready = False
+        self._bridge = ImageActionBridge(self)
+        self.gallery_state = {"stages": [], "total": 0}
 
         # Top section: title + subtitle (+ inline help)
         # Title
@@ -141,9 +216,45 @@ class ImagesTab(QWidget):
         self.view_selector.currentIndexChanged.connect(self.folder_tabs.setCurrentIndex)
         self.layout.addWidget(self.folder_tabs)
 
-        self.setLayout(self.layout)
-
         self.check_for_images()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.activate_web()
+
+    def activate_web(self):
+        """Start Chromium only when this result view is opened interactively."""
+        if QApplication.platformName() == "offscreen" and os.environ.get("EASYROB_WEBENGINE_TEST") != "1":
+            return
+        if self._web_view is not None:
+            return
+        from PySide6.QtWebChannel import QWebChannel
+        from PySide6.QtWebEngineWidgets import QWebEngineView
+
+        self._web_view = QWebEngineView(self)
+        self._web_channel = QWebChannel(self._web_view.page())
+        self._web_channel.registerObject("imageActions", self._bridge)
+        self._web_view.page().setWebChannel(self._web_channel)
+        self._web_view.loadFinished.connect(self._on_web_loaded)
+        self._views.addWidget(self._web_view)
+        page_path = Path(__file__).resolve().parent.parent / "web" / "images.html"
+        self._web_view.setUrl(QUrl.fromLocalFile(str(page_path)))
+
+    def _on_web_loaded(self, success):
+        if not success:
+            self._views.setCurrentWidget(self._legacy_content)
+            return
+        self._web_ready = True
+        self._views.setCurrentWidget(self._web_view)
+        self._sync_web()
+
+    def _sync_web(self):
+        state, paths = build_gallery_state(self.base_path, self.catalog, self.model)
+        self.gallery_state = state
+        self._bridge.set_paths(paths)
+        if self._web_ready:
+            payload = json.dumps(state, ensure_ascii=False)
+            self._web_view.page().runJavaScript(f"window.easyrobGallery.setData({payload})")
 
     def show_help_dialog(self):
         """Show usage instructions."""
@@ -248,6 +359,8 @@ class ImagesTab(QWidget):
                 if col >= max_columns:
                     col = 0
                     row += 1
+
+        self._sync_web()
 
 
 class ImageLabel(QLabel):

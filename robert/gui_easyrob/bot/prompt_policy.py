@@ -19,8 +19,6 @@ __all__ = [
     "AnswerDepth",
     "PromptBudget",
     "CLOUD_PROMPT_BUDGET",
-    "LOCAL_PROMPT_BUDGET",
-    "LOCAL_RETRY_PROMPT_BUDGET",
     "redact_sensitive_text",
     "anonymize_paths",
     "build_bounded_user_prompt",
@@ -47,13 +45,8 @@ class PromptBudget:
 
 
 CLOUD_PROMPT_BUDGET = PromptBudget(12000, 3, 1200, 1500, 800)
-LOCAL_PROMPT_BUDGET = PromptBudget(4000, 1, 600, 600, 400)
-LOCAL_RETRY_PROMPT_BUDGET = PromptBudget(2000, 1, 100, 0, 200)
-
 _BUDGETS = {
     "cloud": CLOUD_PROMPT_BUDGET,
-    "local": LOCAL_PROMPT_BUDGET,
-    "local_retry": LOCAL_RETRY_PROMPT_BUDGET,
 }
 _BLOCKS = (
     "USER_QUESTION_DATA",
@@ -94,7 +87,8 @@ _WORKFLOW_RESULT_QUESTION_RE = re.compile(
     r"\b(?:result(?:s)?|resultado(?:s)?|summary|summari[sz]e|resumen|resume|resumir|"
     r"metric(?:s)?|m[eé]trica(?:s)?|rmse|mae|r2|score|prediction(?:s)?|predicci[oó]n(?:es)?|"
     r"uncertaint(?:y|ies)|incertidumbre(?:s)?|outlier(?:s)?|warning(?:s)?|aviso(?:s)?|"
-    r"descriptor(?:s)?|failed|failure|fall[oó]|errores?|generated|generad[oa]s?|"
+    r"descriptor(?:s)?|failed|failure|fall[oó]|errores?|shap|pfi|importance|importancia|"
+    r"overlap|solapamiento|leakage|generated|generad[oa]s?|"
     r"finished|completed|termin[oó]|acab[oó]|passed|aprob[oó]|what happened|qu[eé] ocurri[oó])\b",
     re.IGNORECASE,
 )
@@ -420,7 +414,7 @@ def build_bounded_user_prompt(
     conversation_history: Sequence[Mapping[str, object]] | None,
     question_intent: str,
     *,
-    profile: Literal["cloud", "local", "local_retry"],
+    profile: Literal["cloud"],
     secret_values: Sequence[str] = (),
     tutorial_summary: str | None = None,
     tutorial_label: str | None = None,
@@ -434,12 +428,14 @@ def build_bounded_user_prompt(
     budget = _BUDGETS[profile]
     tutorial_mode = type(tutorial_summary) is str and bool(tutorial_summary.strip())
     intent = question_intent.strip().casefold() if type(question_intent) is str else ""
-    generic_mode = is_generic_question(question, question_intent) and intent != "results"
+    generic_mode = is_generic_question(question, question_intent)
     workflow_snapshot = (
         gui_context.workflow_results if type(gui_context) is GuiSnapshot else None
     )
-    has_result_context = intent == "results" or (
-        workflow_snapshot is not None and _is_workflow_result_question(question)
+    has_result_context = not generic_mode and (
+        intent == "results" or (
+            workflow_snapshot is not None and _is_workflow_result_question(question)
+        )
     )
     block_names = (
         ("USER_QUESTION_DATA", "RETRIEVED_KNOWLEDGE_DATA")
@@ -462,6 +458,8 @@ def build_bounded_user_prompt(
     task_context = _STATIC_TASK
     if has_result_context:
         task_context += (
+            " For selected input CSVs, report structural findings only; do not imply a workflow ran."
+            if workflow_snapshot is not None and workflow_snapshot.kind == "INPUT CSV" else
             " For workflow results, preserve reported values and statuses exactly, distinguish facts "
             "from interpretation, and explicitly state when requested information is absent."
         )
@@ -550,12 +548,7 @@ def build_bounded_user_prompt(
             r"\b(?:variants?|PFI|No[_ ]PFI)\b",
             question if type(question) is str else "", re.IGNORECASE,
         ))
-        workflow_limit = (
-            6000 if profile == "cloud" and summary_request
-            else 3500 if profile == "cloud"
-            else 1600 if profile == "local"
-            else 650
-        )
+        workflow_limit = 6000 if summary_request else 3500
         workflow_evidence = ""
         if has_result_context:
             workflow_evidence = render_workflow_evidence(

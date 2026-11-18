@@ -46,21 +46,27 @@ def _identifier_column(frame, sources):
     return None
 
 
-def _molecule_smiles(frame, sources):
+def _molecule_smiles(frame, sources, name_column=None):
     smiles_column = next((col for col in frame if col.lower() == "smiles"), None)
     if smiles_column:
         return [str(value) if pd.notna(value) and str(value).strip() else None
                 for value in frame[smiles_column]]
 
-    identifier = _identifier_column(frame, sources)
+    identifier = next(
+        (column for column in frame if name_column and column.casefold() == name_column.casefold()),
+        None,
+    ) or _identifier_column(frame, sources)
     if not identifier:
         return [None] * len(frame)
     result = [None] * len(frame)
     for source in sources:
         smiles_column = next((col for col in source if col.lower() == "smiles"), None)
-        if not smiles_column or identifier not in source or not source[identifier].is_unique:
+        source_identifier = next(
+            (column for column in source if column.casefold() == identifier.casefold()), None,
+        )
+        if not smiles_column or source_identifier is None or not source[source_identifier].is_unique:
             continue
-        lookup = dict(zip(source[identifier].astype(str), source[smiles_column]))
+        lookup = dict(zip(source[source_identifier].astype(str), source[smiles_column]))
         for index, value in enumerate(frame[identifier].astype(str)):
             candidate = lookup.get(value)
             if result[index] is None and pd.notna(candidate) and str(candidate).strip():
@@ -68,7 +74,7 @@ def _molecule_smiles(frame, sources):
     return result
 
 
-def prepare_prediction_data(frame, sources, reference=None):
+def prepare_prediction_data(frame, sources, reference=None, name_column=None):
     """Extract plot coordinates, using CV data as the diagnostic reference."""
     frame = frame.reset_index(drop=True)
     prediction_columns = [col for col in frame if col.endswith("_pred")]
@@ -96,7 +102,8 @@ def prepare_prediction_data(frame, sources, reference=None):
         "frame": frame, "target": target, "observed": observed.to_numpy(dtype=float),
         "predicted": predicted.to_numpy(dtype=float), "residual": residual.to_numpy(dtype=float),
         "outlier_score": outlier_score.to_numpy(dtype=float),
-        "smiles": _molecule_smiles(frame, sources),
+        "name_column": name_column,
+        "smiles": _molecule_smiles(frame, sources, name_column),
     }
 
 
@@ -265,13 +272,25 @@ class InteractivePredictions(QWidget):
                 model_info = pd.read_csv(metadata).iloc[0]
                 self.seed = int(model_info["seed"])
                 self.cv_label = f"{int(model_info['repeat_kfolds'])}x {int(model_info['kfold'])}-fold CV"
+                name_column = ""
+                if "names" in model_info and pd.notna(model_info["names"]):
+                    name_column = str(model_info["names"]).strip()
             else:
                 self.seed = 0
                 self.cv_label = "CV"
+                name_column = ""
+            if not name_column and model_log.is_file():
+                match = re.search(
+                    r"""(?<!\S)--names(?:\s+|=)(?:"([^"]+)"|'([^']+)'|(\S+))""",
+                    command,
+                )
+                if match:
+                    name_column = next(value for value in match.groups() if value is not None)
             self.data = prepare_prediction_data(
                 frame,
                 _source_frames(self.run_dir, self.selected_file, external, model),
                 reference,
+                name_column=name_column,
             )
             self._load_williams(model_path)
         except (OSError, ValueError, KeyError, pd.errors.ParserError) as error:
@@ -503,8 +522,16 @@ class InteractivePredictions(QWidget):
     def _show_point(self, index):
         data = self.data
         row = data["frame"].iloc[index]
-        identifier = next((row[col] for col in ("code_name", "Name", "name", "ID") if col in row), index + 1)
-        lines = [str(identifier)]
+        preferred = data.get("name_column")
+        identifier_column = next(
+            (column for column in row.index if preferred and column.casefold() == preferred.casefold()),
+            None,
+        )
+        identifier = row[identifier_column] if identifier_column else next(
+            (row[column] for column in ("code_name", "Name", "name", "ID") if column in row), None,
+        )
+        label = str(identifier) if pd.notna(identifier) and str(identifier).strip() else f"Row {index + 1}"
+        lines = [label]
         if "Set" in row:
             lines.append(f"Set: {row['Set']}")
         if np.isfinite(data["observed"][index]):

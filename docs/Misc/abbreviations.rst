@@ -7,15 +7,15 @@ A to M                                        N to Z
 ===========================================   =======================================
 **ACC:** accuracy                             **NN:** neural network
 **ADAB:** AdaBoost                            **PFI:** permutation feature importance
-**CSV:** comma separated values               **R2:** squared Pearson correlation between observed and predicted values
-**CLAS:** classification                      **REG:** Regression
-**CV:** cross-validation                      **RF:** random forest
-**F1 score:** balanced F-score                **RIDGE:** ridge regression
-**GB:** gradient boosting                     **RMSE:** root mean square error
-**GP:** gaussian process                      **RND:** random
-**KN:** k-nearest neighbors                   **SHAP:** Shapley additive explanations
-**LOGISTIC:** logistic regression             **VR:** voting regressor
-**MAE:** mean absolute error
+**CSV:** comma separated values               **Q2:** R2 of the cross-validated (out-of-fold) predictions, 1 - PRESS/SS
+**CLAS:** classification                      **R2:** coefficient of determination of the predictions, 1 - SSres/SStot (not the squared Pearson correlation)
+**CV:** cross-validation                      **REG:** Regression
+**F1 score:** balanced F-score                **RF:** random forest
+**GB:** gradient boosting                     **RIDGE:** ridge regression
+**GP:** gaussian process                      **RMSE:** root mean square error
+**KN:** k-nearest neighbors                   **RND:** random
+**LOGISTIC:** logistic regression             **SHAP:** Shapley additive explanations
+**MAE:** mean absolute error                  **VR:** voting regressor
 **MCC:** Matthew's correlation coefficient
 **ML:** machine learning
 **MVL:** multivariate linear models

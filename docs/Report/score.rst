@@ -203,6 +203,15 @@ CheckML score
              indicate sensitivity to which data are used for evaluation.
            - Inspect repeated-CV variability and errors across response regions or classes. Check noisy
              observations, reduce unstable model complexity, and improve coverage of poorly represented cases.
+         * - Predictions do not rank the points in the lower/upper half of the y range (Section B.6)
+           - Regression
+           - **Moderate.** Inside one half of the response range, the out-of-fold CV predictions are flat or
+             in the wrong order (Spearman rank ≤ 0.05 between observed and predicted values), even if the
+             overall error looks acceptable. The model cannot tell compounds apart in that zone, so it should
+             not be used to select or rank them there.
+           - Check whether the descriptors carry information in that region (e.g. plot the response against
+             the most important descriptors) and add descriptors or data that cover it; otherwise, restrict
+             the use of the model to the zone where it ranks the points correctly.
          * - Response may have two separate groups, classification might fit better (Section C)
            - Regression
            - **Moderate.** A large response gap separates two sizeable groups, or
@@ -400,6 +409,19 @@ CheckML score
       difference; two zero errors have a 0% difference. Older DAT files missing the full-data
       baseline or partition CV metrics show unavailable comparisons until PREDICT is rerun.
 
+      .. warning::
+         **What to do with Unclear or Warning results.** An **Unclear** or **Warning** status means that
+         holding out the test set changes the model's performance noticeably, so the corresponding
+         sub-score does not reliably represent the model trained on all the data:
+
+         * **Do not use those sub-scores** (Interpolation, extrapolation to high or low y values, or
+           descriptor-space extrapolation, depending on the row flagged) to support claims about the model.
+         * **Carry out the corresponding analyses yourself** to check that the model behaves correctly in
+           that aspect, e.g. additional or repeated validation splits, external validation data, or a
+           dedicated analysis of the region of the data (high/low y values, unusual descriptors) involved.
+
+         A **Pass** status means that the sub-score can be used as reported.
+
       In the PREDICT DAT, ``Sorted CV extremes (repeated)`` labels the held-out errors as
       ``Test RMSE Low`` and ``Test RMSE High``. ``Sorted CV training pools (repeated)``
       reports ``CV RMSE Low`` (top 80%) and ``CV RMSE High`` (bottom 80%).
@@ -509,6 +531,35 @@ CheckML score
                   For regression, the scaled RMSE score is combined with an R\ :sup:`2` penalty and the result is
                   floored at zero. Classification uses MCC on the same 0-2 scale.
 
+                  **How R**\ :sup:`2` **is calculated.** R\ :sup:`2` is the coefficient of determination of the
+                  predictions themselves, R\ :sup:`2` = 1 − SS\ :sub:`res`/SS\ :sub:`tot` (scikit-learn's
+                  ``r2_score``), i.e. it measures the distance of the points to the y = x line, like the RMSE.
+                  It is **not** the squared Pearson correlation between observed and predicted values, which
+                  measures the distance to a regression line fitted through the points: that line absorbs any bias
+                  or scale error of the predictions, so the squared correlation is always equal to or higher than
+                  the real R\ :sup:`2` and can be high even for clearly wrong predictions. ROBERT follows the
+                  recommendation of `Alexander, Tropsha and Winkler <https://doi.org/10.1021/acs.jcim.5b00206>`__
+                  (*J. Chem. Inf. Model.* 2015, 55, 1316): *"the value of R*\ :sup:`2` *should be calculated for the
+                  test data using Equation 1, not from a regression of observed on predicted values"*. With this
+                  definition R\ :sup:`2` can be negative, meaning that the predictions are worse than predicting the
+                  mean of the set.
+
+                  **Q**\ :sup:`2` **(Section 2).** The same R\ :sup:`2` computed on the cross-validated (out-of-fold)
+                  predictions is reported as Q\ :sup:`2` = 1 − PRESS/SS, the usual name in QSAR/QSPR modeling.
+                  ROBERT pools the out-of-fold predictions of the 10 repetitions of the 5-fold CV, which is exactly
+                  the average of the Q\ :sup:`2` of each repetition.
+
+                  **R**\ :sup:`2` **(Section 3, test set).** The test set uses the same formula, with the test
+                  observations and their own mean, as recommended by Alexander *et al.* (the most conservative choice).
+                  Keep in mind that the test set has only 4-9 points in low-data sets and the even split keeps the most
+                  extreme y values in training, so the test R\ :sup:`2` tends to be lower than the CV Q\ :sup:`2` for the
+                  same prediction error; the scaled RMSE (Section 3) and the CV vs test comparison (Section 5) put it
+                  in context.
+
+                  Sections 2 and 3 use the same penalty thresholds below: Alexander *et al.* consider a test
+                  R\ :sup:`2` > 0.6 as good (here, a 1-point penalty), and values ≥ 0.8 match the scaled RMSE that
+                  already gets full points (around 10% of the y range).
+
                   ============ ================================================================
                   Score        Scaled RMSE (regression)
                   ============ ================================================================
@@ -518,11 +569,11 @@ CheckML score
                   ============ ================================================================
 
                   ============ ================================================================
-                  Penalty       R\ :sup:`2` (regression)
+                  Penalty       Q\ :sup:`2` (Section 2) or R\ :sup:`2` (Section 3), regression
                   ============ ================================================================
-                  0             >= 0.9
-                  0 to -2       0.5 < R\ :sup:`2` < 0.9 (linear interpolation; -1 at 0.7)
-                  -2            <= 0.5
+                  0             >= 0.8
+                  0 to -2       0.4 < value < 0.8 (linear interpolation; -1 at 0.6)
+                  -2            <= 0.4
                   ============ ================================================================
 
                   ============ ================================================================
@@ -598,20 +649,41 @@ CheckML score
                   ============ ======================================================================
 
                   The final score starts with the average of (a), (b) and (c), rounded to one decimal place. It then
-                  applies the more severe penalty from the symmetric RMSE and R² ratios between the lowest and
-                  highest halves of y. For a positive ratio ``r``, the factor is ``max(r, 1/r)``.
+                  checks that the model performs homogeneously across the y range, splitting the out-of-fold CV
+                  predictions into the lowest and highest halves of y, and applies the more severe of two penalties:
+
+                  *  **Symmetric RMSE ratio:** is the error similar in both halves? For the low/high RMSE ratio
+                     ``r``, the factor is ``max(r, 1/r)``; an undefined or zero ratio receives the maximum penalty.
+                  *  **Spearman rank inside each half:** does the model still rank the points inside each half, or are
+                     its predictions flat (or in the wrong order) there? It uses the Spearman rank correlation between
+                     observed and predicted values (each point's prediction averaged over the CV repeats), and the
+                     worse half sets the penalty.
 
                   ============== ======================================================================
-                  Penalty        Symmetric RMSE or R² ratio factor
+                  Penalty        Symmetric RMSE ratio factor
                   ============== ======================================================================
                   0              ≤ 1.25
                   0 to -2        1.25 < factor < 1.75 (linear interpolation; -1 at 1.5)
                   -2             ≥ 1.75
                   ============== ======================================================================
 
-                  An undefined or zero ratio receives the maximum penalty; a negative ratio (possible for R\ :sup:`2`) does too.
-                  For R\ :sup:`2`, a zero or negative ratio indicates a zero score or a change in sign between halves. The final stability score is
-                  clamped to 0-2 points.
+                  ============== ======================================================================
+                  Penalty        Spearman rank in the worse 50% half of y
+                  ============== ======================================================================
+                  0              ≥ 0.3
+                  0 to -2        -0.2 < Spearman < 0.3 (linear interpolation; -1 at 0.05)
+                  -2             ≤ -0.2
+                  ============== ======================================================================
+
+                  The Spearman check catches models whose overall error looks acceptable but that cannot tell
+                  compounds apart in part of the range, for example a model that predicts almost the same value for
+                  every compound in the lower half of y while the observed values there span several units. In that
+                  case the model is not useful to select or rank compounds in that zone, whether the cause is the model
+                  or descriptors without information in that region. The thresholds are moderate on purpose: in
+                  low-data sets each half has only ~8-25 points, so Spearman values between 0 and 0.3 cannot be told
+                  apart from noise. R\ :sup:`2` is not used here: inside a half the y range is narrow, so R\ :sup:`2`
+                  mostly reflects how spread that half's values are rather than the model. The final stability
+                  score is clamped to 0-2 points.
 
                   .. figure:: images/stability_real.jpg
                      :width: 560

@@ -222,7 +222,7 @@ def test_dat_parser_separates_pfi_baselines_and_retains_boundary_scores(legacy_c
     assert 'Unclear</strong> · Extrapol. high y values: 30.0%' in callout
     assert 'Warning</strong> · Extrapol. low y values: 40.0%' in callout
     assert 'Pass</strong> · Extrapol. descriptor-space: 10.0%' in callout
-    assert 'Absolute CV RMSE differences relative to full-data CV' in callout
+    assert 'CV RMSE difference vs. full-data CV' in callout
 
 
 def test_old_dat_has_unavailable_comparisons_without_borrowing_pfi_metrics():
@@ -380,7 +380,7 @@ def test_classification_parser_and_callout_use_mcc(mcc, baseline, expected, stat
     assert scores['mcc_full_No PFI'] == baseline
     assert scores['full_cv_diff_cv_No PFI'] == pytest.approx(expected)
     html = unescape(report.section_a_callouts(scores, 'No PFI', 'clas'))
-    assert 'Absolute MCC differences' in html
+    assert 'MCC difference vs. full-data CV' in html
     assert f'{status}</strong> · Interpolation:' in html
     assert ('unbounded' if math.isinf(expected) else f'{expected:.1f}%') in html
     assert 'scaled RMSE' not in html

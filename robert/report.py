@@ -66,11 +66,11 @@ PDF_NAMES = {'No PFI': 'ROBERT_report_No_PFI.pdf', 'PFI': 'ROBERT_report_PFI.pdf
 # grey section separators always CLOSE a section (never open one), so the line can't end up
 # at the top of a page. Only Section A opens with one, below the header on page 1. Sections
 # C onward whose own HTML doesn't already end with a line + page break get one in the main loop
-# (see _close_section()); Section B keeps the closing spacing without a horizontal divider.
+# (see _close_section()); Section B also gets one, followed by a page break before Section C.
 def _close_section(section_html):
     '''
-    Closes a section that doesn't end with its own line/page break with a grey line, except
-    Section B, which keeps the spacing without the horizontal divider. The line is the bottom
+    Closes a section that doesn't end with its own line/page break with a grey line (Section B
+    also gets a page break after it, so Section C always starts on a new page). The line is the bottom
     border of a wrapper around the section (not a separate <hr>), so it's always attached to the
     section's last line and can't end up alone at the top of the next page.
     The 20px gap above it is a margin, which is dropped automatically at a page break
@@ -82,8 +82,11 @@ def _close_section(section_html):
     # border with them - the gap above the line is the wrapper's padding instead
     section_html = re.sub(r'(\s*(<p[^>]*>\s*</p>|</p>))+\s*$', '', section_html)
     if 'id="section-b"' in section_html:
-        return (f'<div style="padding-bottom:15px; margin-bottom:25px;">'
-                f'{section_html}</div>')
+        # Section B closes with the same grey line, and Section C always starts on a new page.
+        # An explicit <hr> (as Section C uses) instead of the wrapper border: WeasyPrint drops
+        # the wrapper's bottom border after Section B's page-broken flex columns
+        return (f'{section_html}<hr style="margin-top: 20px; page-break-before: avoid;">'
+                '<p style="page-break-after: always;"></p>')
     return (f'<div style="border-bottom: 1px solid #a0a0a0; padding-bottom: 15px; margin-bottom: 25px;">'
             f'{section_html}</div>')
 
@@ -668,9 +671,9 @@ class report:
             if interp_radar else ''
         )
         left_summary = f'''<div style="margin-left:-2px;">{get_metrics(module_file,suffix,'')}</div>
-        <div style="page-break-inside:avoid; margin-top:18px;">
+        <div style="page-break-inside:avoid; margin-top:8px;">
         {self.print_radar_subheadings()}
-        <div style="width:270px; margin-top:17px;">{interp_radar_tag}</div>
+        <div style="width:270px; margin-top:2px;">{interp_radar_tag}</div>
         </div>'''
         columns_summary = [left_summary]
         columns_summary.append(self.section_a_callouts(data_score,suffix,pred_type,self.args.path_icons))
@@ -707,9 +710,9 @@ class report:
 <p style="margin:0; text-decoration:underline;">Model metrics</p>
 <div style="margin-top:8px;">{interp_tag}</div>
 <div style="margin-left:-2px;">{metrics}</div>
-<div style="page-break-inside:avoid; margin-top:18px;">
+<div style="page-break-inside:avoid; margin-top:8px;">
 {self.print_radar_subheadings()}
-<div style="width:220px; margin-top:17px;">{radar_tag}</div>
+<div style="width:220px; margin-top:2px;">{radar_tag}</div>
 </div></td>
 <td style="width:50%; padding:0 0 0 25px; vertical-align:top;">{notes}</td></tr>
 </table>'''
@@ -787,8 +790,10 @@ class report:
 
         icon_dir = Path(path_icons or Path(__file__).resolve().parent / 'report').resolve().as_uri()
 
+        # separate boxes (full thin border) to the right of the central column rule, instead
+        # of a thick left stripe that doubled as the rule
         def card(title,content,margin_top=8):
-            return f'''<div style="box-sizing:border-box; width:100%; background:#eeeeee; border-left:4px solid #999999; border-radius:4px; padding:4px 8px 5px 8px; margin:{margin_top}px 0 5px 0; color:#222222; page-break-inside:avoid;">
+            return f'''<div style="box-sizing:border-box; background:#f2f2f2; border:1px solid #c8c8c8; border-radius:4px; padding:4px 8px 5px 8px; margin:{margin_top}px 0 5px 10px; color:#222222; page-break-inside:avoid;">
 <div style="font-size:10.5px; font-weight:bold; letter-spacing:0.3px; color:#000000;">{title}</div>
 <div style="font-size:10.5px; line-height:1.25;">{content}</div></div>'''
         if pred_type == 'reg':
@@ -802,12 +807,12 @@ class report:
         else:
             metric_name, baseline_key = 'MCC', 'mcc'
             comparisons = (('cv', 'Interpolation'),)
+        # "Unclear"/"Warning": the flagged sub-score must not be used, AND the user has to check
+        # that aspect of the model with their own analyses (a flag is not an excuse to skip it)
         influence = (
-            f'Whether keeping 20% of the data as a test set, '
-            'in addition to the CV set, adversely affects model performance. '
-            '<br>&nbsp;&nbsp;• "Unclear" sections should be used with caution'
-            '<br>&nbsp;&nbsp;• "Warning" sections should not be considered.'
-            f'<br><u>Absolute {metric_name} differences relative to full-data CV:</u>')
+            'Effect of holding out 20% of the data as a test set '
+            f'({metric_name} with 80% vs. 100% of the data).'
+            f'<br><u>{metric_name} difference vs. full-data CV:</u>')
         if (data_score.get(f'{baseline_key}_full_{suffix}') is None
                 or any(data_score.get(f'full_cv_diff_{metric}_{suffix}') is None for metric, _ in comparisons)):
             influence = 'Rerun PREDICT to calculate the missing full-data or partition CV metrics.'
@@ -841,22 +846,37 @@ class report:
                 f'padding:1px 4px; margin-top:2px;">{icon} <strong>{status}</strong>'
                 f' · {label}: {value}</div>'
             )
+        # what to do with flagged rows, right after the results; the Pass/Unclear/Warning
+        # thresholds are in the linked documentation
         influence += (
-            '<div style="margin-top:4px;">Pass &le; 15%; Unclear &le; 30%; Warning &gt; 30%.</div>'
+            '<div style="margin-top:4px;"><strong>Unclear or Warning:</strong> do not use that sub-score, '
+            'and check that aspect of your model with your own analyses. '
+            '<a href="https://robert.readthedocs.io/en/latest/Report/score.html#cv-test-split-diagnostic">'
+            'Thresholds and details here.</a></div>'
         )
-        influence += ' <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a>'
         disclaimer = (
-            '<u>User-defined train/test splits are not allowed</u>'
-            '<br>No single train/test split, metric, or validation strategy can fully establish model reliability. CheckML provides a standardized, multidimensional assessment that highlights weaknesses and enables more transparent evaluations.'
-            '<br><u>CheckML scores are indicative</u>'
-            '<br>CheckML scores are indicative rather than rigid thresholds of model quality or usefulness, which ultimately depend on the intended application. Before using CheckML, please read <a href="https://robert.readthedocs.io/en/latest/Report/score.html">its documentation</a> carefully.'
+            '<u>Scores reflect your model, not an exact copy</u>'
+            '<br>CheckML retrains your model with standardized (not user-defined) splits '
+            'and CV, so scores closely reflect, but do not exactly match, its performance.'
+            '<br><u>Scores are indicative</u>'
+            '<br>A low score does not make a model unusable: assess whether the limitation '
+            'matters for its intended use. See '
+            '<a href="https://robert.readthedocs.io/en/latest/Report/score.html#overview-and-considerations">the documentation</a>.'
         )
         # Regression's notes sit just below the boundary score rows. Classification
         # has no such rows, and its taller plot can push this block to a new page;
         # keep it in normal vertical flow so it clears the running page header.
-        top, margin_top = (-5, -54) if pred_type == 'reg' else (0, 0)
+        top, margin_top = (-5, -42) if pred_type == 'reg' else (0, 0)
+        # regression: continue Section A's central rule (same x and style, see
+        # print_score_section()) down to the bottom of the boxes. It starts above this block,
+        # overlapping the end of the upper rule so both read as a single line
+        rule = (
+            '<span aria-hidden="true" style="position:absolute; left:-8px; top:-95px; bottom:5px; '
+            'width:1.5px; background:#999999; border-radius:1px; pointer-events:none;"></span>'
+            if pred_type == 'reg' else ''
+        )
         return (
-            f'<div style="position:relative; top:{top}px; width:300px; margin-left:-10px; margin-top:{margin_top}px;">'
+            f'<div style="position:relative; top:{top}px; width:300px; margin-left:-10px; margin-top:{margin_top}px;">{rule}'
             f'{card("CV-Test Split Diagnostic",influence,13)}'
             f'{card("Considerations when using CheckML",disclaimer,13)}'
             '</div>'
@@ -950,7 +970,8 @@ class report:
 
 
     # displayed size (px) of each radar plot on page 1 - 270px wide like every other report image
-    RADAR_SIZE = (270, 215)
+    # (extra height vs the old 270x215 holds the flawed-model sentence under the radar)
+    RADAR_SIZE = (270, 240)
 
     def save_radar_plots(self,data_score,suffix,pred_type):
         '''
@@ -968,8 +989,9 @@ class report:
 
         diff_key = 'diff_scaled_rmse_score' if pred_type == 'reg' else 'diff_mcc_score'
         radars = [('interpolation', f'interp_score_{suffix}', [
-            # short names (numbered as in Section B) so the labels don't crowd the plot
-            ('1. Flawed models', f'flawed_mod_score_{suffix}'),
+            # short names (numbered as in Section B) so the labels don't crowd the plot.
+            # 1. Flawed models is a penalty (<= 0), so it's written as a sentence under
+            # the radar instead of being drawn as a bar
             ('2. CV', f'cv_score_combined_{suffix}'),
             ('3. Test', f'test_score_combined_{suffix}'),
             ('4. Train-val gap', f'train_val_gap_score_{suffix}'),
@@ -1034,7 +1056,9 @@ class report:
             # Use most of the original 270 x 215 canvas while leaving enough room for the
             # labels around the outer ring. Keeping the canvas size unchanged preserves the
             # PDF image aspect ratio and prevents object-fit from cropping the radar.
-            ax = fig.add_axes([0.07, 0.08, 0.86, 0.82], polar=True)
+            # Same radar size in px as before (176 px tall); the bottom margin is larger to
+            # fit the flawed-model sentence.
+            ax = fig.add_axes([0.07, 0.175, 0.86, 0.733], polar=True)
             ax.set_theta_offset(np.pi/2)
             ax.set_theta_direction(-1)
             ax.set_facecolor('#fbfcfe')
@@ -1053,20 +1077,21 @@ class report:
                    color=[bar_colour(display_value, score_key == flawed_score_key)
                           for (_,score_key),display_value in zip(components,display_values)],
                    edgecolor='black', linewidth=0.5, zorder=2.5)
-            # Radial dividers retain the original pizza-slice separation between sections.
+            # Radial dividers between sections: darker than the reference rings so each
+            # section reads clearly, and the same weight as the outer circle so the
+            # dividers and the circle look like one frame.
+            frame_color = '#64748b'
             for edge in angles + slot/2:
-                ax.plot([edge, edge], [0, 2.1], color=grid_color, linewidth=0.45, zorder=3)
-            # Small outward ticks align each section's outer edge with its label.
-            for angle in angles:
-                ax.plot([angle, angle], [2.1, 2.18], color='black', linewidth=0.55,
-                        zorder=3.2, clip_on=False)
-            ax.spines['polar'].set_color('black')
-            ax.spines['polar'].set_linewidth(0.65)
-            ax.spines['polar'].set_zorder(2)
+                ax.plot([edge, edge], [0, 2.1], color=frame_color, linewidth=0.6, zorder=3)
+            ax.spines['polar'].set_color(frame_color)
+            ax.spines['polar'].set_linewidth(0.6)
+            ax.spines['polar'].set_zorder(3)
             # Value badges use the same colored fill as their bars.
             for angle,value,display_value,(_,score_key) in zip(angles,values,display_values,components):
                 color = bar_colour(display_value, score_key == flawed_score_key)
-                ax.text(angle, max(value - 0.18, 0.22), f'{display_value:.1f}', ha='center', va='center',
+                # minimum radius of 0.65 so the badges of small bars (e.g. several 0.0) don't
+                # pile up and overlap at the centre of the radar
+                ax.text(angle, max(value - 0.18, 0.65), f'{display_value:.1f}', ha='center', va='center',
                         fontsize=value_font_size, color='#0f172a', zorder=6,
                         bbox=dict(boxstyle='round,pad=0.2', facecolor=color,
                                   edgecolor='black', linewidth=0.4))
@@ -1096,6 +1121,46 @@ class report:
                             rotation=rotation, rotation_mode='anchor', fontsize=label_font_size,
                             color='#1e293b')
                     offset += char_width + 0.7
+            if key == 'interpolation':
+                # 1. Flawed models (VERIFY tests) as a sentence under the radar: it's a
+                # penalty subtracted from the score (gradual, up to -2 per test)
+                flawed_score = float(data_score.get(flawed_score_key,0) or 0)
+                failed_tests = int(data_score.get(f'failed_tests_{suffix}',0) or 0)
+                unclear_tests = int(data_score.get(f'unclear_tests_{suffix}',0) or 0)
+                # Plain text (no coloured box), with only the penalty highlighted in red
+                text_color, penalty_color = '#1e293b', '#c0392b'
+                if flawed_score >= 0:
+                    parts = [('1. Flawed models: all tests passed, no penalty', text_color, 'normal')]
+                else:
+                    # e.g. "1 failed, 2 unclear" - every test category that subtracts points
+                    counts = [f'{count} {label}' for count,label in ((failed_tests,'failed'),(unclear_tests,'unclear')) if count]
+                    # passed tests close to the threshold also subtract (gradual penalty)
+                    lead = ', '.join(counts) if counts else 'tests close to the thresholds'
+                    parts = [(f'1. Flawed models: {lead}, ', text_color, 'normal'),
+                             (f'{flawed_score:.1f} penalty', penalty_color, 'bold')]
+                labels_flawed = [fig.text(0, 0.045, text, ha='left', va='center',
+                                          fontsize=label_font_size, color=color, fontweight=weight)
+                                 for text,color,weight in parts]
+
+                def flawed_widths():
+                    fig.canvas.draw()
+                    return [label.get_window_extent(renderer).width for label in labels_flawed]
+
+                # shrink the font until the sentence fits the image width (its length depends
+                # on the number of failed tests and on the system font)
+                max_width = fig.bbox.width * 0.96
+                font_size = label_font_size
+                widths = flawed_widths()
+                while sum(widths) > max_width and font_size > 5:
+                    font_size -= 0.25
+                    for label in labels_flawed:
+                        label.set_fontsize(font_size)
+                    widths = flawed_widths()
+                # place the pieces one after another, centred as a whole
+                x_px = (fig.bbox.width - sum(widths)) / 2
+                for label,width in zip(labels_flawed,widths):
+                    label.set_x(x_px / fig.bbox.width)
+                    x_px += width
             radar_path = out_folder / f'CheckML_radar_{key}{getattr(self,"model_suffix","")}_{suffix_title}.png'
             # Keep the original canvas ratio so the PDF's fixed-size image box cannot crop
             # the labels. The title is omitted so only the radar and component labels show.
@@ -1329,7 +1394,7 @@ class report:
 </tr></table>
 <p style="margin:20px 0 0; font-size:10px; line-height:1.4; color:{muted};">
 For more information about the warnings and suggestions to fix them, please check the
-<a href="https://robert.readthedocs.io/en/latest/Report/score.html" style="color:{navy};">CheckML documentation</a>.
+<a href="https://robert.readthedocs.io/en/latest/Report/score.html#list-of-warnings" style="color:{navy};">CheckML documentation</a>.
 </p>
 </div>'''
 
@@ -1399,6 +1464,11 @@ For more information about the warnings and suggestions to fix them, please chec
         if pred_type == 'reg':
             if data_score[f'cv_sd_score_{suffix}'] <= 0: # due to the penalty, it might get lowwer than 0 (but in the final score it only adds 0-2 points)
                 moderate.append('Imprecise predictions (Section B.6)')
+            # flat or unordered predictions inside one half of the y range (Spearman <= 0.05,
+            # i.e. at least half of that check's maximum penalty - see half_spearman_penalty())
+            for half, zone in (('low', 'lower'), ('high', 'upper')):
+                if data_score.get(f'spearman_50_{half}_penalty_{suffix}', 0) <= -1:
+                    moderate.append(f'Predictions do not rank the points in the {zone} half of the y range (Section B.6)')
         elif pred_type == 'clas':
             if data_score[f'diff_mcc_score_{suffix}'] == 0:
                 moderate.append('Imprecise predictions (Section B.6)')
@@ -1808,12 +1878,14 @@ For more information about the warnings and suggestions to fix them, please chec
             right_page1 = (
                 right_heading + bound_rows[0] + section_image(bound_tag1,13) +
                 bound_rows[1] + bound_rows[2] +
-                bound_rows[3].replace('margin-top:0;', 'margin-top:20px;', 1)
+                bound_rows[3].replace('margin-top:0;', 'margin-top:20px;', 1) +
+                # 2a's Bottom 20% plot stays on the same page as its 2a text
+                section_image(low_tag,13)
             )
 
             first_page_rule = (
                 '<span aria-hidden="true" style="position:absolute; left:5px; top:-34px; '
-                'width:4px; height:875px; background:#999999; border-radius:4px; '
+                'width:1.5px; height:875px; background:#999999; border-radius:1px; '
                 'pointer-events:none;"></span>'
             )
             adv_score_dat += (
@@ -1830,22 +1902,19 @@ For more information about the warnings and suggestions to fix them, please chec
                 section_image(cv_variability_cv_tag,10)
             )
             right_page2 = (
-                section_image(low_tag,0) + bound_rows[4] + bound_rows[5] +
+                bound_rows[4].replace('margin-top: 10px;', 'margin-top: 0;', 1) + bound_rows[5] +
                 bound_rows[6] + section_image(ad_tag,10) +
                 section_image(williams_tag,10)
             )
-            second_page_rule = (
-                '<span aria-hidden="true" style="position:absolute; left:5px; top:0; '
-                'width:4px; height:955px; background:#999999; border-radius:4px; '
-                'pointer-events:none;"></span>'
-            )
+            # the separator is the right column's border in a stretched flex row, so it is
+            # exactly as tall as the taller of the two columns (a fixed-height rule would run
+            # into Section C when it starts on this same page)
             adv_score_dat += (
-                '<div style="page-break-before:always; page-break-inside:avoid; width:100%;">'
-                '<div style="display:inline-block; vertical-align:top; width:50%; '
-                'box-sizing:border-box;">' + left_page2 + '</div>'
-                '<div style="display:inline-block; vertical-align:top; width:50%; '
-                'box-sizing:border-box; padding-left:25px; position:relative;">' +
-                second_page_rule + right_page2 + '</div></div>'
+                '<div style="page-break-before:always; page-break-inside:avoid; width:100%; '
+                'display:flex; align-items:stretch;">'
+                '<div style="width:50%; box-sizing:border-box;">' + left_page2 + '</div>'
+                '<div style="flex:1; box-sizing:border-box; margin-left:5px; padding-left:20px; '
+                'border-left:1.5px solid #999999;">' + right_page2 + '</div></div>'
             )
             adv_score_dat += '<p style="margin-bottom:50px;"></p>'
             return adv_score_dat
@@ -2509,7 +2578,7 @@ For more information about the warnings and suggestions to fix them, please chec
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">Evaluation of interpolation (within the range of training data) and boundary robustness (related to extrapolation).</i>'
         elif module == 'adv_anal':
             module_name = 'Section B. Advanced Score Analysis'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component that comprises the CheckML score. <a href="https://robert.readthedocs.io/en/latest/Report/score.html">More details here.</a></i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component of the CheckML score. Further details on each test can be accessed through the hyperlinks in the underlined titles. Scoring thresholds are provided in the corresponding help icons.</i>'
         elif module == 'y_distrib':
             module_name = 'Section C. Distribution of y Values'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the training and validation sets. In regression, Q1-Q4 are four equal-width intervals of the y range (from the lowest to the highest y value), not quartiles of the data: a uniform dataset would have about 25% of the points in each.</i>'

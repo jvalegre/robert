@@ -60,7 +60,7 @@ templates_path = ['_templates']
 
 # Build htlm steps for tutorials
 html_static_path = ['_static']
-html_js_files = ['steps.js']
+html_js_files = ['steps.js', 'tab_links.js']
 html_css_files = ['custom.css']
 
 # List of patterns, relative to source directory, that match files and

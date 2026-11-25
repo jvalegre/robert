@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import pandas as pd
 import numpy as np
+from scipy import stats
 from robert.utils import (
     get_graph_style,
     pearson_map,
@@ -282,21 +283,37 @@ def print_predict(self,Xy_data,model_data,suffix_title):
             high_50_indices = sorted_y_indices[midpoint:]
             n_repeats = y_pred_train_all.shape[1]
 
+            # Per half: RMSE (is the error similar in both halves?) and the Spearman rank between
+            # observed and predicted values (does the model still rank the points INSIDE each
+            # half, or are its predictions flat/unordered there?). R2 is not used here: inside a
+            # half the y range is narrow, so R2 mostly reflects how spread that half's y values
+            # are, not the model. Spearman uses each point's prediction averaged over the CV
+            # repeats (repeating every observed value n_repeats times would only create ties).
+            # The observed y range of each half is logged for reference (see
+            # half_spearman_penalty() in report_utils.py for the scoring).
+            y_pred_mean = y_pred_train_all.mean(axis=1)
+
             def get_half_metrics(indices):
                 y_actual_half = np.repeat(y_train_actual[indices], n_repeats)
                 y_pred_half = y_pred_train_all[indices].reshape(-1)
-                return get_prediction_results(model_data, y_actual_half, y_pred_half)
+                _, _, rmse_half = get_prediction_results(model_data, y_actual_half, y_pred_half)
+                y_obs, y_pred = y_train_actual[indices], y_pred_mean[indices]
+                if len(indices) > 2 and len(np.unique(y_obs)) > 1 and len(np.unique(y_pred)) > 1:
+                    spearman_half = stats.spearmanr(y_obs, y_pred)[0]
+                else:
+                    spearman_half = 0.0  # flat predictions (or a single value) rank nothing
+                return rmse_half, spearman_half, float(np.max(y_obs) - np.min(y_obs))
 
-            high_50_r2, _, high_50_rmse = get_half_metrics(high_50_indices)
-            low_50_r2, _, low_50_rmse = get_half_metrics(low_50_indices)
-            ratio_50_r2 = low_50_r2 / high_50_r2 if high_50_r2 != 0 else 'N/A'
+            high_50_rmse, high_50_spearman, high_50_range = get_half_metrics(high_50_indices)
+            low_50_rmse, low_50_spearman, low_50_range = get_half_metrics(low_50_indices)
             ratio_50_rmse = low_50_rmse / high_50_rmse if high_50_rmse != 0 else 'N/A'
 
-            print_results += f"\n      -  50% highest data points, R2 = {high_50_r2:.2f}, RMSE = {high_50_rmse:.2f}"
-            print_results += f"\n      -  50% lowest data points, R2 = {low_50_r2:.2f}, RMSE = {low_50_rmse:.2f}"
-            ratio_50_r2_display = f"{ratio_50_r2:.2f}" if ratio_50_r2 != 'N/A' else ratio_50_r2
+            print_results += (f"\n      -  50% highest data points, RMSE = {high_50_rmse:.2f}, "
+                              f"Spearman = {high_50_spearman:.2f}, y range = {high_50_range:.3g}")
+            print_results += (f"\n      -  50% lowest data points, RMSE = {low_50_rmse:.2f}, "
+                              f"Spearman = {low_50_spearman:.2f}, y range = {low_50_range:.3g}")
             ratio_50_rmse_display = f"{ratio_50_rmse:.2f}" if ratio_50_rmse != 'N/A' else ratio_50_rmse
-            print_results += f"\n      -  Ratio 50% lowest/highest data points, R2 = {ratio_50_r2_display}, RMSE = {ratio_50_rmse_display}"
+            print_results += f"\n      -  Ratio 50% lowest/highest data points, RMSE = {ratio_50_rmse_display}"
 
             # Interpolation item 6, facets (b)/(c): stability of the out-of-fold CV predictions
             # themselves (not just the test set - facet (a) above), across the repeated-CV

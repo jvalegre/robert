@@ -36,7 +36,7 @@ from importlib.resources import files
 #     patch_sklearn(verbose=True)
 # except (ModuleNotFoundError,ImportError):
 #     pass
-from sklearn.metrics import (mean_absolute_error, mean_squared_error,
+from sklearn.metrics import (mean_absolute_error, mean_squared_error, r2_score,
                              matthews_corrcoef, accuracy_score, f1_score, make_scorer,
                              ConfusionMatrixDisplay)
 from sklearn.feature_selection import RFECV
@@ -3065,13 +3065,6 @@ def _boundary_scatter(self,model_data,path_n_suffix,file_prefix,y_rest,y_pred_re
     _place_legend(ax,np.concatenate([y_rest,y_extreme]),np.concatenate([y_pred_rest,y_pred_extreme]),
         [rest_label,extreme_label],fontsize=legend_fontsize)
 
-    Xy_data_df = pd.DataFrame()
-    Xy_data_df['y_rest'] = y_rest
-    Xy_data_df['y_pred_rest'] = y_pred_rest
-    if len(y_rest) >= 10:
-        _ = sb.regplot(x='y_rest', y='y_pred_rest', data=Xy_data_df, scatter=False, color=".1",
-                        truncate = True, ax=ax, seed=model_data['seed'])
-
     plt.ylabel(f'Predicted {model_data["y"]}', fontsize=14)
     plt.xlabel(f'{model_data["y"]}', fontsize=14)
 
@@ -3082,6 +3075,11 @@ def _boundary_scatter(self,model_data,path_n_suffix,file_prefix,y_rest,y_pred_re
     max_value_graph = max(max(y_all),max(y_pred_all))+size_space
 
     ax.grid(linestyle='--', linewidth=1)
+    # ideal y = y_pred diagonal as the only reference line (no regression line fitted through
+    # the points): R2/RMSE measure the distance to this line, and a fitted line would hide bias
+    # or scale errors of the predictions (see get_prediction_results())
+    ax.plot([min_value_graph, max_value_graph], [min_value_graph, max_value_graph],
+            color='#7f7f7f', linestyle='-', linewidth=1.2, zorder=0.5)
     plt.xlim(min_value_graph, max_value_graph)
     plt.ylim(min_value_graph, max_value_graph)
 
@@ -3324,7 +3322,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"], fmt='none', ecolor="gray", capsize=3, zorder=1)
             set_types=['External test',f'± SD']
 
-    # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+    # legend (no regression line is drawn: the y = x diagonal below is the only reference line)
     legend_coords = None
     if 'CV' in set_types[0]: # CV in VERIFY
         legend_coords = (0.70, 0.15)
@@ -3337,19 +3335,6 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             handletextpad=0,
             fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
-    Xy_data_df = pd.DataFrame()
-    if not sd_graph:
-        line_suff = 'train'
-    elif not csv_test:
-        line_suff = error_bars # 'test' or 'train', matches sd_set
-    else:
-        line_suff = 'external'
-
-    Xy_data_df[f"y_{line_suff}"] = Xy_data[f"y_{line_suff}"]
-    Xy_data_df[f"y_pred_{line_suff}"] = Xy_data[f"y_pred_{line_suff}"]
-    if len(Xy_data_df[f"y_pred_{line_suff}"]) >= 10:
-        _ = sb.regplot(x=f"y_{line_suff}", y=f"y_pred_{line_suff}", data=Xy_data_df, scatter=False, color=".1", 
-                        truncate = True, ax=ax, seed=params_dict['seed'])
 
     # Title and labels of the axis
     plt.ylabel(f'Predicted {params_dict["y"]}', fontsize=14)
@@ -3383,8 +3368,11 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
                 _ = ax.errorbar(Xy_data[f"y_{set_sd}"], Xy_data[f"y_pred_{set_sd}"], yerr=Xy_data[f"y_pred_{set_sd}_sd"],
                                 fmt='none', ecolor='#a0a0a0', elinewidth=0.8, capsize=2, alpha=0.7, zorder=1)
 
-    # ideal y = y_pred diagonal (perfect predictions) behind every other object, so it's clear
-    # the R2/errors compare predictions directly against the targets (no fitted intercept)
+    # ideal y = y_pred diagonal (perfect predictions) behind every other object: it's the only
+    # reference line, since R2/Q2 and the errors compare the predictions directly against the
+    # targets. No regression line is fitted through the points - it would absorb bias or scale
+    # errors and is not what any reported metric measures (Alexander et al., J. Chem. Inf.
+    # Model. 2015, recommend plotting observed vs predicted values with just the y = x line)
     ax.plot([min_value_graph, max_value_graph], [min_value_graph, max_value_graph],
             color='#7f7f7f', linestyle='-', linewidth=1.2, zorder=0.5)
 
@@ -4081,9 +4069,14 @@ def get_prediction_results(model_data,y,y_pred_all):
     if model_data['type'].lower() == 'reg':
         mae = mean_absolute_error(y,y_pred_all)
         rmse = np.sqrt(mean_squared_error(y,y_pred_all))
-        if len(np.unique(y)) > 1 and len(np.unique(y_pred_all)) > 1:
-            res = stats.linregress(y,y_pred_all)
-            r2 = res.rvalue**2
+        # R2 is the coefficient of determination of the predictions themselves (1 - SSres/SStot,
+        # i.e. measured against the y = x line, like MAE/RMSE), NOT the squared Pearson
+        # correlation of a regression fitted through the observed vs predicted points, which
+        # ignores bias and scale errors and can only be equal or higher (see Alexander, Tropsha
+        # and Winkler, J. Chem. Inf. Model. 2015, 55, 1316). It can be negative when the
+        # predictions are worse than predicting the mean
+        if len(np.unique(y)) > 1:
+            r2 = r2_score(y,y_pred_all)
         else:
             r2 = 0.0
 
@@ -4573,7 +4566,7 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results,show_titl
     # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
     ax.arrow(x_arrow, thres_line, 0, 0, width=0, fc='k', ec='k') # x,y,dx,dy format
 
-    # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+    # legend with the "pass test" arrow
     def make_legend_arrow(legend, orig_handle,
                         xdescent, ydescent,
                         width, height, fontsize):

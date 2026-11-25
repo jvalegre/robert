@@ -316,7 +316,7 @@ def test_CHECKML_classification():
         with open(debug_report, "r", encoding="utf-8") as f:
             debug_content = f.read()
         assert "Traceback (most recent call last)" not in debug_content
-        assert "Absolute MCC differences relative to full-data CV" in debug_content
+        assert "MCC difference vs. full-data CV" in debug_content
         assert "available for regression models" not in debug_content
         assert "Rerun PREDICT" not in debug_content
         import pymupdf

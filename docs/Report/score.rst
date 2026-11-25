@@ -77,8 +77,11 @@ CheckML score
       the data are used for cross-validation (CV), while the remaining 20% (or a minimum of four data points)
       are reserved as an independent test set.
 
-      CheckML uses 10-times repreated 5-fold CV (10x 5-fold CV) because this type of CV
-      is widely used in the ML community and is the default repeated CV strategy recommended
+      CheckML uses 10-times repreated 5-fold CV (10x 5-fold CV) as part of its evaluation protocol.
+      Importantly, alternative CV strategies have been explored in the literature, including 
+      5x 2-fold, 2x 5-fold, and 1x 10-fold CV, among many others. Although alternative CV strategies 
+      may also be valid, we selected 10x 5-fold CV because it is a well-established approach widely 
+      used in the ML community and is the default repeated CV strategy recommended
       by scikit-learn. Benchmarking across low-data regimes also showed that 10x 5-fold CV
       remains informative across a broad range of dataset sizes (16–4200 data points,
       see the CheckML publication).
@@ -389,53 +392,34 @@ CheckML score
         20% of the data as an independent test set, in addition to the CV set,
         could adversely affect model performance. See below.
 
-      For each regression or classification model, PREDICT also evaluates repeated out-of-fold CV on the full
-      internal dataset (the 80% CV pool plus the 20% test pool), restoring the same canonical
-      row order used during database loading and retaining the model's parameters, descriptor
-      scaling, and CV settings, including stratified folds for classification. As with the
-      usual CV metrics, metrics are calculated by pooling all out-of-fold predictions across
-      repeats. External prediction data are excluded.
-
-      The report's **CV-Test Split Diagnostic** box compares this full-data baseline with
-      CV RMSEs from four training pools: the original interpolation CV pool, the bottom 80%
-      remaining after holding out high-y points, the top 80% remaining after holding out
-      low-y points, and the typical 80% remaining after holding out high-leverage points.
-      All four CV RMSEs pool every out-of-fold prediction across repeats; they do not use
-      the errors on the held-out 20% test sets. Each absolute percentage difference is
-      ``abs((CV RMSE / full-data CV RMSE) - 1) * 100``. Equivalently, the same CV-pool
-      y-range can scale both errors before taking the ratio. Differences up to 15% show **Pass**, above 15% through
-      30% show **Unclear**, and above 30% show **Warning**. These indicators do not change
-      the CheckML scores. A zero baseline with nonzero error is shown as an unbounded
-      difference; two zero errors have a 0% difference. Older DAT files missing the full-data
-      baseline or partition CV metrics show unavailable comparisons until PREDICT is rerun.
+      For each regression or classification model, PREDICT also uses 10x 5-fold
+      CV on the full internal dataset (the 80% CV pool plus the 20% test pool). The report's
+       **CV-Test Split Diagnostic** box compares this full-data baseline with
+      CV RMSEs from the four CV pools used in CheckML: the interpolation CV pool, 
+      the bottom 80% remaining after holding out high-y points, the top 80% remaining after holding out
+      low-y points, and the 80% remaining after holding out high-leverage points.
+      
+      Each absolute percentage difference is
+      ``abs((CV RMSE / full-data CV RMSE) - 1) * 100``. Differences up to 15% show **Pass** (small 
+      differences between CV and full-data CV), above 15% through 30% show **Unclear**, and above 
+      30% show **Warning**. These indicators do not change the CheckML scores, but indicate whether
+      the four different sub-scores can be reliably used for analyzing the model.
 
       .. warning::
          **What to do with Unclear or Warning results.** An **Unclear** or **Warning** status means that
          holding out the test set changes the model's performance noticeably, so the corresponding
          sub-score does not reliably represent the model trained on all the data:
 
-         * **Do not use those sub-scores** (Interpolation, extrapolation to high or low y values, or
+         * **Be very careful with (Unclear) or do not use (Warning) those sub-scores** 
+           (Interpolation, extrapolation to high or low y values, or
            descriptor-space extrapolation, depending on the row flagged) to support claims about the model.
          * **Carry out the corresponding analyses yourself** to check that the model behaves correctly in
-           that aspect, e.g. additional or repeated validation splits, external validation data, or a
-           dedicated analysis of the region of the data (high/low y values, unusual descriptors) involved.
+           that aspect, e.g. additional or repeated validation splits, overfitting analysis, y-shuffle 
+           and other statistical tests, split dependency, external validation data, etc.
 
          A **Pass** status means that the sub-score can be used as reported.
 
-      In the PREDICT DAT, ``Sorted CV extremes (repeated)`` labels the held-out errors as
-      ``Test RMSE Low`` and ``Test RMSE High``. ``Sorted CV training pools (repeated)``
-      reports ``CV RMSE Low`` (top 80%) and ``CV RMSE High`` (bottom 80%).
-      The ``Applicability domain (leverage)`` line reports both ``Test RMSE`` and ``CV RMSE``.
-      The held-out test errors still determine boundary components 1a, 2a, and 3. The
-      degradation ratios retain their existing baselines, calculated from the averaged
-      out-of-fold predictions on the remaining 80%, and are labelled accordingly in the DAT.
-
-      For classification, the same box compares interpolation CV MCC against full-data CV
-      MCC using ``abs((MCC / full-data MCC) - 1) * 100`` and the same 15%/30% status
-      thresholds. The full-data DAT line reports accuracy, F1 score, and MCC. Signed MCCs
-      are used directly in the ratio, so changing the sign relative to the baseline produces
-      a large difference. Two zero MCCs have a 0% difference; a nonzero MCC over a zero
-      baseline is unbounded. Boundary-robustness comparisons remain disabled for classification.
+      The PREDICT DAT file contains all the metrics used to perform the different diagnostics.
 
       |br|
 
@@ -458,7 +442,7 @@ CheckML score
 
             .. warning::
                In this context, a published model may still be useful for its intended application even when weak scores or
-               warnings are obtained. For example, a model may receive a poor extrapolatin score, but it could still be
+               warnings are obtained. For example, a model may receive a poor extrapolation score, but it could still be
                useful if it is intended to cover only a well-defined region of the data space. Therefore, a low score should
                not necessarily be interpreted as evidence that a model is unusable; rather, it should prompt the authors to
                assess whether the identified limitation is relevant to the intended application and to provide an

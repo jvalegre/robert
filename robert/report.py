@@ -849,19 +849,21 @@ class report:
         # what to do with flagged rows, right after the results; the Pass/Unclear/Warning
         # thresholds are in the linked documentation
         influence += (
-            '<div style="margin-top:4px;"><strong>Unclear or Warning:</strong> do not use that sub-score, '
-            'and check that aspect of your model with your own analyses. '
+            '<div style="margin-top:4px;"><strong>Unclear:</strong> potentially unreliable, use sub-score with caution.'
+            '<br><strong>Warning:</strong> unreliable sub-score, do not use it.'
+            '<br>In both cases, further assess that aspect of your model using your own analyses. More '
             '<a href="https://robert.readthedocs.io/en/latest/Report/score.html#cv-test-split-diagnostic">'
-            'Thresholds and details here.</a></div>'
+            'details here.</a></div>'
         )
         disclaimer = (
             '<u>Scores reflect your model, not an exact copy</u>'
             '<br>CheckML retrains your model with standardized (not user-defined) splits '
-            'and CV, so scores closely reflect, but do not exactly match, its performance.'
+            'and CV, so scores closely reflect, but do not exactly match, its performance. More '
+            '<a href="https://robert.readthedocs.io/en/latest/Report/score.html#protocols-followed-by-checkml">details here</a>.'
             '<br><u>Scores are indicative</u>'
             '<br>A low score does not make a model unusable: assess whether the limitation '
-            'matters for its intended use. See '
-            '<a href="https://robert.readthedocs.io/en/latest/Report/score.html#overview-and-considerations">the documentation</a>.'
+            'matters for its intended use. More '
+            '<a href="https://robert.readthedocs.io/en/latest/Report/score.html#overview-and-considerations">details here</a>.'
         )
         # Regression's notes sit just below the boundary score rows. Classification
         # has no such rows, and its taller plot can push this block to a new page;

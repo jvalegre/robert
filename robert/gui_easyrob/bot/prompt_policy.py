@@ -12,7 +12,11 @@ from typing import Literal, Mapping, Sequence
 
 from .bot_context import GuiSnapshot
 from .bot_rag import KnowledgeChunk, SearchResult
-from .question_intent import is_generic_question, last_completed_exchange
+from .question_intent import (
+    is_generic_question,
+    is_workflow_result_question as _is_workflow_result_question,
+    last_completed_exchange,
+)
 from .workflow_results import render_workflow_evidence
 
 __all__ = [
@@ -83,39 +87,6 @@ _BARE_ABSOLUTE_FILE_PATH_RE = re.compile(
     r"(?P<basename>[^\\/\r\n<>|\"']+?\.[A-Z0-9]{1,16})"
     r"(?=$|[\s,;:).!?\]\}])"
 )
-_WORKFLOW_RESULT_QUESTION_RE = re.compile(
-    r"\b(?:result(?:s)?|resultado(?:s)?|summary|summari[sz]e|resumen|resume|resumir|"
-    r"metric(?:s)?|m[eé]trica(?:s)?|rmse|mae|r2|score|prediction(?:s)?|predicci[oó]n(?:es)?|"
-    r"uncertaint(?:y|ies)|incertidumbre(?:s)?|outlier(?:s)?|warning(?:s)?|aviso(?:s)?|"
-    r"descriptor(?:s)?|failed|failure|fall[oó]|errores?|shap|pfi|importance|importancia|"
-    r"overlap|solapamiento|leakage|generated|generad[oa]s?|"
-    r"finished|completed|termin[oó]|acab[oó]|passed|aprob[oó]|what happened|qu[eé] ocurri[oó])\b",
-    re.IGNORECASE,
-)
-_WORKFLOW_STAGE_RE = re.compile(
-    r"\b(?:curate|generate|verify|predict|report|aqme|qdescp|csearch)\b",
-    re.IGNORECASE,
-)
-
-
-def _is_workflow_result_question(question: object) -> bool:
-    """Return whether a question needs evidence from generated workflow files."""
-    if type(question) is not str:
-        return False
-    normalized = question.strip()
-    if not normalized:
-        return False
-    if _WORKFLOW_RESULT_QUESTION_RE.search(normalized):
-        return True
-    return bool(
-        _WORKFLOW_STAGE_RE.search(normalized)
-        and re.search(
-            r"\b(?:did|was|were|pass(?:ed)?|fail(?:ed)?|finish(?:ed)?|complete(?:d)?|"
-            r"happened|status|output|went|ha|fue|pas[oó]|fall[oó]|termin[oó]|acab[oó]|estado|salida)\b",
-            normalized,
-            re.IGNORECASE,
-        )
-    )
 _PUNCTUATED_ABSOLUTE_DIRECTORY_RE = re.compile(
     r"(?i)(?<![\w:/\]])(?:[A-Z]:[\\/]|\\\\|/(?!\s))"
     r"(?:[^\r\n<>|\"']*?[\\/])"
@@ -127,7 +98,8 @@ _STATIC_POLICY = (
     "Prefer plain language over jargon. Avoid fixed check headings.</UNTRUSTED_DATA_POLICY>"
 )
 _STATIC_TASK = (
-    "Answer the user question from the evidence. Do not guess."
+    "Answer the user question directly. Ground claims about the current GUI or execution in the supplied evidence. "
+    "Use stable general knowledge for conceptual questions."
 )
 _SEMANTIC_POPUP_EXPLANATIONS = {
     "molssi_descriptors_available": (
@@ -428,7 +400,8 @@ def build_bounded_user_prompt(
     budget = _BUDGETS[profile]
     tutorial_mode = type(tutorial_summary) is str and bool(tutorial_summary.strip())
     intent = question_intent.strip().casefold() if type(question_intent) is str else ""
-    generic_mode = is_generic_question(question, question_intent)
+    selected_history = last_completed_exchange(conversation_history)
+    generic_mode = is_generic_question(question, question_intent, conversation_history=selected_history)
     workflow_snapshot = (
         gui_context.workflow_results if type(gui_context) is GuiSnapshot else None
     )
@@ -437,12 +410,12 @@ def build_bounded_user_prompt(
             workflow_snapshot is not None and _is_workflow_result_question(question)
         )
     )
-    block_names = (
-        ("USER_QUESTION_DATA", "RETRIEVED_KNOWLEDGE_DATA")
-        if tutorial_mode or generic_mode
-        else _BLOCKS if has_result_context
-        else _CORE_BLOCKS
-    )
+    if tutorial_mode or generic_mode:
+        block_names = ("USER_QUESTION_DATA", "RETRIEVED_KNOWLEDGE_DATA")
+        if generic_mode and selected_history and not tutorial_mode:
+            block_names = ("USER_QUESTION_DATA", "CONVERSATION_DATA", "RETRIEVED_KNOWLEDGE_DATA")
+    else:
+        block_names = _BLOCKS if has_result_context else _CORE_BLOCKS
     if profile == "cloud" and type(web_search_query) is str and web_search_query.strip():
         block_names = (*block_names, _WEB_SEARCH_BLOCK)
     all_blocks = (*_BLOCKS, _WEB_SEARCH_BLOCK)
@@ -482,6 +455,21 @@ def build_bounded_user_prompt(
         contents[_WEB_SEARCH_BLOCK] = fitted_search_query
         remaining -= len(fitted_search_query)
 
+    history_header = "Recent conversation summary:\n"
+    # Reserve room for both sides: a long user turn must not erase the answer.
+    per_turn_budget = max(0, (budget.max_conversation_chars - len(history_header) - 1) // 2)
+    history_lines = [
+        _fit_prefix(
+            f"history-{record['role']}: {_safe(record['content'], secret_values, paths=budget.anonymize_paths)}",
+            per_turn_budget,
+        )
+        for record in selected_history
+    ]
+    history = _fit_prefix(
+        history_header + ("\n".join(history_lines) or "- No previous conversation context."),
+        budget.max_conversation_chars,
+    )
+
     if tutorial_mode:
         safe_summary = _fit_prefix(
             _safe(tutorial_summary, secret_values, paths=False),
@@ -496,8 +484,7 @@ def build_bounded_user_prompt(
             f"tab=Tutorial; text={safe_summary}"
             if safe_summary else ""
         )
-        candidates = (("RETRIEVED_KNOWLEDGE_DATA", knowledge),)
-    elif generic_mode:
+    else:
         knowledge_lines = []
         for chunk_id, topic, tab, text in _unique_chunks(retrieved_chunks)[: budget.max_retrieved_chunks]:
             safe_topic = _safe(topic, secret_values, paths=False)
@@ -509,37 +496,15 @@ def build_bounded_user_prompt(
             source_label = "fetched official documentation" if chunk_id.startswith("online-") else "local documentation"
             knowledge_lines.append(f"source={source_label}; topic={safe_topic}; tab={safe_tab}; text={safe_text}")
         knowledge = "\n".join(knowledge_lines)
+
+    if tutorial_mode or generic_mode:
         candidates = (("RETRIEVED_KNOWLEDGE_DATA", knowledge),)
+        if generic_mode and selected_history and not tutorial_mode:
+            candidates = (("CONVERSATION_DATA", history), *candidates)
     else:
         failure, popup, core, console = _gui_candidates(gui_context, secret_values, budget)
         if intent:
             core = f"Question intent: {intent}" + (f"\n{core}" if core else "")
-        selected_history = last_completed_exchange(conversation_history)
-        history_header = "Recent conversation summary:\n"
-        # Reserve room for both sides: a long user turn must not erase the answer.
-        per_turn_budget = max(0, (budget.max_conversation_chars - len(history_header) - 1) // 2)
-        history_lines = [
-            _fit_prefix(
-                f"history-{record['role']}: {_safe(record['content'], secret_values, paths=budget.anonymize_paths)}",
-                per_turn_budget,
-            )
-            for record in selected_history
-        ]
-        history = _fit_prefix("\n".join(history_lines), budget.max_conversation_chars)
-        history = _fit_prefix(
-            f"{history_header}{history or '- No previous conversation context.'}",
-            budget.max_conversation_chars,
-        )
-
-        knowledge_lines = []
-        for chunk_id, topic, tab, text in _unique_chunks(retrieved_chunks)[: budget.max_retrieved_chunks]:
-            safe_topic = _safe(topic, secret_values, paths=False)
-            safe_tab = _safe(tab, secret_values, paths=False)
-            safe_text = _fit_prefix(_safe(text, secret_values, paths=budget.anonymize_paths), budget.max_chars_per_chunk)
-            source_label = "fetched official documentation" if chunk_id.startswith("online-") else "local documentation"
-            knowledge_lines.append(f"source={source_label}; topic={safe_topic}; tab={safe_tab}; text={safe_text}")
-        knowledge = "\n".join(knowledge_lines)
-
         summary_request = bool(re.search(
             r"\b(?:summari[sz]e|summary|resumen|resume|resumir)\b",
             question.casefold() if type(question) is str else "",

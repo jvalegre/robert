@@ -1386,7 +1386,9 @@ class report:
 
         # CV-Test Split Diagnostic: this model's results (same as Section A) next to what each
         # status means for the sub-scores
-        icon_dir = f'file:///{self._posix_uri(self.args.path_icons)}'
+        # (same fallback as section_a_callouts(): the packaged icons when args has no path_icons)
+        path_icons = getattr(self.args, 'path_icons', None) or Path(__file__).resolve().parent / 'report'
+        icon_dir = f'file:///{self._posix_uri(path_icons)}'
         metric_name, diag_missing, diag_rows = self.cv_test_diagnostic(data_score,suffix,pred_type)
         if diag_missing:
             diag_results = f'<div style="color:{muted};">Rerun PREDICT to calculate the missing full-data or partition CV metrics.</div>'

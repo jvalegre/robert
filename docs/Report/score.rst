@@ -48,9 +48,10 @@ CheckML score
 
       **Considerations when using CheckML**
 
-      * **User-defined train/test splits are not allowed.** The CheckML score requires the standardized
+      * **User-defined train/test splits do not receive a score.** The CheckML score requires the standardized
         splitting and CV procedure described in the **Protocols followed by CheckML** tab to keep evaluations
-        comparable.
+        comparable. A user-defined test set can still be analyzed, but the report will not include a score
+        (see the **Model evaluation with user-defined data partitions** tab).
       * **CheckML scores are indicative.** Scores are guides rather than rigid thresholds of model quality
         or usefulness; their interpretation depends on the intended application. Review the underlying metrics
         and diagnostic alerts alongside the scores. Before interpreting a report, read the protocol and scoring
@@ -77,7 +78,7 @@ CheckML score
       the data are used for cross-validation (CV), while the remaining 20% (or a minimum of four data points)
       are reserved as an independent test set.
 
-      CheckML uses 10-times repreated 5-fold CV (10x 5-fold CV) as part of its evaluation protocol.
+      CheckML uses 10-times repeated 5-fold CV (10x 5-fold CV) as part of its evaluation protocol.
       Importantly, alternative CV strategies have been explored in the literature, including 
       5x 2-fold, 2x 5-fold, and 1x 10-fold CV, among many others. Although alternative CV strategies 
       may also be valid, we selected 10x 5-fold CV because it is a well-established approach widely 
@@ -94,6 +95,69 @@ CheckML score
 
       After this initial splitting, different ROBERT routines are applied to evaluate the
       model as explained in the following sections.
+
+      |br|
+
+   .. tab-item:: Model evaluation with user-defined data partitions
+
+      A central motivation for using repeated CV is that performance derived from a single user-defined
+      train/test split can be highly sensitive to the selected partition, especially in low-data scenarios.
+      To avoid this dependence, CheckML evaluates models using its own standardized data partitions,
+      independently of any train/test splits originally defined by the user. The figure below illustrates
+      this issue using the same overall dataset and the same linear regression algorithm.
+
+      .. figure:: images/user_partitions.png
+         :width: 100%
+         :align: center
+
+      *Example illustrating how different train/test partitions of the same dataset can lead to misleading*
+      *conclusions about model performance. Each partition contains 22 training points and 6 test points,*
+      *with separate linear regression models fitted to each training set. The linear equations show scaled*
+      *coefficients to facilitate comparison of feature importance. The two descriptors exhibit limited*
+      *correlation (R*\ :sup:`2` *= 0.32), minimizing the risk of misleading feature selection due to collinearity.*
+
+      Models A and B have similar train and test R\ :sup:`2` and RMSE values, and would therefore appear
+      comparably successful if judged using conventional approaches. However, the models suggest markedly
+      different interpretations of the same problem. In Model A, the fitted relationship is dominated by
+      descriptor x\ :sub:`1`, whereas in Model B it is dominated by x\ :sub:`2`. In a chemistry context, such
+      differences could translate into substantially different conclusions regarding which molecular property
+      is most relevant for the target problem. At the same time, Model C shows that a different partition of
+      the same dataset can yield clearly worse performance in both training and test sets.
+
+      Therefore, even when a model appears reliable, its reported performance may not reflect its behavior
+      across alternative data partitions. Relying on a single user-defined split can thus be misleading,
+      whereas repeated CV provides a more robust and representative assessment. Nevertheless, authors may
+      still report results from user-defined splits, using the CheckML scores and warnings to assess potential
+      limitations in model reliability and interpretation. When such limitations are identified, authors
+      should provide additional evidence or justification to support the model's reliability beyond the
+      selected partition and, when relevant, the consistency of conclusions drawn from feature analysis.
+
+      **Analyzing your own test set (no score)**
+
+      To obtain the CheckML score, upload the CSV **without** any partition information (see
+      :doc:`checkml_database`). If you also want to see how your own train/test split behaves, run CheckML
+      a second time with an extra column named ``Set``:
+
+      * Rows with the value ``Test`` (case-insensitive) are held out as the test set.
+      * All the other rows (e.g. ``Training``) are used for the 10x 5-fold CV.
+
+      .. csv-table::
+         :header-rows: 1
+
+         "Molecule_name", "Target_property", "descriptor_1", "descriptor_2", "Set"
+         "molecule_1", "1.25", "0.41", "2.7", "Training"
+         "molecule_2", "0.82", "0.36", "1.9", "Test"
+         "molecule_3", "0.98", "0.46", "1.7", "Training"
+
+      The PDF report of that run includes all the analyses (metrics, plots, warnings), but **no CheckML
+      score**: the score bars are grayed out and marked as not available, because the score is calibrated
+      for the standardized split. The same applies to the command-line ``--split`` option of ROBERT's
+      CHECKML module: any value other than the default (``auto``, i.e. EVEN for regression and STRATIFIED
+      for classification) gives a report without a score.
+
+      .. note::
+         CSV files produced by ROBERT (e.g. ``*_db.csv``) already contain a ``Set`` column. Remove it before
+         uploading the file to CheckML if you want to obtain a score.
 
       |br|
 
@@ -393,14 +457,15 @@ CheckML score
         could adversely affect model performance. See below.
 
       For each regression or classification model, PREDICT also uses 10x 5-fold
-      CV on the full internal dataset (the 80% CV pool plus the 20% test pool). The report's
-       **CV-Test Split Diagnostic** box compares this full-data baseline with
-      CV RMSEs from the four CV pools used in CheckML: the interpolation CV pool, 
+      CV on the full internal dataset (the 80% CV pool plus the 20% test pool). For regression, the
+      report's **CV-Test Split Diagnostic** box compares this full-data baseline with
+      CV RMSEs from the four CV pools used in CheckML: the interpolation CV pool,
       the bottom 80% remaining after holding out high-y points, the top 80% remaining after holding out
-      low-y points, and the 80% remaining after holding out high-leverage points.
-      
+      low-y points, and the 80% remaining after holding out high-leverage points. For classification,
+      only the interpolation CV pool is compared, using the MCC instead of the RMSE.
+
       Each absolute percentage difference is
-      ``abs((CV RMSE / full-data CV RMSE) - 1) * 100``. Differences up to 15% show **Pass** (small 
+      ``abs((CV RMSE / full-data CV RMSE) - 1) * 100`` (or the same with MCC). Differences up to 15% show **Pass** (small
       differences between CV and full-data CV), above 15% through 30% show **Unclear**, and above 
       30% show **Warning**. These indicators do not change the CheckML scores, but indicate whether
       the four different sub-scores can be reliably used for analyzing the model.
@@ -491,7 +556,8 @@ CheckML score
                   The penalties are summed across applicable tests. Tests marked N/A are skipped; when the original
                   CV score is zero, the test status is still reported but no relative penalty can be calculated.
 
-                  The following examples might help clarify these points:
+                  The following examples show how the degradation is measured (the % above each bar is the
+                  relative change of each "flawed" model with respect to the original CV result):
 
                   .. figure:: images/reg_verify.jpg
                      :width: 400
@@ -512,37 +578,60 @@ CheckML score
                   * **Section 2. CV predictions of the model:** evaluates predictions made during cross-validation.
                   * **Section 3. Test set predictions:** applies the same assessment to the independent test set.
 
-                  For regression, the scaled RMSE score is combined with an R\ :sup:`2` penalty and the result is
-                  floored at zero. Classification uses MCC on the same 0-2 scale.
+                  For regression, each section starts from a scaled RMSE score (0 to 2 points) and adds a penalty
+                  (0 to -2) based on R\ :sup:`2`; the result is floored at zero. Classification uses MCC on the same
+                  0-2 scale.
 
-                  **How R**\ :sup:`2` **is calculated.** R\ :sup:`2` is the coefficient of determination of the
-                  predictions themselves, R\ :sup:`2` = 1 − SS\ :sub:`res`/SS\ :sub:`tot` (scikit-learn's
-                  ``r2_score``), i.e. it measures the distance of the points to the y = x line, like the RMSE.
-                  It is **not** the squared Pearson correlation between observed and predicted values, which
-                  measures the distance to a regression line fitted through the points: that line absorbs any bias
-                  or scale error of the predictions, so the squared correlation is always equal to or higher than
-                  the real R\ :sup:`2` and can be high even for clearly wrong predictions. ROBERT follows the
-                  recommendation of `Alexander, Tropsha and Winkler <https://doi.org/10.1021/acs.jcim.5b00206>`__
+                  **Which R**\ :sup:`2` **does ROBERT use?** The coefficient of determination of the predictions
+                  (scikit-learn's ``r2_score``):
+
+                  .. math::
+
+                     R^2 = 1 - \frac{\sum_i (y_i - \hat{y}_i)^2}{\sum_i (y_i - \bar{y})^2}
+
+                  In words, it compares the error of the model's predictions (numerator) with the error of simply
+                  predicting the mean value of y for every point (denominator):
+
+                  * R\ :sup:`2` = 1: perfect predictions (all points on the y = x line).
+                  * R\ :sup:`2` = 0: the model is no better than predicting the mean.
+                  * R\ :sup:`2` < 0: the model is worse than predicting the mean.
+
+                  This is **not** the squared Pearson correlation (r\ :sup:`2`) between measured and predicted
+                  values, which only checks whether the points lie on *some* straight line, not on the y = x line.
+                  For example, a model whose predictions are always exactly twice the real values has
+                  r\ :sup:`2` = 1, although every prediction is wrong; its R\ :sup:`2` is low, as it should be.
+                  ROBERT follows `Alexander, Tropsha and Winkler <https://doi.org/10.1021/acs.jcim.5b00206>`__
                   (*J. Chem. Inf. Model.* 2015, 55, 1316): *"the value of R*\ :sup:`2` *should be calculated for the
-                  test data using Equation 1, not from a regression of observed on predicted values"*. With this
-                  definition R\ :sup:`2` can be negative, meaning that the predictions are worse than predicting the
-                  mean of the set.
+                  test data using Equation 1, not from a regression of observed on predicted values"*.
 
-                  **Q**\ :sup:`2` **(Section 2).** The same R\ :sup:`2` computed on the cross-validated (out-of-fold)
-                  predictions is reported as Q\ :sup:`2` = 1 − PRESS/SS, the usual name in QSAR/QSPR modeling.
-                  ROBERT pools the out-of-fold predictions of the 10 repetitions of the 5-fold CV, which is exactly
-                  the average of the Q\ :sup:`2` of each repetition.
+                  **Q**\ :sup:`2` **and R**\ :sup:`2`: **same formula, different predictions.** In QSAR/QSPR
+                  modeling, the R\ :sup:`2` calculated on cross-validated predictions is called Q\ :sup:`2`. ROBERT
+                  keeps this convention, so the only difference between the two is the set of predictions used:
 
-                  **R**\ :sup:`2` **(Section 3, test set).** The test set uses the same formula, with the test
-                  observations and their own mean, as recommended by Alexander *et al.* (the most conservative choice).
-                  Keep in mind that the test set has only 4-9 points in low-data sets and the even split keeps the most
-                  extreme y values in training, so the test R\ :sup:`2` tends to be lower than the CV Q\ :sup:`2` for the
-                  same prediction error; the scaled RMSE (Section 3) and the CV vs test comparison (Section 5) put it
-                  in context.
+                  .. list-table::
+                     :header-rows: 1
+                     :widths: 18 12 70
 
-                  Sections 2 and 3 use the same penalty thresholds below: Alexander *et al.* consider a test
-                  R\ :sup:`2` > 0.6 as good (here, a 1-point penalty), and values ≥ 0.8 match the scaled RMSE that
-                  already gets full points (around 10% of the y range).
+                     * - Section
+                       - Name
+                       - Predictions used in the formula
+                     * - 2. CV predictions
+                       - Q\ :sup:`2`
+                       - Out-of-fold predictions of the 10x 5-fold CV (each point is predicted by models that did
+                         not see it during training), pooled over the 10 repetitions. This equals the average
+                         Q\ :sup:`2` of the individual repetitions.
+                     * - 3. Test set
+                       - R\ :sup:`2`
+                       - Predictions of the test set, using the mean of the test values as :math:`\bar{y}`.
+
+                  The test R\ :sup:`2` is usually lower than the CV Q\ :sup:`2` for a similar prediction error:
+                  in low-data sets the test set has only 4-9 points and the even split keeps the most extreme
+                  y values in training, so the denominator (the spread of the test values) is small. The scaled RMSE
+                  (Section 3) and the CV vs test comparison (Section 5) put this value in context.
+
+                  Both sections use the same penalty thresholds (table below). Alexander *et al.* consider a test
+                  R\ :sup:`2` > 0.6 as good (here, a 1-point penalty), and values ≥ 0.8 correspond to the scaled RMSE
+                  that already gets full points (around 10% of the y range).
 
                   ============ ================================================================
                   Score        Scaled RMSE (regression)
@@ -674,10 +763,11 @@ CheckML score
                      :align: center
 
 
-                  *Real (a) test-set and (b) train/validation SD plots from an actual ROBERT v2.2.0 report — facet (c),*
+                  *Real (a) test-set and (b) train/validation SD plots from an actual ROBERT report — facet (c),*
                   *RMSE coefficient of variation, is a single number and isn't plotted.*
 
-                  The examples below illustrate facet (a), the test-set stability check, in more detail:
+                  The examples below illustrate how facet (a), the test-set stability check, is measured
+                  (see the table above for the corresponding scores):
 
                   .. figure:: images/sd_explain.jpg
                      :width: 400
@@ -788,7 +878,7 @@ CheckML score
                      :align: center
 
 
-                  *Real Low/High fold scatter plots from an actual ROBERT v2.2.0 report — this is what Section B of the*
+                  *Real Low/High fold scatter plots from an actual ROBERT report — this is what Section B of the*
                   *PDF actually shows for components 1a and 2a.*
 
                .. tab-item:: 1b and 2b Spearman rank
@@ -836,12 +926,12 @@ CheckML score
                   model can't hide a badly-degraded boundary behind a fine-looking interior.
 
                   .. figure:: images/degradation_ratio_diagram.svg
-                     :width: 560
+                     :width: 420
                      :align: center
 
 
                   *Reported in the PDF as e.g.* ``Degradation vs 80% RMSE: High 1.65x, Low 1.61x`` *— both sides scored*
-                  *independently against the same 1.5x line, so one badly-degraded side can't hide behind a fine one.*
+                  *independently, so one badly-degraded side can't hide behind a fine one.*
 
                   Each fold receives up to 1 point: its score is 1 at ratios up to 1.5x, then decreases linearly to
                   0 at 1.75x.
@@ -878,7 +968,7 @@ CheckML score
                      :align: center
 
 
-                  *Real output from an actual ROBERT v2.2.0 report: the applicability-domain scatter (left) and the*
+                  *Real output from an actual ROBERT report: the applicability-domain scatter (left) and the*
                   *Williams plot itself — leverage on the x-axis, standardized residual on the y-axis, with the*
                   *h\* threshold marked as a vertical dashed line (right).*
 

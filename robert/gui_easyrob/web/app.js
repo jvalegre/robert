@@ -423,29 +423,6 @@
     });
   }
 
-  function renderCheckmlColumns(columns) {
-    const container = document.getElementById("checkml-columns");
-    const signature = JSON.stringify(columns);
-    if (container.dataset.snapshot === signature) return;
-    container.dataset.snapshot = signature;
-    container.replaceChildren();
-    if (!columns.length) {
-      const empty = document.createElement("span");
-      empty.className = "column-placeholder";
-      empty.textContent = "Choose an input CSV first";
-      container.appendChild(empty);
-    }
-    for (const column of columns) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `column-chip ${column.ignored ? "restore" : ""}`;
-      button.dataset.action = "toggleCheckmlIgnore";
-      button.dataset.value = column.name;
-      button.textContent = `${column.ignored ? "✓ " : "○ "}${column.name}`;
-      container.appendChild(button);
-    }
-  }
-
   function renderResults(results) {
     window.easyrobResults.render(results);
     const gallery = document.getElementById("embedded-gallery");
@@ -579,7 +556,6 @@
     document.getElementById("ignored-count").textContent = state.columns.ignored.length;
     renderColumns("available-columns", state.columns.available, "ignore");
     renderColumns("ignored-columns", state.columns.ignored, "restore");
-    renderCheckmlColumns(state.checkmlColumns);
     renderMolecule(state.molecule);
     renderBot(state.bot);
     renderProgress(state.progressStates || [], state.aqmeProgress || "inactive");

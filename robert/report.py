@@ -549,9 +549,20 @@ class report:
         # the score was calibrated for, even if it happens to have ~20% of the points (in which
         # case the size check in calc_score() alone would still give a score)
         path_eval_log = Path(f'{os.getcwd()}/CHECKML/CHECKML_data.dat')
-        if path_eval_log.exists() and "Using the 'Set' column" in path_eval_log.read_text(encoding='utf-8'):
+        eval_txt = path_eval_log.read_text(encoding='utf-8') if path_eval_log.exists() else ''
+        if "Using the 'Set' column" in eval_txt:
             data_score[f'score_available_{suffix}'] = False
             data_score[f'score_unavailable_reason_{suffix}'] = 'user_set'
+        # same for a CheckML run with a non-standard --split (RND, KN, EXTRA_Q1/Q5, or STRATIFIED
+        # in regression): the score is calibrated for the EVEN split (regression) or STRATIFIED
+        # split (classification), even if the test set has the standard ~20% size. A test-size
+        # or CV problem found by calc_score() keeps priority in the message
+        elif data_score.get(f'score_available_{suffix}', True):
+            split_line = re.search(r'Before (?:the CheckML evaluation|hyperoptimization), (.*)', eval_txt)
+            standard_split = 'an even distribution' if pred_type == 'reg' else 'a stratified distribution'
+            if split_line and standard_split not in split_line.group(1):
+                data_score[f'score_available_{suffix}'] = False
+                data_score[f'score_unavailable_reason_{suffix}'] = 'split'
 
         # the score's thresholds were calibrated assuming the standard test_set=0.2 split (see
         # calc_score()/get_predict_scores() for how score_available is derived, and the note in
@@ -579,7 +590,10 @@ class report:
                 cv_type = data_score.get(f'cv_type_{suffix}', '')
                 reason_txt = f"this model used {cv_type} instead of the standard 10x repeated 5-fold CV the CheckML score was calibrated for. If you want a score, use the default --kfold 5 --repeat_kfolds 10"
             elif reason == 'user_set':
-                reason_txt = "the test set was chosen by the user (Set column) instead of CheckML's systematic ~20% split the CheckML score was calibrated for. If you want a score, remove the Set column"
+                reason_txt = "the test set was chosen by the user (Set column) instead of CheckML's systematic ~20% split the CheckML score was calibrated for. If you want a score, remove the Set column from the CSV and run CheckML again"
+            elif reason == 'split':
+                std_split = 'EVEN' if pred_type == 'reg' else 'STRATIFIED'
+                reason_txt = f"the test set was selected with a non-standard split method instead of the {std_split} split the CheckML score was calibrated for. If you want a score, use the default --split auto"
             else:
                 n_test = data_score.get(f'n_test_{suffix}')
                 reason_txt = f"this model's test set has {n_test} point(s), not the standard ~20% split the CheckML score was calibrated for. If you want a score, use the default --test_set 0.2"
@@ -785,17 +799,13 @@ class report:
 
 
     @staticmethod
-    def section_a_callouts(data_score,suffix,pred_type='reg',path_icons=None):
-        """Build the explanatory callouts shown beneath the right-column score details."""
-
-        icon_dir = Path(path_icons or Path(__file__).resolve().parent / 'report').resolve().as_uri()
-
-        # separate boxes (full thin border) to the right of the central column rule, instead
-        # of a thick left stripe that doubled as the rule
-        def card(title,content,margin_top=8):
-            return f'''<div style="box-sizing:border-box; background:#f2f2f2; border:1px solid #c8c8c8; border-radius:4px; padding:4px 8px 5px 8px; margin:{margin_top}px 0 5px 10px; color:#222222; page-break-inside:avoid;">
-<div style="font-size:10.5px; font-weight:bold; letter-spacing:0.3px; color:#000000;">{title}</div>
-<div style="font-size:10.5px; line-height:1.25;">{content}</div></div>'''
+    def cv_test_diagnostic(data_score,suffix,pred_type='reg'):
+        """
+        Results of the CV-Test Split Diagnostic (CV metric with 80% vs. 100% of the data), shared by
+        Section A (page 1) and the results summary (page 2). Returns (metric_name, missing, rows), where
+        missing flags absent full-data/partition metrics and each row is
+        (status, icon_file, foreground, label, value).
+        """
         if pred_type == 'reg':
             metric_name, baseline_key = 'CV RMSE', 'rmse'
             comparisons = (
@@ -807,15 +817,9 @@ class report:
         else:
             metric_name, baseline_key = 'MCC', 'mcc'
             comparisons = (('cv', 'Interpolation'),)
-        # "Unclear"/"Warning": the flagged sub-score must not be used, AND the user has to check
-        # that aspect of the model with their own analyses (a flag is not an excuse to skip it)
-        influence = (
-            'Effect of holding out 20% of the data as a test set '
-            f'({metric_name} with 80% vs. 100% of the data).'
-            f'<br><u>{metric_name} difference vs. full-data CV:</u>')
-        if (data_score.get(f'{baseline_key}_full_{suffix}') is None
-                or any(data_score.get(f'full_cv_diff_{metric}_{suffix}') is None for metric, _ in comparisons)):
-            influence = 'Rerun PREDICT to calculate the missing full-data or partition CV metrics.'
+        missing = (data_score.get(f'{baseline_key}_full_{suffix}') is None
+                   or any(data_score.get(f'full_cv_diff_{metric}_{suffix}') is None for metric, _ in comparisons))
+        rows = []
         for metric, label in comparisons:
             difference = data_score.get(f'full_cv_diff_{metric}_{suffix}')
             if difference is None or math.isnan(difference):
@@ -831,16 +835,43 @@ class report:
                 else:
                     status, icon_file, foreground = 'Warning', 'checkml_warning.svg', '#a02828'
                 value = f'{difference:.1f}%' if math.isfinite(difference) else 'unbounded'
-            # Load the packaged vectors from the same local folder as the other
-            # report icons; no network access or symbol fonts are needed.
-            if icon_file is not None:
-                icon = (
-                    f'<img src="{icon_dir}/{icon_file}" alt="" '
-                    'style="width:10px; height:10px; min-width:10px; max-width:10px; '
-                    'margin:0; vertical-align:middle;"/>'
-                )
-            else:
-                icon = '<span style="display:inline-block; width:10px; text-align:center;">&minus;</span>'
+            rows.append((status, icon_file, foreground, label, value))
+        return metric_name, missing, rows
+
+
+    @staticmethod
+    def diagnostic_icon(icon_dir,icon_file,size=10):
+        """Packaged Pass/Unclear/Warning vector icon (or a dash for N/A), no network or symbol fonts needed."""
+        if icon_file is None:
+            return f'<span style="display:inline-block; width:{size}px; text-align:center;">&minus;</span>'
+        return (f'<img src="{icon_dir}/{icon_file}" alt="" '
+                f'style="width:{size}px; height:{size}px; min-width:{size}px; max-width:{size}px; '
+                'margin:0; vertical-align:middle;"/>')
+
+
+    @staticmethod
+    def section_a_callouts(data_score,suffix,pred_type='reg',path_icons=None):
+        """Build the explanatory callouts shown beneath the right-column score details."""
+
+        icon_dir = Path(path_icons or Path(__file__).resolve().parent / 'report').resolve().as_uri()
+
+        # separate boxes (full thin border) to the right of the central column rule, instead
+        # of a thick left stripe that doubled as the rule
+        def card(title,content,margin_top=8):
+            return f'''<div style="box-sizing:border-box; background:#f2f2f2; border:1px solid #c8c8c8; border-radius:4px; padding:4px 8px 5px 8px; margin:{margin_top}px 0 5px 10px; color:#222222; page-break-inside:avoid;">
+<div style="font-size:10.5px; font-weight:bold; letter-spacing:0.3px; color:#000000;">{title}</div>
+<div style="font-size:10.5px; line-height:1.25;">{content}</div></div>'''
+        metric_name, missing, diag_rows = report.cv_test_diagnostic(data_score,suffix,pred_type)
+        # "Unclear"/"Warning": the flagged sub-score must not be used, AND the user has to check
+        # that aspect of the model with their own analyses (a flag is not an excuse to skip it)
+        influence = (
+            'Effect of holding out 20% of the data as a test set '
+            f'({metric_name} with 80% vs. 100% of the data).'
+            f'<br><u>{metric_name} difference vs. full-data CV:</u>')
+        if missing:
+            influence = 'Rerun PREDICT to calculate the missing full-data or partition CV metrics.'
+        for status, icon_file, foreground, label, value in diag_rows:
+            icon = report.diagnostic_icon(icon_dir,icon_file)
             influence += (
                 f'<div style="color:{foreground}; '
                 f'padding:1px 4px; margin-top:2px;">{icon} <strong>{status}</strong>'
@@ -1353,6 +1384,38 @@ class report:
         section_title = lambda txt: f'<p style="font-weight:bold; color:{navy}; font-size:14px; margin:12px 0 5px 0;">{txt}</p>'
         problem_txt = 'Regression' if pred_type == 'reg' else 'Classification'
 
+        # CV-Test Split Diagnostic: this model's results (same as Section A) next to what each
+        # status means for the sub-scores
+        icon_dir = f'file:///{self._posix_uri(self.args.path_icons)}'
+        metric_name, diag_missing, diag_rows = self.cv_test_diagnostic(data_score,suffix,pred_type)
+        if diag_missing:
+            diag_results = f'<div style="color:{muted};">Rerun PREDICT to calculate the missing full-data or partition CV metrics.</div>'
+        else:
+            diag_results = f'<div style="color:{muted}; margin-bottom:2px;">{metric_name} difference vs. full-data CV:</div>'
+            for status, icon_file, foreground, label, value in diag_rows:
+                diag_results += (f'<div style="color:{foreground}; margin-top:1px;">{self.diagnostic_icon(icon_dir,icon_file)} '
+                                 f'<strong>{status}</strong> · {label}: {value}</div>')
+        legend_rows = (
+            ('checkml_pass.svg', '#236c32', 'Pass', 'this sub-score is reliable.'),
+            ('checkml_unclear.svg', '#806000', 'Unclear', 'potentially unreliable sub-score, use it with caution '
+             'and further assess that aspect of your model with your own analyses.'),
+            ('checkml_warning.svg', '#a02828', 'Warning', 'unreliable sub-score, do not use it and assess that '
+             'aspect of your model with your own analyses.'),
+        )
+        diag_legend = ''.join(
+            f'<div style="margin-bottom:2px;">{self.diagnostic_icon(icon_dir,icon_file)} '
+            f'<strong style="color:{foreground};">{status}:</strong> {text}</div>'
+            for icon_file, foreground, status, text in legend_rows)
+        diag_html = f'''
+{section_title('CV-Test Split Diagnostic')}
+<table style="width:100%; border-collapse:collapse; page-break-inside:avoid;"><tr>
+<td style="width:42%; vertical-align:top; padding:5px 8px; background:#f2f2f2; border:1px solid #c8c8c8; border-radius:4px; font-size:10px; line-height:1.3;">{diag_results}</td>
+<td style="width:12px; border:none;"></td>
+<td style="vertical-align:top; padding:2px 0; font-size:10px; line-height:1.3;">{diag_legend}
+<div style="color:{muted};">Effect of holding out 20% of the data as a test set. More
+<a href="https://robert.readthedocs.io/en/latest/Report/score.html#cv-test-split-diagnostic" style="color:{navy};">details here</a>.</div></td>
+</tr></table>'''
+
         # model hyperparameters, right after the evaluation setup they belong to
         hyper_html = ''
         if hyper_rows:
@@ -1398,6 +1461,7 @@ class report:
 For more information about the warnings and suggestions to fix them, please check the
 <a href="https://robert.readthedocs.io/en/latest/Report/score.html#list-of-warnings" style="color:{navy};">CheckML documentation</a>.
 </p>
+{diag_html}
 </div>'''
 
         summary += '<p style="page-break-after: always;"></p>'

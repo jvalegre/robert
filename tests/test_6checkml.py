@@ -391,6 +391,41 @@ def test_CHECKML_user_set_of_standard_size_has_no_score():
         _clean_checkml_run()
 
 
+def test_CHECKML_nonstandard_split_has_no_score():
+    """
+    A CheckML run with a non-default --split (here RND) keeps the standard ~20% test size, but
+    the score is calibrated for the EVEN split (regression), so the report shows no score.
+    """
+    _clean_checkml_run()
+
+    combined = pd.concat(
+        [pd.read_csv("tests/CheckML_train.csv"), pd.read_csv("tests/CheckML_valid.csv")],
+        ignore_index=True,
+    )
+    combined = combined.drop(columns=["Set"])  # no user-defined partition, only --split
+    combined_path = os.path.join(path_main, "test_checkml_rnd_split.csv")
+    combined.to_csv(combined_path, index=False)
+
+    try:
+        checkml(y="Target_values", names="Name", csv_name=combined_path, split="RND")
+        curate(y="Target_values", names="Name", csv_name=combined_path)
+        verify(ignore=["Set"])
+        predict(ignore=["Set"])
+        report(ignore=["Set"], debug_report=True)
+
+        with open(os.path.join(path_main, "PREDICT", "PREDICT_data.dat"), encoding="utf-8") as f:
+            assert "- Test points: 7" in f.read()
+
+        with open(os.path.join(path_main, "report_debug_No_PFI.txt"), "r", encoding="utf-8") as f:
+            debug_content = f.read()
+        assert "Score not available" in debug_content
+        assert "non-standard split method" in debug_content
+    finally:
+        if os.path.exists(combined_path):
+            os.remove(combined_path)
+        _clean_checkml_run()
+
+
 def test_score_ratio_with_zero_error_baseline():
     """
     A near-perfect fit can round an error to exactly 0.00. A nonzero error over that zero
@@ -408,9 +443,10 @@ def test_score_ratio_with_zero_error_baseline():
 
 def test_CHECKML_text_descriptor_column():
     """
-    CHECKML doesn't one-hot encode (unlike CURATE), so a text descriptor column (i.e. SMILES)
-    must stop the program with a clear message instead of failing later inside scikit-learn.
-    Ignoring that column lets it run normally.
+    CHECKML doesn't one-hot encode (unlike CURATE), so a text descriptor column must stop the
+    program with a clear message instead of failing later inside scikit-learn. A SMILES column is
+    excluded automatically, and --ignore/--discard don't exist in CHECKML (the CSV must contain
+    only the columns of the model).
     """
     import pytest
 
@@ -418,22 +454,37 @@ def test_CHECKML_text_descriptor_column():
 
     df = pd.read_csv("tests/CheckML_train.csv")
     df["smiles"] = ["C"] * len(df)
+    smiles_path = os.path.join(path_main, "test_checkml_smiles_col.csv")
+    df.to_csv(smiles_path, index=False)
+    df["solvent"] = ["water"] * len(df)
     csv_path = os.path.join(path_main, "test_checkml_text_col.csv")
     df.to_csv(csv_path, index=False)
 
     try:
+        # SMILES alone: excluded automatically, runs normally
+        checkml(y="Target_values", names="Name", csv_name=smiles_path)
+        assert os.path.exists(os.path.join(path_main, "GENERATE", "Best_model", "No_PFI", "MVL.csv"))
+
+        # any other text column stops the run
+        _clean_checkml_run()
         with pytest.raises(SystemExit):
             checkml(y="Target_values", names="Name", csv_name=csv_path)
         with open(os.path.join(path_main, "CHECKML", "CHECKML_data.dat"), encoding="utf-8") as f:
             assert "contain text" in f.read()
         assert not os.path.exists(os.path.join(path_main, "GENERATE"))
 
-        _clean_checkml_run()
-        checkml(y="Target_values", names="Name", csv_name=csv_path, ignore=["smiles"])
-        assert os.path.exists(os.path.join(path_main, "GENERATE", "Best_model", "No_PFI", "MVL.csv"))
+        # and it can't be ignored: --ignore/--discard are rejected
+        for option in ("ignore", "discard"):
+            _clean_checkml_run()
+            with pytest.raises(SystemExit):
+                checkml(y="Target_values", names="Name", csv_name=csv_path, **{option: ["solvent"]})
+            with open(os.path.join(path_main, "CHECKML", "CHECKML_data.dat"), encoding="utf-8") as f:
+                assert "options are not available in CHECKML" in f.read()
+            assert not os.path.exists(os.path.join(path_main, "GENERATE"))
     finally:
-        if os.path.exists(csv_path):
-            os.remove(csv_path)
+        for path in (smiles_path, csv_path):
+            if os.path.exists(path):
+                os.remove(path)
         _clean_checkml_run()
 
 
@@ -443,7 +494,7 @@ def test_CHECKML_missing_descriptor_value():
     GENERATE ever sees it), CHECKML calls load_database() directly, which would otherwise
     silently drop/impute a descriptor with missing values with zero warning. This must stop
     the program instead, always (regardless of --auto_fill - see the design discussion in
-    checkml.py). Ignoring that column lets it run normally.
+    checkml.py). Removing that column from the CSV lets it run normally.
     """
     import pytest
 
@@ -463,7 +514,8 @@ def test_CHECKML_missing_descriptor_value():
         assert not os.path.exists(os.path.join(path_main, "GENERATE"))
 
         _clean_checkml_run()
-        checkml(y="Target_values", names="Name", csv_name=csv_path, ignore=["x2"])
+        df.drop(columns=["x2"]).to_csv(csv_path, index=False)
+        checkml(y="Target_values", names="Name", csv_name=csv_path)
         assert os.path.exists(os.path.join(path_main, "GENERATE", "Best_model", "No_PFI", "MVL.csv"))
     finally:
         if os.path.exists(csv_path):

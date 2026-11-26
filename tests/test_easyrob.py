@@ -2392,8 +2392,9 @@ def test_checkml_success_message_points_to_results_tab(easyrob_window, monkeypat
 
 def test_checkml_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monkeypatch):
     """
-    CHECKML tab: text columns (i.e. SMILES) start checked in the ignore list and are sent through
-    --ignore, and a CSV whose name has spaces is refused with a warning as soon as it is loaded.
+    CHECKML tab: there is no ignore list - a SMILES column is excluded automatically by CHECKML
+    (no --ignore in the command), any other text column stops the run with a warning, and a CSV
+    whose name has spaces is refused with a warning as soon as it is loaded.
     """
     calls = install_message_box_stubs(monkeypatch)
     tab = easyrob_window.checkml_tab
@@ -2418,16 +2419,26 @@ def test_checkml_tab_ignore_columns_and_spaces_in_csv_name(easyrob_window, monke
         tab.run_checkml()
         assert tab.worker is None
 
-        # normal CSV: the text column is pre-checked in the ignore list and goes into --ignore
+        # normal CSV: SMILES is excluded automatically (by CHECKML, no --ignore option)
         tab.set_csv_path(str(good_csv))
         tab.y_dropdown.setCurrentText("Target_values")
         tab.names_dropdown.setCurrentText("Name")
+        assert not hasattr(tab, "ignore_list")
         assert tab.get_ignored_columns() == ["smiles"]
-        assert "--ignore \"['smiles']\"" in tab._build_command()
-
-        # unchecking it removes the option
-        tab.ignore_list.findItems("smiles", Qt.MatchExactly)[0].setCheckState(Qt.Unchecked)
+        assert tab.get_extra_text_columns() == []
         assert "--ignore" not in tab._build_command()
+
+        # any other text column can't be ignored: the run is refused with a warning
+        df["solvent"] = ["water"] * len(df)
+        extra_csv = work_dir / "with_extra_text.csv"
+        df.to_csv(extra_csv, index=False)
+        tab.set_csv_path(str(extra_csv))
+        tab.y_dropdown.setCurrentText("Target_values")
+        tab.names_dropdown.setCurrentText("Name")
+        assert tab.get_extra_text_columns() == ["solvent"]
+        calls["info"].clear()
+        assert tab._validate() is False
+        assert any("solvent" in text for _, text in calls["info"])
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
 

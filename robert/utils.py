@@ -36,7 +36,7 @@ from importlib.resources import files
 #     patch_sklearn(verbose=True)
 # except (ModuleNotFoundError,ImportError):
 #     pass
-from sklearn.metrics import (mean_absolute_error, mean_squared_error,
+from sklearn.metrics import (mean_absolute_error, mean_squared_error, r2_score,
                              matthews_corrcoef, accuracy_score, f1_score, make_scorer,
                              ConfusionMatrixDisplay)
 from sklearn.feature_selection import RFECV
@@ -67,7 +67,7 @@ warnings.filterwarnings("ignore")
 
 robert_version = ROBERT_VERSION
 time_run = time.strftime("%Y/%m/%d %H:%M:%S", time.localtime())
-robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput Mol Sci. 2024, 14, e1733."
+robert_ref = "Dalmau, D.; Alegre Requena, J. V. WIREs Comput. Mol. Sci. 2024, 14, e1733."
 checkml_ref = "CheckML citation TBD."
 
 def _parse_class_mapping_reverse(mapping):
@@ -147,8 +147,9 @@ def load_from_yaml(self):
     # Variables will be updated from YAML file
     try:
         if os.path.exists(self.varfile):
-            if os.path.basename(Path(self.varfile)).split('.')[1] in ["yaml", "yml", "txt"]:
-                with open(self.varfile, "r") as file:
+            # suffix of the real extension (a name such as "params.v2.yaml" has more than one dot)
+            if Path(self.varfile).suffix.lower().lstrip('.') in ["yaml", "yml", "txt"]:
+                with open(self.varfile, "r", encoding="utf-8") as file:
                     try:
                         param_list = yaml.load(file, Loader=yaml.SafeLoader)
                     except (yaml.scanner.ScannerError,yaml.parser.ParserError):
@@ -626,16 +627,24 @@ def load_variables(kwargs, robert_module):
                 curate_df = pd.read_csv(curate_csv, encoding='utf-8')
 
                 for option in options_dict:
-                    if options_dict[option] == '':
+                    if option == 'ignore':
+                        # ignore is a list (never ''): merge the columns ignored in CURATE (they
+                        # are still in the curated CSV, i.e. SMILES) with the ones given here
+                        curate_ignore = curate_df['ignore'][0]
+                        curate_ignore = format_lists(curate_ignore) if isinstance(curate_ignore, str) else []
+                        for col in curate_ignore:
+                            if col not in self.ignore:
+                                self.ignore.append(col)
+                    elif options_dict[option] == '':
                         if option == 'y':
                             self.y = curate_df['y'][0]
                         elif option == 'names':
                             self.names = curate_df['names'][0]
-                        elif option == 'ignore':
-                            self.ignore = curate_df['ignore'][0]
-                            self.ignore  = format_lists(self.ignore)
                         elif option == 'csv_name':
                             self.csv_name = curate_df['csv_name'][0]
+                # names loaded from CURATE must be ignored as descriptors too (see above)
+                if self.names != '' and self.names not in self.ignore:
+                    self.ignore.append(self.names)
                 
                 # Load class labels if they exist (for classification with string labels)
                 if 'class_mapping_reverse' in curate_df.columns:
@@ -812,7 +821,11 @@ def correlation_filter(self, csv_df):
     # Second pass: remove highly correlated descriptors (always removing the most correlated first)
     txt_corr = ''
     csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
-    csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+    # only the ignored columns that are actually in the database (e.g. a SMILES column added
+    # automatically to --ignore might not exist), otherwise drop() raises a KeyError and the
+    # number of descriptors below is miscounted
+    ignore_present = [col for col in self.args.ignore if col in csv_df.columns and col != self.args.y]
+    csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + ignore_present, axis=1)
     if self.args.corr_filter_x and len(csv_df_X_filtered.columns) > 1:        
         # Calculate R2 correlation matrix between descriptors
         corr_matrix = csv_df_X_filtered.corr().abs()
@@ -878,7 +891,7 @@ def correlation_filter(self, csv_df):
     # triggered RFECV/PFI even when the correlation filter alone had already brought the
     # descriptor count under the one-third threshold, running an expensive per-model selection
     # step for no benefit
-    n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1
+    n_descps = len(csv_df_filtered.columns)-len(ignore_present)-1
 
     if len(descriptors_drop) == 0:
         txt_corr += f'\n   -  No descriptors were removed'
@@ -898,7 +911,7 @@ def correlation_filter(self, csv_df):
         txt_corr = ''
 
         # Perform RFECV for each model specified by the user
-        X_df = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+        X_df = csv_df_filtered.drop([self.args.y] + ignore_present, axis=1)
         X_scaled_df,_ = scale_df(X_df,None)
         y_df = csv_df_filtered[self.args.y]
 
@@ -1105,7 +1118,8 @@ def get_scoring_key(problem_type,error_type):
     if problem_type.lower() == 'reg':
         scoring = {
             'rmse': 'neg_root_mean_squared_error',
-            'mae': 'neg_median_absolute_error',
+            # mean (not median) absolute error, the same MAE reported everywhere else
+            'mae': 'neg_mean_absolute_error',
             'r2': 'r2'
         }.get(error_type)
     else:
@@ -1387,10 +1401,10 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     # this part fixes CSV files that use ";" as separator
     with open(csv_load, 'r', encoding='utf-8') as file:
         lines = file.readlines()
-    if lines[1].count(';') > 1:
+    if len(lines) > 1 and lines[1].count(';') > 1:
         new_csv_name = os.path.basename(csv_load).split('.csv')[0].split('.CSV')[0]+'_original.csv'
         shutil.move(csv_load, Path(os.path.dirname(csv_load)).joinpath(new_csv_name))
-        new_csv_file = open(csv_load, "w")
+        new_csv_file = open(csv_load, "w", encoding='utf-8')
         for line in lines:
             line = line.replace(',','.')
             line = line.replace(';',',')
@@ -1500,7 +1514,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                 txt_load += f"\n   - {len(csv_df)} datapoints (rows)"
             self.args.log.write(txt_load)
             if accepted_descs == 0:
-                self.args.log.write(f"\nx  The aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
+                self.args.log.write(f"\nx  There aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
                 sys.exit()
 
     # Sort columns alphabetically for reproducibility across ALL modules
@@ -2463,13 +2477,16 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                                         Xy_data,CV_repeat,BO_opt=BO_opt,
                                         y_pred_global_train_infold=y_pred_global_train_infold)
 
+    # the per-point SDs are kept unrounded: rounding them here (e.g. to 2 decimals) made the
+    # stability scores depend on the units of y, since small-scale targets (e.g. a y range of
+    # 0.05) rounded every SD to 0.00 and got full points in item 6 regardless of the model
     y_train_pred, y_train_std = [],[]
     for y_val in y_pred_global:
         if model_data['type'].lower() == 'reg':
             y_train_pred.append(np.mean(y_val))
         elif model_data['type'].lower() == 'clas':
             y_train_pred.append(_classification_vote(y_val))
-        y_train_std.append(round(np.std(y_val),2))
+        y_train_std.append(float(np.std(y_val)))
 
     Xy_data['y_pred_train_all'] = y_pred_global
     Xy_data['y_pred_train'] = y_train_pred
@@ -2482,7 +2499,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                 y_test_pred.append(np.mean(y_val_test))
             elif model_data['type'].lower() == 'clas':
                 y_test_pred.append(_classification_vote(y_val_test))
-            y_test_std.append(round(np.std(y_val_test),2))
+            y_test_std.append(float(np.std(y_val_test)))
 
         Xy_data['y_pred_test_all'] = y_pred_global_test
         Xy_data['y_pred_test'] = y_test_pred
@@ -2495,7 +2512,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                     y_external_pred.append(np.mean(y_val_external))
                 elif model_data['type'].lower() == 'clas':
                     y_external_pred.append(_classification_vote(y_val_external))
-                y_external_std.append(round(np.std(y_val_external),2))
+                y_external_std.append(float(np.std(y_val_external)))
 
             Xy_data['y_pred_external_all'] = y_pred_global_external
             Xy_data['y_pred_external'] = y_external_pred
@@ -2686,7 +2703,7 @@ def sorted_kfold_cv(loaded_model,model_data,Xy_data,error_labels,include_test=Fa
     return Xy_data
 
 
-def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y_test_pool):
+def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y_test_pool,return_cv_rmse=False):
     '''
     Runs the SAME 10x repeated 5-fold CV used for interpolation (repeated_kfold_cv), scoped to
     an arbitrary 80/20 partition instead of the "official" train/test split - so boundary
@@ -2694,9 +2711,10 @@ def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y
     interpolation's "10x 5-fold CV"/"test" pair: each point in the 80% pool is averaged over
     its ~10 out-of-fold CV appearances, and each point in the 20% held-out pool is averaged
     over all repeat*kfold (e.g. 10*5=50) models fitted during the run - instead of a single
-    train-once/test-once fit. This makes the reported RMSE directly comparable to
-    interpolation's, both being averages over the same kind of repeated-CV procedure rather
-    than one being averaged and the other a single noisy draw.
+    train-once/test-once fit. The optional fourth return value is the CV RMSE pooled over
+    every out-of-fold prediction, matching load_n_predict() and the full-data CV baseline.
+    It differs from the RMSE of the per-point averaged predictions used by the plots and
+    degradation baselines, which are retained unchanged.
     '''
 
     loaded_model = load_model(self, model_data['model'], **model_data['params'])
@@ -2712,7 +2730,14 @@ def _cv_within_partition(self,model_data,X_train_pool,y_train_pool,X_test_pool,y
     # (same statistic interpolation's item 6 "Avg. standard deviation (SD)" already uses, via
     # Xy_data['y_pred_test_sd'] in repeated_kfold_cv) - kept in the same units/convention here
     # so boundary robustness's stability sub-metric is directly comparable to interpolation's
-    return np.array(temp_Xy_data['y_pred_train']), np.array(temp_Xy_data['y_pred_test']), np.array(temp_Xy_data['y_pred_test_sd'])
+    predictions = (np.array(temp_Xy_data['y_pred_train']), np.array(temp_Xy_data['y_pred_test']), np.array(temp_Xy_data['y_pred_test_sd']))
+    if return_cv_rmse:
+        cv_predictions = np.asarray(temp_Xy_data['y_pred_train_all'])
+        _, _, rmse_cv = get_prediction_results(
+            model_data, np.repeat(np.asarray(y_train_pool), cv_predictions.shape[1]), cv_predictions.reshape(-1)
+        )
+        return (*predictions, rmse_cv)
+    return predictions
 
 
 def boundary_n_points(n_total):
@@ -2732,8 +2757,9 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     same methodology interpolation's "10x 5-fold CV"/"test" plot uses (repeated_kfold_cv), just
     scoped to each extreme's own 80/20 partition of the whole (sorted) dataset instead of the
     official train/test split. Both the 80%-pool points and the 20%-extreme points are
-    therefore averaged over repeated CV appearances, not a single train-once/test-once fit -
-    making the reported RMSE directly comparable to interpolation's own averaged RMSE.
+    therefore averaged over repeated CV appearances, not a single train-once/test-once fit.
+    Test RMSEs use these ensemble means; the separately logged CV RMSEs pool all OOF
+    predictions on each remaining 80% pool, just like the full-data CV baseline.
     '''
 
     X_all,y_all = sort_n_load(Xy_data,include_test=True)
@@ -2744,8 +2770,10 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     X_top80,y_top = X_all[n_extreme:], y_all[n_extreme:]
     X_low,y_low = X_all[:n_extreme], y_all[:n_extreme]
 
-    y_pred_bottom,y_pred_high,s_high = _cv_within_partition(self,model_data,X_bottom80,y_bottom,X_high,y_high)
-    y_pred_top,y_pred_low,s_low = _cv_within_partition(self,model_data,X_top80,y_top,X_low,y_low)
+    y_pred_bottom,y_pred_high,s_high,rmse_cv_bottom80 = _cv_within_partition(
+        self,model_data,X_bottom80,y_bottom,X_high,y_high,return_cv_rmse=True)
+    y_pred_top,y_pred_low,s_low,rmse_cv_top80 = _cv_within_partition(
+        self,model_data,X_top80,y_top,X_low,y_low,return_cv_rmse=True)
 
     # RMSE of each extreme's own "remaining 80%" (from the same repeated-CV run), used as the
     # degradation ratio baseline - comparing against interpolation's own RMSE would still mix
@@ -2842,9 +2870,10 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
     high_low_text = ''
     # REPORT parses these RMSE values to calculate scale-independent scores. Use significant
     # digits rather than fixed decimal places so small target scales don't round them to zero.
-    high_low_text += f"      -  Sorted CV extremes (repeated) : RMSE Low = {rmse_low:.2g}, RMSE High = {rmse_high:.2g}\n"
+    high_low_text += f"      -  Sorted CV extremes (repeated) : Test RMSE Low = {rmse_low:.2g}, Test RMSE High = {rmse_high:.2g}\n"
+    high_low_text += f"      -  Sorted CV training pools (repeated) : CV RMSE Low = {rmse_cv_top80:.2g}, CV RMSE High = {rmse_cv_bottom80:.2g}\n"
     high_low_text += f"      -  Real range extension (Low/High) : Low crossing = {crossing_low:.2f}, High crossing = {crossing_high:.2f}\n"
-    high_low_text += f"      -  Degradation baseline (remaining 80%) : vs Low (top 80%) RMSE = {rmse_top80:.2g}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2g}\n"
+    high_low_text += f"      -  Degradation baseline (remaining 80%) : CV RMSE of averaged OOF predictions, vs Low (top 80%) RMSE = {rmse_top80:.2g}, vs High (bottom 80%) RMSE = {rmse_bottom80:.2g}\n"
     high_low_text += f"      -  y SD at high extreme : Measured = {sd_high:.2f}; Predicted = {sd_pred_high:.2f}. Spread ratio = {spread_ratio_high:.2f}\n"
     high_low_text += f"      -  y SD at low extreme : Measured = {sd_low:.2f}; Predicted = {sd_pred_low:.2f}. Spread ratio = {spread_ratio_low:.2f}\n"
     high_low_text += f"      -  y range at high extreme : Measured = {range_high:.2g}; Predicted = {range_pred_high:.2g}. Range ratio = {range_ratio_high:.2f}\n"
@@ -2856,7 +2885,7 @@ def boundary_plot(self,model_data,Xy_data,path_n_suffix):
 
 def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
     '''
-    Boundary robustness in X-descriptor space (Section B sub-metric 5), complementing the
+    Boundary robustness in X-descriptor space (Section B sub-metric 3), complementing the
     Low/High sorted-CV analysis (boundary robustness in y-space). Ranks every point in the whole dataset by
     leverage - h_i = x_i^T (X_train^T X_train)^-1 x_i, the standard QSAR/regression
     "applicability domain" metric, which (unlike a per-descriptor or plain Euclidean check)
@@ -2895,8 +2924,10 @@ def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
 
     # 10x repeated 5-fold CV within the 80% "typical" pool (same methodology as interpolation
     # and the Low/High boundary robustness plots - see _cv_within_partition()), instead of a
-    # single train-once/test-once fit, so this RMSE is directly comparable to the others
-    y_pred_train_ad,y_pred_test_ad,_ = _cv_within_partition(self,model_data,X_train_ad,y_train_ad,X_test_ad,y_test_ad)
+    # single train-once/test-once fit. Keep the held-out ensemble RMSE for scoring
+    # and calculate the pooled OOF CV RMSE separately for the split comparison.
+    y_pred_train_ad,y_pred_test_ad,_,rmse_cv_ad = _cv_within_partition(
+        self,model_data,X_train_ad,y_train_ad,X_test_ad,y_test_ad,return_cv_rmse=True)
 
     _,_,rmse_ad = get_prediction_results(model_data,y_test_ad,y_pred_test_ad)
 
@@ -2924,7 +2955,7 @@ def applicability_domain_plot(self,model_data,Xy_data,path_n_suffix):
         observed=np.concatenate([y_train_ad,y_test_ad]),
         predicted=np.concatenate([y_pred_train_ad,y_pred_test_ad]))
 
-    self.args.log.write(f"      -  Applicability domain (leverage) : RMSE = {rmse_ad:.2}, h* = {h_star:.2}")
+    self.args.log.write(f"      -  Applicability domain (leverage) : Test RMSE = {rmse_ad:.2}, CV RMSE = {rmse_cv_ad:.2}, h* = {h_star:.2}")
 
 
 def _place_legend(ax,all_x,all_y,labels,fontsize=14):
@@ -3051,13 +3082,6 @@ def _boundary_scatter(self,model_data,path_n_suffix,file_prefix,y_rest,y_pred_re
     _place_legend(ax,np.concatenate([y_rest,y_extreme]),np.concatenate([y_pred_rest,y_pred_extreme]),
         [rest_label,extreme_label],fontsize=legend_fontsize)
 
-    Xy_data_df = pd.DataFrame()
-    Xy_data_df['y_rest'] = y_rest
-    Xy_data_df['y_pred_rest'] = y_pred_rest
-    if len(y_rest) >= 10:
-        _ = sb.regplot(x='y_rest', y='y_pred_rest', data=Xy_data_df, scatter=False, color=".1",
-                        truncate = True, ax=ax, seed=model_data['seed'])
-
     plt.ylabel(f'Predicted {model_data["y"]}', fontsize=14)
     plt.xlabel(f'{model_data["y"]}', fontsize=14)
 
@@ -3068,6 +3092,11 @@ def _boundary_scatter(self,model_data,path_n_suffix,file_prefix,y_rest,y_pred_re
     max_value_graph = max(max(y_all),max(y_pred_all))+size_space
 
     ax.grid(linestyle='--', linewidth=1)
+    # ideal y = y_pred diagonal as the only reference line (no regression line fitted through
+    # the points): R2/RMSE measure the distance to this line, and a fitted line would hide bias
+    # or scale errors of the predictions (see get_prediction_results())
+    ax.plot([min_value_graph, max_value_graph], [min_value_graph, max_value_graph],
+            color='#7f7f7f', linestyle='-', linewidth=1.2, zorder=0.5)
     plt.xlim(min_value_graph, max_value_graph)
     plt.ylim(min_value_graph, max_value_graph)
 
@@ -3310,7 +3339,7 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             _ = ax.errorbar(Xy_data[f"y_{error_bars}"], Xy_data[f"y_pred_{error_bars}"], yerr=Xy_data[f"y_pred_{error_bars}_sd"], fmt='none', ecolor="gray", capsize=3, zorder=1)
             set_types=['External test',f'± SD']
 
-    # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+    # legend (no regression line is drawn: the y = x diagonal below is the only reference line)
     legend_coords = None
     if 'CV' in set_types[0]: # CV in VERIFY
         legend_coords = (0.70, 0.15)
@@ -3323,19 +3352,6 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
             handletextpad=0,
             fancybox=True, shadow=True, ncol=5, labels=set_types, fontsize=14)
 
-    Xy_data_df = pd.DataFrame()
-    if not sd_graph:
-        line_suff = 'train'
-    elif not csv_test:
-        line_suff = error_bars # 'test' or 'train', matches sd_set
-    else:
-        line_suff = 'external'
-
-    Xy_data_df[f"y_{line_suff}"] = Xy_data[f"y_{line_suff}"]
-    Xy_data_df[f"y_pred_{line_suff}"] = Xy_data[f"y_pred_{line_suff}"]
-    if len(Xy_data_df[f"y_pred_{line_suff}"]) >= 10:
-        _ = sb.regplot(x=f"y_{line_suff}", y=f"y_pred_{line_suff}", data=Xy_data_df, scatter=False, color=".1", 
-                        truncate = True, ax=ax, seed=params_dict['seed'])
 
     # Title and labels of the axis
     plt.ylabel(f'Predicted {params_dict["y"]}', fontsize=14)
@@ -3369,8 +3385,11 @@ def graph_reg(self,Xy_data,params_dict,set_types,path_n_suffix,graph_style,csv_t
                 _ = ax.errorbar(Xy_data[f"y_{set_sd}"], Xy_data[f"y_pred_{set_sd}"], yerr=Xy_data[f"y_pred_{set_sd}_sd"],
                                 fmt='none', ecolor='#a0a0a0', elinewidth=0.8, capsize=2, alpha=0.7, zorder=1)
 
-    # ideal y = y_pred diagonal (perfect predictions) behind every other object, so it's clear
-    # the R2/errors compare predictions directly against the targets (no fitted intercept)
+    # ideal y = y_pred diagonal (perfect predictions) behind every other object: it's the only
+    # reference line, since R2/Q2 and the errors compare the predictions directly against the
+    # targets. No regression line is fitted through the points - it would absorb bias or scale
+    # errors and is not what any reported metric measures (Alexander et al., J. Chem. Inf.
+    # Model. 2015, recommend plotting observed vs predicted values with just the y = x line)
     ax.plot([min_value_graph, max_value_graph], [min_value_graph, max_value_graph],
             color='#7f7f7f', linestyle='-', linewidth=1.2, zorder=0.5)
 
@@ -4008,14 +4027,16 @@ def plot_quartiles(y_combined,ax):
     quart_dict['q3_points'] = []
     quart_dict['q4_points'] = []
 
+    # half-open intervals, so a value lying exactly on a boundary (common with integer y values)
+    # is counted once instead of being left out of every interval
     for val in y_combined:
         if val < quart_dict['line_2']:
             quart_dict['q1_points'].append(val)
-        elif quart_dict['line_2'] < val < quart_dict['line_3']:
+        elif val < quart_dict['line_3']:
             quart_dict['q2_points'].append(val)
-        elif quart_dict['line_3'] < val < quart_dict['line_4']:
+        elif val < quart_dict['line_4']:
             quart_dict['q3_points'].append(val)
-        elif val >= quart_dict['line_4']:
+        else:
             quart_dict['q4_points'].append(val)
 
     x_quart = 0.185
@@ -4067,9 +4088,14 @@ def get_prediction_results(model_data,y,y_pred_all):
     if model_data['type'].lower() == 'reg':
         mae = mean_absolute_error(y,y_pred_all)
         rmse = np.sqrt(mean_squared_error(y,y_pred_all))
-        if len(np.unique(y)) > 1 and len(np.unique(y_pred_all)) > 1:
-            res = stats.linregress(y,y_pred_all)
-            r2 = res.rvalue**2
+        # R2 is the coefficient of determination of the predictions themselves (1 - SSres/SStot,
+        # i.e. measured against the y = x line, like MAE/RMSE), NOT the squared Pearson
+        # correlation of a regression fitted through the observed vs predicted points, which
+        # ignores bias and scale errors and can only be equal or higher (see Alexander, Tropsha
+        # and Winkler, J. Chem. Inf. Model. 2015, 55, 1316). It can be negative when the
+        # predictions are worse than predicting the mean
+        if len(np.unique(y)) > 1:
+            r2 = r2_score(y,y_pred_all)
         else:
             r2 = 0.0
 
@@ -4196,8 +4222,9 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
             # possibly-accidental nonzero values get raised to 0.2 (--auto_test False bypasses
             # this entirely, but explicit 0 no longer needs it just for this specific case)
             if 0 < self.args.test_set < 0.2:
+                user_test_set = self.args.test_set
                 self.args.test_set = 0.2
-                self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
+                self.args.log.write(f'\nx  WARNING! The test_set option was set to {user_test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
             try:
@@ -4334,7 +4361,8 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None,suffix_title=None):
 
     importlib.reload(plt) # needed to avoid threading issues
     if module.lower() == 'curate': # only represent the final descriptors in CURATE
-        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
+        # errors='ignore': an ignored column might not exist in the database
+        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1, errors='ignore')
 
     # numeric_only=True: in CHECKML mode, CURATE's categorical_transform() is skipped (only
     # this heatmap is drawn), so csv_df_pearson can still contain raw non-numeric descriptor
@@ -4559,7 +4587,7 @@ def plot_metrics(model_data,suffix_title,verify_metrics,verify_results,show_titl
     # invisible "dummy" arrows to make the graph wider so the real arrows fit in the right place
     ax.arrow(x_arrow, thres_line, 0, 0, width=0, fc='k', ec='k') # x,y,dx,dy format
 
-    # legend and regression line with 95% CI considering all possible lines (not CI of the points)
+    # legend with the "pass test" arrow
     def make_legend_arrow(legend, orig_handle,
                         xdescent, ydescent,
                         width, height, fontsize):

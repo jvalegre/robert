@@ -118,7 +118,11 @@ def get_metrics(file,suffix,spacing):
         start_results += 4 # skip informaton that aren't metrics
         summary = []
         for line in lines[start_results:stop_results+1]:
-            if 'R2' in line:
+            # the R2 of the cross-validated predictions is shown as Q2 (1 - PRESS/SS, see the
+            # abbreviations section); the test set keeps R2
+            if '-fold CV : R2' in line:
+                line = line.replace('R2','Q<sup>2</sup>',1)
+            elif 'R2' in line:
                 line = line.replace('R2','R<sup>2</sup>')
 
             summary.append(f'{spacing}{line[8:]}')
@@ -158,7 +162,7 @@ def get_boundary_metrics(data_score,suffix,spacing):
     limitation = extrapolation_limitation(data_score.get('ML_model',''))
     if limitation:
         column += f"""
-    <p style="margin-top: 2px; margin-bottom: 0px; {indent} box-sizing: border-box; font-size: 10.5px; color: #9e3a3a;"><i><b>Note:</b> {limitation[0].lower()} models can't predict values outside the training y range by design ({limitation[1]}).</i></p>
+    <p style="margin-top: 2px; margin-bottom: 0px; {indent} box-sizing: border-box; font-size: 10.5px; color: #9e3a3a;"><i><b>Note:</b> {limitation[0].lower()} models can't predict values outside the training y range by design.</i></p>
     """
 
     return column
@@ -396,7 +400,7 @@ def locate_outliers(i,lines):
     return train_outliers,test_outliers
 
    
-def combine_cols(columns,align_top=False):
+def combine_cols(columns,align_top=False,right_offset=0,right_rule=None):
     """
     Makes a string with multi-column lines
 
@@ -408,8 +412,26 @@ def combine_cols(columns,align_top=False):
     """
 
     column_data = ''
-    for column in columns:
-        column_data += f'<div style="flex: 1;">{column}</div>'
+    for index,column in enumerate(columns):
+        if len(columns) == 2 and index == 1 and right_offset:
+            rule = ''
+            relative = ''
+            if right_rule is not None:
+                rule_top,rule_height = right_rule
+                # Decorative overlay, positioned at the same x as Section A's rule. It is
+                # out of flow so the established flex widths and pagination stay unchanged.
+                relative = 'position:relative; '
+                rule = (
+                    f'<span aria-hidden="true" style="position:absolute; left:{right_offset - 20}px; '
+                    f'top:{rule_top}px; width:1.5px; height:{rule_height}px; background:#999999; '
+                    'border-radius:1px; pointer-events:none;"></span>'
+                )
+            column_data += (
+                f'<div style="flex: 1;"><div style="padding-left: {right_offset}px; '
+                f'box-sizing: border-box; {relative}">{rule}{column}</div></div>'
+            )
+        else:
+            column_data += f'<div style="flex: 1;">{column}</div>'
 
     align_style = 'align-items: flex-start;' if align_top else ''
     combined_data = f"""
@@ -497,9 +519,12 @@ def get_col_score(score_info,data_score,suffix,col,spacing):
             fold_points = boundary_n_points(total_points)
             extreme_line = f'Points in each 20% high/low folds = {fold_points}'
 
-        column = f"""<div style="{indent} box-sizing: border-box;">
+        # Draw one out-of-flow rule from this heading down through the extrapolation row and
+        # callouts. It shares the callout border's x position and cannot change column sizing.
+        column = f"""<div style="position:relative; {indent} box-sizing: border-box;">
+        <span aria-hidden="true" style="position:absolute; left:-18px; top:0; width:1.5px; height:315px; background:#999999; border-radius:1px; pointer-events:none;"></span>
         <p style="margin-top:-18px;"><span style="font-weight:bold;">Boundary robustness{score_title}</span></p>
-        <p style="margin-top: -10px; margin-bottom: 0px;">Showing high fold y-values (others in Section B)</p>
+        <p style="margin-top: -10px; margin-bottom: 0px;">Full details in Section B</p>
         <p style="margin-top: 1px; margin-bottom: 0px;">{extreme_line}</p>
         <p style="margin-top: 4px;">{score_info}
         <p style="margin-bottom: 18px;"></p>
@@ -522,8 +547,125 @@ def score_badge_2(self,data_score,suffix,score_val):
 
     score_val_badge = int(float(Decimal(str(score_val)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
     if not data_score.get(f'score_available_{suffix}', True):
-        return 'N/A',f'{self._posix_uri(self.args.path_icons)}/score_w_2_gray_{score_val}.jpg'
+        return 'N/A',f'{self._posix_uri(self.args.path_icons)}/score_w_2_gray_{score_val_badge}.jpg'
     return f'{score_val:.1f} / 2',f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_val_badge}.jpg'
+
+
+def score_badge_1(self, data_score, suffix, score_val):
+    """Return a 0-1 badge using the existing 0-2 bar artwork at double scale."""
+    score_val = max(0.0, min(1.0, float(score_val or 0)))
+    bar_value = score_val * 2
+    bar_badge = int(float(Decimal(str(bar_value)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
+    icon_dir = self._posix_uri(self.args.path_icons)
+    if not data_score.get(f'score_available_{suffix}', True):
+        return 'N/A', f'{icon_dir}/score_w_2_gray_{bar_badge}.jpg'
+    return f'{score_val:.1f} / 1', f'{icon_dir}/score_w_2_{bar_badge}.jpg'
+
+
+SCORE_INFO_SCHEME = 'checkml-info:'
+
+# Scoring criteria shown in the "i" icons of Section B. They must match the equations used to
+# calculate the scores (score_rmse_mcc(), calc_penalty_r2(), score_overfit(),
+# score_mcc_difference()...) and the tables of docs/Report/score.rst
+SCALED_RMSE_INFO = 'Scaled RMSE: +2 if ≤ 10%, +1 at 20%, 0 if ≥ 30% (linear).'
+R2_PENALTY_INFO = '{metric} penalty: 0 if ≥ 0.8, -1 at 0.6, -2 if ≤ 0.4 (linear).'
+MCC_INFO = 'MCC: +2 if ≥ 0.6, +1 at 0.3, 0 if ≤ 0 (linear).'
+RATIO_INFO = '+2 if ≤ 1.25, +1 at 1.5, 0 if ≥ 1.75 (linear).'
+DELTA_MCC_INFO = 'ΔMCC: +2 if ≤ 0.15, +1 at 0.30, 0 if ≥ 0.45 (linear).'
+
+# CheckML score documentation. Every tab of the page has a direct link (#slug of the tab
+# label, see docs/_static/tab_links.js), used to send each report item to its own tab.
+# If a tab label changes in docs/Report/score.rst, its slug here has to change too.
+SCORE_DOCS_URL = 'https://robert.readthedocs.io/en/latest/Report/score.html'
+SCORE_DOCS_TABS = {
+    'warnings': 'list-of-warnings',
+    'cv_test_split': 'cv-test-split-diagnostic',
+    'calculation': 'how-is-the-score-calculated',
+    'interpolation': 'interpolation-0-to-10',
+    'flawed': '1-model-vs-flawed-models',
+    'cv_test': '2-3-cv-and-test-predictions',
+    'gap_diff': '4-5-train-validation-and-cv-test-comparisons',
+    'stability': '6-prediction-stability',
+    'boundary': 'boundary-robustness-0-to-10-for-regression-only',
+    'sorted_cv': '1a-and-2a-sorted-cv-rmse',
+    'spearman': '1b-and-2b-spearman-rank',
+    'degradation': '1c-and-2c-degradation-ratio',
+    'applicability': '3-applicability-domain-leverage',
+}
+
+
+def score_docs_url(tab=None):
+    """Link to the CheckML score documentation, opened at a specific tab when given."""
+    return f'{SCORE_DOCS_URL}#{SCORE_DOCS_TABS[tab]}' if tab else SCORE_DOCS_URL
+
+
+def docs_heading(text, tab):
+    """Section B item heading that links to its own tab of the CheckML score documentation."""
+    return (f'<a href="{score_docs_url(tab)}" style="color:#1f4e85; text-decoration:underline;">'
+            f'{text}</a>')
+
+
+def score_info_icon(criteria_html):
+    """
+    Small "i" icon placed next to a Section B score. The scoring criteria aren't printed in
+    the PDF: the icon is a link whose URI carries the criteria text, and add_score_info_popups()
+    turns each of those links into a PDF note that shows the criteria when hovering the icon.
+    """
+
+    import html as html_lib
+    from urllib.parse import quote
+
+    text = re.sub(r'<br\s*/?>', '\n', criteria_html)
+    text = re.sub(r'<sup>2</sup>', '²', text)
+    # strip only real tags: the criteria contain bare "<" / ">" comparisons (e.g. "R2 < 0.5")
+    text = html_lib.unescape(re.sub(r'</?(?:i|b|u|span|sup|sub)\b[^>]*>', '', text))
+    text = '\n'.join(' '.join(line.split()) for line in text.split('\n') if line.strip())
+    icon = ('<span style="display:inline-block; width:11px; height:11px; border-radius:50%; '
+            'background-color:#3b6ea5; color:white; font-size:8.5px; font-weight:bold; '
+            'font-style:normal; font-family:Georgia, serif; text-align:center; line-height:11px; '
+            'vertical-align:1px;">i</span>')
+    return f'<a href="{SCORE_INFO_SCHEME}{quote(text)}" style="text-decoration:none;">{icon}</a>'
+
+
+def add_score_info_popups(pdf_bytes):
+    """
+    Replace the score_info_icon() links with PDF notes (text annotations) covering the icon:
+    hovering the icon shows the scoring criteria in PDF viewers that support notes (Acrobat,
+    Edge, Firefox). The note has a transparent appearance so the HTML icon stays visible.
+    """
+
+    from urllib.parse import unquote
+    import pymupdf
+
+    doc = pymupdf.open(stream=pdf_bytes, filetype='pdf')
+    for page in doc:
+        # WeasyPrint emits one link per box inside the <a> (the <a> and its icon <span>), so
+        # overlapping links with the same URI are merged into a single note
+        icons = []
+        for link in page.get_links():
+            uri = link.get('uri') or ''
+            if not uri.startswith(SCORE_INFO_SCHEME):
+                continue
+            page.delete_link(link)
+            rect = pymupdf.Rect(link['from'])
+            for icon in icons:
+                if icon[0] == uri and icon[1].intersects(rect):
+                    icon[1] |= rect
+                    break
+            else:
+                icons.append([uri, rect])
+        for uri,rect in icons:
+            annot = page.add_text_annot(rect.tl, unquote(uri[len(SCORE_INFO_SCHEME):]), icon='Help')
+            annot.set_info(title='Scoring criteria')
+            annot.set_rect(rect)
+            annot.set_opacity(0)
+            annot.update()
+            # empty appearance stream: some viewers ignore the opacity and would draw their
+            # own note icon over the HTML "i" icon
+            annot._setAP(b' ')
+    output = doc.tobytes(garbage=3, deflate=True)
+    doc.close()
+    return output
 
 
 def adv_flawed(suffix,data_score,spacing,pred_type):
@@ -544,10 +686,12 @@ def adv_flawed(suffix,data_score,spacing,pred_type):
 
     # adds a bit more space if there is no test set
     score_adv_flawed = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    init_spacing = f'<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}'
+    degradation = 'RMSE increase' if pred_type == 'reg' else 'MCC decrease'
+    info = score_info_icon(f'Scoring from {min_score} to 0<br>Penalty per applicable test, from the {degradation} vs the original CV:'
+                           f'<br>0 if ≥ 45%, -1 at 30%, -2 if ≤ 15% (linear).')
     column = f"""
-    {init_spacing}<span style="font-weight:bold;">1. Model vs "flawed" models</span> &nbsp;({score_flawed:.1f} / 0)</p>
-    {score_adv_flawed}{flaw_result}<br>{spacing}<i>· Scoring from {min_score} to 0 ·</i><br>{spacing}Pass: 0, Unclear: -1, Fail: -2.</p>
+    <p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('1. Model vs "flawed" models','flawed')}</span> &nbsp;({score_flawed:.1f} / 0) {info}</p>
+    {score_adv_flawed}{flaw_result}</p>
     """
 
     return column
@@ -558,7 +702,7 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
     Gather the advanced analysis of predictive ability
 
     Classification uses the same 0-2 scale as regression (see score_rmse_mcc()):
-    MCC > 0.6 => 2, 0.3 < MCC <= 0.6 => 1, else => 0
+    2 if MCC >= 0.6, 0 if MCC <= 0, linear in between
     """
 
     score_predict = data_score.get(f'cv_score_combined_{suffix}', 0)
@@ -566,18 +710,18 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
 
     if pred_type == 'reg':
         score_label,predict_image = score_badge_2(self,data_score,suffix,score_predict)
-        metric_type = ['Scaled RMSE','R<sup>2</sup>']
+        metric_type = ['Scaled RMSE','Q<sup>2</sup>']  # R2 of the CV predictions (see abbreviations)
         scaled_rmse_cv = data_score.get(f'scaled_rmse_cv_{suffix}', 0)
         r2_cv = data_score.get(f'r2_cv_{suffix}', 0)
 
         predict_result = f'{metric_type[0]} ({cv_type}) = {scaled_rmse_cv}%.'
         predict_result += f'<br>{spacing}{metric_type[1]} ({cv_type}) = {r2_cv}.'
-        thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
-        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
+        thres_line = f'{SCALED_RMSE_INFO}<br>{R2_PENALTY_INFO.format(metric="Q<sup>2</sup>")}'
         init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
         score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_label} &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
-        {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+        info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
+        column = f"""{init_sep}<span style="font-weight:bold;">{docs_heading('2. CV predictions of the model','cv_test')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">) {info}</p>
+        {score_adv_pred}{predict_result}</p>
         """
         return column
     else:
@@ -590,12 +734,13 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
         score_label,predict_image = score_badge_2(self,data_score,suffix,display_score)
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} ({cv_type}) = {mcc_cv}.'
-        thres_line = "MCC >0.6: +2; 0.3-0.6: +1"
+        thres_line = MCC_INFO
 
         init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
         score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""{init_sep}<span style="font-weight:bold;">2. CV predictions of the model</span> &nbsp;({score_label} &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">)</p>
-        {score_adv_pred}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+        info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
+        column = f"""{init_sep}<span style="font-weight:bold;">{docs_heading('2. CV predictions of the model','cv_test')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{predict_image}" alt="score" style="width: 13%">) {info}</p>
+        {score_adv_pred}{predict_result}</p>
         """
         return column
 
@@ -612,11 +757,11 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
         metric_type = ['Scaled RMSE','R<sup>2</sup>']
         predict_result = f'{metric_type[0]} (test set) = {data_score.get(f"scaled_rmse_test_{suffix}", 0)}%.'
         predict_result += f'<br>{spacing}{metric_type[1]} (test set) = {data_score.get(f"r2_test_{suffix}", 0)}.'
-        thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
-        thres_line += f'<br>{spacing}R<sup>2</sup> < 0.5: -2, R<sup>2</sup> < 0.7: -1'
+        thres_line = f'{SCALED_RMSE_INFO}<br>{R2_PENALTY_INFO.format(metric="R<sup>2</sup>")}'
         score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({score_label} &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
-        {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+        info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
+        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('3. Test set predictions','cv_test')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">) {info}</p>
+        {score_adv_cv}{predict_result}</p>
         """
         return column
     else:
@@ -629,11 +774,12 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
         score_label,test_image = score_badge_2(self,data_score,suffix,display_score)
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} (test set) = {test_mcc}.'
-        thres_line = ('MCC >0.6: +2; 0.3-0.6: +1')
+        thres_line = MCC_INFO
 
         score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Test set predictions</span> &nbsp;({score_label} &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">)</p>
-        {score_adv_cv}{predict_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+        info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
+        column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('3. Test set predictions','cv_test')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">) {info}</p>
+        {score_adv_cv}{predict_result}</p>
         """
         return column
 
@@ -651,8 +797,7 @@ def adv_diff_test(self,suffix,data_score,spacing,pred_type):
 
         diff_result = f'RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)}*scaled RMSE (CV).'
         
-        thres_line = 'Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV): +2.'
-        thres_line += f'<br>{spacing}Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV): +1.'
+        thres_line = f'Ratio scaled RMSE (test) / scaled RMSE (CV):<br>{RATIO_INFO}'
     else:
         # Classification: use diff_mcc_score instead
         score_diff_test = data_score.get(f'diff_mcc_score_{suffix}', 0)
@@ -665,12 +810,13 @@ def adv_diff_test(self,suffix,data_score,spacing,pred_type):
 
         diff_result = f'The ΔMCC between CV and test is {diff_mcc}.'
 
-        thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
+        thres_line = DELTA_MCC_INFO
 
     score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. CV vs test consistency</span> &nbsp;({score_label} &nbsp;<img src="file:///{diff_test_image}" alt="CheckML Score" style="width: 13%">)</p>
+    info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('5. CV vs test consistency','gap_diff')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{diff_test_image}" alt="CheckML Score" style="width: 13%">) {info}</p>
     {score_adv_diff}<i>Relative differences in values from sections 2 and 3.</i><br>
-    {spacing}{diff_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+    {spacing}{diff_result}</p>
     """
 
     return column
@@ -716,14 +862,21 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
             f'(a) Test SD, 4*SD = {cv_4sd} ({y_range_covered}% y-range)'
             f'<br>{spacing}(b) CV SD, 4*SD = {cv_4sd_train} ({y_range_covered_train}% y-range)'
             f'<br>{spacing}(c) RMSE coef. of variation = {rmse_cv_pct}%'
-            f'<br>{spacing} Symmetric RMSE ratio = {data_score[f"absol_rmse_50_ratio_{suffix}"]}'
-            f'<br>{spacing} Symmetric R<sup>2</sup> ratio = {data_score[f"absol_r2_50_ratio_{suffix}"]}'
-        )            
+            f'<br>{spacing} Symmetric RMSE ratio (50% halves) = {data_score.get(f"absol_rmse_50_ratio_{suffix}", "N/A")}'
+        )
+        if f'spearman_50_low_{suffix}' in data_score:
+            cv_sd_result += (
+                f'<br>{spacing} Spearman in 50% halves (low/high) = '
+                f'{data_score[f"spearman_50_low_{suffix}"]} / {data_score[f"spearman_50_high_{suffix}"]}'
+            )
 
         thres_line = (
-            f'(a)/(b) 4*SD ≤25%/≤50%. (c) ≤15%/≤25%. Avg. rounded'
-            f'<br>{spacing}Diff. top/down 50% ratio:'
-            f'<br>{spacing}Symmetric RMSE or R<sup>2</sup> ratio ≥ 1.75: -2, ≥ 1.5: -1'
+            '(a)/(b) 4*SD vs y range: +2 if ≤ 25%, +1 at 50%, 0 if ≥ 75% (linear).'
+            '<br>(c) RMSE coef. of variation: +2 if ≤ 15%, +1 at 25%, 0 if ≥ 35% (linear).'
+            '<br>Score = average of (a), (b) and (c) + the most severe penalty'
+            '<br>from the 50% halves of the y range:'
+            '<br>Symmetric RMSE ratio: 0 if ≤ 1.25, -1 at 1.5, -2 if ≥ 1.75 (linear).'
+            '<br>Spearman in each half: 0 if ≥ 0.3, -1 at 0.05, -2 if ≤ -0.2 (linear).'
         )
     else:
         disagree_a = data_score.get(f'clas_disagree_a_{suffix}',0)
@@ -735,11 +888,14 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
             f'<br>{spacing}(b) CV disagreement (10 repeats) = {disagree_b}%.'
             f'<br>{spacing}(c) MCC coef. of variation = {mcc_cv_pct}%.'
         )
-        thres_line = '(a)/(b)/(c) ≤15%/≤25%. Avg. rounded'
+        thres_line = ('(a)/(b) disagreement and (c) MCC coef. of variation:'
+                      '<br>+2 if ≤ 15%, +1 at 25%, 0 if ≥ 35% (linear).'
+                      '<br>Score = average of (a), (b) and (c).')
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">6. Prediction stability</span> &nbsp;({score_label} &nbsp;<img src="file:///{cv_r2_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_pred}{cv_sd_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+    info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('6. Prediction stability','stability')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{cv_r2_image}" alt="CheckML Score" style="width: 13%">) {info}</p>
+    {score_adv_pred}{cv_sd_result}</p>
     """
 
     return column
@@ -768,8 +924,7 @@ def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
         else:
             gap_result = f'Validation is {round(factor_trainfit,2)}*train RMSE.'
 
-        thres_line = 'Validation ≤ 1.25*train RMSE: +2.'
-        thres_line += f'<br>{spacing}Validation ≤ 1.50*train RMSE: +1.'
+        thres_line = f'Ratio validation RMSE / train RMSE:<br>{RATIO_INFO}'
     else:
         diff_trainfit = data_score.get(f'diff_trainfit_{suffix}')
 
@@ -778,116 +933,80 @@ def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
         else:
             gap_result = f'The ΔMCC between train and CV is {diff_trainfit}.'
 
-        thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
+        thres_line = DELTA_MCC_INFO
 
     score_adv_gap = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Train vs validation gap</span> &nbsp;({score_label} &nbsp;<img src="file:///{gap_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_gap}{gap_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}{thres_line}</p>
+    info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('4. Train vs validation gap','gap_diff')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{gap_image}" alt="CheckML Score" style="width: 13%">) {info}</p>
+    {score_adv_gap}{gap_result}</p>
     """
 
     return column
 
 
-def adv_sorted_cv_high(self,suffix,data_score,spacing):
-    """
-    Boundary robustness sub-metric 1: sorted-CV fold for the top 20% (High, highest y)
-    """
-
-    score_high = data_score.get(f'sorted_cv_high_score_{suffix}', 0)
-    score_label,high_image = score_badge_2(self,data_score,suffix,score_high)
-    scaled_high = data_score.get(f'scaled_rmse_high_{suffix}', 0)
-    crossing_high = data_score.get(f'crossing_high_{suffix}', 0)
-
-    score_adv_high = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: -14px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">1. Sorted CV, top 20% (High)</span> &nbsp;({score_label} &nbsp;<img src="file:///{high_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_high}Scaled RMSE (High, sorted CV) = {scaled_high}%.<br>{spacing}Beyond training range (High) = {round(crossing_high*100)}%.<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.<br>{spacing}Crossing < 50%: -1, < 20%: -2.</p>
-    """
-
-    return column
+def adv_sorted_cv_high(self, suffix, data_score, spacing):
+    """Render the High parent section as separate rows for 1a, 1b, and 1c."""
+    score = data_score.get(f'sorted_cv_high_score_{suffix}', 0)
+    label, image = score_badge_2(self, data_score, suffix, score)
+    return _adv_boundary_extreme(
+        self, suffix, data_score, spacing, 'high', '1', 'Top 20% (High)',
+        label, image, data_score.get(f'scaled_rmse_high_{suffix}', 0),
+        data_score.get(f'crossing_high_{suffix}', 0),
+    )
 
 
-def adv_sorted_cv_low(self,suffix,data_score,spacing):
-    """
-    Boundary robustness sub-metric 2: sorted-CV fold for the bottom 20% (Low, lowest y)
-    """
-
-    score_low = data_score.get(f'sorted_cv_low_score_{suffix}', 0)
-    score_label,low_image = score_badge_2(self,data_score,suffix,score_low)
-    scaled_low = data_score.get(f'scaled_rmse_low_{suffix}', 0)
-    crossing_low = data_score.get(f'crossing_low_{suffix}', 0)
-
-    score_adv_low = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">2. Sorted CV, bottom 20% (Low)</span> &nbsp;({score_label} &nbsp;<img src="file:///{low_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_low}Scaled RMSE (Low, sorted CV) = {scaled_low}%.<br>{spacing}Beyond training range (Low) = {round(crossing_low*100)}%.<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.<br>{spacing}Crossing < 50%: -1, < 20%: -2.</p>
-    """
-
-    return column
+def adv_sorted_cv_low(self, suffix, data_score, spacing):
+    """Render the Low parent section as separate rows for 2a, 2b, and 2c."""
+    score = data_score.get(f'sorted_cv_low_score_{suffix}', 0)
+    label, image = score_badge_2(self, data_score, suffix, score)
+    return _adv_boundary_extreme(
+        self, suffix, data_score, spacing, 'low', '2', 'Bottom 20% (Low)',
+        label, image, data_score.get(f'scaled_rmse_low_{suffix}', 0),
+        data_score.get(f'crossing_low_{suffix}', 0),
+    )
 
 
-def adv_spearman(self,suffix,data_score,spacing):
-    """
-    Boundary robustness sub-metric 3: Spearman rank correlation within each extreme fold's own
-    points - does the model at least rank the Low/High fold's points correctly (biggest actual
-    value -> biggest predicted value), even if the absolute error (scored in items 1/2) is off?
-    Scored per side (Low, High) independently, separate from the RMSE-based items 1/2, which
-    are penalized by the "real range extension" crossing rate instead (see
-    get_verify_scores() and calc_penalty_crossing())
-    """
+def _adv_boundary_extreme(self, suffix, data_score, spacing, side, section, label,
+                          sorted_label, sorted_image, scaled_rmse, crossing):
+    """Build a parent heading and three score rows for one target-value boundary."""
+    spearman = data_score.get(f'spearman_{side}_{suffix}')
+    spearman_score = data_score.get(f'spearman_score_{side}_{suffix}', 0)
+    ratio_sd = data_score.get(f'spread_ratio_{side}_{suffix}')
+    ratio_range = data_score.get(f'range_ratio_{side}_{suffix}')
+    degradation_ratio = data_score.get(f'degradation_ratio_{side}_{suffix}')
+    degradation_score = data_score.get(f'degradation_score_{side}_{suffix}', 0)
+    rank_label, rank_image = score_badge_1(self, data_score, suffix, spearman_score)
+    degradation_label, degradation_image = score_badge_1(self, data_score, suffix, degradation_score)
 
-    score_spearman = data_score.get(f'spearman_score_{suffix}', 0)
-    score_label,spearman_image = score_badge_2(self,data_score,suffix,score_spearman)
-    spearman_low = data_score.get(f'spearman_low_{suffix}')
-    spearman_high = data_score.get(f'spearman_high_{suffix}')
+    rank_text = 'Not available.' if spearman is None else f'Spearman rank coefficient ({side.title()}) = {spearman}.'
+    if ratio_sd is not None and ratio_range is not None:
+        rank_text += f'<br>{spacing}Prediction SD ratio = {ratio_sd}; range ratio = {ratio_range}.'
+    degradation_text = ('Not available.' if degradation_ratio is None else
+                        f'Degradation vs 80% RMSE ({side.title()}) = {round(degradation_ratio, 2)}x.')
 
-    if spearman_low is None or spearman_high is None:
-        spearman_result = 'Not available.'
-    else:
-        spearman_result = (
-            f'Spearman rank: Low = {spearman_low}, High = {spearman_high}.'
-            f'<br>{spacing}SD ratio: Low = {data_score[f"spread_ratio_low_{suffix}"]}, High = {data_score[f"spread_ratio_high_{suffix}"]}.'
-            f'<br>{spacing}Range ratio: Low = {data_score[f"range_ratio_low_{suffix}"]}, High = {data_score[f"range_ratio_high_{suffix}"]}.'
-        )
-
-    score_adv_spearman = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">3. Spearman rank</span> &nbsp;({score_label} &nbsp;<img src="file:///{spearman_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_spearman}{spearman_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≥ 0.5: +1. High ≥ 0.5: +1.<br>{spacing}Spread/range ratio ≤ 0.2: -1, ≥ 0.5: 0</p>
-    """
-
-    return column
-
-
-def adv_bound_sd(self,suffix,data_score,spacing):
-    """
-    Boundary robustness sub-metric 4: degradation ratio. Compares each extreme fold's
-    (Low/High) scaled RMSE against the RMSE of its own "remaining 80%" baseline from the same
-    sorted-CV run - how much worse does the model get at the edges of the y-range compared to
-    its own typical performance? Scored independently per side (+1 each), so one
-    badly-degraded side cannot hide behind a fine one.
-    """
-
-    degradation_score = data_score.get(f'degradation_score_{suffix}', 0)
-    score_label,degradation_image = score_badge_2(self,data_score,suffix,degradation_score)
-    ratio_high = data_score.get(f'degradation_ratio_high_{suffix}')
-    ratio_low = data_score.get(f'degradation_ratio_low_{suffix}')
-
-    if ratio_high is None or ratio_low is None:
-        degradation_result = 'Not available.'
-    else:
-        degradation_result = f'Degradation vs 80% RMSE: High {round(ratio_high,2)}x, Low {round(ratio_low,2)}x.'
-
-    score_adv_degradation = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Degradation ratio</span> &nbsp;({score_label} &nbsp;<img src="file:///{degradation_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_degradation}{degradation_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Low ≤ 1.5x: +1. High ≤ 1.5x: +1.</p>
-    """
-
-    return column
+    parent = f'<p style="font-weight:bold; font-size:12px; margin-top:0; margin-bottom:5px;">{spacing}{section}. {label}</p>'
+    side_name = 'High' if side == 'high' else 'Low'
+    detail_spacing = 20 if section == '1' else 10
+    sorted_info = score_info_icon(f'Scoring from 0 to 2<br>{SCALED_RMSE_INFO}'
+                                  '<br>Crossing rate penalty: 0 if \u2265 80%, -1 at 50%, -2 if \u2264 20% (linear).')
+    rank_info = score_info_icon('Scoring from 0 to 1<br>Spearman rank: +1 if \u2265 0.5, 0 if \u2264 0.2 (linear).'
+                                '<br>Penalty (lower of the SD and range ratios):'
+                                '<br>0 if \u2265 0.5, -1 if \u2264 0.2 (linear).')
+    degradation_info = score_info_icon('Scoring from 0 to 1<br>Ratio: +1 if \u2264 1.5x, 0 if \u2265 1.75x (linear).')
+    sorted_row = f"""<p style="text-align: justify; margin-top: 0; margin-bottom: 0;">{spacing}<u>{docs_heading(f'{section}a. Predictions','sorted_cv')}</u> &nbsp;({sorted_label} &nbsp;<img src="file:///{sorted_image}" alt="CheckML Score" style="width: 13%">) {sorted_info}</p>
+    <p style="text-align: justify; margin-top: 3px; margin-bottom: 0;">{spacing}Scaled RMSE ({side_name}) = {scaled_rmse}%.<br>{spacing}Beyond training range ({side_name}) = {round(crossing*100)}%.</p>"""
+    rank_row = f"""<p style="text-align: justify; margin-top: {detail_spacing}px; margin-bottom: 0;">{spacing}<u>{docs_heading(f'{section}b. Spearman rank','spearman')}</u> &nbsp;({rank_label} &nbsp;<img src="file:///{rank_image}" alt="CheckML Score" style="width: 13%">) {rank_info}</p>
+    <p style="text-align: justify; margin-top: 3px; margin-bottom: 0;">{spacing}{rank_text}</p>"""
+    degradation_row = f"""<p style="text-align: justify; margin-top: {detail_spacing}px; margin-bottom: 0;">{spacing}<u>{docs_heading(f'{section}c. Degradation ratio','degradation')}</u> &nbsp;({degradation_label} &nbsp;<img src="file:///{degradation_image}" alt="CheckML Score" style="width: 13%">) {degradation_info}</p>
+    <p style="text-align: justify; margin-top: 3px; margin-bottom: 0;">{spacing}{degradation_text}</p>"""
+    return [parent + sorted_row, rank_row, degradation_row]
 
 
 def adv_applicability_domain(self,suffix,data_score,spacing):
     """
-    Boundary robustness sub-metric 5: applicability domain (leverage) - boundary robustness in
+    Boundary robustness sub-metric 3: applicability domain (leverage) - boundary robustness in
     X-descriptor space (train on the 80% "typical" points, test on the 20% highest-leverage,
-    most structurally/descriptor-wise extreme points), complementing sub-metrics 1-4 (all
+    most structurally/descriptor-wise extreme points), complementing sub-metrics 1-2 (all
     about boundary robustness in y-space)
     """
 
@@ -901,8 +1020,9 @@ def adv_applicability_domain(self,suffix,data_score,spacing):
         ad_result = f'Scaled RMSE (high-leverage 20%) = {scaled_rmse_ad}%.'
 
     score_adv_ad = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">5. Applicability domain (leverage)</span> &nbsp;({score_label} &nbsp;<img src="file:///{ad_image}" alt="CheckML Score" style="width: 13%">)</p>
-    {score_adv_ad}{ad_result}<br>{spacing}<i>· Scoring from 0 to 2 ·</i><br>{spacing}Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.</p>
+    info = score_info_icon(f'Scoring from 0 to 2<br>{SCALED_RMSE_INFO}')
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('3. Applic. domain (leverage)','applicability')}</span>&nbsp;<span style="white-space:nowrap;">({score_label} &nbsp;<img src="file:///{ad_image}" alt="CheckML Score" style="width: 13%">)&nbsp;{info}</span></p>
+    {score_adv_ad}{ad_result}</p>
     """
 
     return column
@@ -910,11 +1030,10 @@ def adv_applicability_domain(self,suffix,data_score,spacing):
 
 def adv_bound_diagnostic(suffix,data_score,spacing):
     """
-    Boundary robustness item 6 (unscored): additional diagnostic kept for context - global Spearman
+    Boundary robustness item 4 (unscored): additional diagnostic kept for context - global Spearman
     rank correlation over the whole sorted dataset (the local, per-extreme Spearman is already
-    scored in item 3). Not scored, but still useful signal, so kept visible as its own item
-    instead of dropped - mirrors Interpolation's item 6 slot so both columns keep the same row
-    count
+    scored in items 1b/2b). Not scored, but still useful signal, so kept visible as its own item
+    instead of dropped, keeping the whole-dataset correlation available beside the boundary plots
     """
 
     spearman_global = data_score.get(f'spearman_global_{suffix}')
@@ -922,9 +1041,9 @@ def adv_bound_diagnostic(suffix,data_score,spacing):
     if spearman_global is None:
         return ''
 
-    result = f'Global Spearman rank (whole dataset) = {spearman_global}.'
+    result = f'Global Spearman rank coefficient (whole dataset) = {spearman_global}.'
 
-    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">6. Additional diagnostics</span> &nbsp;(unscored)</p>
+    column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">4. Additional diagnostics</span> &nbsp;(unscored)</p>
     <p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}{result}</p>
     """
 
@@ -959,8 +1078,9 @@ def get_col_text(type_thres):
                         '<strong>MVL:</strong> multivariate linear models',
                         '<strong>NN:</strong> neural network',
                         '<strong>PFI:</strong> permutation feature importance',
-                        # what get_prediction_results() computes: stats.linregress(y, y_pred).rvalue**2
-                        '<strong>R2:</strong> squared Pearson correlation between observed and predicted values'
+                        # what get_prediction_results() computes: sklearn r2_score (y = x reference)
+                        '<strong>Q2:</strong> R2 of the cross-validated (out-of-fold) predictions, 1 - PRESS/SS (average of the CV repeats)',
+                        '<strong>R2:</strong> coefficient of determination of the predictions, 1 - SSres/SStot (not the squared Pearson correlation)'
         ]
     elif type_thres == 'abbrev_3':
         abbrev_list = ['<strong>REG:</strong> Regression',
@@ -968,8 +1088,8 @@ def get_col_text(type_thres):
                         '<strong>RIDGE:</strong> ridge regression',
                         '<strong>RMSE:</strong> root mean square error',
                         '<strong>RND:</strong> random',
+                        '<strong>SD:</strong> standard deviation',
                         '<strong>SHAP:</strong> Shapley additive explanations',
-                        '<strong>VR:</strong> voting regressor',
         ]
 
     column = ''
@@ -1069,8 +1189,9 @@ def calc_score(dat_files,suffix,pred_type,data_score):
         if interp_score < 0:
             interp_score = 0
 
-        # Boundary robustness: High + Low sorted-CV + Spearman rank + degradation ratio +
-        # applicability domain (max 10: 5 sub-points x 0/2)
+        # Boundary robustness: 1a/2a sorted CV (0-2 each), 1b/2b Spearman (0-1 each),
+        # 1c/2c degradation (0-1 each), and applicability domain (0-2). Keep this sum as the
+        # same seven component values as before regrouping them by High/Low in the report.
         extrap_score = data_score.get(f'sorted_cv_high_score_{suffix}', 0) + data_score.get(f'sorted_cv_low_score_{suffix}', 0) \
                 + data_score.get(f'spearman_score_{suffix}', 0) + data_score.get(f'degradation_score_{suffix}', 0) \
                 + data_score.get(f'applicability_domain_score_{suffix}', 0)
@@ -1142,6 +1263,7 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
     start_data = False
     flawed_score = 0
     failed_tests = 0
+    unclear_tests = 0
     sorted_cv_score = 0
     for i,line in enumerate(dat_verify):
         # set starting points for No PFI and PFI models
@@ -1170,6 +1292,8 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                     if 'percentage difference unavailable (CV score is 0)' in dat_verify[j]:
                         if 'FAILED' in dat_verify[j]:
                             failed_tests += 1
+                        elif 'UNCLEAR' in dat_verify[j]:
+                            unclear_tests += 1
                         continue
                     error_difference = float(dat_verify[j].split(f'% difference.')[0].split()[-1])
                     threshold_gap = unclear_threshold - failed_threshold
@@ -1181,6 +1305,8 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                     flawed_score = convert_2_decimal(flawed_score)
                     if 'FAILED' in dat_verify[j]:
                         failed_tests += 1
+                    elif 'UNCLEAR' in dat_verify[j]:
+                        unclear_tests += 1
                 if '- Sorted ' in dat_verify[i+5]:
                     sorted_cv_results = dat_verify[i+5].split(f'{error_keyword.upper()} = ')[-1]
                     sorted_cv_results = ast.literal_eval(sorted_cv_results)
@@ -1244,7 +1370,7 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                         data_score[f'sorted_cv_low_score_{suffix}'] = max(low_score,0)
                         data_score[f'sorted_cv_high_score_{suffix}'] = max(high_score,0)
 
-                        # boundary robustness sub-metric 4: degradation ratio - each extreme
+                        # boundary robustness components 1c/2c: degradation ratio - each extreme
                         # fold is compared against the RMSE of its OWN "remaining 80%" from the
                         # same sorted-CV run (not the 10x 5-fold CV RMSE, which is a different
                         # CV procedure over a different dataset scope - see boundary_plot() in
@@ -1263,10 +1389,13 @@ def get_verify_scores(dat_verify,suffix,pred_type,data_score):
                             data_score[f'degradation_ratio_low_{suffix}'] = safe_ratio(scaled_low,scaled_rmse_top80)
                             degradation_score_low = calc_degrad_score(data_score[f'degradation_ratio_low_{suffix}'])
                             degradation_score_high = calc_degrad_score(data_score[f'degradation_ratio_high_{suffix}'])
+                            data_score[f'degradation_score_low_{suffix}'] = degradation_score_low
+                            data_score[f'degradation_score_high_{suffix}'] = degradation_score_high
                             data_score[f'degradation_score_{suffix}'] = degradation_score_low + degradation_score_high
     # stores data
     data_score[f'flawed_mod_score_{suffix}'] = flawed_score
     data_score[f'failed_tests_{suffix}'] = failed_tests
+    data_score[f'unclear_tests_{suffix}'] = unclear_tests
     data_score[f'sorted_cv_score_{suffix}'] = sorted_cv_score
 
     return data_score
@@ -1292,6 +1421,23 @@ def part_50_penalty(factor):
     return convert_2_decimal(diff_score)
 
 
+def half_spearman_penalty(spearman):
+    '''
+    Penalty for flat or unordered predictions inside one 50% half of the y range: 0 if the
+    Spearman rank (observed vs predicted) is >= 0.3, -2 if <= -0.2, linear in between.
+    The thresholds are moderate on purpose: each half only has ~8-25 points in low-data sets,
+    so Spearman values between 0 and 0.3 can't be told apart from noise; the full penalty is
+    kept for halves where the model ranks the points in the wrong order. Calibrated on the 14
+    benchmark datasets with < 50 points: thresholds of 0.5/0 penalized half of all models, while
+    these keep the clear failures (Spearman around 0 or negative) and spare models that rank both
+    halves reasonably. No minimum y range is required: a filter based on the model's own error
+    skipped exactly the worst models, and every half in the benchmark spans >= 10% of the range.
+    '''
+    if spearman is None or not np.isfinite(spearman):
+        spearman = 0
+    return convert_2_decimal(max(-2, min(0, 4*(spearman - 0.3))))
+
+
 def symmetric_50_ratio_factor(ratio):
     """Return the symmetric factor for a low/high half-set metric ratio.
 
@@ -1312,6 +1458,7 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
     """
 
     start_data = False
+    sd_score_penalty = 0  # half-set penalty of item 6, set when its log line is found
     data_score[f'rmse_score_{suffix}'] = 0
     data_score[f'cv_type_{suffix}'] = "10x 5-fold CV"
 
@@ -1333,6 +1480,14 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                 data_score['ML_model'] = line.split()[-1]
             # R2 and proportion
             if 'o  Summary of results' in line:
+                # Optional diagnostics can grow the summary. Search its own model
+                # block instead of a fixed number of lines (or the next PFI block).
+                summary_end = next(
+                    (j for j in range(i+1, len(dat_predict))
+                     if '------- ' in dat_predict[j] or 'o  Summary of results' in dat_predict[j]),
+                    len(dat_predict),
+                )
+                summary_lines = dat_predict[i:summary_end]
                 data_score['proportion_ratio_print'] = dat_predict[i+2]
                 data_score[f'points_descp_ratio_{suffix}'] = dat_predict[i+4].split()[-1]
 
@@ -1397,6 +1552,19 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     data_score[f'scaled_rmse_cv_{suffix}'] = round((data_score[f'rmse_cv_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
                     data_score[f'scaled_rmse_test_{suffix}'] = round((data_score[f'rmse_test_{suffix}']/data_score[f'y_range_{suffix}'])*100,2)
 
+                    for detail_line in summary_lines:
+                        if '-  Full data ' in detail_line and '-fold CV : R2 =' in detail_line:
+                            for metric, label in (('r2', 'R2'), ('mae', 'MAE'), ('rmse', 'RMSE')):
+                                data_score[f'{metric}_full_{suffix}'] = float(
+                                    detail_line.split(f'{label} = ')[-1].split(',')[0].strip()
+                                )
+                            # Use the same y-range as all four existing report
+                            # metrics so their scaled errors remain comparable.
+                            data_score[f'scaled_rmse_full_{suffix}'] = (
+                                data_score[f'rmse_full_{suffix}']/data_score[f'y_range_{suffix}']*100
+                            )
+                            break
+
                     data_score[f'cv_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_cv_{suffix}'])
                     data_score[f'test_score_rmse_{suffix}'] = score_rmse_mcc(pred_type,data_score[f'scaled_rmse_test_{suffix}'])
 
@@ -1423,9 +1591,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # validation RMSE is compared to the in-fold training fit (both global, i.e.
                     # over every fold and repeat of the CV, not fold by fold)
                     data_score[f'train_val_gap_score_{suffix}'] = 0
-                    for j in range(i,i+12):
-                        if 'Train fit (in-fold)' in dat_predict[j]:
-                            rmse_trainfit = float(dat_predict[j].split('RMSE = ')[-1].strip())
+                    for detail_line in summary_lines:
+                        if 'Train fit (in-fold)' in detail_line:
+                            rmse_trainfit = float(detail_line.split('RMSE = ')[-1].strip())
                             data_score[f'scaled_rmse_trainfit_{suffix}'] = round((rmse_trainfit/data_score[f'y_range_{suffix}'])*100,2)
                             factor_trainfit = safe_ratio(data_score[f'scaled_rmse_cv_{suffix}'],data_score[f'scaled_rmse_trainfit_{suffix}'])
                             data_score[f'factor_trainfit_{suffix}'] = factor_trainfit
@@ -1438,12 +1606,27 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # the repeated-CV predictions computed by boundary_plot() in utils.py - this
                     # is the headline "Scaled RMSE (Low/High, sorted CV)" number shown in the
                     # report, replacing VERIFY's old single-pass sorted-CV RMSE (see get_verify_scores)
-                    for j in range(i,i+25):
-                        if 'Sorted CV extremes (repeated)' in dat_predict[j]:
-                            rmse_low = float(dat_predict[j].split('RMSE Low = ')[-1].split(',')[0].strip())
-                            rmse_high = float(dat_predict[j].split('RMSE High = ')[-1].strip())
+                    for detail_line in summary_lines:
+                        if 'Sorted CV extremes (repeated)' in detail_line:
+                            rmse_low = float(detail_line.split('RMSE Low = ')[-1].split(',')[0].strip())
+                            rmse_high = float(detail_line.split('RMSE High = ')[-1].strip())
+                            data_score[f'rmse_low_{suffix}'] = rmse_low
+                            data_score[f'rmse_high_{suffix}'] = rmse_high
                             data_score[f'scaled_rmse_low_{suffix}'] = round((rmse_low/data_score[f'y_range_{suffix}'])*100,2)
                             data_score[f'scaled_rmse_high_{suffix}'] = round((rmse_high/data_score[f'y_range_{suffix}'])*100,2)
+                            break
+
+                    # The split-influence diagnostic compares CV with CV. These
+                    # pooled OOF errors belong to the remaining 80% of each
+                    # boundary partition, not to its held-out extreme test set.
+                    for detail_line in summary_lines:
+                        if 'Sorted CV training pools (repeated)' in detail_line:
+                            # Accept the previous "CV RMSE vs Low/High" labels too.
+                            cv_line = detail_line.replace('CV RMSE vs ', 'CV RMSE ')
+                            for side in ('Low', 'High'):
+                                data_score[f'rmse_{side.lower()}_cv_{suffix}'] = float(
+                                    cv_line.split(f'CV RMSE {side} = ')[-1].split(',')[0].strip()
+                                )
                             break
 
                     # real range extension - does the model actually predict beyond the range
@@ -1452,9 +1635,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # boundary? No longer its own scored item - now the penalty inside items
                     # 1/2 (Low/High RMSE), replacing Spearman there (see get_verify_scores() and
                     # calc_penalty_crossing()); still logged by boundary_plot() in utils.py
-                    for j in range(i,i+26):
-                        if 'Real range extension (Low/High)' in dat_predict[j]:
-                            range_line = dat_predict[j]
+                    for detail_line in summary_lines:
+                        if 'Real range extension (Low/High)' in detail_line:
+                            range_line = detail_line
                             data_score[f'crossing_low_{suffix}'] = float(range_line.split('Low crossing = ')[-1].split(',')[0].strip())
                             data_score[f'crossing_high_{suffix}'] = float(range_line.split('High crossing = ')[-1].strip())
                             break
@@ -1463,44 +1646,44 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # 80%" from the same sorted-CV run (see boundary_plot() in utils.py) -
                     # used instead of the 10x 5-fold CV RMSE so the ratio compares within the
                     # same CV procedure/dataset scope rather than across two different ones
-                    for j in range(i,i+29):
-                        if 'Degradation baseline (remaining 80%)' in dat_predict[j]:
-                            rmse_top80 = float(dat_predict[j].split('vs Low (top 80%) RMSE = ')[-1].split(',')[0].strip())
-                            rmse_bottom80 = float(dat_predict[j].split('vs High (bottom 80%) RMSE = ')[-1].strip())
+                    for detail_line in summary_lines:
+                        if 'Degradation baseline (remaining 80%)' in detail_line:
+                            rmse_top80 = float(detail_line.split('vs Low (top 80%) RMSE = ')[-1].split(',')[0].strip())
+                            rmse_bottom80 = float(detail_line.split('vs High (bottom 80%) RMSE = ')[-1].strip())
                             data_score[f'scaled_rmse_top80_{suffix}'] = round((rmse_top80/data_score[f'y_range_{suffix}'])*100,2)
                             data_score[f'scaled_rmse_bottom80_{suffix}'] = round((rmse_bottom80/data_score[f'y_range_{suffix}'])*100,2)
                             break
 
-                    # boundary robustness sub-metric 3: Spearman rank correlation - internal
+                    # boundary robustness components 1b/2b: Spearman rank correlation - internal
                     # (within each fold's own points), logged by boundary_plot() in utils.py.
                     # Now its own dedicated item (used to be a penalty inside items 1/2,
                     # replaced there by the range-extension crossing rate - see get_verify_scores())
                     spearman_global = 0
-                    for j in range(i,i+30):
+                    for detail_line in summary_lines:
                         # calculate spread and range ratio penalties (these penalties tackle models with flat predictions)
-                        if 'y SD at low extreme' in dat_predict[j]:
-                            spread_ratio_low = float(dat_predict[j].split()[-1])
+                        if 'y SD at low extreme' in detail_line:
+                            spread_ratio_low = float(detail_line.split()[-1])
                             data_score[f'spread_ratio_low_{suffix}'] = spread_ratio_low
                             spread_penalty_low = spearman_ratio_penalty(spread_ratio_low)
-                        if 'y SD at high extreme' in dat_predict[j]:
-                            spread_ratio_high = float(dat_predict[j].split()[-1])
+                        if 'y SD at high extreme' in detail_line:
+                            spread_ratio_high = float(detail_line.split()[-1])
                             data_score[f'spread_ratio_high_{suffix}'] = spread_ratio_high
                             spread_penalty_high = spearman_ratio_penalty(spread_ratio_high)
-                        if 'y range at low extreme' in dat_predict[j]:
-                            range_ratio_low = float(dat_predict[j].split()[-1])
+                        if 'y range at low extreme' in detail_line:
+                            range_ratio_low = float(detail_line.split()[-1])
                             data_score[f'range_ratio_low_{suffix}'] = range_ratio_low
                             range_penalty_low = spearman_ratio_penalty(range_ratio_low)
-                        if 'y range at high extreme' in dat_predict[j]:
-                            range_ratio_high = float(dat_predict[j].split()[-1])
+                        if 'y range at high extreme' in detail_line:
+                            range_ratio_high = float(detail_line.split()[-1])
                             data_score[f'range_ratio_high_{suffix}'] = range_ratio_high
                             range_penalty_high = spearman_ratio_penalty(range_ratio_high)
                         # calculate Spearman coefficient scores
-                        if 'Spearman rank (Low/High)' in dat_predict[j]:
-                            spearman_low = float(dat_predict[j].split('Low (internal) = ')[-1].split(',')[0].strip())
-                            spearman_high = float(dat_predict[j].split('High (internal) = ')[-1].split(',')[0].strip())
+                        if 'Spearman rank (Low/High)' in detail_line:
+                            spearman_low = float(detail_line.split('Low (internal) = ')[-1].split(',')[0].strip())
+                            spearman_high = float(detail_line.split('High (internal) = ')[-1].split(',')[0].strip())
                             data_score[f'spearman_low_{suffix}'] = spearman_low
                             data_score[f'spearman_high_{suffix}'] = spearman_high
-                            spearman_global = float(dat_predict[j].split('global = ')[-1].strip())
+                            spearman_global = float(detail_line.split('global = ')[-1].strip())
                             data_score[f'spearman_global_{suffix}'] = spearman_global
                             spearman_score_low = calc_spearman_score(spearman_low)
                             spearman_score_high = calc_spearman_score(spearman_high)
@@ -1509,31 +1692,49 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                             spearman_penalty_high = min(spread_penalty_high, range_penalty_high)
                             final_spearman_low = max(0, min(1, (spearman_score_low + spearman_penalty_low)))
                             final_spearman_high = max(0, min(1, (spearman_score_high + spearman_penalty_high)))
+                            data_score[f'spearman_score_low_{suffix}'] = final_spearman_low
+                            data_score[f'spearman_score_high_{suffix}'] = final_spearman_high
                             data_score[f'spearman_score_{suffix}'] = final_spearman_high + final_spearman_low
                             break
 
-                    # boundary robustness sub-metric 4 (degradation ratio) is scored in
+                    # boundary robustness components 1c/2c (degradation ratio) are scored in
                     # get_verify_scores() instead of here - degradation_ratio_low/high_{suffix}
                     # are computed from VERIFY's own sorted-CV data, which calc_score() only
                     # parses AFTER this function returns, so they aren't available yet at this
                     # point (see get_verify_scores() for the actual score computation)
 
-                    # boundary robustness sub-metric 5: applicability domain (leverage) -
+                    # boundary robustness sub-metric 3: applicability domain (leverage) -
                     # boundary robustness in X-descriptor space rather than y-space, logged by
                     # applicability_domain_plot() in utils.py. RMSE-only scoring (no rank
                     # penalty here, unlike items 1/2/4), since this is a single 80/20 split
                     # rather than a small ~7-point CV fold
                     data_score[f'applicability_domain_score_{suffix}'] = 0
-                    for j in range(i,i+42):
-                        if 'Applicability domain (leverage)' in dat_predict[j]:
-                            ad_line = dat_predict[j]
-                            rmse_ad = float(ad_line.split('RMSE = ')[-1].split(',')[0].strip())
+                    for detail_line in summary_lines:
+                        if 'Applicability domain (leverage)' in detail_line:
+                            ad_line = detail_line
+                            # Legacy DATs only contain an unlabelled test RMSE.
+                            # Keep that test metric for scoring; never substitute
+                            # it for a missing partition CV RMSE in the grey box.
+                            test_label = 'Test RMSE = ' if 'Test RMSE = ' in ad_line else 'RMSE = '
+                            rmse_ad = float(ad_line.split(test_label)[-1].split(',')[0].strip())
+                            data_score[f'rmse_ad_{suffix}'] = rmse_ad
+                            if 'CV RMSE = ' in ad_line:
+                                data_score[f'rmse_ad_cv_{suffix}'] = float(
+                                    ad_line.split('CV RMSE = ')[-1].split(',')[0].strip()
+                                )
                             scaled_rmse_ad = round((rmse_ad/data_score[f'y_range_{suffix}'])*100,2)
                             data_score[f'scaled_rmse_ad_{suffix}'] = scaled_rmse_ad
                             data_score[f'applicability_domain_score_{suffix}'] = score_rmse_mcc(pred_type,scaled_rmse_ad)
                             break
 
                 elif pred_type == 'clas':  # Process classification: using MCC extracted from CV and Test results
+                    for detail_line in summary_lines:
+                        if '-  Full data ' in detail_line and '-fold CV : Accur. =' in detail_line:
+                            for metric, label in (('acc', 'Accur.'), ('f1', 'F1 score'), ('mcc', 'MCC')):
+                                data_score[f'{metric}_full_{suffix}'] = float(
+                                    detail_line.split(f'{label} = ')[-1].split(',')[0].strip()
+                                )
+                            break
                     # Extract MCC from the CV line (generic match, since the fold count is a
                     # user-settable option via --kfold and isn't always 5)
                     if '-fold CV :' in dat_predict[i+5]:
@@ -1574,9 +1775,9 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # out-of-fold CV MCC (r2_cv_{suffix} above), same ΔMCC thresholds as
                     # item 5's CV-vs-test consistency check (see diff_mcc_score below)
                     data_score[f'train_val_gap_score_{suffix}'] = 0
-                    for j in range(i,i+12):
-                        if 'Train fit (in-fold)' in dat_predict[j]:
-                            parts = dat_predict[j].split(',')
+                    for detail_line in summary_lines:
+                        if 'Train fit (in-fold)' in detail_line:
+                            parts = detail_line.split(',')
                             mcc_trainfit = None
                             for part in parts:
                                 if 'MCC' in part:
@@ -1651,28 +1852,35 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     # below zero (which would also produce a non-existent score badge image).
                     data_score[f'cv_sd_score_{suffix}'] = max(0, min(2, avg_sd_score + sd_score_penalty))
                 
+                # half-set checks: Spearman inside each 50% half (logged right before the ratio)
+                for half, half_label in (('high', '50% highest data points'), ('low', '50% lowest data points')):
+                    if f'-  {half_label}' in line and 'Spearman = ' in line:
+                        data_score[f'spearman_50_{half}_{suffix}'] = float(line.split('Spearman = ')[1].split(',')[0])
+                        data_score[f'y_range_50_{half}_{suffix}'] = float(line.split('y range = ')[1].split(',')[0])
+
                 # penalty
                 if f'-  Ratio 50% lowest/highest' in line:
-                    rmse_50_ratio_text = line.split()[-1]
-                    r2_50_ratio_text = line.split('R2 = ')[1].split(',')[0]
+                    rmse_50_ratio_text = line.split('RMSE = ')[-1].strip()
                     rmse_50_factor = symmetric_50_ratio_factor(rmse_50_ratio_text)
-                    r2_50_factor = symmetric_50_ratio_factor(r2_50_ratio_text)
-
-                    for metric, factor in [('rmse', rmse_50_factor), ('r2', r2_50_factor)]:
-                        if factor == 'N/A' or not np.isfinite(factor):
-                            data_score[f'absol_{metric}_50_ratio_{suffix}'] = factor
-                        else:
-                            data_score[f'absol_{metric}_50_ratio_{suffix}'] = float(
-                                Decimal(str(factor)).quantize(
-                                    Decimal('0.01'), rounding=ROUND_HALF_UP
-                                )
+                    if rmse_50_factor == 'N/A' or not np.isfinite(rmse_50_factor):
+                        data_score[f'absol_rmse_50_ratio_{suffix}'] = rmse_50_factor
+                    else:
+                        data_score[f'absol_rmse_50_ratio_{suffix}'] = float(
+                            Decimal(str(rmse_50_factor)).quantize(
+                                Decimal('0.01'), rounding=ROUND_HALF_UP
                             )
+                        )
 
-                    # Apply whichever of the two symmetric ratio penalties is more severe.
-                    sd_score_penalty = min(
-                        part_50_penalty(rmse_50_factor),
-                        part_50_penalty(r2_50_factor),
-                    )
+                    # Apply whichever half-set penalty is more severe: the symmetric RMSE ratio
+                    # (is the error similar in both halves?) or the Spearman rank inside each half
+                    # (does the model still rank the points there, or are its predictions flat?)
+                    half_penalties = [part_50_penalty(rmse_50_factor)]
+                    for half in ('low', 'high'):
+                        if f'spearman_50_{half}_{suffix}' in data_score:
+                            half_penalty = half_spearman_penalty(data_score[f'spearman_50_{half}_{suffix}'])
+                            data_score[f'spearman_50_{half}_penalty_{suffix}'] = half_penalty
+                            half_penalties.append(half_penalty)
+                    sd_score_penalty = min(half_penalties)
 
             elif pred_type == 'clas':
                 # Interpolation item 6 for classification: same "how much does this depend
@@ -1711,7 +1919,38 @@ def get_predict_scores(dat_predict,suffix,pred_type,data_score):
                     avg_facet_score = convert_2_decimal(avg_facet_score)
                     data_score[f'cv_sd_score_{suffix}'] = avg_facet_score
 
+    if pred_type == 'reg':
+        # The common y-range cancels in each ratio. Compute ratios before
+        # rounding scaled errors so small errors do not round to a zero baseline.
+        for metric, rmse_key in (
+            ('cv', 'rmse_cv'), ('high', 'rmse_high_cv'),
+            ('low', 'rmse_low_cv'), ('ad', 'rmse_ad_cv'),
+        ):
+            data_score[f'full_cv_diff_{metric}_{suffix}'] = cv_error_difference(
+                data_score.get(f'{rmse_key}_{suffix}'), data_score.get(f'rmse_full_{suffix}')
+            )
+    elif pred_type == 'clas':
+        # Classification has interpolation only. The existing r2_cv key holds
+        # its pooled out-of-fold MCC, which can legitimately be negative.
+        data_score[f'full_cv_diff_cv_{suffix}'] = cv_error_difference(
+            data_score.get(f'r2_cv_{suffix}'), data_score.get(f'mcc_full_{suffix}'), allow_signed=True
+        )
+
     return data_score
+
+
+def cv_error_difference(value, baseline, allow_signed=False):
+    """Absolute percentage difference, including signed MCC when requested."""
+
+    if value is None or baseline is None:
+        return None
+    if not np.isfinite(value) or not np.isfinite(baseline):
+        return None
+    if not allow_signed and (value < 0 or baseline < 0):
+        return None
+    if baseline == 0:
+        return 0.0 if value == 0 else float('inf')
+    return abs(value/baseline - 1)*100
 
 
 def score_rmse_mcc(pred_type,scaledrmse_mcc_val):
@@ -1756,8 +1995,11 @@ def calc_penalty_r2(r2_val):
     Calculate scores for R2 and MCC using predetermined thresholds
     '''
 
-    # equation for the penalty: 0 if R2 >= 0.9, -2 if R2 <= 0.5, linear in between
-    penalty_r2 = max(-2, min(0, 5*(r2_val - 0.9)))
+    # equation for the penalty: 0 if R2 >= 0.8, -2 if R2 <= 0.4, linear in between. R2 is the
+    # coefficient of determination (Q2 for the CV predictions); a test R2 > 0.6 is "good" in
+    # Alexander, Tropsha and Winkler (J. Chem. Inf. Model. 2015), which here costs 1 point, and
+    # R2 >= 0.8 matches the scaled RMSE that already gets full points (~10% of the y range)
+    penalty_r2 = max(-2, min(0, 5*(r2_val - 0.8)))
     penalty_r2 = convert_2_decimal(penalty_r2)
 
     
@@ -1843,6 +2085,8 @@ def make_report(report_html, HTML, pdf_name='ROBERT_report.pdf'):
             print(f'\nx  {pdf_name} is open! Please, close the PDF file and run ROBERT again with --report (i.e., "python -m robert --report").')
             sys.exit()
     pdf = make_pdf(report_html, HTML, css_files)
+    if SCORE_INFO_SCHEME in report_html:
+        pdf = add_score_info_popups(pdf)
     _ = Path(outfile).write_bytes(pdf)
 
 

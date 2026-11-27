@@ -8,7 +8,8 @@ Bayesian hyperparameter search.
 
 Responsibilities:
 - Collect a CSV plus the y/names columns and prediction type - the train/internal-test split
-  always uses ROBERT's own default (no manual split-point control exposed here)
+  uses CheckML's standard protocol, unless the CSV has a 'Set' column marking 'Test' rows (then
+  the report has no score); there is no "ignore columns" option, only SMILES is excluded
 - Optionally collect a separate external test CSV (--csv_test), for a model already evaluated
   against a held-out set the user manages themselves
 - Collect the model to evaluate: ROBERT's own default (MVL, no tuning), a CSV naming a
@@ -283,8 +284,10 @@ class CheckMLTab(QWidget):
         input_layout.addLayout(csv_row)
 
         split_info = QLabel(
-            "The train / internal-test split always uses ROBERT's own default (~20% of the "
-            "data, evenly spread across the y range)."
+            "The train / internal-test split uses CheckML's standard protocol (~20% of the "
+            "data, evenly spread across the y range). Optional: to analyze your own split, add "
+            "a 'Set' column with 'Test' on the test rows; the report then shows all the "
+            "analyses but no CheckML score."
         )
         split_info.setWordWrap(True)
         split_info.setStyleSheet("color: gray; font-size: 11px;")
@@ -317,21 +320,18 @@ class CheckMLTab(QWidget):
 
         input_layout.addLayout(row1)
 
-        # columns to ignore (--ignore): CHECKML evaluates the model on the descriptors exactly as
-        # they are in the CSV (no one-hot encoding, unlike CURATE), so text columns such as SMILES
-        # must be ignored. They get pre-checked when the CSV is loaded
-        ignore_label = QLabel("Columns to ignore (not used as descriptors) - text columns such as SMILES must be ignored")
-        ignore_label.setStyleSheet("font-size: 12px;")
-        input_layout.addWidget(ignore_label)
-        self.ignore_list = QListWidget()
-        self.ignore_list.setMaximumHeight(90)
-        self.ignore_list.setFlow(QListWidget.LeftToRight)
-        self.ignore_list.setWrapping(True)
-        self.ignore_list.setResizeMode(QListWidget.Adjust)
-        self.ignore_list.setSpacing(2)
-        input_layout.addWidget(self.ignore_list)
-        self.y_dropdown.currentTextChanged.connect(self._refresh_ignore_list)
-        self.names_dropdown.currentTextChanged.connect(self._refresh_ignore_list)
+        # no "ignore columns" option (see the CheckML publication and docs/Report/checkml_database.rst):
+        # the CSV must contain only the names, target and descriptors used by the model, plus an
+        # optional SMILES column that is excluded from the descriptors automatically. Every other
+        # column is used as a descriptor, and text columns stop the run (see _validate())
+        columns_info = QLabel(
+            "Include ONLY the names, target and descriptors used by the model. A SMILES column is "
+            "optional and is excluded from the descriptors automatically. Any other column is used "
+            "as a descriptor."
+        )
+        columns_info.setWordWrap(True)
+        columns_info.setStyleSheet("color: gray; font-size: 11px;")
+        input_layout.addWidget(columns_info)
 
         outer.addWidget(input_box)
 
@@ -557,38 +557,26 @@ class CheckMLTab(QWidget):
             self.y_dropdown.blockSignals(False)
             self.names_dropdown.blockSignals(False)
 
-        # text (non-numeric) columns can't be used as descriptors in CHECKML, so they start
-        # checked in the ignore list (SMILES, names, categories...)
+        # text (non-numeric) columns can't be descriptors in CHECKML (no one-hot encoding); apart
+        # from names, a classification target, 'Set' and SMILES, they stop the run in _validate()
         self.csv_columns = columns
         self.text_columns = [
             col for col in columns
-            if col.lower() == "smiles" or (col.lower() != "set" and not pd.api.types.is_numeric_dtype(df[col]))
+            if col.lower() != "set" and not pd.api.types.is_numeric_dtype(df[col])
         ]
-        self._refresh_ignore_list(preselect=True)
         self._refresh_result_summary()
         self._refresh_sibling_tabs()
 
-    def _refresh_ignore_list(self, *_args, preselect=False):
-        """Rebuilds the ignore list (every column except y and names, which ROBERT already handles),
-        keeping the user's checks. preselect=True checks the text columns (new CSV loaded)."""
-        checked = set(self.text_columns) if preselect else set(self.get_ignored_columns())
-        # 'Set' (user-defined test set) is handled by CHECKML itself, so it's never ignored
-        skip = {self.y_dropdown.currentText(), self.names_dropdown.currentText(), "Set"}
-        self.ignore_list.clear()
-        for col in self.csv_columns:
-            if col in skip:
-                continue
-            item = QListWidgetItem(col)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked if col in checked else Qt.Unchecked)
-            self.ignore_list.addItem(item)
-
     def get_ignored_columns(self):
-        return [
-            self.ignore_list.item(i).text()
-            for i in range(self.ignore_list.count())
-            if self.ignore_list.item(i).checkState() == Qt.Checked
-        ]
+        """Columns excluded automatically from the descriptors by CHECKML: only SMILES (any
+        capitalization, even if it parses as numbers). 'Set' (user-defined test set) is also
+        handled by CHECKML itself."""
+        return [col for col in self.csv_columns if col.lower() == "smiles"]
+
+    def get_extra_text_columns(self):
+        """Text columns that would be used as descriptors (names, target, Set and SMILES excluded)."""
+        skip = {self.y_dropdown.currentText(), self.names_dropdown.currentText(), *self.get_ignored_columns()}
+        return [col for col in self.text_columns if col not in skip]
 
     def set_csv_test_path(self, file_path):
         if self._warn_if_spaces(file_path, "external test CSV"):
@@ -726,6 +714,18 @@ class CheckMLTab(QWidget):
             )
             return False
 
+        extra_text_columns = self.get_extra_text_columns()
+        if extra_text_columns:
+            QMessageBox.warning(
+                self,
+                "CHECKML",
+                "These columns contain text and can't be used as descriptors: "
+                f"{', '.join(extra_text_columns)}.\n\nCheckML accepts ONLY the names, target and "
+                "descriptors used by the model (plus an optional SMILES column). Remove the other "
+                "columns from the CSV and load it again.",
+            )
+            return False
+
         source_index = self.model_source_dropdown.currentIndex()
         if source_index == 1 and not self.sklearn_model_dropdown.currentText():
             QMessageBox.warning(
@@ -773,10 +773,7 @@ class CheckMLTab(QWidget):
         if self.type_dropdown.currentText() == "Classification":
             command += ' --type "clas"'
 
-        ignored_columns = self.get_ignored_columns()
-        if ignored_columns:
-            formatted_columns = [f"'{col}'" for col in ignored_columns]
-            command += f' --ignore "[{", ".join(formatted_columns)}]"'
+        # no --ignore: CHECKML doesn't accept it and excludes SMILES columns by itself
 
         if self.csv_test_path:
             command += f' --csv_test "{self.csv_test_path}"'

@@ -34,7 +34,7 @@ from robert.verify import verify
 from robert.predict import predict
 from robert.report import report
 from robert.aqme import aqme
-from robert.checkml import checkml
+from robert.checkml import checkml, smiles_columns
 from robert.utils import (command_line_args,missing_inputs)
 
 
@@ -121,8 +121,14 @@ def main(exe_type='command',sys_args=None):
 
     # CHECKML, only evaluates models
     else:
-        # CHECKML, which also creates the files of GENERATE
+        # CHECKML, which also creates the files of GENERATE (it stops if --ignore/--discard
+        # were used, these options don't exist in CHECKML)
         checkml(**vars(args))
+
+        # SMILES columns are excluded automatically in CHECKML, and also in the modules below
+        for col in smiles_columns(args.csv_name):
+            if col not in args.ignore:
+                args.ignore.append(col)
 
         # CURATE, only for the Pearson corr matrix (print if there are 30 or less points)
         curate(**vars(args))

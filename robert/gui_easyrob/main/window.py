@@ -4124,9 +4124,6 @@ class EasyROB(QMainWindow):
         if not self.rfecv_filter_value:
             command += ' --rfecv_filter False'
 
-        if self.desc_thres_value:
-            command += f' --desc_thres {self.desc_thres_value}'
-
         if self.thres_x_value:
             command += f' --thres_x {self.thres_x_value}'
 
@@ -4199,7 +4196,6 @@ class EasyROB(QMainWindow):
         self.corr_filter_x_value = self.options_tab.corr_filter_xbool.isChecked()
         self.corr_filter_y_value = self.options_tab.corr_filter_ybool.isChecked()
         self.rfecv_filter_value = self.options_tab.rfecv_filterbool.isChecked()
-        self.desc_thres_value = self.options_tab.desc_thresfloat.text().strip()
         self.thres_x_value = self.options_tab.thres_xfloat.text().strip()
         self.thres_y_value = self.options_tab.thres_yfloat.text().strip()
 
@@ -4372,12 +4368,6 @@ class EasyROB(QMainWindow):
         # CURATE (skip in PREDICT)
         # ------------------------
         if not is_predict:
-            if self.desc_thres_value:
-                try:
-                    float(self.desc_thres_value)
-                except ValueError:
-                    errors.append("desc_thres must be a number.")
-
             if self.thres_x_value:
                 try:
                     float(self.thres_x_value)

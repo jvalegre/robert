@@ -140,14 +140,13 @@ class generate:
         # scan different ML models
         txt_heatmap = f"\no  Starting heatmap scan with {len(self.args.model)} ML models ({self.args.model})."
 
-        # scan different training partition sizes
         cycle = 1
         txt_heatmap += f'\n   Heatmap generation:'
         self.args.log.write(txt_heatmap)
 
         # scan different ML models
         self.args.log.write(f'''   o Starting BO-based hyperoptimization using the combined target:
-                    \n     1. 50% = {self.args.error_type.upper()} from a {self.args.repeat_kfolds}x repeated {self.args.kfold}-fold CV (interpoplation)
+                    \n     1. 50% = {self.args.error_type.upper()} from a {self.args.repeat_kfolds}x repeated {self.args.kfold}-fold CV (interpolation)
                     \n     2. 50% = {self.args.error_type.upper()} from the bottom or top (worst performing) fold in a sorted {self.args.kfold}-fold CV (boundary robustness)
                     \n''')
 

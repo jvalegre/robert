@@ -20,6 +20,8 @@ Automated protocols
 +++++++++++++++++++
 
    *  Calculates R2, MAE and RMSE (for regression) or accuracy, F1 score and MCC (for classification) for the 10x 5-fold CV (training+validation) and test sets of the best No PFI and PFI models found in a GENERATE job.
+   *  Also calculates full-data CV metrics using the combined internal CV and test sets, with the same model, descriptor scaling, canonical row order, and repeated CV settings (stratified for classification). These metrics are logged as ``Full data 10x 5-fold CV`` (or the configured CV settings) and provide the baseline for the report's CV–Test split comparisons: scaled RMSE for regression and MCC for classification.
+   *  For regression boundary analyses, logs both held-out test RMSEs and pooled out-of-fold CV RMSEs for the remaining 80% training pools. The report compares these CV RMSEs with full-data CV; held-out errors continue to determine the boundary scores, and degradation baselines retain the RMSE of averaged out-of-fold predictions.
    *  Predicts values for the test set or an external test set (if any). If the measured y values are included in the external test set, the model metrics from the previous point will be included, otherwise only the predicted y values will be retrieved. 
    *  Performs an outlier analysis.
    *  Performs a SHAP feature analysis.

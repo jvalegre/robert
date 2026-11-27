@@ -59,12 +59,21 @@ And with SMILES:
 Data points included and user-defined data splits
 +++++++++++++++++++++++++++++++++++++++++++++++++
 
-As stated in the previous section, **do not specify data partitions in the input CSV.**
+As stated in the previous section, **do not specify data partitions in the input CSV** if you
+want to obtain the CheckML score.
 
-CheckML uses a standardized and systematic data-splitting strategy to evaluate models, 
-rather than relying on user-defined training, validation, and test splits. This avoids 
-potential inconsistencies caused by small differences in data partitioning, which 
+CheckML uses a standardized and systematic data-splitting strategy to evaluate models,
+rather than relying on user-defined training, validation, and test splits. This avoids
+potential inconsistencies caused by small differences in data partitioning, which
 can have a substantial impact on model evaluation, particularly for small datasets.
+
+.. note::
+  Optionally, you can analyze your own test set by adding a column named ``Set`` with the
+  value ``Test`` in the test rows (any other value, e.g. ``Training``, is used for CV). The
+  resulting report includes all the analyses but **no CheckML score**. CSV files produced by
+  ROBERT (e.g. ``*_db.csv``) already contain this column, so remove it if you want a score.
+  See :ref:`the CheckML score section <robert-score-start>` (tab *Model evaluation with
+  user-defined data partitions*) for details.
 
 The input database provided to CheckML should therefore contain all data points 
 used to train, validate, and test the original model. For example:

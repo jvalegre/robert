@@ -40,6 +40,7 @@ import time
 from robert.predict_utils import (plot_predictions,
     save_predictions,
     print_predict,
+    full_data_cv,
     pearson_map_predict
     )
 from robert.utils import (load_variables,
@@ -115,6 +116,7 @@ class predict:
                 
                 # get results from training, test and external test (if any)
                 Xy_data = load_n_predict(self, model_data, Xy_data, BO_opt=False)
+                Xy_data = full_data_cv(self, Xy_data, model_data)
                 if getattr(self.args, "_api_predict", False):
                     loaded_model = load_model(self, model_data['model'], **model_data['params'])
                     Xy_data = _apply_full_refit_split_conformal(

@@ -12,7 +12,7 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import Draw
 
-from PySide6.QtCore import QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery, Qt, Signal, Slot
+from PySide6.QtCore import QBuffer, QIODevice, QObject, QTimer, QUrl, QUrlQuery, Signal, Slot
 from PySide6.QtWidgets import QCheckBox, QComboBox, QFileDialog, QLineEdit, QWidget
 
 try:
@@ -44,7 +44,6 @@ FIELD_GROUPS = {
         ("corr_filter_xbool", "Descriptor correlation filter"),
         ("corr_filter_ybool", "Target correlation filter"),
         ("rfecv_filterbool", "RFECV filter"),
-        ("desc_thresfloat", "Descriptor threshold"),
         ("thres_xfloat", "Descriptor correlation threshold"),
         ("thres_yfloat", "Target correlation threshold"),
     ),
@@ -220,11 +219,6 @@ class WorkflowBridge(QObject):
                 "available": [window.available_list.item(index).text() for index in range(window.available_list.count())],
                 "ignored": [window.ignore_list.item(index).text() for index in range(window.ignore_list.count())],
             },
-            "checkmlColumns": [
-                {"name": checkml.ignore_list.item(index).text(),
-                 "ignored": checkml.ignore_list.item(index).checkState() == Qt.Checked}
-                for index in range(checkml.ignore_list.count())
-            ],
             "checkmlSource": checkml.model_source_dropdown.currentIndex(),
             "actions": {
                 "run": window.run_button.isEnabled(),
@@ -574,12 +568,6 @@ class WorkflowBridge(QObject):
                 window.move_to_selected()
             else:
                 window.move_to_available()
-        elif action == "toggleCheckmlIgnore":
-            for index in range(checkml.ignore_list.count()):
-                item = checkml.ignore_list.item(index)
-                if item.text() == value:
-                    item.setCheckState(Qt.Unchecked if item.checkState() == Qt.Checked else Qt.Checked)
-                    break
         elif action == "setResultModel":
             selector = window.results_workspace.model_selector
             index = selector.findData(value or None)

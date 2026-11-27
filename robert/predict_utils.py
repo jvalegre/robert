@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import pandas as pd
 import numpy as np
+from scipy import stats
 from robert.utils import (
     get_graph_style,
     pearson_map,
@@ -16,7 +17,35 @@ from robert.utils import (
     get_error_labels,
     mcc_scorer_clf,
     get_prediction_results,
+    load_model,
+    repeated_kfold_cv,
     )
+
+
+def full_data_cv(self, Xy_data, model_data):
+    """Evaluate train+validation+test with the usual repeated out-of-fold CV.
+
+    Restore the database's canonical row order (retained in the pandas indices)
+    before assigning folds. Reuse its scaled descriptors and the saved model/CV
+    settings, and pool every out-of-fold prediction just as load_n_predict does
+    for interpolation. External data and the original prediction arrays stay
+    outside this diagnostic.
+    """
+
+    X_full = pd.concat([Xy_data['X_train_scaled'], Xy_data['X_test_scaled']]).sort_index(kind='stable')
+    y_full = pd.concat([Xy_data['y_train'], Xy_data['y_test']]).sort_index(kind='stable')
+    full_data = {'X_train_scaled': X_full, 'y_train': y_full, 'y_test': y_full.iloc[:0]}
+    loaded_model = load_model(self, model_data['model'], **model_data['params'])
+    # BO_opt here only suppresses unused held-out/in-fold predictions in the CV
+    # engine; this diagnostic never runs hyperparameter optimization or sorted CV.
+    full_data = repeated_kfold_cv(model_data, loaded_model, full_data, BO_opt=True)
+    predictions = np.asarray(full_data['y_pred_train_all'])
+    metrics = get_prediction_results(
+        model_data, np.repeat(y_full.to_numpy(), predictions.shape[1]), predictions.reshape(-1)
+    )
+    for metric, value in zip(get_error_labels(model_data['type']), metrics):
+        Xy_data[f'{metric}_full'] = value
+    return Xy_data
 
 
 def _get_class_mapping_reverse(model_data):
@@ -232,12 +261,14 @@ def print_predict(self,Xy_data,model_data,suffix_title):
         print_results += f"\n      -  {CV_type} : R2 = {Xy_data['r2_train']:.2}, MAE = {Xy_data['mae_train']:.2}, RMSE = {Xy_data['rmse_train']:.2}"
         print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
         print_results += f"\n      -  Average SD in test set = {np.mean(Xy_data['y_pred_test_sd']):.2}"
-        print_results += f"\n      -  y range of dataset (train+valid.) = {float(Xy_data['pred_min']):.2} to {float(Xy_data['pred_max']):.2}, total {float(Xy_data['pred_range']):.2}"
+        print_results += f"\n      -  y range of dataset (CV + test) ={float(Xy_data['pred_min']):.2} to {float(Xy_data['pred_max']):.2}, total {float(Xy_data['pred_range']):.2}"
         if 'r2_train_infold' in Xy_data:
             print_results += f"\n      -  Train fit (in-fold) : R2 = {Xy_data['r2_train_infold']:.2}, MAE = {Xy_data['mae_train_infold']:.2}, RMSE = {Xy_data['rmse_train_infold']:.2}"
 
          # Interpolation item 6, facets (b) and (c), and penalty
         print_results += f"\n      -  Average SD in train+validation (out-of-fold) = {np.mean(Xy_data['y_pred_train_sd']):.2}"
+        if 'rmse_full' in Xy_data:
+            print_results += f"\n      -  Full data {CV_type} : R2 = {Xy_data['r2_full']:.2}, MAE = {Xy_data['mae_full']:.2}, RMSE = {Xy_data['rmse_full']:.2}"
         if 'y_pred_train_all' in Xy_data:
             y_pred_train_all = np.array(Xy_data['y_pred_train_all'])
             if y_pred_train_all.ndim == 1:
@@ -252,21 +283,37 @@ def print_predict(self,Xy_data,model_data,suffix_title):
             high_50_indices = sorted_y_indices[midpoint:]
             n_repeats = y_pred_train_all.shape[1]
 
+            # Per half: RMSE (is the error similar in both halves?) and the Spearman rank between
+            # observed and predicted values (does the model still rank the points INSIDE each
+            # half, or are its predictions flat/unordered there?). R2 is not used here: inside a
+            # half the y range is narrow, so R2 mostly reflects how spread that half's y values
+            # are, not the model. Spearman uses each point's prediction averaged over the CV
+            # repeats (repeating every observed value n_repeats times would only create ties).
+            # The observed y range of each half is logged for reference (see
+            # half_spearman_penalty() in report_utils.py for the scoring).
+            y_pred_mean = y_pred_train_all.mean(axis=1)
+
             def get_half_metrics(indices):
                 y_actual_half = np.repeat(y_train_actual[indices], n_repeats)
                 y_pred_half = y_pred_train_all[indices].reshape(-1)
-                return get_prediction_results(model_data, y_actual_half, y_pred_half)
+                _, _, rmse_half = get_prediction_results(model_data, y_actual_half, y_pred_half)
+                y_obs, y_pred = y_train_actual[indices], y_pred_mean[indices]
+                if len(indices) > 2 and len(np.unique(y_obs)) > 1 and len(np.unique(y_pred)) > 1:
+                    spearman_half = stats.spearmanr(y_obs, y_pred)[0]
+                else:
+                    spearman_half = 0.0  # flat predictions (or a single value) rank nothing
+                return rmse_half, spearman_half, float(np.max(y_obs) - np.min(y_obs))
 
-            high_50_r2, _, high_50_rmse = get_half_metrics(high_50_indices)
-            low_50_r2, _, low_50_rmse = get_half_metrics(low_50_indices)
-            ratio_50_r2 = low_50_r2 / high_50_r2 if high_50_r2 != 0 else 'N/A'
+            high_50_rmse, high_50_spearman, high_50_range = get_half_metrics(high_50_indices)
+            low_50_rmse, low_50_spearman, low_50_range = get_half_metrics(low_50_indices)
             ratio_50_rmse = low_50_rmse / high_50_rmse if high_50_rmse != 0 else 'N/A'
 
-            print_results += f"\n      -  50% highest data points, R2 = {high_50_r2:.2f}, RMSE = {high_50_rmse:.2f}"
-            print_results += f"\n      -  50% lowest data points, R2 = {low_50_r2:.2f}, RMSE = {low_50_rmse:.2f}"
-            ratio_50_r2_display = f"{ratio_50_r2:.2f}" if ratio_50_r2 != 'N/A' else ratio_50_r2
+            print_results += (f"\n      -  50% highest data points, RMSE = {high_50_rmse:.2f}, "
+                              f"Spearman = {high_50_spearman:.2f}, y range = {high_50_range:.3g}")
+            print_results += (f"\n      -  50% lowest data points, RMSE = {low_50_rmse:.2f}, "
+                              f"Spearman = {low_50_spearman:.2f}, y range = {low_50_range:.3g}")
             ratio_50_rmse_display = f"{ratio_50_rmse:.2f}" if ratio_50_rmse != 'N/A' else ratio_50_rmse
-            print_results += f"\n      -  Ratio 50% lowest/highest data points, R2 = {ratio_50_r2_display}, RMSE = {ratio_50_rmse_display}"
+            print_results += f"\n      -  Ratio 50% lowest/highest data points, RMSE = {ratio_50_rmse_display}"
 
             # Interpolation item 6, facets (b)/(c): stability of the out-of-fold CV predictions
             # themselves (not just the test set - facet (a) above), across the repeated-CV
@@ -291,6 +338,8 @@ def print_predict(self,Xy_data,model_data,suffix_title):
             print_results += f"\n      -  Test : Accur. = {Xy_data['acc_test']:.2}, F1 score = {Xy_data['f1_test']:.2}, MCC = {Xy_data['mcc_test']:.2}"
         if 'mcc_train_infold' in Xy_data:
             print_results += f"\n      -  Train fit (in-fold) : Accur. = {Xy_data['acc_train_infold']:.2}, F1 score = {Xy_data['f1_train_infold']:.2}, MCC = {Xy_data['mcc_train_infold']:.2}"
+        if 'mcc_full' in Xy_data:
+            print_results += f"\n      -  Full data {CV_type} : Accur. = {Xy_data['acc_full']:.2}, F1 score = {Xy_data['f1_full']:.2}, MCC = {Xy_data['mcc_full']:.2}"
 
         # Interpolation item 6 for classification: the same "how much does this depend on
         # the random split" question as the regression facets, adapted for a discrete label.

@@ -34,7 +34,6 @@ release = 'v2.2'
 # ones.
 extensions = ['sphinx.ext.autodoc',
               'sphinx_design',
-              'sphinx_reredirects',
               ]
 
 # Pages that moved keep their old URLs working (links in papers, the CheckML
@@ -43,6 +42,10 @@ redirects = {
     'Tutorials/checkml_database': '../Report/checkml_database.html',
     'Tutorials/checkml_evaluation': '../Report/checkml_evaluation.html',
 }
+# Generate the redirects with Sphinx's built-in HTML templates, without an extra extension.
+html_additional_pages = {page: 'redirect.html' for page in redirects}
+html_context = {'redirects': redirects}
+
 # Add any paths that contain templates here, relative to this directory.
 html_theme_options = {
     'collapse_navigation': False,
@@ -57,7 +60,7 @@ templates_path = ['_templates']
 
 # Build htlm steps for tutorials
 html_static_path = ['_static']
-html_js_files = ['steps.js']
+html_js_files = ['steps.js', 'tab_links.js']
 html_css_files = ['custom.css']
 
 # List of patterns, relative to source directory, that match files and

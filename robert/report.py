@@ -117,6 +117,9 @@ def _has_low_relevance_descp(lines,start_idx,shap=False):
     sorted from most to least important already, so the first value found is the top one.
     '''
 
+    # values are logged with :.2, which switches to scientific notation for small numbers
+    # (i.e. 1.2e-05) - without the exponent part, 1.2e-05 was read as 1.2
+    number = r'(-?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?)'
     values = []
     for line in lines[start_idx+1:]:
         stripped = line.strip()
@@ -125,8 +128,8 @@ def _has_low_relevance_descp(lines,start_idx,shap=False):
         if shap:
             # "-  {desc} = min: {min}, max: {max}" - use the larger-magnitude side as the
             # importance proxy, matching how these lines are already sorted (utils.py)
-            min_match = re.search(r'min:\s*(-?[\d.]+)', stripped)
-            max_match = re.search(r'max:\s*(-?[\d.]+)', stripped)
+            min_match = re.search(rf'min:\s*{number}', stripped)
+            max_match = re.search(rf'max:\s*{number}', stripped)
             if not (min_match and max_match):
                 continue
             values.append(max(abs(float(min_match.group(1))), abs(float(max_match.group(1)))))
@@ -134,7 +137,7 @@ def _has_low_relevance_descp(lines,start_idx,shap=False):
             # "-  {desc} = {value} +- {sd}" - PFI values can be negative (a genuinely useless/
             # noisy descriptor can shuffle-permute to a *better* score by chance), so compare
             # magnitudes, not signed values
-            val_match = re.search(r'=\s*(-?[\d.]+)\s*\+-', stripped)
+            val_match = re.search(rf'=\s*{number}\s*\+-', stripped)
             if not val_match:
                 continue
             values.append(abs(float(val_match.group(1))))
@@ -142,10 +145,15 @@ def _has_low_relevance_descp(lines,start_idx,shap=False):
     if len(values) < 2:
         return False
 
-    top = values[0]
+    # the largest magnitude (SHAP lines are sorted by their max or min value, not by magnitude,
+    # so the first line isn't always the most important descriptor)
+    top_idx = max(range(len(values)), key=lambda idx: values[idx])
+    top = values[top_idx]
     if top <= 0:
         return False
-    for val in values[1:]:
+    for idx,val in enumerate(values):
+        if idx == top_idx:
+            continue
         if val < LOW_RELEVANCE_RELATIVE_THRESHOLD * top or val < LOW_RELEVANCE_ABSOLUTE_THRESHOLD:
             return True
     return False
@@ -763,6 +771,14 @@ class report:
         score_high_badge = round_checkml_score(score_high)
         score_low_badge = round_checkml_score(score_low)
         score_leverage_badge = round_checkml_score(score_leverage)
+        # same "N/A" + muted bar as the rest of the report when the score isn't calibrated for
+        # this run (non-standard CV/test/split, see print_score()) - there are no gray versions
+        # of the 0-4 bars, so the bars are faded instead
+        score_available = data_score.get(f'score_available_{suffix}', True)
+        fade = '' if score_available else ' opacity:0.35;'
+
+        def score_label(value,max_score):
+            return f'{value:.1f} / {max_score}' if score_available else 'N/A'
 
         def score_image(max_score,badge):
             # The packaged score_w_4_1 asset is uppercase .JPG; keep the URI portable to
@@ -771,7 +787,7 @@ class report:
             image_width = 26 if max_score == 4 else 13
             return (
                 f'<img src="{icon_dir}/score_w_{max_score}_{badge}.{extension}" '
-                f'alt="CheckML score" style="width:{image_width}%; vertical-align:middle;">'
+                f'alt="CheckML score" style="width:{image_width}%; vertical-align:middle;{fade}">'
             )
 
         image_high = score_image(4,score_high_badge)
@@ -780,17 +796,17 @@ class report:
         rows = (
             f'<span style="{first_row_style}"><img src="{icon_dir}/robust_y_high.png" alt="" style="{icon_style} margin-top:3px;">'
             f'<span style="{first_text_style}"><strong>1. Extrapolation to higher y values</strong>'
-            f'<span style="{score_line_style}">{score_high:.1f} / 4&nbsp&nbsp;{image_high}</span></span></span>'
+            f'<span style="{score_line_style}">{score_label(score_high,4)}&nbsp;&nbsp;{image_high}</span></span></span>'
         )
         rows += (
             f'<span style="{next_row_style}"><img src="{icon_dir}/robust_y_low.png" alt="" style="{icon_style}">'
             f'<span style="{text_style}"><strong>2. Extrapolation to lower y values</strong>'
-            f'<span style="{score_line_style}">{score_low:.1f} / 4&nbsp&nbsp;{image_low}</span></span></span>'
+            f'<span style="{score_line_style}">{score_label(score_low,4)}&nbsp;&nbsp;{image_low}</span></span></span>'
         )
         rows += (
             f'<span style="{next_row_style}"><img src="{icon_dir}/robust_x.png" alt="" style="{icon_style}">'
             f'<span style="{text_style}"><strong>3. Descriptor-space extrapolation</strong>'
-            f'<span style="{score_line_style}">{score_leverage:.1f} / 2&nbsp&nbsp;{image_leverage}</span></span></span>'
+            f'<span style="{score_line_style}">{score_label(score_leverage,2)}&nbsp;&nbsp;{image_leverage}</span></span></span>'
         )
 
         # Offset the evaluations visually past the overlay rule. Relative positioning keeps
@@ -1325,7 +1341,7 @@ class report:
 <div style="font-weight:bold; color:#222222; font-size:13px;">{title}</div>
 <div style="font-weight:bold; color:{muted}; font-size:12px; margin:22px 0;">Disabled for classification</div></td>'''
             fill,text_col,rating = self._summary_score_style(score)
-            score_txt = f'{score:.1f}' if score is not None else '-'
+            score_txt = f'{score:.1f}' if score is not None else 'N/A'
             return f'''<td style="width:50%; border:2px solid {fill}; border-radius:9px; background:{fill}22; text-align:center; padding:8px 6px;">
 <div style="font-weight:bold; color:#222222; font-size:13px;">{title}</div>
 <div style="font-weight:bold; color:{text_col}; font-size:30px; line-height:1.2;">{score_txt}</div>
@@ -1334,6 +1350,10 @@ class report:
 
         interp_score = data_score.get(f'interp_score_{suffix}')
         extrap_score = data_score.get(f'extrap_score_{suffix}')
+        # same as Section A: no number or tier when the score isn't calibrated for this run
+        # (non-standard CV/test/split or user-defined test set, see print_score())
+        if not data_score.get(f'score_available_{suffix}', True):
+            interp_score = extrap_score = None
         cards = score_card('Interpolation',interp_score)
         cards += '<td style="width:12px; border:none;"></td>'
         cards += score_card('Boundary robustness<br><span style="font-size:10px; font-weight:normal;">(related to extrapolation)</span>',
@@ -1512,7 +1532,9 @@ For more information about the warnings and suggestions to fix them, please chec
             if data_score[f'failed_tests_{suffix}'] > 0:
                 severe.append('Failing required tests (Section B.1)')
             else:
-                moderate.append('Some tests are unclear or close to the thresholds (Section B.1)')
+                # also shown when every test PASSED but one of them is within the 30-45%
+                # degradation range, which still gets a small penalty (see get_verify_scores())
+                moderate.append('Some tests are close to the thresholds (Section B.1)')
 
         # train-vs-validation and CV-vs-test gaps at 0/2 both point to the same underlying
         # problem an inexperienced user is unlikely to recognize from the number alone: the
@@ -1528,18 +1550,16 @@ For more information about the warnings and suggestions to fix them, please chec
         if diff_test_zero:
             severe.append('Inconsistent results between CV and test (Section B.5)')
 
-        # variation in CV (existing - unstable predictions across repeated CV runs)
+        # unstable predictions across repeated CV runs: the prediction stability score (item 6)
+        # is 0/2, for both regression and classification
+        if data_score.get(f'cv_sd_score_{suffix}', 1) <= 0:
+            moderate.append('Imprecise predictions (Section B.6)')
         if pred_type == 'reg':
-            if data_score[f'cv_sd_score_{suffix}'] <= 0: # due to the penalty, it might get lowwer than 0 (but in the final score it only adds 0-2 points)
-                moderate.append('Imprecise predictions (Section B.6)')
             # flat or unordered predictions inside one half of the y range (Spearman <= 0.05,
             # i.e. at least half of that check's maximum penalty - see half_spearman_penalty())
             for half, zone in (('low', 'lower'), ('high', 'upper')):
                 if data_score.get(f'spearman_50_{half}_penalty_{suffix}', 0) <= -1:
                     moderate.append(f'Predictions do not rank the points in the {zone} half of the y range (Section B.6)')
-        elif pred_type == 'clas':
-            if data_score[f'diff_mcc_score_{suffix}'] == 0:
-                moderate.append('Imprecise predictions (Section B.6)')
 
         # weak CV / test-set predictions on their own (0/2, Sections B.2/B.3) - distinct from
         # the overfitting checks above, which compare two numbers against each other; these
@@ -2035,7 +2055,7 @@ For more information about the warnings and suggestions to fix them, please chec
 <p style="text-align: justify;">1. Create a CSV database with the new points, including the necessary descriptors.</p>
 {style_line}2. Place the CSV file in the parent folder (i.e., where the module folders were created)</p>
 {style_line}3. Run the PREDICT module as 'python -m robert --predict --csv_test FILENAME.csv'.</p>
-{style_line}4. The predictions will be shown at the end of the resulting PDF report and will be stored in the last column of two CSV files called MODEL_SIZE_test(_No)_PFI.csv, which are in the PREDICT folder.</p>"""
+{style_line}4. The predictions will be shown at the end of the resulting PDF report and will be stored in the FILENAME_MODEL_No_PFI.csv and FILENAME_MODEL_PFI.csv files of the PREDICT/csv_test folder.</p>"""
 
         # add separator line
         misc_dat += '<hr style="margin-top: 20px;">'
@@ -2475,7 +2495,7 @@ For more information about the warnings and suggestions to fix them, please chec
                 repro_dat += f"""{reduced_line}{space}- CREST is required, but no version was found:</p>"""
             repro_dat += f"""{reduced_line}{space}- Install CREST: conda install -c conda-forge crest</p>"""
             if find_crest:
-                repro_dat += f"""{reduced_line}{space}- Adjust CREST version: conda install -c conda-forge crest={crest_version})</p>"""
+                repro_dat += f"""{reduced_line}{space}- Adjust CREST version: conda install -c conda-forge crest={crest_version}</p>"""
 
         character_line = ''
         if self.args.csv_test != '':
@@ -2649,22 +2669,22 @@ For more information about the warnings and suggestions to fix them, please chec
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section explains each component of the CheckML score. Further details on each test can be accessed through the hyperlinks in the underlined titles. Scoring thresholds are provided in the corresponding help icons.</i>'
         elif module == 'y_distrib':
             module_name = 'Section C. Distribution of y Values'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the training and validation sets. In regression, Q1-Q4 are four equal-width intervals of the y range (from the lowest to the highest y value), not quartiles of the data: a uniform dataset would have about 25% of the points in each.</i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section shows the distribution of y values within the whole dataset (CV and test sets). In regression, Q1-Q4 are four equal-width intervals of the y range (from the lowest to the highest y value), not quartiles of the data: a uniform dataset would have about 25% of the points in each.</i>'
         elif module == 'features':
             module_name = 'Section D. Feature Importances'
-            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section presents feature importances measured using the validation set.</i>'
+            section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section presents feature importances (SHAP and PFI) of the model fitted on the CV set (training and validation points).</i>'
         elif module == 'outliers':
             module_name = 'Section E. Outlier Analysis'
             if pred_type == 'clas':
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This feature is disabled in classification problems.</i>'
             else:
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section detects outliers using the standard deviation (SD) of errors from the training set.</i>'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section detects outliers using the standard deviation (SD) of the errors of the CV predictions (training and validation points).</i>'
         elif module == 'generate':
             module_name = 'Section F. Model Screening'
             if eval_only:
                 section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">The screening of models is disabled when using the CHECKML module.</i>'
             else:
-                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section compares different combinations of hyperoptimized algorithms and partition sizes. The combined error is calculated as the product of the training error, validation error, and cross-validation error.</i>'
+                section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section compares the hyperoptimized algorithms. The combined error is the average of the 10x 5-fold CV error and the sorted CV error (worst of the lowest/highest y folds in regression).</i>'
         elif module == 'repro':
             module_name = 'Section G. Reproducibility'
             section_explain = f'<p style="margin-top:-7px;"><i style="text-align: justify;">This section provides all the instructions to reproduce the results presented.</i>'

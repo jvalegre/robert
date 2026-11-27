@@ -168,7 +168,7 @@ def test_GENERATE(test_job):
                 in line
             ):
                 finding_line += 1
-            elif "1. 50% = RMSE from a 10x repeated 5-fold CV (interpoplation)" in line:
+            elif "1. 50% = RMSE from a 10x repeated 5-fold CV (interpolation)" in line:
                 finding_line += 1
             elif (
                 "2. 50% = RMSE from the bottom or top (worst performing) fold in a sorted 5-fold CV (boundary robustness)"
@@ -251,7 +251,7 @@ def test_GENERATE(test_job):
             ):
                 reproducibility += 1
             # lines only for
-            elif "1. 50% = RMSE from a 5x repeated 10-fold CV (interpoplation)" in line:
+            elif "1. 50% = RMSE from a 5x repeated 10-fold CV (interpolation)" in line:
                 finding_changed_kfold += 1
 
         if test_job == "reduced_noPFI":

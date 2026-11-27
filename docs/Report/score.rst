@@ -213,11 +213,12 @@ CheckML score
              poorly on underrepresented classes.
            - Collect representative minority-class observations and inspect per-class errors and the
              confusion matrix. If using class weights or resampling, apply them within training folds only.
-         * - Some tests are unclear or close to the thresholds (Section B.1)
+         * - Some tests are close to the thresholds (Section B.1)
            - Regression and classification
            - **Moderate.** The flawed-model score is negative without
-             any test marked FAILED. At least one baseline remains close enough to incur a penalty,
-             so the model's advantage over simple or degraded predictions is uncertain.
+             any test marked FAILED: at least one test is UNCLEAR (15-30% degradation), or PASSED but
+             with less than 45% degradation, which still incurs a small penalty. The model's advantage
+             over simple or degraded predictions is therefore uncertain.
            - Review each applicable VERIFY result and its margin from the thresholds. Improve informative
              descriptors or data coverage and check whether the advantage persists after reevaluation.
          * - A simpler MVL model performs similarly (Section B.1), consider trying MVL with the same descriptors
@@ -263,11 +264,11 @@ CheckML score
              and evaluate subsequent development on fresh independent data.
          * - Imprecise predictions (Section B.6)
            - Regression and classification
-           - **Moderate.** In regression, the prediction-stability score
-             is 0/2 because of variation across repeated CV predictions and/or unequal performance between
-             low- and high-response halves. For classification, the current warning trigger is a zero
-             CV/test MCC-consistency score, so it can accompany the Section B.5 warning. These outcomes
-             indicate sensitivity to which data are used for evaluation.
+           - **Moderate.** The prediction-stability score is 0/2. In regression, this comes from
+             variation across repeated CV predictions and/or unequal performance between the low- and
+             high-response halves; in classification, from disagreement between CV repeats and/or a
+             variable MCC across repeats. These outcomes indicate sensitivity to which data are used
+             for evaluation.
            - Inspect repeated-CV variability and errors across response regions or classes. Check noisy
              observations, reduce unstable model complexity, and improve coverage of poorly represented cases.
          * - Predictions do not rank the points in the lower/upper half of the y range (Section B.6)
@@ -582,6 +583,10 @@ CheckML score
                   (0 to -2) based on R\ :sup:`2`; the result is floored at zero. Classification uses MCC on the same
                   0-2 scale.
 
+                  The **scaled RMSE** is the RMSE as a percentage of the y range of the whole dataset (CV and test
+                  points), ``100 * RMSE / (max(y) - min(y))``, so it doesn't depend on the units of y. The same
+                  scaling is used in every section of the score that uses a scaled RMSE.
+
                   **Which R**\ :sup:`2` **does ROBERT use?** The coefficient of determination of the predictions
                   (scikit-learn's ``r2_score``):
 
@@ -809,7 +814,7 @@ CheckML score
             **How well the model holds up at the edges of y ranges and on the most descriptor-wise unusual points (related to extrapolation).**
 
             Not defined for classification: none of the sub-metrics below have a well-defined discrete-label
-            equivalent yet, so classification reports show only the Interpolation score (see :ref:`Score ranges <score-ranges>` below).
+            equivalent yet, so classification reports show only the Interpolation score (see the **Score ranges** tab).
 
             For regression, ROBERT sorts the dataset by its target value and runs **two independent 80/20 splits**
             of it — not one three-way split. The "Low" split holds out the bottom 20% of points as its test fold and
@@ -930,8 +935,9 @@ CheckML score
                      :align: center
 
 
-                  *Reported in the PDF as e.g.* ``Degradation vs 80% RMSE: High 1.65x, Low 1.61x`` *— both sides scored*
-                  *independently, so one badly-degraded side can't hide behind a fine one.*
+                  *Reported in the PDF as e.g.* ``Degradation vs 80% RMSE (High) = 1.65x`` *(item 1c) and*
+                  ``Degradation vs 80% RMSE (Low) = 1.61x`` *(item 2c) — both sides are scored independently, so one*
+                  *badly-degraded side can't hide behind a fine one.*
 
                   Each fold receives up to 1 point: its score is 1 at ratios up to 1.5x, then decreases linearly to
                   0 at 1.75x.

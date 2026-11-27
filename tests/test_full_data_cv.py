@@ -96,7 +96,8 @@ def test_partition_cv_pools_oof_errors_without_changing_predictions_or_refitting
     assert rmse_cv == pytest.approx(np.sqrt(np.mean((y[:, None]-oof)**2)))
     np.testing.assert_allclose(train_pred, oof.mean(axis=1))
     np.testing.assert_allclose(test_pred, np.mean(held_out, axis=0))
-    np.testing.assert_allclose(test_sd, np.round(np.std(held_out, axis=0), 2))
+    # per-point SDs are no longer rounded (scale-independent stability scores)
+    np.testing.assert_allclose(test_sd, np.std(held_out, axis=0))
     if repeats > 1:
         assert rmse_cv > np.sqrt(np.mean((y-train_pred)**2))
     # Existing callers still get their original three prediction arrays.

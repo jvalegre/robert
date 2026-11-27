@@ -547,7 +547,7 @@ def score_badge_2(self,data_score,suffix,score_val):
 
     score_val_badge = int(float(Decimal(str(score_val)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)))
     if not data_score.get(f'score_available_{suffix}', True):
-        return 'N/A',f'{self._posix_uri(self.args.path_icons)}/score_w_2_gray_{score_val}.jpg'
+        return 'N/A',f'{self._posix_uri(self.args.path_icons)}/score_w_2_gray_{score_val_badge}.jpg'
     return f'{score_val:.1f} / 2',f'{self._posix_uri(self.args.path_icons)}/score_w_2_{score_val_badge}.jpg'
 
 
@@ -563,6 +563,15 @@ def score_badge_1(self, data_score, suffix, score_val):
 
 
 SCORE_INFO_SCHEME = 'checkml-info:'
+
+# Scoring criteria shown in the "i" icons of Section B. They must match the equations used to
+# calculate the scores (score_rmse_mcc(), calc_penalty_r2(), score_overfit(),
+# score_mcc_difference()...) and the tables of docs/Report/score.rst
+SCALED_RMSE_INFO = 'Scaled RMSE: +2 if ≤ 10%, +1 at 20%, 0 if ≥ 30% (linear).'
+R2_PENALTY_INFO = '{metric} penalty: 0 if ≥ 0.8, -1 at 0.6, -2 if ≤ 0.4 (linear).'
+MCC_INFO = 'MCC: +2 if ≥ 0.6, +1 at 0.3, 0 if ≤ 0 (linear).'
+RATIO_INFO = '+2 if ≤ 1.25, +1 at 1.5, 0 if ≥ 1.75 (linear).'
+DELTA_MCC_INFO = 'ΔMCC: +2 if ≤ 0.15, +1 at 0.30, 0 if ≥ 0.45 (linear).'
 
 # CheckML score documentation. Every tab of the page has a direct link (#slug of the tab
 # label, see docs/_static/tab_links.js), used to send each report item to its own tab.
@@ -677,7 +686,9 @@ def adv_flawed(suffix,data_score,spacing,pred_type):
 
     # adds a bit more space if there is no test set
     score_adv_flawed = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    info = score_info_icon(f'Scoring from {min_score} to 0<br>Per test: Pass: 0, Unclear: -1, Fail: -2.')
+    degradation = 'RMSE increase' if pred_type == 'reg' else 'MCC decrease'
+    info = score_info_icon(f'Scoring from {min_score} to 0<br>Penalty per applicable test, from the {degradation} vs the original CV:'
+                           f'<br>0 if ≥ 45%, -1 at 30%, -2 if ≤ 15% (linear).')
     column = f"""
     <p style="text-align: justify; margin-top: 0px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('1. Model vs "flawed" models','flawed')}</span> &nbsp;({score_flawed:.1f} / 0) {info}</p>
     {score_adv_flawed}{flaw_result}</p>
@@ -691,7 +702,7 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
     Gather the advanced analysis of predictive ability
 
     Classification uses the same 0-2 scale as regression (see score_rmse_mcc()):
-    MCC > 0.6 => 2, 0.3 < MCC <= 0.6 => 1, else => 0
+    2 if MCC >= 0.6, 0 if MCC <= 0, linear in between
     """
 
     score_predict = data_score.get(f'cv_score_combined_{suffix}', 0)
@@ -705,8 +716,7 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
 
         predict_result = f'{metric_type[0]} ({cv_type}) = {scaled_rmse_cv}%.'
         predict_result += f'<br>{spacing}{metric_type[1]} ({cv_type}) = {r2_cv}.'
-        thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
-        thres_line += f'<br>{spacing}Q<sup>2</sup> penalty: 0 if ≥ 0.8, -2 if ≤ 0.4 (linear)'
+        thres_line = f'{SCALED_RMSE_INFO}<br>{R2_PENALTY_INFO.format(metric="Q<sup>2</sup>")}'
         init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
         score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
         info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
@@ -724,7 +734,7 @@ def adv_predict(self,suffix,data_score,spacing,pred_type):
         score_label,predict_image = score_badge_2(self,data_score,suffix,display_score)
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} ({cv_type}) = {mcc_cv}.'
-        thres_line = "MCC >0.6: +2; 0.3-0.6: +1"
+        thres_line = MCC_INFO
 
         init_sep = f'<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}'
         score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
@@ -747,8 +757,7 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
         metric_type = ['Scaled RMSE','R<sup>2</sup>']
         predict_result = f'{metric_type[0]} (test set) = {data_score.get(f"scaled_rmse_test_{suffix}", 0)}%.'
         predict_result += f'<br>{spacing}{metric_type[1]} (test set) = {data_score.get(f"r2_test_{suffix}", 0)}.'
-        thres_line = 'Scaled RMSE ≤ 10%: +2, Scaled RMSE ≤ 20%: +1.'
-        thres_line += f'<br>{spacing}R<sup>2</sup> penalty: 0 if ≥ 0.8, -2 if ≤ 0.4 (linear)'
+        thres_line = f'{SCALED_RMSE_INFO}<br>{R2_PENALTY_INFO.format(metric="R<sup>2</sup>")}'
         score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
         info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
         column = f"""<p style="text-align: justify; margin-top: 17px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('3. Test set predictions','cv_test')}</span> &nbsp;({score_label} &nbsp;<img src="file:///{test_image}" alt="score" style="width: 13%">) {info}</p>
@@ -765,7 +774,7 @@ def adv_test(self,suffix,data_score,spacing,pred_type):
         score_label,test_image = score_badge_2(self,data_score,suffix,display_score)
         metric_type = ['MCC']
         predict_result = f'{metric_type[0]} (test set) = {test_mcc}.'
-        thres_line = ('MCC >0.6: +2; 0.3-0.6: +1')
+        thres_line = MCC_INFO
 
         score_adv_cv = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
         info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
@@ -788,8 +797,7 @@ def adv_diff_test(self,suffix,data_score,spacing,pred_type):
 
         diff_result = f'RMSE in test is {round(data_score[f"factor_scaled_rmse_{suffix}"],2)}*scaled RMSE (CV).'
         
-        thres_line = 'Scaled RMSE (test) ≤ 1.25*scaled RMSE (CV): +2.'
-        thres_line += f'<br>{spacing}Scaled RMSE (test) ≤ 1.50*scaled RMSE (CV): +1.'
+        thres_line = f'Ratio scaled RMSE (test) / scaled RMSE (CV):<br>{RATIO_INFO}'
     else:
         # Classification: use diff_mcc_score instead
         score_diff_test = data_score.get(f'diff_mcc_score_{suffix}', 0)
@@ -802,7 +810,7 @@ def adv_diff_test(self,suffix,data_score,spacing,pred_type):
 
         diff_result = f'The ΔMCC between CV and test is {diff_mcc}.'
 
-        thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
+        thres_line = DELTA_MCC_INFO
 
     score_adv_diff = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
@@ -863,10 +871,12 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
             )
 
         thres_line = (
-            '(a)/(b) 4*SD: +2 if ≤ 25% of y range, 0 if ≥ 75%. (c): +2 if ≤ 15%, 0 if ≥ 35%. Average of the three'
-            '<br>Penalty, lowest (50% halves of the y range):'
-            '<br>Symmetric RMSE ratio: 0 if ≤ 1.25, -2 if ≥ 1.75'
-            '<br>Spearman in each half: 0 if ≥ 0.3, -2 if ≤ -0.2 (linear)'
+            '(a)/(b) 4*SD vs y range: +2 if ≤ 25%, +1 at 50%, 0 if ≥ 75% (linear).'
+            '<br>(c) RMSE coef. of variation: +2 if ≤ 15%, +1 at 25%, 0 if ≥ 35% (linear).'
+            '<br>Score = average of (a), (b) and (c) + the most severe penalty'
+            '<br>from the 50% halves of the y range:'
+            '<br>Symmetric RMSE ratio: 0 if ≤ 1.25, -1 at 1.5, -2 if ≥ 1.75 (linear).'
+            '<br>Spearman in each half: 0 if ≥ 0.3, -1 at 0.05, -2 if ≤ -0.2 (linear).'
         )
     else:
         disagree_a = data_score.get(f'clas_disagree_a_{suffix}',0)
@@ -878,7 +888,9 @@ def adv_cv_sd(self,suffix,data_score,spacing,pred_type='reg'):
             f'<br>{spacing}(b) CV disagreement (10 repeats) = {disagree_b}%.'
             f'<br>{spacing}(c) MCC coef. of variation = {mcc_cv_pct}%.'
         )
-        thres_line = '(a)/(b)/(c) ≤15%/≤25%. Avg. rounded'
+        thres_line = ('(a)/(b) disagreement and (c) MCC coef. of variation:'
+                      '<br>+2 if ≤ 15%, +1 at 25%, 0 if ≥ 35% (linear).'
+                      '<br>Score = average of (a), (b) and (c).')
 
     score_adv_pred = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
@@ -912,8 +924,7 @@ def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
         else:
             gap_result = f'Validation is {round(factor_trainfit,2)}*train RMSE.'
 
-        thres_line = 'Validation ≤ 1.25*train RMSE: +2.'
-        thres_line += f'<br>{spacing}Validation ≤ 1.50*train RMSE: +1.'
+        thres_line = f'Ratio validation RMSE / train RMSE:<br>{RATIO_INFO}'
     else:
         diff_trainfit = data_score.get(f'diff_trainfit_{suffix}')
 
@@ -922,7 +933,7 @@ def adv_train_val_gap(self,suffix,data_score,spacing,pred_type='reg'):
         else:
             gap_result = f'The ΔMCC between train and CV is {diff_trainfit}.'
 
-        thres_line = 'ΔMCC ≤ 0.15: +2, ΔMCC ≤ 0.30: +1'
+        thres_line = DELTA_MCC_INFO
 
     score_adv_gap = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
     info = score_info_icon(f'Scoring from 0 to 2<br>{thres_line}')
@@ -976,9 +987,12 @@ def _adv_boundary_extreme(self, suffix, data_score, spacing, side, section, labe
     parent = f'<p style="font-weight:bold; font-size:12px; margin-top:0; margin-bottom:5px;">{spacing}{section}. {label}</p>'
     side_name = 'High' if side == 'high' else 'Low'
     detail_spacing = 20 if section == '1' else 10
-    sorted_info = score_info_icon('Scoring from 0 to 2<br>Scaled RMSE \u2264 10%: +2, \u2264 20%: +1.<br>Crossing &lt; 50%: -1, &lt; 20%: -2.')
-    rank_info = score_info_icon('Scoring from 0 to 1<br>Coefficient \u2265 0.5: +1.<br>Spread/range ratio \u2264 0.2: -1, \u2265 0.5: 0.')
-    degradation_info = score_info_icon('Scoring from 0 to 1<br>Ratio \u2264 1.5x: +1.')
+    sorted_info = score_info_icon(f'Scoring from 0 to 2<br>{SCALED_RMSE_INFO}'
+                                  '<br>Crossing rate penalty: 0 if \u2265 80%, -1 at 50%, -2 if \u2264 20% (linear).')
+    rank_info = score_info_icon('Scoring from 0 to 1<br>Spearman rank: +1 if \u2265 0.5, 0 if \u2264 0.2 (linear).'
+                                '<br>Penalty (lower of the SD and range ratios):'
+                                '<br>0 if \u2265 0.5, -1 if \u2264 0.2 (linear).')
+    degradation_info = score_info_icon('Scoring from 0 to 1<br>Ratio: +1 if \u2264 1.5x, 0 if \u2265 1.75x (linear).')
     sorted_row = f"""<p style="text-align: justify; margin-top: 0; margin-bottom: 0;">{spacing}<u>{docs_heading(f'{section}a. Predictions','sorted_cv')}</u> &nbsp;({sorted_label} &nbsp;<img src="file:///{sorted_image}" alt="CheckML Score" style="width: 13%">) {sorted_info}</p>
     <p style="text-align: justify; margin-top: 3px; margin-bottom: 0;">{spacing}Scaled RMSE ({side_name}) = {scaled_rmse}%.<br>{spacing}Beyond training range ({side_name}) = {round(crossing*100)}%.</p>"""
     rank_row = f"""<p style="text-align: justify; margin-top: {detail_spacing}px; margin-bottom: 0;">{spacing}<u>{docs_heading(f'{section}b. Spearman rank','spearman')}</u> &nbsp;({rank_label} &nbsp;<img src="file:///{rank_image}" alt="CheckML Score" style="width: 13%">) {rank_info}</p>
@@ -1006,7 +1020,7 @@ def adv_applicability_domain(self,suffix,data_score,spacing):
         ad_result = f'Scaled RMSE (high-leverage 20%) = {scaled_rmse_ad}%.'
 
     score_adv_ad = f'<p style="text-align: justify; margin-top: 3px; margin-bottom: 0px;">{spacing}'
-    info = score_info_icon('Scoring from 0 to 2<br>Scaled RMSE ≤ 10%: +2, ≤ 20%: +1.')
+    info = score_info_icon(f'Scoring from 0 to 2<br>{SCALED_RMSE_INFO}')
     column = f"""<p style="text-align: justify; margin-top: 20px; margin-bottom: 0px;">{spacing}<span style="font-weight:bold;">{docs_heading('3. Applic. domain (leverage)','applicability')}</span>&nbsp;<span style="white-space:nowrap;">({score_label} &nbsp;<img src="file:///{ad_image}" alt="CheckML Score" style="width: 13%">)&nbsp;{info}</span></p>
     {score_adv_ad}{ad_result}</p>
     """
@@ -1074,8 +1088,8 @@ def get_col_text(type_thres):
                         '<strong>RIDGE:</strong> ridge regression',
                         '<strong>RMSE:</strong> root mean square error',
                         '<strong>RND:</strong> random',
+                        '<strong>SD:</strong> standard deviation',
                         '<strong>SHAP:</strong> Shapley additive explanations',
-                        '<strong>VR:</strong> voting regressor',
         ]
 
     column = ''

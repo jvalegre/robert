@@ -140,10 +140,9 @@ file can be downloaded here: |csv_report_smi|
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF 
 file can be visualized here: |pdf_report_smiles|
 
-The PDF report contains all the results of the workflow. In this case, two Random Forest (RF) models with 70% training sizes were the optimal models found from: 
+The PDF report contains all the results of the workflow. In this case, two Random Forest (RF) models (No PFI and PFI) were the optimal models found from:
 
-  * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
-  * Two different partition sizes (60%, 70%) 
+  * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF)
 
 The first part of the PDF file is shown below as a preview:
 

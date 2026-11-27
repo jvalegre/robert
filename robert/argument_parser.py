@@ -29,6 +29,7 @@ var_dict = {
     "corr_filter_y" : False,
     "rfecv_filter" : True,
     "std" : True,
+    # deprecated, no effect: kept only so old command lines/YAML files that pass it still run
     "desc_thres" : 25,
     "thres_y" : 0.001,
     "thres_x" : 0.7,
@@ -89,7 +90,7 @@ def set_options(kwargs):
         if key in var_dict:
             vars(options)[key] = kwargs[key]
         elif key.lower() in var_dict:
-            vars(options)[key.lower()] = kwargs[key.lower()]
+            vars(options)[key.lower()] = kwargs[key]
         else:
             print("Warning! Option: [", key,":",kwargs[key],"] provided but no option exists, try the online documentation to see available options for each module.",)
             sys.exit()

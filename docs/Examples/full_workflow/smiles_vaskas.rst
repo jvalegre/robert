@@ -176,10 +176,9 @@ file can be downloaded here: |csv_report_vaska|
 A PDF file called **ROBERT_report.pdf** should be created in the folder where ROBERT was executed. The PDF 
 file can be visualized here: |pdf_report_vaska|
 
-The PDF report contains all the results of the workflow. In this case, a Random Forest (RF) model with 60% training size and a Neural Network (NN) with 70% training size were the optimal models found from: 
+The PDF report contains all the results of the workflow. In this case, a Random Forest (RF) model (No PFI) and a Neural Network (NN) model (PFI) were the optimal models found from:
 
-  * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF) 
-  * Two different partition sizes (60%, 70%) 
+  * Four different models (Gradient Boosting GB, MultiVariate Linear MVL, Neural Network NN, Random Forest RF)
 
 The first part of the PDF file is shown below as a preview:
 

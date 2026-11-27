@@ -973,7 +973,6 @@ def test_advanced_options_curate_section(easyrob_window):
     assert options_tab.categoricalstr is not None
     assert options_tab.corr_filter_xbool is not None
     assert options_tab.corr_filter_ybool is not None
-    assert options_tab.desc_thresfloat is not None
     assert options_tab.thres_xfloat is not None
     assert options_tab.thres_yfloat is not None
 

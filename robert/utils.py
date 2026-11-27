@@ -147,8 +147,9 @@ def load_from_yaml(self):
     # Variables will be updated from YAML file
     try:
         if os.path.exists(self.varfile):
-            if os.path.basename(Path(self.varfile)).split('.')[1] in ["yaml", "yml", "txt"]:
-                with open(self.varfile, "r") as file:
+            # suffix of the real extension (a name such as "params.v2.yaml" has more than one dot)
+            if Path(self.varfile).suffix.lower().lstrip('.') in ["yaml", "yml", "txt"]:
+                with open(self.varfile, "r", encoding="utf-8") as file:
                     try:
                         param_list = yaml.load(file, Loader=yaml.SafeLoader)
                     except (yaml.scanner.ScannerError,yaml.parser.ParserError):
@@ -626,16 +627,24 @@ def load_variables(kwargs, robert_module):
                 curate_df = pd.read_csv(curate_csv, encoding='utf-8')
 
                 for option in options_dict:
-                    if options_dict[option] == '':
+                    if option == 'ignore':
+                        # ignore is a list (never ''): merge the columns ignored in CURATE (they
+                        # are still in the curated CSV, i.e. SMILES) with the ones given here
+                        curate_ignore = curate_df['ignore'][0]
+                        curate_ignore = format_lists(curate_ignore) if isinstance(curate_ignore, str) else []
+                        for col in curate_ignore:
+                            if col not in self.ignore:
+                                self.ignore.append(col)
+                    elif options_dict[option] == '':
                         if option == 'y':
                             self.y = curate_df['y'][0]
                         elif option == 'names':
                             self.names = curate_df['names'][0]
-                        elif option == 'ignore':
-                            self.ignore = curate_df['ignore'][0]
-                            self.ignore  = format_lists(self.ignore)
                         elif option == 'csv_name':
                             self.csv_name = curate_df['csv_name'][0]
+                # names loaded from CURATE must be ignored as descriptors too (see above)
+                if self.names != '' and self.names not in self.ignore:
+                    self.ignore.append(self.names)
                 
                 # Load class labels if they exist (for classification with string labels)
                 if 'class_mapping_reverse' in curate_df.columns:
@@ -812,7 +821,11 @@ def correlation_filter(self, csv_df):
     # Second pass: remove highly correlated descriptors (always removing the most correlated first)
     txt_corr = ''
     csv_df_filtered = csv_df.drop(descriptors_drop, axis=1)
-    csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+    # only the ignored columns that are actually in the database (e.g. a SMILES column added
+    # automatically to --ignore might not exist), otherwise drop() raises a KeyError and the
+    # number of descriptors below is miscounted
+    ignore_present = [col for col in self.args.ignore if col in csv_df.columns and col != self.args.y]
+    csv_df_X_filtered = csv_df_filtered.drop([self.args.y] + ignore_present, axis=1)
     if self.args.corr_filter_x and len(csv_df_X_filtered.columns) > 1:        
         # Calculate R2 correlation matrix between descriptors
         corr_matrix = csv_df_X_filtered.corr().abs()
@@ -878,7 +891,7 @@ def correlation_filter(self, csv_df):
     # triggered RFECV/PFI even when the correlation filter alone had already brought the
     # descriptor count under the one-third threshold, running an expensive per-model selection
     # step for no benefit
-    n_descps = len(csv_df_filtered.columns)-len(self.args.ignore)-1
+    n_descps = len(csv_df_filtered.columns)-len(ignore_present)-1
 
     if len(descriptors_drop) == 0:
         txt_corr += f'\n   -  No descriptors were removed'
@@ -898,7 +911,7 @@ def correlation_filter(self, csv_df):
         txt_corr = ''
 
         # Perform RFECV for each model specified by the user
-        X_df = csv_df_filtered.drop([self.args.y] + self.args.ignore, axis=1)
+        X_df = csv_df_filtered.drop([self.args.y] + ignore_present, axis=1)
         X_scaled_df,_ = scale_df(X_df,None)
         y_df = csv_df_filtered[self.args.y]
 
@@ -1105,7 +1118,8 @@ def get_scoring_key(problem_type,error_type):
     if problem_type.lower() == 'reg':
         scoring = {
             'rmse': 'neg_root_mean_squared_error',
-            'mae': 'neg_median_absolute_error',
+            # mean (not median) absolute error, the same MAE reported everywhere else
+            'mae': 'neg_mean_absolute_error',
             'r2': 'r2'
         }.get(error_type)
     else:
@@ -1387,10 +1401,10 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
     # this part fixes CSV files that use ";" as separator
     with open(csv_load, 'r', encoding='utf-8') as file:
         lines = file.readlines()
-    if lines[1].count(';') > 1:
+    if len(lines) > 1 and lines[1].count(';') > 1:
         new_csv_name = os.path.basename(csv_load).split('.csv')[0].split('.CSV')[0]+'_original.csv'
         shutil.move(csv_load, Path(os.path.dirname(csv_load)).joinpath(new_csv_name))
-        new_csv_file = open(csv_load, "w")
+        new_csv_file = open(csv_load, "w", encoding='utf-8')
         for line in lines:
             line = line.replace(',','.')
             line = line.replace(';',',')
@@ -1500,7 +1514,7 @@ def load_database(self,csv_load,module,print_info=True,external_test=False):
                 txt_load += f"\n   - {len(csv_df)} datapoints (rows)"
             self.args.log.write(txt_load)
             if accepted_descs == 0:
-                self.args.log.write(f"\nx  The aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
+                self.args.log.write(f"\nx  There aren't any valid descriptors! Check the messages above to see whether the filters have discarded descriptors")
                 sys.exit()
 
     # Sort columns alphabetically for reproducibility across ALL modules
@@ -2463,13 +2477,16 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                                         Xy_data,CV_repeat,BO_opt=BO_opt,
                                         y_pred_global_train_infold=y_pred_global_train_infold)
 
+    # the per-point SDs are kept unrounded: rounding them here (e.g. to 2 decimals) made the
+    # stability scores depend on the units of y, since small-scale targets (e.g. a y range of
+    # 0.05) rounded every SD to 0.00 and got full points in item 6 regardless of the model
     y_train_pred, y_train_std = [],[]
     for y_val in y_pred_global:
         if model_data['type'].lower() == 'reg':
             y_train_pred.append(np.mean(y_val))
         elif model_data['type'].lower() == 'clas':
             y_train_pred.append(_classification_vote(y_val))
-        y_train_std.append(round(np.std(y_val),2))
+        y_train_std.append(float(np.std(y_val)))
 
     Xy_data['y_pred_train_all'] = y_pred_global
     Xy_data['y_pred_train'] = y_train_pred
@@ -2482,7 +2499,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                 y_test_pred.append(np.mean(y_val_test))
             elif model_data['type'].lower() == 'clas':
                 y_test_pred.append(_classification_vote(y_val_test))
-            y_test_std.append(round(np.std(y_val_test),2))
+            y_test_std.append(float(np.std(y_val_test)))
 
         Xy_data['y_pred_test_all'] = y_pred_global_test
         Xy_data['y_pred_test'] = y_test_pred
@@ -2495,7 +2512,7 @@ def repeated_kfold_cv(model_data,loaded_model,Xy_data,BO_opt):
                     y_external_pred.append(np.mean(y_val_external))
                 elif model_data['type'].lower() == 'clas':
                     y_external_pred.append(_classification_vote(y_val_external))
-                y_external_std.append(round(np.std(y_val_external),2))
+                y_external_std.append(float(np.std(y_val_external)))
 
             Xy_data['y_pred_external_all'] = y_pred_global_external
             Xy_data['y_pred_external'] = y_external_pred
@@ -4010,14 +4027,16 @@ def plot_quartiles(y_combined,ax):
     quart_dict['q3_points'] = []
     quart_dict['q4_points'] = []
 
+    # half-open intervals, so a value lying exactly on a boundary (common with integer y values)
+    # is counted once instead of being left out of every interval
     for val in y_combined:
         if val < quart_dict['line_2']:
             quart_dict['q1_points'].append(val)
-        elif quart_dict['line_2'] < val < quart_dict['line_3']:
+        elif val < quart_dict['line_3']:
             quart_dict['q2_points'].append(val)
-        elif quart_dict['line_3'] < val < quart_dict['line_4']:
+        elif val < quart_dict['line_4']:
             quart_dict['q3_points'].append(val)
-        elif val >= quart_dict['line_4']:
+        else:
             quart_dict['q4_points'].append(val)
 
     x_quart = 0.185
@@ -4203,8 +4222,9 @@ def prepare_sets(self,csv_df,csv_X,csv_y,test_points,column_names,csv_external_d
             # possibly-accidental nonzero values get raised to 0.2 (--auto_test False bypasses
             # this entirely, but explicit 0 no longer needs it just for this specific case)
             if 0 < self.args.test_set < 0.2:
+                user_test_set = self.args.test_set
                 self.args.test_set = 0.2
-                self.args.log.write(f'\nx  WARNING! The test_set option was set to {self.args.test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
+                self.args.log.write(f'\nx  WARNING! The test_set option was set to {user_test_set}, this value will be raised to 0.2 to include a meaningful amount of points in the test set. You can bypass this option and include less test points with "--auto_test False".')
 
         if self.args.test_set > 0:
             try:
@@ -4341,7 +4361,8 @@ def pearson_map(self,csv_df_pearson,module,params_dir=None,suffix_title=None):
 
     importlib.reload(plt) # needed to avoid threading issues
     if module.lower() == 'curate': # only represent the final descriptors in CURATE
-        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1)
+        # errors='ignore': an ignored column might not exist in the database
+        csv_df_pearson = csv_df_pearson.drop([self.args.y] + self.args.ignore, axis=1, errors='ignore')
 
     # numeric_only=True: in CHECKML mode, CURATE's categorical_transform() is skipped (only
     # this heatmap is drawn), so csv_df_pearson can still contain raw non-numeric descriptor

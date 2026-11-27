@@ -44,7 +44,6 @@ FIELD_GROUPS = {
         ("corr_filter_xbool", "Descriptor correlation filter"),
         ("corr_filter_ybool", "Target correlation filter"),
         ("rfecv_filterbool", "RFECV filter"),
-        ("desc_thresfloat", "Descriptor threshold"),
         ("thres_xfloat", "Descriptor correlation threshold"),
         ("thres_yfloat", "Target correlation threshold"),
     ),

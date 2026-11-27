@@ -261,7 +261,7 @@ def print_predict(self,Xy_data,model_data,suffix_title):
         print_results += f"\n      -  {CV_type} : R2 = {Xy_data['r2_train']:.2}, MAE = {Xy_data['mae_train']:.2}, RMSE = {Xy_data['rmse_train']:.2}"
         print_results += f"\n      -  Test : R2 = {Xy_data['r2_test']:.2}, MAE = {Xy_data['mae_test']:.2}, RMSE = {Xy_data['rmse_test']:.2}"
         print_results += f"\n      -  Average SD in test set = {np.mean(Xy_data['y_pred_test_sd']):.2}"
-        print_results += f"\n      -  y range of dataset (train+valid.) = {float(Xy_data['pred_min']):.2} to {float(Xy_data['pred_max']):.2}, total {float(Xy_data['pred_range']):.2}"
+        print_results += f"\n      -  y range of dataset (CV + test) ={float(Xy_data['pred_min']):.2} to {float(Xy_data['pred_max']):.2}, total {float(Xy_data['pred_range']):.2}"
         if 'r2_train_infold' in Xy_data:
             print_results += f"\n      -  Train fit (in-fold) : R2 = {Xy_data['r2_train_infold']:.2}, MAE = {Xy_data['mae_train_infold']:.2}, RMSE = {Xy_data['rmse_train_infold']:.2}"
 

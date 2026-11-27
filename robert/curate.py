@@ -100,8 +100,8 @@ class curate:
             # apply duplicate filters (i.e., duplication of datapoints or descriptors)
             csv_df = self.dup_filter(csv_df)
 
-            # apply the correlation filters and returns the database without correlated descriptors
-            if self.args.corr_filter_x or self.args.corr_filter_y:
+            # apply the correlation and/or RFECV/PFI filters
+            if self.args.corr_filter_x or self.args.corr_filter_y or self.args.rfecv_filter:
                 csv_df_result = correlation_filter(self,csv_df)
                 # Check if result is a tuple (model-specific CSVs) or single dataframe
                 if isinstance(csv_df_result, tuple):

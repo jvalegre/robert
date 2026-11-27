@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+{% set redirect_target = redirects[pagename] %}
+<html lang="{{ language or 'en' }}">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="refresh" content="0; url={{ redirect_target | e }}">
+    <meta name="robots" content="noindex">
+    <link rel="canonical" href="{{ redirect_target | e }}">
+    <title>Page moved</title>
+  </head>
+  <body>
+    <p>This page has moved. <a href="{{ redirect_target | e }}">Continue to the new page</a>.</p>
+  </body>
+</html>

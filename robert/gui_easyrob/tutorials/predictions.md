@@ -6,15 +6,15 @@
 
 ---
 
-<b>Select both CSVs.</b><br><br>On <b>ROBERT</b>, load the original project input CSV, then select the new file under <b>External Test CSV</b>. Check both displayed filenames. The first identifies the trained project's context; the second is the set for which predictions will be generated.
+<b>Select both CSVs.</b><br><br>On <b>Workflow</b>, load the original project input CSV, then select the new file under <b>External test CSV</b>. Check both filenames in the Dataset card.
 
 ---
 
-<b>Run only the needed stage.</b><br><br>Open <b>What do you want to run?</b> and select <b>PREDICT</b>. The progress display will treat other ROBERT stages as unused for this run. This choice avoids starting a fresh model-building workflow.
+<b>Run only the needed stage.</b><br><br>Set the <b>Workflow</b> selector to <b>PREDICT</b>. The other ROBERT stages stay inactive for this run.
 
 ---
 
-<b>Start and watch PREDICT.</b><br><br>Click <b>Run ROBERT</b>. The PREDICT card becomes active; open <b>Live log</b> to follow file loading and descriptor handling. A green check indicates completion, while an error card points to the stage whose messages you should inspect.
+<b>Start and watch PREDICT.</b><br><br>Click <b>Run ROBERT</b>. The PREDICT progress row becomes active; open <b>Process log</b> to follow file loading and descriptor handling.
 
 ---
 
@@ -22,4 +22,4 @@
 
 ---
 
-<b>Review the prediction output.</b><br><br>Open <b>Results → Predictions</b> after successful external output is created. In the example image, Predictions is disabled because that project's external prediction CSV is still absent. Use the Model selector when several models exist; Interactive plots offers visual comparisons, and legend clicks show or hide point groups.
+<b>Review the prediction output.</b><br><br>Open <b>Results → Predictions</b> after external output is created. Use the Model selector when several models exist. Interactive plots offers visual comparisons, and legend clicks show or hide point groups.

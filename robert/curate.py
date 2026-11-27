@@ -39,9 +39,6 @@ Parameters
         of corr_filter_x/corr_filter_y, so either filter can be used on its own (e.g. disable
         rfecv_filter to keep only the correlation filter, or disable corr_filter_x/y to rely
         only on RFECV/PFI).
-    desc_thres : float, default=25
-        Threshold for the descriptor-to-datapoints ratio to loose the correlation filter. By default,
-        the correlation filter is loosen if there are 25 times more datapoints than descriptors.
     thres_x : float, default=0.7
         Thresolhold to discard descriptors based on high R**2 correlation with other descriptors (i.e. 
         if thres_x=0.7, variables that show R**2 > 0.7 will be discarded).
@@ -138,18 +135,17 @@ class curate:
         txt_dup = f'\no  Duplication filters activated'
         txt_dup += f'\n   Excluded datapoints:'
 
-        # remove duplicated entries
-        datapoint_drop = []
-        for i,datapoint in enumerate(csv_df_dup.duplicated()):
-            if datapoint:
-                datapoint_drop.append(i)
+        # remove duplicated entries (by position, so it also works when the index of the
+        # dataframe isn't 0..n-1, i.e. after rows were removed in load_database())
+        duplicated = csv_df_dup.duplicated().to_numpy()
+        datapoint_drop = [i for i,is_dup in enumerate(duplicated) if is_dup]
         for datapoint in datapoint_drop:
             txt_dup += f'\n   - Datapoint number {datapoint}'
 
         if len(datapoint_drop) == 0:
             txt_dup += f'\n   -  No datapoints were removed'
 
-        csv_df_dup = csv_df_dup.drop(datapoint_drop, axis=0)
+        csv_df_dup = csv_df_dup[~duplicated]
 
         csv_df_dup = csv_df_dup.reset_index(drop=True)
         self.args.log.write(txt_dup)

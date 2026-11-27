@@ -42,6 +42,20 @@ def aqme_workspace():
         yield workspace
 
 
+def _section_b_scores(report_text):
+    """
+    Maps every Section B item heading (e.g. '1a. Predictions') to its (score, score-bar image)
+    pair, e.g. ('0.0 / 2', 'score_w_2_0.jpg'). Each heading is a link to its tab of the CheckML
+    score documentation, followed by the score in brackets (see adv_* in report_utils.py). The
+    image is None for item 1 (flawed models), which has no score bar.
+    """
+    pattern = (
+        r'>([^<>]{2,45})</a>(?:</span>|</u>)(?: &nbsp;|&nbsp;<span[^>]*>)'
+        r'\(([-0-9.]+ / [0-9])(?: &nbsp;<img src="[^"]*report/(score_w_[0-9_]+\.jpg))?'
+    )
+    return {label: (score, image or None) for label, score, image in re.findall(pattern, report_text)}
+
+
 def _regenerate_report_and_check(test_job, path_main):
     """
     Deletes the PDF/debug report artifacts the subprocess run above already left behind and
@@ -88,15 +102,14 @@ def _regenerate_report_and_check(test_job, path_main):
         assert len(score_imgs) == 1
         assert "Boundary robustness" in debug_text
         assert "Disabled in classification problems" in debug_text
-        assert "1. Consistency (sorted CV)" not in debug_text
-        assert (
-            "Interpolation measures how reliably the model predicts within the range "
-            "of data it was trained on.</i>" in debug_text
-        )
+        # no boundary robustness items in Section B for classification
+        assert "1. Top 20% (High)" not in debug_text
+        assert "1a. Predictions" not in _section_b_scores(debug_text)
     else:
         assert len(score_imgs) == 2
         assert "Boundary robustness" in debug_text
-        assert "1. Sorted CV, top 20% (High)" in debug_text
+        assert "1. Top 20% (High)" in debug_text
+        assert "2. Bottom 20% (Low)" in debug_text
 
 
 # AQME and full workflow tests
@@ -350,14 +363,9 @@ def test_AQME(test_job, aqme_workspace):
             cv_sd_models,
             cv_vs_test_models,
         ) = [], [], [], [], [], []
-        (
-            high_fold,
-            low_fold,
-            spearman,
-            degradation,
-            applic_domain,
-            addit_diag,
-        ) = [], [], [], [], [], []
+        # boundary robustness items (1a-1c, 2a-2c, 3) - several of them share a line of the
+        # debug report, so they're read from the whole text instead of line by line
+        section_b = _section_b_scores("".join(outlines))
 
         predict_graphs, flawed_image, cv_sd_image = False, False, False
         y_distrib_image, pearson_pred_image = False, False
@@ -382,7 +390,8 @@ def test_AQME(test_job, aqme_workspace):
                 points_desc.extend(points_match.groups())
             if "Results_RF_No_PFI.png" in line:
                 predict_graphs = True
-            if "10x 5-fold CV : R<sup>2</sup> = " in line:
+            # the R2 of the CV predictions is shown as Q2 (see the abbreviations section)
+            if "10x 5-fold CV : Q<sup>2</sup> = " in line:
                 metrics_train_count += 1
             if "Test : R<sup>2</sup> = " in line:
                 metrics_test_count += 1
@@ -409,19 +418,6 @@ def test_AQME(test_job, aqme_workspace):
                 or "PREDICT\\CV_variability_RF_No_PFI.png" in line
             ):
                 cv_sd_image = True
-            # boundary robustness
-            if "1. Sorted CV, top 20% (High)" in line:
-                high_fold.append(line)
-            if "2. Sorted CV, bottom 20% (Low)" in line:
-                low_fold.append(line)
-            if "3. Spearman rank" in line:
-                spearman.append(line)
-            if "4. Degradation ratio" in line:
-                degradation.append(line)
-            if "5. Applicability domain (leverage)" in line:
-                applic_domain.append(line)
-            if "6. Additional diagnostics" in line:
-                addit_diag.append(outlines[i+1])
             # others
             if "y_distribution_RF_No_PFI.png" in line:
                 y_distrib_image = True
@@ -456,8 +452,11 @@ def test_AQME(test_job, aqme_workspace):
             # that used to be checked as a [0]/[1] pair (one per model) now appears exactly
             # once. The only field that legitimately has 2 entries is robert_score, since each
             # single-suffix report still shows 2 columns (Interpolation/Boundary robustness)
-            assert score_interpolation[0] == "2.9"
-            assert image_interpolation[0] == "3"
+            # 1.8 since R2 is the coefficient of determination (not the squared Pearson
+            # correlation): this RF compresses its test predictions, so its test R2 drops from
+            # 0.94 (Pearson) to 0.47 and item 3 loses its points (see item 3 below)
+            assert score_interpolation[0] == "1.8"
+            assert image_interpolation[0] == "2"
             assert score_boundary[0] == "0.0"
             assert image_boundary[0] == "0"
             assert ml_model_count == 1
@@ -473,9 +472,10 @@ def test_AQME(test_job, aqme_workspace):
             # advanced analysis, predictive ability section 2
             assert "0.0 / 2" in pred_ability[0]
             assert "report/score_w_2_0.jpg" in pred_ability[0]
-            # advanced analysis, predictive ability of external test set, item 3
-            assert "1.1 / 2" in pred_test_ability[0]
-            assert "report/score_w_2_1.jpg" in pred_test_ability[0]
+            # advanced analysis, predictive ability of external test set, item 3 (scaled RMSE
+            # 18.8% gives 1.1 points, the R2 penalty for a test R2 of 0.47 takes them away)
+            assert "0.0 / 2" in pred_test_ability[0]
+            assert "report/score_w_2_0.jpg" in pred_test_ability[0]
             # advanced analysis, train vs validation gap, item 4
             assert "2.0 / 2" in train_val_gap_models[0]
             assert "report/score_w_2_2.jpg" in train_val_gap_models[0]
@@ -486,23 +486,14 @@ def test_AQME(test_job, aqme_workspace):
             assert "2.0 / 2" in cv_sd_models[0]
             assert "report/score_w_2_2.jpg" in cv_sd_models[0]
             assert cv_sd_image
-            # advanced analysis, boundary robustness, item 1 (Sorted CV, top 20% / High)
-            assert "0.0 / 2" in high_fold[0]
-            assert "report/score_w_2_0.jpg" in high_fold[0]
-            # advanced analysis, boundary robustness, item 2
-            assert "0.0 / 2" in low_fold[0]
-            assert "report/score_w_2_0.jpg" in low_fold[0]
-            # advanced analysis, boundary robustness, item 3
-            assert "0.0 / 2" in spearman[0]
-            assert "report/score_w_2_0.jpg" in spearman[0]
-            # advanced analysis, boundary robustness, item 4
-            assert "0.0 / 2" in degradation[0]
-            assert "report/score_w_2_0.jpg" in degradation[0]
-            # advanced analysis, boundary robustness, item 5
-            assert "0.0 / 2" in applic_domain[0]
-            assert "report/score_w_2_0.jpg" in applic_domain[0]
-            # advanced analysis, boundary robustness, item 6
-            assert "Global Spearman rank (whole dataset) = 0.9" in addit_diag[0]
+            # advanced analysis, boundary robustness: 1. Top 20% (High) and 2. Bottom 20%
+            # (Low), each with a) predictions (0-2), b) Spearman rank (0-1) and c) degradation
+            # ratio (0-1), plus 3. applicability domain (0-2)
+            for side in ("1", "2"):
+                assert section_b[f"{side}a. Predictions"] == ("0.0 / 2", "score_w_2_0.jpg")
+                assert section_b[f"{side}b. Spearman rank"] == ("0.0 / 1", "score_w_2_0.jpg")
+                assert section_b[f"{side}c. Degradation ratio"] == ("0.0 / 1", "score_w_2_0.jpg")
+            assert section_b["3. Applic. domain (leverage)"] == ("0.0 / 2", "score_w_2_0.jpg")
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -546,7 +537,7 @@ def test_AQME(test_job, aqme_workspace):
             assert "report/score_w_2_1.jpg" in cv_vs_test_models[0]
             # no boundary robustness sub-items for classification (no sub-item 1 to check)
             assert not score_boundary
-            assert not high_fold
+            assert "1a. Predictions" not in section_b
             # y distribution and Pearson images
             assert y_distrib_image
             assert pearson_pred_image
@@ -730,6 +721,17 @@ def test_REPORT_classification_single_repeat_kfold():
             debug_content = f.read()
         assert "Traceback (most recent call last)" not in debug_content
         assert "6. Prediction stability" in debug_content
+        import pymupdf
+
+        for suffix in ("No_PFI", "PFI"):
+            with pymupdf.open(os.path.join(path_scratch, f"ROBERT_report_{suffix}.pdf")) as pdf:
+                first_page = pdf[0].get_text()
+                for text in ("Model metrics", "1x 5-fold CV : Accur.", "Test : Accur.",
+                             "Score breakdown (see Section B, left)", "CV-Test Split Diagnostic",
+                             "Considerations when using CheckML"):
+                    assert text in first_page
+                assert "Section B, right" not in first_page
+                assert "Results summary" in pdf[1].get_text()
     finally:
         os.chdir(path_main)
         shutil.rmtree(path_scratch, ignore_errors=True)
@@ -796,7 +798,7 @@ def _workflow_fingerprint(path_main):
         result[f"{folder}_sets"] = dict(zip(db["Name"].astype(str), db["Set"]))
     for module, tags in [("GENERATE", ["combined", "RMSE"]),
                          ("VERIFY", ["y_mean", "y_shuffle", "onehot", "cluster", "Sorted"]),
-                         ("PREDICT", ["10x 5-fold CV :", "Test :", "Sorted CV extremes", "Applicability domain",
+                         ("PREDICT", ["10x 5-fold CV :", "Test :", "Sorted CV extremes", "Sorted CV training pools", "Applicability domain",
                                       "Spearman rank", "Degradation baseline"])]:
         with open(os.path.join(path_main, module, f"{module}_data.dat"), encoding="utf-8") as dat_file:
             result[module] = [line.strip() for line in dat_file if any(tag in line for tag in tags)

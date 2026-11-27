@@ -187,10 +187,6 @@ class AdvancedOptionsTab(QWidget):
         self.rfecv_filterbool.setChecked(True)
         layout.addRow(QLabel("rfecv_filter:"), self.rfecv_filterbool)
 
-        self.desc_thresfloat = QLineEdit()
-        self.desc_thresfloat.setPlaceholderText("25")
-        layout.addRow(QLabel("desc_thres:"), self.desc_thresfloat)
-
         self.thres_xfloat = QLineEdit()
         self.thres_xfloat.setPlaceholderText("0.7")
         layout.addRow(QLabel("thres_x:"), self.thres_xfloat)

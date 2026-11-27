@@ -7,10 +7,13 @@ GENERAL
 
     csv_name : str, default=''
         Name of the CSV file containing all the points used in the model (combining train + valid + test).
-        A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). Include a 'Set' column with
-        the value 'Test' on the rows that should be held out as the test set to control the
-        split yourself - otherwise ROBERT splits it automatically (see the 'split'/'test_set'
-        options), same as GENERATE.
+        A path can be provided (i.e. 'C:/Users/FOLDER/FILE.csv'). By default, CheckML splits the
+        data with its standard protocol (EVEN split for regression, STRATIFIED for
+        classification, 20% test set). Optionally, include a 'Set' column with the value 'Test'
+        on the rows that should be held out as the test set (any other value, e.g. 'Training',
+        is used for CV) to analyze your own split. In that case, and also when using a
+        non-standard 'split' option, the PDF report contains all the analyses but no CheckML
+        score, since the score is calibrated for the standard split.
     y : str, default=''
         Name of the column containing the response variable in the input CSV file (i.e. 'solubility').
     names : str, default=''
@@ -95,6 +98,19 @@ def _accepts_count_and_fraction(model_cls, param):
     return has_int and has_fraction
 
 
+def smiles_columns(csv_name):
+    '''
+    Columns named SMILES (any capitalization) of the input CSV. CheckML excludes them from the
+    descriptors automatically: they are only used to show molecules in interactive plots
+    '''
+
+    try:
+        columns = pd.read_csv(csv_name, nrows=0, encoding='utf-8').columns
+    except (OSError, ValueError):
+        return []
+    return [col for col in columns if str(col).strip().lower() == 'smiles']
+
+
 class checkml:
     """
     Class containing all the functions from the CHECKML module.
@@ -115,6 +131,23 @@ class checkml:
         # clean folders from previous runs
         _ = self.clean_eval()
 
+        # no --ignore/--discard in CHECKML (see the CheckML publication and
+        # docs/Report/checkml_database.rst): the CSV must contain ONLY the names, target and
+        # descriptors used by the model, so the evaluation (and the CSV shared in the Supporting
+        # Information) always matches the model. Only the names column (added by
+        # load_variables()), 'Set' and SMILES are excluded, and ROBERT handles them itself
+        user_excluded = [
+            col for col in self.args.ignore + self.args.discard
+            if col != self.args.names and str(col).strip().lower() not in ('set', 'smiles')
+        ]
+        if user_excluded:
+            self.args.log.write(f"\nx  The --ignore and --discard options are not available in CHECKML (columns requested: {user_excluded}). Remove these columns from the CSV: CheckML accepts ONLY the names, target and descriptors used by the model (plus an optional SMILES column, which is excluded from the descriptors automatically).")
+            self.args.log.finalize()
+            sys.exit()
+        for col in smiles_columns(self.args.csv_name):
+            if col not in self.args.ignore:
+                self.args.ignore.append(col)
+
         # load database, discard user-defined descriptors and perform data checks
         csv_df, csv_X, csv_y = load_database(self,self.args.csv_name,"checkml",print_info=False)
 
@@ -132,16 +165,16 @@ class checkml:
         for column in expected_descriptors:
             rows_missing_x = raw_df[column].isna()
             if rows_missing_x.any():
-                self.args.log.write(f"\nx  The descriptor column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_x)} of {os.path.basename(self.args.csv_name)}! CHECKML does not fill in missing descriptors automatically (unlike CURATE in the full ROBERT workflow), please fill them in (or remove those rows, or use --ignore/--discard to exclude that column) and run ROBERT again.")
+                self.args.log.write(f"\nx  The descriptor column ({column}) has empty values in row(s) {_csv_row_numbers_txt(rows_missing_x)} of {os.path.basename(self.args.csv_name)}! CHECKML does not fill in missing descriptors automatically (unlike CURATE in the full ROBERT workflow), please fill them in (or remove those rows, or remove that column from the CSV if the model doesn't use it) and run ROBERT again.")
                 self.args.log.finalize()
                 sys.exit()
 
         # CHECKML scores the model on the descriptors exactly as they are in the CSV (unlike
-        # CURATE, there is no one-hot encoding of categorical variables), so text columns such
-        # as SMILES can't be used as descriptors
+        # CURATE, there is no one-hot encoding of categorical variables), so text columns can't
+        # be used as descriptors (SMILES was already excluded above)
         text_columns = [col for col in csv_X.columns if not pd.api.types.is_numeric_dtype(csv_X[col])]
         if text_columns:
-            self.args.log.write(f"\nx  The columns {text_columns} contain text, and CHECKML does not convert categorical variables (no one-hot encoding), so they can't be used as descriptors! Ignore them (i.e., --ignore \"[{','.join(text_columns)}]\") or convert them to numbers in the CSV.")
+            self.args.log.write(f"\nx  The columns {text_columns} contain text, and CHECKML does not convert categorical variables (no one-hot encoding), so they can't be used as descriptors! Remove them from the CSV (CheckML accepts ONLY the names, target and descriptors used by the model, plus an optional SMILES column) or convert them to numbers.")
             self.args.log.finalize()
             sys.exit()
 
@@ -345,10 +378,13 @@ class checkml:
         set_col = csv_df['Set'].astype(str).str.strip().str.lower()
         test_mask = set_col == 'test'
         if not test_mask.any():
+            self.args.log.write("\nx  WARNING! The input CSV has a 'Set' column but no rows marked 'Test', so the column was ignored and CheckML's standard automatic split was used.")
             return None
 
         test_points = csv_df.index[test_mask].tolist()
+        # (this sentence is detected by REPORT to hide the score, see print_score() in report.py)
         self.args.log.write(f"\no  Using the 'Set' column from the input CSV to select the test set ({len(test_points)} points) instead of an automatic split.")
+        self.args.log.write("\nx  WARNING! With a user-defined test set, the PDF report includes all the analyses but NOT the CheckML score, which is calibrated for CheckML's standard split. Remove the 'Set' column from the CSV to obtain a score.")
         return test_points
 
     def save_generate(self,csv_df,Xy_data):

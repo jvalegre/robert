@@ -46,6 +46,6 @@ System: 4 processors (Intel Xeon Ice Lake 8352Y) using 8.0 GB RAM memory
 Results
 +++++++
 
-* Four CSV files for each combination of ML model/training size (in /GENERATE/Raw_data). Half of the CSVs relate to models with all the variables (No_PFI folder) and the other half for models that use only the msot important features based on PFI (PFI folder). For each pair of CSVs, one contains the parameters of the model and the other contains the database already split into training/validation sets (_db suffix).
+* Four CSV files for each ML model (in /GENERATE/Raw_data). Half of the CSVs relate to models with all the variables (No_PFI folder) and the other half for models that use only the most important features based on PFI (PFI folder). For each pair of CSVs, one contains the parameters of the model and the other contains the database already split into training and test sets (_db suffix, Set column).
 * The two best models, for No_PFI (all descriptors) and for PFI (only important descriptors), are stored in /GENERATE/Best_model.
 * Two heatmaps with a summary of the results for all the models, created in /GENERATE/Raw_data. 

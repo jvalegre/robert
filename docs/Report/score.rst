@@ -104,7 +104,7 @@ CheckML score
       train/test split can be highly sensitive to the selected partition, especially in low-data scenarios.
       To avoid this dependence, CheckML evaluates models using its own standardized data partitions,
       independently of any train/test splits originally defined by the user. The figure below illustrates
-      this issue using the same overall dataset and the same linear regression algorithm.
+      this issue using the same overall dataset and linear regression models.
 
       .. figure:: images/user_partitions.png
          :width: 100%

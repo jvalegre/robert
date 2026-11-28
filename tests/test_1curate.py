@@ -567,3 +567,38 @@ def test_CURATE_PFI_zero_positive_importance_floor():
     finally:
         os.chdir(path_original)
         shutil.rmtree(path_scratch, ignore_errors=True)
+
+
+def test_CURATE_rfecv_runs_without_correlation_filters(tmp_path):
+    """RFECV/PFI selection runs when corr_filter_x and corr_filter_y are disabled."""
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    n, p = 18, 8
+    df = pd.DataFrame({f"x{i}": rng.normal(size=n) for i in range(p)})
+    df["y"] = 2 * df["x0"] - df["x1"] + rng.normal(scale=0.1, size=n)
+    df["Name"] = [f"m{i}" for i in range(n)]
+    df.to_csv(tmp_path / "data.csv", index=False)
+
+    path_original = os.getcwd()
+    try:
+        os.chdir(tmp_path)
+        curate(
+            y="y",
+            names="Name",
+            csv_name="data.csv",
+            model=["RF"],
+            corr_filter_x=False,
+            corr_filter_y=False,
+            rfecv_filter=True,
+            repeat_kfolds=1,
+            kfold=3,
+        )
+        rf_csv = tmp_path / "CURATE" / "data_CURATE_RF.csv"
+        assert rf_csv.exists()
+        rf_df = pd.read_csv(rf_csv)
+        assert 2 <= len(rf_df.columns) - 2 <= round(n / 3)
+        general_df = pd.read_csv(tmp_path / "CURATE" / "data_CURATE.csv")
+        assert len(general_df.columns) - 2 == p
+    finally:
+        os.chdir(path_original)

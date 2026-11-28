@@ -792,7 +792,9 @@ def correlation_filter(self, csv_df):
     csv_df = csv_df.reset_index(drop=True).sort_values(by=self.args.y, kind='stable').reset_index(drop=True)
 
     if self.args.corr_filter_x or self.args.corr_filter_y:
-        txt_corr += f'\no  Correlation filter activated with these thresholds: thres_x = {self.args.thres_x}'
+        txt_corr += f'\no  Correlation filter activated with these thresholds:'
+        if self.args.corr_filter_x:
+            txt_corr += f', thres_x = {self.args.thres_x}'
         if self.args.corr_filter_y:
             txt_corr += f', thres_y = {self.args.thres_y}'
     else:

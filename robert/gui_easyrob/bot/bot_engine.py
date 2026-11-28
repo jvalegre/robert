@@ -29,7 +29,13 @@ from .llm_providers import (
     build_provider_registry,
 )
 from .knowledge_schema import KnowledgeLoadIssue
-from .question_intent import classify_question_intent, is_generic_question, select_inference_history
+from .question_intent import (
+    classify_question_intent,
+    is_generic_question,
+    is_gui_question,
+    is_workflow_result_question,
+    select_inference_history,
+)
 from .prompt_policy import select_answer_depth
 from .response_quality import result_summary_issues
 from .token_usage import MAX_USER_PROMPT_TOKENS, TokenUsage, estimate_token_count
@@ -264,10 +270,46 @@ class BotEngine:
         if normalized_mode not in {"cloud ai", "heuristic"}:
             return BotAnswerResult("Unsupported bot mode.", memory_eligible=False)
 
-        requested_variants = _requested_variants(clean_question)
+        local_clock_answer = self._build_local_clock_answer(clean_question)
+        if local_clock_answer:
+            return BotAnswerResult(
+                local_clock_answer,
+                metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.LOCAL_SYSTEM),
+            )
+
+        selected_history = select_inference_history(clean_question, conversation_history)
+        question_intent = classify_question_intent(clean_question, conversation_history=selected_history)
+        if question_intent == "greeting":
+            return BotAnswerResult(self._build_greeting_reply(clean_question, snapshot))
+
+        gui_question = is_gui_question(clean_question)
+        input_csv_question = bool(
+            not gui_question and (snapshot.main_csv_path or snapshot.test_csv_path)
+            and is_selected_csv_question(clean_question)
+        )
         named_model = any(re.search(
             rf"(?<![\w]){re.escape(model)}(?![\w])", clean_question, re.IGNORECASE,
         ) for model in snapshot.result_models)
+        result_question = (
+            input_csv_question or is_workflow_result_question(clean_question, named_model=named_model)
+            or (not gui_question and bool(selected_history)
+                and is_workflow_result_question(selected_history[0]["content"]))
+        )
+        if result_question:
+            question_intent = "results"
+        elif question_intent == "results":
+            question_intent = "tutorial"
+        generic_question = not result_question and is_generic_question(
+            clean_question, question_intent, conversation_history=selected_history,
+        )
+        if (self._is_low_information_question(clean_question) and not selected_history
+                and not result_question and not generic_question):
+            return BotAnswerResult(
+                "Please ask a more specific question about the GUI, workflow, results, or the step you want help with.",
+                memory_eligible=False,
+            )
+
+        requested_variants = _requested_variants(clean_question) if result_question else ()
         asks_all_models = bool(re.search(
             r"\b(?:all models|todos los modelos|cada modelo)\b", clean_question.casefold(),
         ))
@@ -305,7 +347,7 @@ class BotEngine:
                 metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.LOCAL_SYSTEM),
             )
 
-        if (len(snapshot.result_root_reports) == 1 and snapshot.result_archived_report_count
+        if (result_question and len(snapshot.result_root_reports) == 1 and snapshot.result_archived_report_count
                 and re.search(r"\b(?:report|informe|pdf)\b", clean_question, re.IGNORECASE)
                 and re.search(r"\b(?:only|single|one|solo|unico|único|uno)\b", clean_question, re.IGNORECASE)):
             return BotAnswerResult(
@@ -313,7 +355,9 @@ class BotEngine:
                 metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.LOCAL_SYSTEM),
             )
 
-        if snapshot.workflow_results is not None and snapshot.result_models:
+        if not result_question:
+            snapshot = replace(snapshot, workflow_results=None)
+        elif snapshot.workflow_results is not None and snapshot.result_models:
             snapshot = replace(snapshot, workflow_results=scope_workflow_result_snapshot(
                 snapshot.workflow_results,
                 clean_question,
@@ -325,10 +369,6 @@ class BotEngine:
                 ),
             ))
 
-        input_csv_question = bool(
-            (snapshot.main_csv_path or snapshot.test_csv_path)
-            and is_selected_csv_question(clean_question)
-        )
         if input_csv_question:
             input_insights = inspect_selected_csvs(
                 snapshot.main_csv_path,
@@ -358,62 +398,20 @@ class BotEngine:
                     workflow = replace(workflow, insights=(*original, *input_insights))
                 snapshot = replace(snapshot, workflow_results=workflow)
 
-        local_clock_answer = self._build_local_clock_answer(clean_question)
-        if local_clock_answer:
-            return BotAnswerResult(
-                local_clock_answer,
-                metadata=AnswerMetadata(evidence_origin=EvidenceOrigin.LOCAL_SYSTEM),
-            )
-
         self._emit_progress(progress_callback, "checking_documentation")
 
-        selected_history = select_inference_history(clean_question, conversation_history)
-        question_intent = classify_question_intent(
-            clean_question,
-            conversation_history=selected_history,
-        )
-        if input_csv_question and snapshot.workflow_results is not None:
-            question_intent = "results"
-        result_evidence_question = snapshot.workflow_results is not None and (input_csv_question or bool(re.search(
-            r"\b(?:results?|resultados?|summari[sz]e|summary|resumen|resume|resumir|curate|generate|"
-            r"verify|predict|report|aqme|qdescp|csearch|rmse|mae|r2|roc[- _]?auc|auc|accuracy|f1|mcc|"
-            r"metric|metrics|metrica|metricas|"
-            r"prediction|predictions|prediccion|predicciones|warning|warnings|outlier|outliers|failed|fallo|fallaron|"
-            r"shap|pfi|importance|importancia|descriptor|descriptores|errores|residuales|"
-            r"solapamiento|overlap|leakage|externo|externa|externos|externas)\b",
-            clean_question.casefold(),
-        )))
-        if snapshot.workflow_results is not None and not result_evidence_question:
-            result_evidence_question = bool(re.search(
-                r"\b(?:how many|cu[aá]ntos?|which|qu[eé]|what)\b.*\b(?:descriptors?|descriptores?|"
-                r"files?|archivos?|outputs?|salidas?|uncertaint(?:y|ies)|incertidumbre(?:s)?)\b.*"
-                r"\b(?:generated|created|produced|obtain(?:ed)?|generad[oa]s?|cread[oa]s?|obtenid[oa]s?)\b|"
-                r"\b(?:descriptors?|descriptores?|files?|archivos?|outputs?|salidas?)\b.*"
-                r"\b(?:were|was|se)\s+(?:generated|created|produced|generaron|crearon|obtuvieron)\b",
-                clean_question.casefold(),
-            ))
-        result_summary_request = bool(re.search(
+        result_evidence_question = result_question and snapshot.workflow_results is not None
+        result_summary_request = result_question and bool(re.search(
             r"\b(?:summari[sz]e|summary|resumen|resume|resumir)\b",
             clean_question.casefold(),
         ))
-        if snapshot.workflow_results is not None and result_summary_request and re.search(
-            r"\b(?:workflow|report|results?|informe|resultados?|flujo)\b", clean_question, re.IGNORECASE
-        ):
-            question_intent = "results"
-        if question_intent == "greeting":
-            return BotAnswerResult(self._build_greeting_reply(clean_question, snapshot))
-        if (self._is_low_information_question(clean_question) and not selected_history
-                and not (snapshot.workflow_results is not None and result_evidence_question)):
-            return BotAnswerResult(
-                "Please ask a more specific question about the GUI, workflow, results, or the step you want help with.",
-                memory_eligible=False,
-            )
         contextual_tutorial_id = self._contextual_workflow_tutorial_id(clean_question, snapshot)
-        tutorial_summary = None if input_csv_question else self._build_suggested_tutorial_summary(
+        tutorial_summary = None if result_question else self._build_suggested_tutorial_summary(
             clean_question, tutorial_id=tutorial_id or contextual_tutorial_id,
         )
         diagnosis = diagnose_snapshot(snapshot, clean_question)
-        if normalized_mode == "heuristic" and self._should_force_popup_answer(clean_question, snapshot):
+        if (normalized_mode == "heuristic" and not result_question
+                and self._should_force_popup_answer(clean_question, snapshot)):
             return BotAnswerResult(
                 format_heuristic_answer(
                     clean_question,
@@ -430,13 +428,6 @@ class BotEngine:
         ):
             question_intent = "diagnostic"
         answer_depth = select_answer_depth(clean_question, question_intent)
-        generic_question = is_generic_question(clean_question, question_intent)
-        if snapshot.workflow_results is not None and result_summary_request and question_intent == "results":
-            generic_question = False
-        if generic_question:
-            result_evidence_question = False
-        elif snapshot.workflow_results is not None and result_evidence_question:
-            question_intent = "results"
         # Resolve retrieval references using user evidence, never generated claims.
         retrieval_question = self._retrieval_question(clean_question, selected_history)
         candidates = self._retrieve_candidates(
@@ -448,7 +439,7 @@ class BotEngine:
         if normalized_mode == "heuristic":
             if tutorial_summary is not None:
                 return BotAnswerResult(self._render_tutorial_summary(tutorial_summary))
-            if snapshot.workflow_results is not None and not generic_question and (question_intent == "results" or result_evidence_question):
+            if result_evidence_question:
                 result_answer = render_workflow_answer(
                     snapshot.workflow_results,
                     clean_question,
@@ -501,9 +492,7 @@ class BotEngine:
                 if assessment.decision is EvidenceDecision.LOCAL_ENOUGH
                 else EvidenceOrigin.GENERAL_KNOWLEDGE
             )
-        if (snapshot.workflow_results is not None and question_intent == "results"
-                and not generic_question
-                and web_search_mode is not WebSearchMode.REQUIRED):
+        if (result_evidence_question or gui_question) and web_search_mode is not WebSearchMode.REQUIRED:
             web_search_mode = WebSearchMode.OFF
             intended_origin = EvidenceOrigin.LOCAL_SYSTEM
         limitation = ""

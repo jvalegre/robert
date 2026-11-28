@@ -588,5 +588,5 @@ workflows:
             - build-and-test-core
             - build-and-test-gui
             - coverage-gate
-          filters: pipeline.git.branch == "master"
+          filters: pipeline.git.branch == "master" and pipeline.event.name == "push"
           serial-group: << pipeline.project.slug >>/pypi-publish

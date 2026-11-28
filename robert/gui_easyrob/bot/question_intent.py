@@ -8,9 +8,11 @@ from typing import Mapping, Sequence
 
 __all__ = [
     "classify_question_intent",
+    "is_gui_question",
     "is_explicit_web_request",
     "is_generic_question",
     "is_follow_up_question",
+    "is_workflow_result_question",
     "requires_fresh_information",
     "select_inference_history",
     "last_completed_exchange",
@@ -112,7 +114,7 @@ _MODULE_TERMS = {
     "qcorr",
     "qprep",
 }
-_NAMED_SUBJECTS = _MODULE_TERMS | _METRIC_TERMS | {"aqme", "robert"}
+_NAMED_SUBJECTS = _MODULE_TERMS | _METRIC_TERMS | {"aqme", "robert", "pfi", "shap"}
 _TUTORIAL_TERMS = {
     "how",
     "use",
@@ -176,8 +178,67 @@ _LIVE_CONTEXT_HINT_RE = re.compile(
     re.IGNORECASE,
 )
 _GENERIC_TOPIC_HINT_RE = re.compile(
-    r"\b(aqme|descriptor|descriptors|descriptores?|feature|features|gui|interfaz|machine learning|model|models|modelos?|molecule|molecules|prediction|predictions|predicciones?|robert|workflow|concept|meaning|difference|rmse|mae|r2|accuracy|metric|metrics|metrica|metricas)\b",
-    re.IGNORECASE,
+    r"\b(?:aqme|robert|descriptors?|descriptores?|features?|machine learning|models?|modelos?|"
+    r"molecules?|predictions?|predicciones?|concept|meaning|difference|rmse|mae|r2|accuracy|"
+    r"metrics?|metricas?|pfi|no_pfi|shap|overfitting|cross[- ]validation|regression|classification)\b",
+)
+_EXPLANATION_RE = re.compile(
+    r"^(?:(?:and|y)\s+)?(?:what (?:is|are|does|do)\b|what['’]s\b|what .+ means?\b|"
+    r"how (?:does|do|to)\b|how many .+ (?:does|do)\b|why (?:does|do|is|are)\b|"
+    r"(?:can you )?(?:explain|define)\b|que (?:es|son|significa|hace|hacen|muestra)\b|"
+    r"como (?:funciona|funcionan)\b|"
+    r"(?:puedes )?explic(?:a|ar|ame)\b|define\b|difference between\b|(?:que )?diferencia (?:hay )?entre\b)",
+)
+_GUI_CONTROL_RE = re.compile(
+    r"\b(?:buttons?|tabs?|pop[- ]?ups?|dialogs?|checkbox(?:es)?|drop[- ]?downs?|toggles?|"
+    r"message box|boton(?:es)?|pestanas?|ventanas?|dialogos?|casillas?|desplegables?)\b|"
+    r"\b(?:views?|vistas?)\s+(?:is\s+|esta\s+)?(?:enabled|disabled|available|unavailable|"
+    r"habilitada|deshabilitada|disponible)\b",
+)
+_GUI_MESSAGE_RE = re.compile(
+    r"\b(?:this|that|the|este|esta|ese|esa)\s+(?:warning|error|alert|message|advertencia|aviso|mensaje)\b|"
+    r"\b(?:warning|error|alert|message|advertencia|aviso|mensaje)\s+(?:on screen|displayed|en pantalla)\b",
+)
+_GUI_PROCEDURE_RE = re.compile(
+    r"^(?:(?:how (?:do|can|should) i|how to|where (?:do|can) i)\s+"
+    r"(?:run|start|load|open|find|view|configure|set|activate|enable|export|save|train)\b|"
+    r"(?:como|donde)\s+(?:ejecut\w+|inici\w+|carg\w+|abr\w+|encuentr\w+|ver|"
+    r"configur\w+|activ\w+|export\w+|guard\w+|entren\w+)\b)",
+)
+_SUMMARY_COMMAND_RE = re.compile(
+    r"^(?:(?:please|por favor)[, ]+)?(?:summari[sz]e|resumen|resume|resumir)"
+    r"(?:[ .?!]*$|\s+(?:(?:my|our|the|this|el|los|mi|mis|este)\s+)?"
+    r"(?:(?:robert|aqme)\s+)?(?:results?|resultados?|reports?|informes?|run|"
+    r"ejecucion|workflow|flujo|all models|todos los modelos)\b)",
+)
+_RESULT_SUBJECT_RE = re.compile(
+    r"\b(?:results?|resultados?|reports?|informes?|metrics?|metricas?|rmse|mae|r2|r\^2|"
+    r"roc[- _]?auc|auc|accuracy|f1|mcc|scores?|puntuaciones?|test|validation|validacion|"
+    r"predictions?|predicciones?|outliers?|warnings?|advertencias?|avisos?|errores?|"
+    r"shap|pfi|no_pfi|features?|importance|importancia|descriptors?|descriptores?|"
+    r"uncertaint(?:y|ies)|incertidumbres?|overlap|solapamiento|leakage|"
+    r"outputs?|salidas?|files?|archivos?|curate|generate|verify|predict|aqme|qdescp|csearch|robert|"
+    r"workflow|flujo|run|ejecucion|models?|modelos?|solvent|disolvente|solvente)\b",
+)
+_RUN_REFERENCE_RE = re.compile(
+    r"\b(?:my|our|this|the last|mi|mis|nuestros?|esta|este|ultima|ultimo)\s+"
+    r"(?:robert\s+|aqme\s+)?(?:results?|resultados?|run|ejecucion|workflow|flujo|reports?|informes?|"
+    r"predictions?|predicciones?|metrics?|metricas?|rmse|mae|r2|score|puntuacion|pfi|shap|csvs?)\b|"
+    r"\b(?:in|from|of|en|del)\s+(?:the|el|los)\s+(?:results?|resultados?|run|reports?|informes?)\b",
+)
+_RUN_OUTCOME_RE = re.compile(
+    r"\b(?:did|was|were|passed|failed|finished|completed|happened|generated|produced|created|"
+    r"obtained|recorded|fue|fueron|dio|dieron|paso|aprobo|fallo|termino|ocurrio|se ejecuto|"
+    r"generad[oa]s?|genero|generaron|produjo|cread[oa]s?|obtuve|obtuvimos)\b",
+)
+_RESULT_REQUEST_RE = re.compile(
+    r"\b(?:show|compare|interpret|analy[sz]e|muestra|muestran|compara|interpreta|analiza|"
+    r"faltan|missing|best|mejores?)\b",
+)
+_FOCUSED_RESULT_RE = re.compile(
+    r"\b(?:shap|pfi|no_pfi|rmse|mae|r2)\s+(?:for|para)\s+[a-z0-9_]{2,4}\s*[?.!]*$|"
+    r"\b(?:test|train|validation|validacion)\s+(?:rmse|mae|r2|accuracy|f1|mcc|score)\b|"
+    r"\b(?:the|los|el)\s+(?:results?|resultados?|metrics?|metricas?|best model|mejor modelo)\s*[?.!]*$",
 )
 _OPERATIONAL_HINT_RE = re.compile(
     r"\b(where|file|folder|path|project|csv|smiles|load|open|select|enable|disable|run|click|button|tab|start|configure|set|archivo|carpeta|ruta|proyecto|cargar|abrir|seleccionar|activar|desactivar|ejecutar|pulsar|boton|pestana|configurar)\b",
@@ -249,7 +310,7 @@ def _looks_like_follow_up(question: str, tokens: set[str]) -> bool:
         r"que (?:hace|es|son)|como funciona) ([a-z0-9_]+)\b",
         question,
     )
-    if named_subject and named_subject.group(1) in _NAMED_SUBJECTS:
+    if named_subject and named_subject.group(1) in _NAMED_SUBJECTS | {"a", "an", "un", "una"}:
         return False
     if any(phrase in question for phrase in _FOLLOW_UP_PHRASES):
         return True
@@ -296,32 +357,66 @@ def requires_fresh_information(question: str) -> bool:
     return type(question) is str and bool(_FRESH_INFORMATION_RE.search(question))
 
 
-def is_generic_question(question: str, intent: str | None = None) -> bool:
+def is_gui_question(question: str) -> bool:
+    """Identify requests about interactive controls or an on-screen message."""
+    text = _normalize_text(question).lstrip("¿¡")
+    return bool(_GUI_CONTROL_RE.search(text) or _GUI_PROCEDURE_RE.search(text) or (
+        _GUI_MESSAGE_RE.search(text) and not _RUN_REFERENCE_RE.search(text)
+    ))
+
+
+def is_workflow_result_question(
+    question: str,
+    intent: str | None = None,
+    *,
+    named_model: bool = False,
+) -> bool:
+    """Identify questions that depend on a particular workflow execution."""
+    text = _normalize_text(question).lstrip("¿¡")
+    if _SUMMARY_COMMAND_RE.match(text):
+        return True
+    if not text or is_gui_question(text):
+        return False
+    if _RUN_REFERENCE_RE.search(text) or re.search(r"\b(?:what happened|que ocurrio|que paso)\b", text):
+        return True
+    result_subject = bool(_RESULT_SUBJECT_RE.search(text))
+    if _FOCUSED_RESULT_RE.search(text) or (result_subject and named_model):
+        return True
+    if _EXPLANATION_RE.match(text):
+        return False
+    if _RUN_OUTCOME_RE.search(text):
+        return result_subject
+    return (intent or classify_question_intent(text)) == "results" or (
+        result_subject and bool(_RESULT_REQUEST_RE.search(text))
+    )
+
+
+def is_generic_question(
+    question: str,
+    intent: str | None = None,
+    *,
+    conversation_history: Sequence[Mapping[str, str]] | None = None,
+) -> bool:
     """Return whether a self-contained explanation should omit live GUI context."""
     if type(question) is not str:
         return False
-    clean_question = _normalize_text(question)
+    clean_question = _normalize_text(question).lstrip("¿¡")
     resolved_intent = (
         str(intent or "").strip().lower()
         or classify_question_intent(clean_question)
     )
-    if resolved_intent not in {"tutorial", "module-explanation", "results"}:
+    if is_gui_question(clean_question) or is_workflow_result_question(clean_question, resolved_intent):
         return False
-    if resolved_intent == "results" and re.search(
-        r"\b(?:was|were|did|fue|fueron|dio|dieron)\b", clean_question,
-    ):
+    if any(marker in clean_question for marker in ("<", ">", "\x00")):
         return False
     if is_follow_up_question(clean_question):
-        return False
-    if re.search(r"\b(?:generated|produced|obtained|generad[oa]s?|generaron|obtuve|obtuvimos)\b", clean_question):
-        return False
+        previous = _last_user_message(conversation_history)
+        return bool(previous and is_generic_question(previous))
     if _LIVE_CONTEXT_HINT_RE.search(clean_question):
         return False
     if _OPERATIONAL_HINT_RE.search(clean_question):
         return False
-    return bool(_GENERIC_TOPIC_HINT_RE.search(clean_question)) and not any(
-        marker in clean_question for marker in ("<", ">", "\x00")
-    )
+    return bool(_EXPLANATION_RE.match(clean_question) or _GENERIC_TOPIC_HINT_RE.search(clean_question))
 
 
 def _canonical_history_record(record: object) -> dict[str, str] | None:
@@ -397,6 +492,10 @@ def classify_question_intent(
         and tokens <= _GREETING_PHRASE_TERMS
     ):
         return "greeting"
+    if is_gui_question(clean_question):
+        if _GUI_MESSAGE_RE.search(clean_question) or any(phrase in clean_question for phrase in _DIAGNOSTIC_PHRASES):
+            return "diagnostic"
+        return "tutorial"
     explanation_follow_up = bool(re.search(
         r"\b(?:important|matter|importa)\b", clean_question,
     )) and not bool(re.search(

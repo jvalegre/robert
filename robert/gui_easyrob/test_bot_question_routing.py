@@ -1,5 +1,6 @@
 """Regression tests for routing user-specific model questions."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -8,7 +9,7 @@ from gui_easyrob.bot.answer_metadata import EvidenceOrigin, WebSearchMode
 from gui_easyrob.bot.bot_context import GuiSnapshot
 from gui_easyrob.bot.bot_engine import BotEngine
 from gui_easyrob.bot.bot_rag import KnowledgeBase
-from gui_easyrob.bot.llm_providers import ProviderAnswer, build_llm_prompts
+from gui_easyrob.bot.llm_providers import ProviderAnswer, build_llm_prompts, build_provider_registry
 from gui_easyrob.bot.question_intent import (
     classify_question_intent,
     is_follow_up_question,
@@ -196,6 +197,96 @@ def _result_snapshot():
         "Results", "Full Workflow", "example.csv", "", "yield", "regression",
         False, True, False, "", [], workflow_results=workflow,
     )
+
+
+@pytest.mark.parametrize(
+    ("question", "context"),
+    (
+        ("what is PFI", "general"),
+        ("¿Qué es PFI?", "general"),
+        ("What's the difference between PFI and No PFI?", "general"),
+        ("What does AQME do?", "general"),
+        ("What does VERIFY do in ROBERT?", "general"),
+        ("How many descriptors does AQME generate?", "general"),
+        ("How do I interpret SHAP?", "general"),
+        ("Can you explain overfitting?", "general"),
+        ("What does the Run AQME button do?", "gui"),
+        ("Why is the Predictions tab disabled?", "gui"),
+        ("¿Qué significa esta advertencia?", "gui"),
+        ("How do I run this workflow?", "gui"),
+        ("What was the test RMSE in my run?", "results"),
+        ("What is the test RMSE?", "results"),
+        ("Did VERIFY pass?", "results"),
+        ("How many descriptors did AQME generate?", "results"),
+        ("What warnings are in my report?", "results"),
+        ("Summarize my results", "results"),
+    ),
+)
+def test_groq_routes_questions_with_a_report_loaded(question, context):
+    payloads = []
+
+    def transport(method, url, **kwargs):
+        payloads.append(kwargs["json"])
+        return SimpleNamespace(status_code=200, json=lambda: {
+            "choices": [{"message": {"content": "Here is the explanation."}}],
+        })
+
+    snapshot = replace(
+        _result_snapshot(),
+        result_model="Best models",
+        result_models=("RF",),
+        result_selected_variants=(("No_PFI", "RF"),),
+        result_root_reports=("ROBERT_report_No_PFI.pdf",),
+        disabled_tabs=("Predictions",),
+        popup_active=True,
+        popup_text="Select a target column before running.",
+    )
+    provider = build_provider_registry(transport)["Groq"]
+    engine = BotEngine(knowledge_base=KnowledgeBase([]), provider_registry={"Groq": provider})
+    answer = engine.answer_with_metadata(
+        question, snapshot, "Cloud AI", "Groq", "test-key", web_search_enabled=False,
+    )
+
+    assert payloads, answer.text
+    system_prompt, user_prompt = (message["content"] for message in payloads[0]["messages"])
+    assert ("<WORKFLOW_RESULTS_DATA>" in user_prompt) == (context == "results")
+    if context == "general":
+        assert "<GUI_STATE_DATA>" not in user_prompt
+        assert "only from supplied workflow evidence" not in system_prompt
+    if context == "gui":
+        assert "Disabled tabs: Predictions" in user_prompt
+        if "advertencia" in question:
+            assert "Select a target column before running." in user_prompt
+    if "test RMSE" in question:
+        assert "RMSE=4.2" in user_prompt
+
+
+def test_pfi_definition_in_heuristic_mode_with_only_no_pfi_selected():
+    snapshot = replace(
+        _result_snapshot(), result_models=("RF",),
+        result_selected_variants=(("No_PFI", "RF"),),
+    )
+
+    answer = BotEngine().answer("what is PFI", snapshot, "Heuristic", "", "")
+
+    assert "permutation feature importance" in answer.lower()
+    assert "current Results selection" not in answer
+
+
+def test_general_follow_up_keeps_the_conversation_without_loading_results():
+    question = "Why does that matter?"
+    history = [
+        {"role": "user", "content": "What is PFI?"},
+        {"role": "assistant", "content": "PFI measures the effect of shuffling a feature."},
+    ]
+
+    _, user_prompt = build_llm_prompts(
+        question, _result_snapshot(), (), conversation_history=history, question_intent="parameter",
+    )
+
+    assert "history-user: What is PFI?" in user_prompt
+    assert "<GUI_STATE_DATA>" not in user_prompt
+    assert "<WORKFLOW_RESULTS_DATA>" not in user_prompt
 
 
 def test_local_model_result_question_does_not_trigger_optional_web_search():
